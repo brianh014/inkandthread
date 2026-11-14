@@ -41,7 +41,7 @@ _Avoid_: Title image, world image
 The Narrator's first Message, which brings the player up to speed before they act. It is a first Turn whose stored player Message the story never shows.
 
 **Continue**:
-A Turn with no player input, in which the Narrator moves the story on by itself, with no Check. The story shows a short rule where its player Message would be.
+A Turn with no player input, in which the people and world around the PC carry the moment on by one beat, without moving time on or ending what is under way, with no Check. The story shows a short rule where its player Message would be.
 
 **Chapter**:
 A titled run of consecutive Messages, read as one piece in the Journal. One Chapter is always open, the one play is adding to. Only the player closes it, sometimes on the Narrator's suggestion, and closing starts the next. The Opening begins Chapter 1, and a Chapter never splits a Turn. Chapters don't change what the Narrator is sent.

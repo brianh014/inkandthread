@@ -985,8 +985,8 @@ test("a Continue reaches the Narrator as an instruction, not as the PC's words, 
   expect(prompts.at(-1)!.at(-1)!.content).toBe(CONTINUE_INPUT);
   expect(CONTINUE_INPUT).toContain("without moving time on or ending what is under way");
   const { messages } = (await app.get(`/saves/${id}/messages`).then((r) => r.json())) as { messages: { role: string; text: string }[] };
-  // Kept empty, so the words sent can change without old Continues going unrecognised.
-  expect(messages.at(-2)).toMatchObject({ role: "player", text: "" });
+  // Kept as a marker, so the words sent can change without old Continues going unrecognised.
+  expect(messages.at(-2)).toMatchObject({ role: "player", text: CONTINUE });
 });
 
 test("a prompt holds in order the Messages that no Scene Memory covers yet", async () => {

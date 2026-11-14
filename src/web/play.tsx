@@ -30,6 +30,7 @@ import {
   BeatLine,
   type ChatStyle,
   chapterOpenings,
+  isContinue,
   messageBeats,
   openingBeat,
   readable,
@@ -1060,7 +1061,7 @@ function RevertDialog(props: {
       {replay === undefined ? (
         <>
           <h2 id="revert-title">Revert to this Message?</h2>
-          <blockquote>{message.text}</blockquote>
+          <blockquote>{isContinue(message) ? "Continue" : message.text}</blockquote>
         </>
       ) : (
         <>

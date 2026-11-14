@@ -329,11 +329,11 @@ const toVersion24 = (db: Database) => {
   if (!hasColumn(db, "messages", "choices")) db.run("ALTER TABLE messages ADD COLUMN choices TEXT");
 };
 
-/** A Continue was kept as the words it sent, so rewording them left old ones unrecognised. Now it is an empty player Message. */
+/** A Continue was kept as the words it sent, so rewording them left old ones unrecognised. Now it is a marker. */
 const toVersion25 = (db: Database) =>
-  db.run("UPDATE messages SET text = '' WHERE role = 'player' AND text IN (?, ?)", [
+  db.run("UPDATE messages SET text = '(Continue)' WHERE role = 'player' AND text IN (?, ?, '')", [
     "The player takes no action this Turn. Continue the story: the PC does nothing new, so move the scene forward on its own, then stop with the PC free to act.",
-    // Saved for a few hours before Continues were kept empty.
+    // Saved for a few hours before Continues were a marker, as was an empty Message, which no player Message is otherwise.
     "The player takes no action this Turn. Continue the story from this moment: the PC does nothing new, so let the people and world around them carry on for one beat, without moving time on or ending what is under way, then stop with the PC free to act.",
   ]);
 

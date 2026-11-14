@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CONTINUE } from "../src/prompt-assembler";
+import { CONTINUE, memoryPrompt } from "../src/prompt-assembler";
 import { type Beat, BeatLine, chapterOpenings, messageBeats, openingBeat, roman, stageBeats } from "../src/web/chat-style";
 
 test("each chapter's heading sits above its first Message, and its large letter on its first narration", () => {
@@ -162,4 +162,10 @@ test("a response being replaced is left out, along with no second copy of the pl
   const beats = stageBeats(story.slice(0, -1), { input: "Angrier.", narration: "[Ashley]: “No!”", replaces: story[1] });
   expect(beats.map(({ beat }) => beat.text)).toEqual(["I wave.", "“No!”"]);
   expect(openingBeat(beats)).toBe(1);
+});
+
+test("a call outside a Turn reads a Continue in plain words, not its marker", () => {
+  const [, user] = memoryPrompt([{ id: 1, role: "player", text: CONTINUE } as Parameters<typeof memoryPrompt>[0][number]]);
+  expect(user!.content).toContain("The player let the story carry on.");
+  expect(user!.content).not.toContain(CONTINUE);
 });

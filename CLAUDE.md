@@ -31,6 +31,10 @@ Follow the conventions in `CONTRIBUTING.md`: Glossary terms, `shortcut:` comment
 - `Play` (`src/web/play.tsx`) keeps the Turn and the state its parts share. The parts are in their own files: `story-pictures.tsx` (the `useStoryPictures` hook and the pictures inline in the story), `story-recap.tsx` (the left page), `message-controls.tsx` (the tools under a Message) and `play-asks.tsx` (the forms over the compose box). A new piece of the story screen goes in the file for its job.
 - `NewStory` (`src/web/wizard.tsx`) keeps the form's state, the Narrator calls and the Art and Your World steps. The parts are in their own files: `wizard-draft.ts` (the draft, its themes and keeping it in the tab), `wizard-form.tsx` (the first step's boxes), `wizard-pictures.tsx` (a picture with its Draw, Redo, Nudge and Upload) and `wizard-frame.tsx` (the heading, the Working screen and the dialogs). A new piece of the New Story screen goes in the file for its job.
 
+### Model prompts
+
+The prompts in `src/prompt-assembler.ts` and `src/world-creation.ts` go into every call, so they must stay lean. When play shows a problem, find the wider principle it breaks, such as people staying true to what they said rather than one character leaving early, and fix that once, in general words. Prefer widening or rewording a rule that's already there over adding one. Never add a rule for one story's case, or examples drawn from the story being debugged, as a pile of specific tweaks bloats every prompt and boxes in the model's invention. If a problem can be fixed in code instead, such as a check on the reply, prefer that.
+
 ### Reader's Guide
 
 `src/web/guide.tsx` is the player's help, on the Menu. When a change adds, removes or renames something a player sees (a tool, a setting, a screen), update its section in the Guide too, with the tool's icon beside its name as the other tools have. It says "AI", not "text model" or "image model".

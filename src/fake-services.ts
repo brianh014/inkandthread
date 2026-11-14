@@ -190,6 +190,9 @@ export const fakeTextProvider: TextProvider = async (prompt, { schema, onText, s
   const title = titleIn(prompt);
   if (sampled && title && typeof sampled.text === "string")
     sampled.text = `A book cover with large bold title text reading "${title}" across the top. Rain on a harbour at dusk.`;
+  // A picture's review hands its prompt back as it was, as a sampled one would replace the scene with filler words.
+  const reviewed = prompt.at(-1)?.content.match(/^\{"prompt":(".*")\}$/s)?.[1];
+  if (sampled && reviewed && typeof sampled.prompt === "string") sampled.prompt = JSON.parse(reviewed);
   if (sampled) meetImportant(prompt, Array.isArray(sampled.people) ? sampled.people : []);
   if (sampled && Array.isArray(sampled.people) && Array.isArray(sampled.state_operations)) {
     sampled.state_operations = storyChanges(sampled.people.map(({ name }: { name: string }) => name));

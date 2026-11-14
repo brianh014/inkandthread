@@ -109,6 +109,20 @@ test("a picture without set_scene is retried, so it never takes the last place's
   expect(images.payloads[1]!.reference_images).toEqual([]);
 });
 
+test("a picture still without set_scene on the last try keeps the Turn but isn't drawn, as the last scene's people may have gone", async () => {
+  const unplaced = turn({ scene_changed: true, visual_description: "A ridge at dusk" });
+  play([newScene(), unplaced, unplaced, unplaced], png(1), png(2));
+  await enableImages();
+  const id = await app.createSave();
+  await playTurn(id);
+  await settled(id);
+
+  expect((await playTurn(id)).status).toBe(201);
+
+  expect((await settled(id)).images.map(({ caption }) => caption)).toEqual(["The drowned street"]);
+  expect(images.payloads).toHaveLength(1);
+});
+
 test("the server sees a change of location or visible cast without scene_changed", async () => {
   const hesper = { op: "add_npc", name: "Hesper", appearance: "Tall, in oilskins" };
   play(

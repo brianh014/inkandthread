@@ -13,7 +13,7 @@ import { OnlineImageProvider } from "./settings-store";
 import { turnRoutes } from "./turn-routes";
 import { relaunch, updater } from "./updater";
 import spa from "./web/index.html";
-import { writePicturePrompt } from "./world-creation";
+import { reviewScenePrompt, writePicturePrompt } from "./world-creation";
 import { worldRoutes } from "./world-routes";
 
 // What the page may say. Strict and numbers only, as the app listens on the network, so nothing the page holds can reach the log.
@@ -82,6 +82,7 @@ export function startServer(options: ServerOptions) {
     { ...onlineAdapters(options.imageAdapter), local },
     settings,
     options.writePicture ?? ((ask, style, _template, signal) => writePicturePrompt(options, ask, style, signal)),
+    options.reviewPicture ?? ((description, style, signal) => reviewScenePrompt(options, description, style, signal)),
   );
 
   // Requests in flight, a Turn's save among them, finish first.

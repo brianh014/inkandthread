@@ -225,12 +225,15 @@ const reference = (role: Role, image: { bytes: Uint8Array; mediaType: string } |
  */
 /** Writes a Cover's or portrait's Image Prompt for the image model's family. `template` is a plain one, which tests draw from in place of a text model. */
 export type PictureWriter = (ask: PictureAsk, style: PromptStyle, template: string, signal: AbortSignal) => Promise<string>;
+/** Checks a moment's Image Prompt makes sense before it is drawn, and gives it back, changed or not. */
+export type PictureReviewer = (description: string, style: PromptStyle, signal: AbortSignal) => Promise<string>;
 
 export function imagePipeline(
   saves: SaveStore,
   adapters: Record<ReturnType<SettingsStore["read"]>["imageProvider"], ImageAdapter>,
   settings: SettingsStore,
   writePicture: PictureWriter = async (_ask, _style, template) => template,
+  reviewPicture: PictureReviewer = async (description) => description,
 ) {
   /** Waits to be called, so a held image can start drawing as soon as its prompt is written. */
   const writer = (ask: PictureAsk) => (signal: AbortSignal) => {
@@ -301,7 +304,8 @@ export function imagePipeline(
     return { prompt, negative_prompt: AVOID, aspect_ratio: "16:9", reference_images, style_preset: "" };
   };
 
-  async function drawMoment(id: string, { description, npcs }: Moment, signal: AbortSignal) {
+  async function drawMoment(id: string, { description: written, npcs }: Moment, signal: AbortSignal) {
+    const description = await reviewPicture(written, promptStyle(settings.read()), signal);
     const pcName = saves.read(id).pc.name;
     // Twice, as who is pictured decides which portraits go in, and those decide how each mark is written.
     const { pictured } = expandMarks(description, npcs, pcName);

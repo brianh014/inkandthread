@@ -282,7 +282,7 @@ test("Scene Memories end the first system message, as text only, and the summary
     promptStyle: null,
   });
 
-  expect(prompt[0]!.content.endsWith('Scene Memories of the story so far, oldest first: ["Older.","Newer."]')).toBe(true);
+  expect(prompt[0]!.content.endsWith('each opening with the date and time its scene began where the story had one: ["Older.","Newer."]')).toBe(true);
   expect(prompt[0]!.content).not.toContain("firstMessage");
   expect(prompt.at(-2)!.content).toContain("Summary of the story so far: So far.");
 });
@@ -337,7 +337,7 @@ test("the Journal lists memories and no hidden text, and a player's edit is what
   expect(edited.status).toBe(200);
   await turn(id);
 
-  expect(lastPrompt()).toContain('oldest first: ["Corrected."]');
+  expect(lastPrompt()).toContain('where the story had one: ["Corrected."]');
   expect(lastPrompt()).not.toContain(MEMORY);
   expect(memories(id)[0]).toEqual({ ...written!, text: "Corrected." });
 });

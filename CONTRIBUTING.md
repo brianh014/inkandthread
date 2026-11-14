@@ -37,5 +37,6 @@ Unit tests use the fakes in `test/` and never a real key. `SLOW_TESTS=1 bun test
 1. Keep it to one purpose, and say why in the description.
 2. Run `bun run check` and `bun run e2e`.
 3. A visible change needs a look in the browser with `--fake`, and a screenshot in the pull request helps.
+4. Pull requests are squash-merged, so the pull request's title and description become its one commit on `main`. Write them as that commit's summary of the whole change, and keep them accurate if the branch changes before it merges.
 
 By contributing, you agree that your contribution is licensed under the project's [license](LICENSE), the GNU AGPL 3.0.

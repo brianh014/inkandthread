@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { log } from "./logger";
 import type { SettingsStore } from "./settings-store";
-import { ContentRefused, type TextProvider, TextProviderFailed } from "./turn-engine";
+import { ContentRefused, ReplyCutOff, type TextProvider, TextProviderFailed } from "./turn-engine";
 
 // The player sees these with a retry hint after them, so none ends in a full stop.
 const UNREACHABLE = "The Text Provider can't be reached, so make sure it's running and that its address in Settings is right";
@@ -224,8 +224,8 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
           nativeFinish: native_finish_reason ?? seen.nativeFinish,
         });
         if (delta?.refusal || finish_reason === "content_filter") throw new ContentRefused();
-        // Cut off, so not worth the automatic retries an unusable reply gets: each would likely run as long.
-        if (finish_reason === "length") throw new TextProviderFailed(TOO_LONG);
+        // A Turn retries this, as there it's mostly a model stuck in a loop. Elsewhere it fails as too long.
+        if (finish_reason === "length") throw new ReplyCutOff(TOO_LONG);
         const text = delta?.content ?? message?.content;
         if (text) {
           reply += text;
@@ -234,7 +234,8 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
       }
       return reply;
     } catch (cause) {
-      seen.failed = signal.aborted ? "the client left" : (cause as Error).name;
+      // A caller that stops a reply for its own reason gives it as a string, which is the app's own words.
+      seen.failed = signal.aborted ? (typeof signal.reason === "string" ? signal.reason : "the client left") : (cause as Error).name;
       const known = cause instanceof ContentRefused || cause instanceof TextProviderFailed;
       if (known || signal.aborted || cause instanceof SyntaxError) throw cause;
       throw new TextProviderFailed(overrun.signal.aborted ? TOO_LONG : silence.signal.aborted ? STOPPED : UNREACHABLE, { cause });

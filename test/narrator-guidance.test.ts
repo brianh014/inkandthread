@@ -28,8 +28,8 @@ const summaryOf = async (id: string) => ((await app.get(`/saves/${id}/journal`).
 const playTurn = (id: string) => app.post(`/saves/${id}/turns`, { input: "I wait." });
 const lastSystem = () => prompts.at(-1)!.findLast(({ role }) => role === "system")!.content as string;
 
-test("each finished Turn's summary becomes the story's, over any set_summary", async () => {
-  play(summed("Ash reached the docks."), summed("Ash left the docks.", { op: "set_summary", summary: "An older idea." }));
+test("each finished Turn's summary becomes the story's", async () => {
+  play(summed("Ash reached the docks."), summed("Ash left the docks."));
   const id = await app.createSave();
 
   await playTurn(id);
@@ -71,13 +71,14 @@ for (const [label, missing] of [
   });
 }
 
-test("a Narrator that sends no summary still gets to set one by operation", async () => {
-  play(narration("Rain.", { op: "set_summary", summary: "It rained." }));
+test("the summary has one way in, its field, as a second one in state_operations was what a looping model repeated", async () => {
+  play(narration("Rain."));
   const id = await app.createSave();
 
   await playTurn(id);
 
-  expect(await summaryOf(id)).toBe("It rained.");
+  expect(JSON.stringify(prompts)).toContain('\\"summary\\"');
+  expect(JSON.stringify(prompts)).not.toContain("set_summary");
 });
 
 test("the last word before the player's action keeps the PC's choices theirs and their thoughts private", async () => {
@@ -186,4 +187,14 @@ test("no one echoes the PC, re-argues a case the PC turned down, or ends most re
       .map(({ content }) => content)
       .join("\n"),
   ).toContain("with its colours and materials, and name each garment by its period form");
+});
+
+test("a reply that still sends the retired set_summary is kept, with its summary field", async () => {
+  play(JSON.stringify({ check: null, narration: "Rain.", state_operations: [{ op: "set_summary", summary: "An older idea." }], summary: "It rained." }));
+  const id = await app.createSave();
+
+  expect((await playTurn(id)).status).toBe(201);
+
+  expect(await summaryOf(id)).toBe("It rained.");
+  expect(prompts).toHaveLength(1);
 });

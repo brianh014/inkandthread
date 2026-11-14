@@ -3,8 +3,8 @@ import { join } from "node:path";
 import { settingsStore } from "../src/settings-store";
 import { TextProviderFailed } from "../src/turn-engine";
 import { coverPrompt } from "../src/image-pipeline";
-import { type PictureAsk, writePicturePrompt } from "../src/world-creation";
-import { png, scriptedImages, scriptedTextProvider, startApp, tempFolder } from "./support";
+import { type PictureAsk, reviewScenePrompt, writePicturePrompt } from "../src/world-creation";
+import { logOf, png, scriptedImages, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
 let app: ReturnType<typeof startApp> | undefined;
@@ -31,6 +31,58 @@ const write = (ask: PictureAsk, style: "prose" | "keywords", ...replies: (string
 };
 
 const text = (words: string) => JSON.stringify({ text: words });
+
+const SCENE = "[Ash: a short person in grey] kneels by the fire, a cup in each hand. {The people from the images are the same people.}";
+const review = (style: "prose" | "keywords", ...replies: (string | Error)[]) => {
+  const script = scriptedTextProvider(...replies);
+  const settings = settingsStore(join(folder.path, "settings.json"));
+  const reviewed = reviewScenePrompt({ textProvider: script.textProvider, settings }, SCENE, style, new AbortController().signal);
+  return { reviewed, prompts: script.prompts };
+};
+const checked = (prompt: string) => JSON.stringify({ prompt });
+
+test("a review sends only the prompt, checks the picture holds together, and its fix is drawn", async () => {
+  const fixed = "[Ash: a short person in grey] kneels by the fire, a cup in one hand. {The people from the images are the same people.}";
+  const { reviewed, prompts } = review("prose", checked(fixed));
+
+  expect(await reviewed).toBe(fixed);
+  expect(prompts).toHaveLength(1);
+  expect(prompts[0]![0]!.content).toContain("each hand doing one thing");
+  expect(prompts[0]![0]!.content).toContain("Copy every part in square brackets");
+  expect(prompts[0]![1]!.content).toBe(JSON.stringify({ prompt: SCENE }));
+});
+
+test("a review that changes a mark or the portrait sentence, or runs long, is retried, and then the prompt is drawn as written", async () => {
+  const lostMark = checked("[Ash: a tall person in red] kneels by the fire. {The people from the images are the same people.}");
+  const lostLikeness = checked("[Ash: a short person in grey] kneels by the fire.");
+  const long = checked(`[Ash: a short person in grey] kneels. {The people from the images are the same people.} ${"word ".repeat(150)}`);
+  const { reviewed, prompts } = review("prose", lostMark, lostLikeness, long);
+
+  const line = await logOf(() => reviewed, "warning");
+
+  expect(await reviewed).toBe(SCENE);
+  expect(prompts).toHaveLength(3);
+  expect(line).toContain("drawn unchecked");
+  expect(line).not.toContain("fire");
+});
+
+test("a review may take out someone who shouldn't be in the picture, and is told never to add a name or writing", async () => {
+  const two = "[Ash: a short person in grey] kneels. [Mara: a tall woman] waits. {The people from the images are the same people.}";
+  const script = scriptedTextProvider(checked("[Ash: a short person in grey] kneels. {The people from the images are the same people.}"));
+  const settings = settingsStore(join(folder.path, "settings.json"));
+
+  const reviewed = await reviewScenePrompt({ textProvider: script.textProvider, settings }, two, "prose", new AbortController().signal);
+
+  expect(reviewed).not.toContain("Mara");
+  expect(script.prompts).toHaveLength(1);
+  expect(script.prompts[0]![0]!.content).toContain("Never add anyone's name or the name of a place, nor any writing");
+});
+
+test("a failed review draws the prompt as written", async () => {
+  const { reviewed } = review("keywords", new TextProviderFailed("down"), new TextProviderFailed("down"), new TextProviderFailed("down"));
+
+  expect(await reviewed).toBe(SCENE);
+});
 
 test("a Cover's prompt is written whole, Art Style and world included, from only what the player reads, and must letter the title", async () => {
   const { written, prompts } = write(

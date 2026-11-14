@@ -330,7 +330,7 @@ The server uses `Bun.serve` with no web framework, and Zod validates Narrator JS
 
 ## Server Log
 
-Every part of the app logs through `src/logger.ts`, so a problem can be traced from the Server Log alone. A line is the time, Log Level, area, message and JSON fields, in that order. Lines go to the console and to `logs/novelforge.log` beside `Saves`, created owner-only, which rotates at 10 MB and keeps one older file. If the file can't be written, the app carries on with the console and warns once.
+Every part of the app logs through `src/logger.ts`, so a problem can be traced from the Server Log alone. A line is the time, Log Level, area, message and JSON fields, in that order. Lines go to the console and to `logs/novelforge.log` beside `Saves`, created owner-only, which rotates at 25 MB and keeps one older file. If the file can't be written, the app carries on with the console and warns once.
 
 Each Log Level includes the ones above it here:
 

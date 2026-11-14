@@ -83,6 +83,7 @@ test("a fresh install has images on, Prose, medium type, blank Model Instruction
     theme: "system",
     logLevel: null,
     defaultLogLevel: "warning",
+    storyInLog: false,
     canQuit: false,
   });
 });
@@ -199,6 +200,7 @@ test("every setting survives a restart, and no key comes back", async () => {
     theme: "dark",
     logLevel: null,
     defaultLogLevel: "warning",
+    storyInLog: false,
     canQuit: false,
   };
   expect(await response.json()).toEqual(expected);

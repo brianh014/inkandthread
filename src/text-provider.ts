@@ -140,6 +140,10 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
       for (let at = 0; at + ECHO_CHARS <= short.length; at++) if (sent.includes(short.slice(at, at + ECHO_CHARS))) return "[it repeats the prompt]";
       return short;
     };
+    // Story in log is the one place a log holds story text, as the player chose it for debugging. Never the key, should the text hold it.
+    const story = (message: string, text: string) =>
+      chosen.storyInLog && log.story("text", message, { text: textApiKey ? text.replaceAll(textApiKey, "[key]") : text });
+    story("Prompt text", JSON.stringify(prompt, null, 1));
     const failure = (error: ProviderError | undefined, status: number) => {
       if (isRefusal(error)) return new ContentRefused();
       log.verbose("text", "Text Provider error", () => ({ detail: redacted(JSON.stringify({ status, error })) }));
@@ -244,6 +248,7 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
       clearTimeout(deadline);
       const logAs = seen.failed && !signal.aborted ? log.warning : log.info;
       logAs("text", "Text reply", () => ({ ...seen, chars: reply.length, ms: Date.now() - started }));
+      if (reply) story("Text reply text", reply);
     }
   };
 }

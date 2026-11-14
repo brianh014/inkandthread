@@ -160,6 +160,53 @@ function replaceOnce(list: string[], value: string, replacement: string) {
   if (!list.includes(replacement)) list.splice(index === -1 ? list.length : index, 0, replacement);
 }
 
+// Words shorter than four letters are skipped too, so these are only the common longer ones.
+const COMMON_WORDS = new Set([
+  "that",
+  "this",
+  "with",
+  "from",
+  "they",
+  "their",
+  "them",
+  "have",
+  "been",
+  "will",
+  "into",
+  "when",
+  "what",
+  "were",
+  "than",
+  "then",
+  "there",
+  "about",
+  "would",
+  "which",
+  "while",
+]);
+const wordsOf = (text: string) =>
+  new Set(
+    text
+      .toLowerCase()
+      .match(/[\p{L}\p{N}]{4,}/gu)
+      ?.filter((word) => !COMMON_WORDS.has(word)),
+  );
+
+/**
+ * The thread `text` names: itself, or else the one sharing most of its words, as Narrators paraphrase a long thread they
+ * were told to copy. Threads in one story share names, so it takes half the longer one's words, and a tie is no match.
+ */
+export function closestThread(threads: string[], text: string) {
+  if (threads.includes(text)) return text;
+  const words = wordsOf(text);
+  const scored = threads.map((thread) => {
+    const theirs = wordsOf(thread);
+    return { thread, score: [...words].filter((word) => theirs.has(word)).length / Math.max(words.size, theirs.size, 1) };
+  });
+  const [best, next] = scored.sort((a, b) => b.score - a.score);
+  return best && best.score >= 0.5 && best.score !== next?.score ? best.thread : undefined;
+}
+
 /**
  * Makes `name` and `into` one person, or renames `name` if `into` isn't in the state. Someone already gone is no reason to
  * lose a response. Portraits stay as they are, so a Revert needs nothing undone: the known list hides the merged one's.
@@ -261,13 +308,17 @@ function apply(state: State, operation: StateOperation): string | undefined {
     case "add_plot_thread":
       if (state.plotThreads.length >= MAX_PLOT_THREADS) return "full";
       return addOnce(state.plotThreads, operation.thread) ? undefined : "already there";
-    case "update_plot_thread":
-      // A miscopied thread would be added, so it meets the same limit.
-      if (!state.plotThreads.includes(operation.thread) && state.plotThreads.length >= MAX_PLOT_THREADS) return "full";
-      replaceOnce(state.plotThreads, operation.thread, operation.replacement);
+    case "update_plot_thread": {
+      const thread = closestThread(state.plotThreads, operation.thread);
+      // A thread that matches none would be added, so it meets the same limit.
+      if (thread === undefined && state.plotThreads.length >= MAX_PLOT_THREADS) return "full";
+      replaceOnce(state.plotThreads, thread ?? operation.thread, operation.replacement);
       return;
-    case "resolve_plot_thread":
-      return take(state.plotThreads, operation.thread) ? undefined : "not there";
+    }
+    case "resolve_plot_thread": {
+      const thread = closestThread(state.plotThreads, operation.thread);
+      return thread !== undefined && take(state.plotThreads, thread) ? undefined : "not there";
+    }
     case "set_pc_appearance":
       state.pcAppearance = operation.appearance;
       return;
@@ -296,11 +347,18 @@ const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }
 export function applyOperations(state: State, operations: StateOperation[]) {
   const next = structuredClone(state);
   let repeats = 0;
+  const full: StateOperation[] = [];
   const refusals = operations.flatMap(({ ...operation }) => {
     if (isRepeat(next, operation)) repeats++;
     const reason = apply(next, operation);
-    return reason ? [{ op: operation.op, reason }] : [];
+    if (reason === "full") full.push(operation);
+    return reason && reason !== "full" ? [{ op: operation.op, reason }] : [];
   });
+  // Tried again after the reply's resolves, which may have made room for them.
+  for (const operation of full) {
+    const reason = apply(next, operation);
+    if (reason) refusals.push({ op: operation.op, reason });
+  }
   return { next, refused: refusals.filter((refusal) => !isHarmless(refusal)), ignored: refusals.filter(isHarmless), repeats };
 }
 

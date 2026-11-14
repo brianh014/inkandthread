@@ -64,6 +64,7 @@ export function settingsRoutes({ options, images }: ServerContext, local: ImageA
       fontSize,
       theme,
       logLevel,
+      storyInLog,
       textProfiles,
       imageProfiles,
     } = settings.read();
@@ -117,6 +118,7 @@ export function settingsRoutes({ options, images }: ServerContext, local: ImageA
       theme,
       logLevel: logLevel ?? null,
       defaultLogLevel: defaultLogLevel(),
+      storyInLog,
       canQuit: !!options.quittable,
     };
   };

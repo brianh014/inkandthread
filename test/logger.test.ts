@@ -267,7 +267,7 @@ test("a failed report never bothers the player", async () => {
   unreachable.mockRestore();
 });
 
-test("lines also go to the log file, at the same level, and it rotates at 10 MB keeping one older file", async () => {
+test("lines also go to the log file, at the same level, and it rotates at 25 MB keeping one older file", async () => {
   const logs = join(folder.path, "logs");
   const file = join(logs, "novelforge.log");
   const quiet = spyOn(console, "warn").mockImplementation(() => {});
@@ -282,7 +282,7 @@ test("lines also go to the log file, at the same level, and it rotates at 10 MB 
   if (process.platform !== "win32") expect(statSync(file).mode & 0o077).toBe(0);
 
   for (const pass of ["first", "second"]) {
-    writeFileSync(file, "x".repeat(10 * 1024 * 1024));
+    writeFileSync(file, "x".repeat(25 * 1024 * 1024));
     startLog("warning", logs);
     log.warning("area", pass);
     expect(readFileSync(file, "utf8")).toContain(pass);

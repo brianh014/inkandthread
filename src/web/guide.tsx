@@ -465,8 +465,12 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         </p>
         <h3>Advanced</h3>
         <p>
-          <b>Log Level</b>: how much goes in the log in the <code>logs</code> folder. Raise it to Verbose to trace a problem. The log never holds your story's
-          text or your keys.
+          <b>Log Level</b>: how much goes in the log in the <code>logs</code> folder. Raise it to Verbose to trace a problem. The log never holds your keys, and
+          holds your story's text only with Story in log on.
+        </p>
+        <p>
+          <b>Story in log</b>: also writes everything sent to the AI and every reply, picture prompts too, story text included, to the log. It's only needed for
+          advanced debugging, so leave it off otherwise, and turn it off before you share the log.
         </p>
       </>
     ),
@@ -556,7 +560,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           <a href="https://github.com/brianh014/novelforge/issues" target="_blank" rel="noreferrer">
             GitHub
           </a>
-          , with what you did and what happened. The log in the <code>logs</code> folder helps, and holds no story text or keys.
+          , with what you did and what happened. The log in the <code>logs</code> folder helps, and holds no keys, and no story text unless Story in log is on.
         </p>
       </>
     ),

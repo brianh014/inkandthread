@@ -1238,7 +1238,15 @@ function InstallSettings({
         />
         <p className="muted">
           How much the app writes to its Server Log, from Error, only what failed, to Verbose, every step. It changes as soon as you save, and the log never
-          holds story text.
+          holds story text unless Story in log is on.
+        </p>
+        <label className="toggle">
+          <input type="checkbox" checked={draft.storyInLog} onChange={(e) => set({ storyInLog: e.target.checked })} />
+          Story in log
+        </label>
+        <p className="muted">
+          Also writes everything sent to the AI and every reply, picture prompts too, story text included, to the Server Log. Only needed for advanced
+          debugging, so leave it off otherwise.
         </p>
       </div>
     </form>,

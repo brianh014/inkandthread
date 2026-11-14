@@ -90,6 +90,8 @@ export const SettingsUpdate = z
     theme: z.enum(["system", "light", "dark"]),
     // Null clears it. Left out of `defaults`, or the first save of anything would pin this build's default for good.
     logLevel: z.enum(LOG_LEVELS).nullable(),
+    // Writes every prompt and reply, story text included, to the Server Log, for debugging only.
+    storyInLog: z.boolean(),
   })
   .partial();
 
@@ -169,6 +171,7 @@ const defaults = {
   chatStyle: "prose",
   fontSize: "medium",
   theme: "system",
+  storyInLog: false,
 } satisfies SettingsChange;
 
 export type SettingsStore = ReturnType<typeof settingsStore>;

@@ -766,3 +766,19 @@ test("Start Over gets a Save's first step as the story began, with nothing hidde
     importantCharacters: [],
   });
 });
+
+test("a Continue a Save kept in its old words becomes an empty Continue when the Save opens", async () => {
+  const old =
+    "The player takes no action this Turn. Continue the story: the PC does nothing new, so move the scene forward on its own, then stop with the PC free to act.";
+  play(narration("The rain keeps on."));
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: old });
+  await app.stop();
+  // As a Save from before Continues were kept empty.
+  const db = new Database(savePath(id));
+  db.run("PRAGMA user_version = 24");
+  db.close();
+  play();
+
+  expect((await messagesOf(id)).at(-2)).toMatchObject({ role: "player", text: "" });
+});

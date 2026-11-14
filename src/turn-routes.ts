@@ -10,7 +10,8 @@ import { answerQuestion, decideForPc } from "./world-creation";
 const DecideRequest = z.object({ draft: z.string().trim().max(4000).default("") });
 const QuestionRequest = z.object({ question: z.string().trim().min(1).max(1000) });
 
-const NewTurnRequest = z.object({ input: z.string().min(1) });
+// Empty for a Continue. Only blanks is neither the PC's words nor a Continue.
+const NewTurnRequest = z.object({ input: z.string().refine((input) => input === "" || input.trim() !== "") });
 
 const RewriteRequest = z.object({ feedback: z.string().trim().min(1) });
 

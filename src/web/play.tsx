@@ -37,7 +37,7 @@ import {
   stageBeats,
   type TurnInProgress,
 } from "./chat-style";
-import { CONTINUE_INPUT, isContinueInput } from "../prompt-assembler";
+import { CONTINUE } from "../prompt-assembler";
 import { AskIcon, StopIcon, ChoicesIcon, ContinueIcon, DecideIcon, DownIcon, DrawIcon, UpIcon, Painting, Quilling, RewriteIcon, SendIcon } from "./icons";
 import { TellTheNarrator } from "./journal";
 import { ChoiceButtons, useNarrow } from "./play-choices";
@@ -295,7 +295,7 @@ export function Play({ id }: { id: string }) {
 
   function continueStory() {
     if (turn || deciding || hasWords) return;
-    playInput(CONTINUE_INPUT, messages);
+    playInput(CONTINUE, messages);
   }
 
   function choose(choice: string) {
@@ -426,7 +426,7 @@ export function Play({ id }: { id: string }) {
   /** A failed Turn's text goes back where it was written, as feedback must never be sent as the PC's words. */
   function giveBack(input: string, replaces?: number, edit = false) {
     // A failed Continue leaves the box empty, so the Continue button is back to press again.
-    if (replaces === undefined) setDraft(isContinueInput(input) ? "" : input);
+    if (replaces === undefined) setDraft(input);
     else if (input) {
       setRewriting(replaces);
       setEditing(edit);
@@ -551,7 +551,7 @@ export function Play({ id }: { id: string }) {
 
   const actions: MessageActions = {
     replay: (message) => {
-      setReplaying(isContinueInput(message.text) ? "" : message.text);
+      setReplaying(message.text);
       setReverting(before(message));
     },
     revert: setReverting,

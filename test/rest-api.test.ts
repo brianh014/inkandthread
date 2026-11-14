@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { CONTINUE_INPUT, type Prompt } from "../src/prompt-assembler";
+import { CONTINUE, CONTINUE_INPUT, type Prompt } from "../src/prompt-assembler";
 import { saveStore } from "../src/save-store";
 import type { State } from "../src/state-applier";
 import type { ImagePipeline } from "../src/image-pipeline";
@@ -979,23 +979,14 @@ test("a Continue reaches the Narrator as an instruction, not as the PC's words, 
   const { app, prompts } = playWithDice([], JSON.stringify({ check: { skill: "Stealth", difficulty: 12 } }), narration("The rain keeps on."));
   const id = await app.createSave();
 
-  const response = await app.post(`/saves/${id}/turns`, { input: CONTINUE_INPUT });
-
-  expect(response.status).toBe(201);
-  expect(prompts.at(-1)!.at(-1)!.content).toBe(CONTINUE_INPUT);
-});
-
-test("a Continue a Save kept in its earlier words is still a Continue, sent as it reads now, and rolls no Check", async () => {
-  const earlier =
-    "The player takes no action this Turn. Continue the story: the PC does nothing new, so move the scene forward on its own, then stop with the PC free to act.";
-  const { app, prompts } = playWithDice([], JSON.stringify({ check: { skill: "Stealth", difficulty: 12 } }), narration("The rain keeps on."));
-  const id = await app.createSave();
-
-  const response = await app.post(`/saves/${id}/turns`, { input: earlier });
+  const response = await app.post(`/saves/${id}/turns`, { input: CONTINUE });
 
   expect(response.status).toBe(201);
   expect(prompts.at(-1)!.at(-1)!.content).toBe(CONTINUE_INPUT);
   expect(CONTINUE_INPUT).toContain("without moving time on or ending what is under way");
+  const { messages } = (await app.get(`/saves/${id}/messages`).then((r) => r.json())) as { messages: { role: string; text: string }[] };
+  // Kept empty, so the words sent can change without old Continues going unrecognised.
+  expect(messages.at(-2)).toMatchObject({ role: "player", text: "" });
 });
 
 test("a prompt holds in order the Messages that no Scene Memory covers yet", async () => {

@@ -137,9 +137,9 @@ test("a bad request answered before any stream keeps the player's text", async (
   start(reply("Never used."));
   const id = await app.createSave();
 
-  const { result } = await play(id, "");
+  const { result } = await play(id, "   ");
 
-  expect(result).toMatchObject({ input: "" });
+  expect(result).toMatchObject({ input: "   " });
   expect((result as { error: string }).error).toContain("input");
 });
 

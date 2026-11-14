@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CONTINUE_INPUT } from "../src/prompt-assembler";
+import { CONTINUE } from "../src/prompt-assembler";
 import { type Beat, BeatLine, chapterOpenings, messageBeats, openingBeat, roman, stageBeats } from "../src/web/chat-style";
 
 test("each chapter's heading sits above its first Message, and its large letter on its first narration", () => {
@@ -36,21 +36,13 @@ test("each chapter's heading sits above its first Message, and its large letter 
 });
 
 test("a Continue shows as a rule in the story, and the Stage box skips it", () => {
-  const [beat] = messageBeats({ role: "player", text: CONTINUE_INPUT });
+  const [beat] = messageBeats({ role: "player", text: CONTINUE });
   expect(renderToStaticMarkup(<BeatLine beat={beat!} style="script" pc="Ash" />)).toContain('<hr class="continued"');
   const told = [
-    { id: 1, role: "player", text: CONTINUE_INPUT },
+    { id: 1, role: "player", text: CONTINUE },
     { id: 2, role: "narrator", text: "The rain keeps on." },
   ] as Parameters<typeof stageBeats>[0];
   expect(stageBeats(told).map(({ beat }) => beat.text)).toEqual(["The rain keeps on."]);
-});
-
-test("a Continue a Save kept in its earlier words still shows as a rule", () => {
-  const [beat] = messageBeats({
-    role: "player",
-    text: "The player takes no action this Turn. Continue the story: the PC does nothing new, so move the scene forward on its own, then stop with the PC free to act.",
-  });
-  expect(beat).toMatchObject({ rule: true, text: "" });
 });
 
 const narrator = (text: string) => messageBeats({ role: "narrator", text });

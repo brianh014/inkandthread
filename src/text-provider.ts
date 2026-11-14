@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { log } from "./logger";
+import { errorFields, log } from "./logger";
 import type { SettingsStore } from "./settings-store";
-import { ContentRefused, ReplyCutOff, type TextProvider, TextProviderFailed } from "./turn-engine";
+import { ContentRefused, ReplyCutOff, type TextProvider, TextProviderFailed, type TextUsage } from "./turn-engine";
 
 // The player sees these with a retry hint after them, so none ends in a full stop.
 const UNREACHABLE = "The Text Provider can't be reached, so make sure it's running and that its address in Settings is right";
@@ -24,7 +24,7 @@ type ProviderError = { metadata?: { error_type?: string; reasons?: string[] } };
 type Chunk = {
   id?: string;
   provider?: string;
-  usage?: object;
+  usage?: TextUsage;
   error?: ProviderError;
   choices?: {
     delta?: { content?: string | null; refusal?: string | null };
@@ -113,6 +113,8 @@ const routing = ({ textRouting, textHost, textHostFallback }: Routing) =>
 /** The one Text Provider: any OpenAI-compatible server, using the Settings at the time of each call. */
 export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LIMITS): TextProvider {
   const schemaSupport = new Map<string, boolean>();
+  // Servers that refused `stream_options`, so they aren't asked again until the app restarts.
+  const usageRefused = new Set<string>();
 
   async function supportsSchema(url: string, model: string, headers: Record<string, string>, signal: AbortSignal) {
     const known = schemaSupport.get(`${url} ${model}`);
@@ -127,7 +129,7 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
     return supported;
   }
 
-  return async (prompt, { schema, onText, onGeneration, signal }) => {
+  return async (prompt, { schema, onText, onGeneration, onUsage, signal }) => {
     const { textBaseUrl, textApiKey, textModel, textMaxTokens, textReplyMinutes, ...chosen } = settings.read();
     if (!textModel) throw new TextProviderFailed("No text model is set, so choose one in Settings");
     const url = textBaseUrl.replace(/\/$/, "");
@@ -164,7 +166,7 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
       timer = setTimeout(() => silence.abort(), silenceMs);
     };
 
-    const send = async (useSchema: boolean) => {
+    const send = async (useSchema: boolean, askUsage: boolean) => {
       heardFrom();
       log.verbose("text", "Prompt sent", () => ({ model: textModel, messages: prompt.length, chars: sent.length, schema: useSchema }));
       const response = await fetch(`${url}/chat/completions`, {
@@ -177,6 +179,8 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
           model: textModel,
           messages: prompt,
           stream: true,
+          // OpenRouter reports usage anyway; other servers, Google's and local ones among them, only when asked.
+          ...(askUsage && { stream_options: { include_usage: true } }),
           max_tokens: textMaxTokens,
           ...(useSchema && { response_format: { type: "json_schema", json_schema: { name: "narrator_response", strict: true, schema } } }),
           // OpenRouter only: a strict server such as OpenAI refuses a field it does not know.
@@ -190,7 +194,17 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
     try {
       const useSchema = schema !== undefined && (await supportsSchema(url, textModel, headers, signal));
       seen.schema = useSchema;
-      let response = await send(useSchema);
+      const askUsage = !openRouter && !usageRefused.has(url);
+      let response = await send(useSchema, askUsage);
+      // A tally must never fail a Turn, so a server that won't take the ask for usage is sent the prompt without it.
+      if (askUsage && (response.status === 400 || response.status === 422)) {
+        await response.body?.cancel();
+        response = await send(useSchema, false);
+        if (response.ok) {
+          log.warning("text", "Usage ask refused", { model: textModel });
+          usageRefused.add(url);
+        }
+      }
       // A listing can claim schema support that the routed provider then rejects, and that must not fail every Turn.
       if (useSchema && (response.status === 400 || response.status === 404)) {
         log.warning("text", "Schema mode rejected", { model: textModel, status: response.status });
@@ -198,7 +212,7 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
         log.verbose("text", "Schema mode rejection", () => ({ detail: redacted(detail) }));
         schemaSupport.set(`${url} ${textModel}`, false);
         seen.schema = false;
-        response = await send(false);
+        response = await send(false, false);
       }
       seen.status = response.status;
       if (!response.ok || !response.body) {
@@ -247,7 +261,40 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
       clearTimeout(deadline);
       const logAs = seen.failed && !signal.aborted ? log.warning : log.info;
       logAs("text", "Text reply", () => ({ ...seen, chars: reply.length, ms: Date.now() - started }));
+      // Usage comes in the last chunk, so a reply cut off, refused or stopped part-way has none, though it's billed. OpenRouter keeps it by the reply's id.
+      if (seen.usage) onUsage?.(seen.usage as TextUsage);
+      else if (openRouter && onUsage && typeof seen.generation === "string")
+        void generationUsage(url, seen.generation, headers).then((found) => found && onUsage(found));
       if (chosen.storyInLog && reply) log.story("text", "Text reply text", { text: unkeyed(reply) });
     }
   };
+}
+
+type Generation = { total_cost?: number; native_tokens_prompt?: number; native_tokens_completion?: number; native_tokens_cached?: number };
+
+/**
+ * A reply's usage from OpenRouter's record of it, for one that ended before its last chunk. The record takes a moment to
+ * appear, so it asks a few times. Never throws, as only Usage waits on it.
+ * shortcut: the fields are as OpenRouter's /generation docs give them, unchecked against a real reply; if a cut-off reply shows no cost, look there.
+ */
+async function generationUsage(url: string, id: string, headers: Record<string, string>): Promise<TextUsage | undefined> {
+  for (const wait of [2_000, 5_000, 15_000]) {
+    // Unref'd, so a lookup still waiting never holds the app (or a test run) open.
+    await new Promise((done) => setTimeout(done, wait).unref());
+    try {
+      const response = await fetch(`${url}/generation?id=${encodeURIComponent(id)}`, { headers, signal: AbortSignal.timeout(10_000) });
+      if (!response.ok) continue;
+      const { data } = (await response.json()) as { data?: Generation };
+      if (typeof data?.total_cost !== "number") continue;
+      return {
+        prompt_tokens: data.native_tokens_prompt,
+        completion_tokens: data.native_tokens_completion,
+        prompt_tokens_details: { cached_tokens: data.native_tokens_cached },
+        cost: data.total_cost,
+      };
+    } catch (error) {
+      log.verbose("text", "Reply usage not found yet", () => ({ generation: id, ...errorFields(error) }));
+    }
+  }
+  return undefined;
 }

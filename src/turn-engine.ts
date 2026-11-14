@@ -24,11 +24,18 @@ import { applyOperations, introduce, Person, type SceneMemory, type State, State
 import { readable } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 
+/** The token counts and cost a server reports for one reply, in the OpenAI shape. OpenRouter adds `cost`. */
+export type TextUsage = { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number }; cost?: number };
+
 /** Throws ContentRefused when the content is refused. Anything else it throws is a network or API error. */
 export type TextProvider = (
   prompt: Prompt,
-  /** `onGeneration` hears the provider's id for this reply, the one way to find a reply no Save keeps. */
-  request: { schema?: object; onText: (text: string) => void; onGeneration?: (id: string) => void; signal: AbortSignal },
+  /**
+   * `onGeneration` hears the provider's id for this reply, the one way to find a reply no Save keeps.
+   * `onUsage` hears what the server reported the reply used, if it did: once the call ends, or later for a reply that
+   * ended before its usage came.
+   */
+  request: { schema?: object; onText: (text: string) => void; onGeneration?: (id: string) => void; onUsage?: (usage: TextUsage) => void; signal: AbortSignal },
 ) => Promise<string>;
 
 export type TurnEvents = (event: "narration" | "restart", data: object) => void;

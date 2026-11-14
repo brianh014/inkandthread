@@ -463,6 +463,13 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             <b>Font size</b>: small, medium or large.
           </li>
         </ul>
+        <h3>Usage</h3>
+        <p>
+          What you've asked of the AI lately: the totals, then a bar for each day, week or month, its parts the models used, text and pictures apart.{" "}
+          <b>Show</b> switches the bars between requests, tokens and cost; point at a bar for its numbers, or choose <b>Show as a table</b>. Cost is what the
+          provider reported, so it shows a dash where the provider reports none, such as ComfyUI, and ≥ where only some requests did. Nothing of your story is
+          kept.
+        </p>
         <h3>This Story</h3>
         <p>How you play this story, Free Text or Choices, and its Art Style.</p> <h3>Updates</h3>
         <p>

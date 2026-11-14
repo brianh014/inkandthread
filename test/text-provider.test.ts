@@ -357,14 +357,29 @@ test.each([
 
 test("a model whose listing claims schema support but rejects the schema still plays, without schema mode", async () => {
   const rejected = () => Response.json({ error: { code: 400, message: "Invalid schema" } }, { status: 400 });
-  play([rejected(), narrated("Rain."), narrated("Wind.")], schemaModel);
+  // Rejected again without the ask for usage, as it's the schema the server won't take.
+  play([rejected(), rejected(), narrated("Rain."), narrated("Wind.")], schemaModel);
   const id = await app.createSave();
 
   const response = await app.post(`/saves/${id}/turns`, { input: "I wait." });
   await app.post(`/saves/${id}/turns`, { input: "I wait more." });
 
   expect(response.status).toBe(201);
-  expect(provider.requests.map(({ body }) => !!body.response_format)).toEqual([true, false, false]);
+  expect(provider.requests.map(({ body }) => !!body.response_format)).toEqual([true, true, false, false]);
+  // Only the schema is given up for good.
+  expect(provider.requests.map(({ body }) => !!body.stream_options)).toEqual([true, false, false, true]);
+});
+
+test("a server that refuses the ask for usage still plays, and isn't asked again", async () => {
+  const refused = () => Response.json({ error: { code: 400, message: "Unknown field stream_options" } }, { status: 400 });
+  play([refused(), narrated("Rain."), narrated("Wind.")]);
+  const id = await app.createSave();
+
+  const response = await app.post(`/saves/${id}/turns`, { input: "I wait." });
+  await app.post(`/saves/${id}/turns`, { input: "I wait more." });
+
+  expect(response.status).toBe(201);
+  expect(provider.requests.map(({ body }) => !!body.stream_options)).toEqual([true, false, false]);
 });
 
 test("an answer without OpenRouter's model list is not remembered, so schema mode is tried again", async () => {

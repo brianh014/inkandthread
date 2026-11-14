@@ -12,6 +12,7 @@ import { settingsRoutes } from "./settings-routes";
 import { OnlineImageProvider } from "./settings-store";
 import { turnRoutes } from "./turn-routes";
 import { relaunch, updater } from "./updater";
+import { countedImages, countedText, usageStore } from "./usage-store";
 import spa from "./web/index.html";
 import { reviewScenePrompt, writePicturePrompt } from "./world-creation";
 import { worldRoutes } from "./world-routes";
@@ -63,10 +64,13 @@ async function cappedBody(req: Request) {
 }
 
 /** One server, its routes put together by area. Each area is its own module, which shares only the Saves, Turns and images. */
-export function startServer(options: ServerOptions) {
+export function startServer(given: ServerOptions) {
+  const { settings } = given;
+  const usage = given.usage ?? usageStore();
+  // Counted here, before anything holds the Text Provider, so every call for every route and picture prompt is counted.
+  const options = { ...given, usage, textProvider: countedText(given.textProvider, usage, settings) };
   const saves = saveStore(options.savesDir);
   const turns = liveTurns();
-  const { settings } = options;
   try {
     setLogLevel(settings.read().logLevel);
   } catch (error) {
@@ -77,9 +81,11 @@ export function startServer(options: ServerOptions) {
   // shortcut: a restart clears it and an open Settings screen doesn't update, poll or store it if players miss failures.
   const workflow = { problem: "" };
   const local = comfyImages(settings, undefined, (problem) => (workflow.problem = problem));
+  // Settings' test picture goes through the counted one too, as Usage counts every request.
+  const adapters = countedImages({ ...onlineAdapters(options.imageAdapter), local }, usage, settings);
   const images = imagePipeline(
     saves,
-    { ...onlineAdapters(options.imageAdapter), local },
+    adapters,
     settings,
     options.writePicture ?? ((ask, style, _template, signal) => writePicturePrompt(options, ask, style, signal)),
     options.reviewPicture ?? ((description, style, signal) => reviewScenePrompt(options, description, style, signal)),
@@ -167,7 +173,7 @@ export function startServer(options: ServerOptions) {
             return new Response(null, { status: 204 });
           },
         },
-        ...settingsRoutes(context, local, workflow),
+        ...settingsRoutes(context, adapters.local, workflow),
         ...worldRoutes(context),
         ...saveRoutes(context),
         ...turnRoutes(context),

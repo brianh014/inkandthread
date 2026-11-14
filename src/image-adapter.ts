@@ -13,7 +13,8 @@ export type ImagePayload = {
 };
 
 /** Resolves to the image's bytes, which the caller still has to check. Anything it throws is a failed image. */
-export type ImageAdapter = (payload: ImagePayload, signal: AbortSignal) => Promise<Uint8Array>;
+/** `onCost` hears the price the provider reported for the picture, in US dollars, where it reports one. */
+export type ImageAdapter = (payload: ImagePayload, signal: AbortSignal, onCost?: (dollars: number) => void) => Promise<Uint8Array>;
 
 type Capability = { values?: string[]; max?: number };
 type ImageModel = {
@@ -74,7 +75,7 @@ function catalogInfo<T extends { id: string }>(url: string) {
 export function openRouterImages(settings: SettingsStore, baseUrl: string): ImageAdapter {
   const modelInfo = catalogInfo<ImageModel>(`${baseUrl}/images/models`);
 
-  return async (payload, signal) => {
+  return async (payload, signal, onCost) => {
     const { aspect_ratio, reference_images } = payload;
     const { imageModel, imageApiKey, imageResolution } = settings.read();
     const headers = { Authorization: `Bearer ${imageApiKey}` };
@@ -106,7 +107,9 @@ export function openRouterImages(settings: SettingsStore, baseUrl: string): Imag
         }),
       }),
     });
-    const reply = (await response.json().catch(() => ({}))) as { data?: { b64_json?: string }[]; error?: unknown };
+    const reply = (await response.json().catch(() => ({}))) as { data?: { b64_json?: string }[]; usage?: { cost?: unknown }; error?: unknown };
+    // The Image API's reply carries `usage.cost` in dollars, as its chat replies do.
+    if (typeof reply.usage?.cost === "number") onCost?.(reply.usage.cost);
     const encoded = reply.data?.[0]?.b64_json;
     if (!response.ok || !encoded) {
       throw apiError(imageApiKey, `Image API error: ${JSON.stringify({ status: response.status, error: reply.error })}`, response.status);
@@ -116,14 +119,14 @@ export function openRouterImages(settings: SettingsStore, baseUrl: string): Imag
 }
 
 type WiroField = { id: string; type: string; required?: boolean; defaultvalue?: unknown; options?: { value: string }[]; maxinputlenght?: number };
-type WiroTask = { pexit?: string | number; outputs?: { url?: string }[] };
+type WiroTask = { pexit?: string | number; totalcost?: string | number; outputs?: { url?: string }[] };
 
 /** The Wiro Image Adapter. Each model names its own fields, so it reads them from the model's details and fills the ones it knows. */
 export function wiroImages(settings: SettingsStore, baseUrl: string): ImageAdapter {
   // shortcut: held until the app restarts, so a model whose fields change needs one, refresh it if that ever matters.
   const known = new Map<string, WiroField[]>();
 
-  return async (payload, signal) => {
+  return async (payload, signal, onCost) => {
     const { negative_prompt, aspect_ratio, reference_images } = payload;
     const { imageModel, imageApiKey, imageResolution } = settings.read();
     const headers = { "x-api-key": imageApiKey };
@@ -188,6 +191,9 @@ export function wiroImages(settings: SettingsStore, baseUrl: string): ImageAdapt
     // Wiro's docs give the exit code as text, and a number is read the same in case a model sends one.
     const url = String(task?.pexit) === "0" ? task?.outputs?.[0]?.url : undefined;
     if (!response.ok || !url) throw failed("Image API error", response.status, reply.errors ?? { pexit: task?.pexit });
+    // The sync reply is the Task Detail, whose `totalcost` is the run's price in dollars, sent as text. Billed once the run succeeds.
+    const cost = Number(task?.totalcost);
+    if (task?.totalcost !== undefined && Number.isFinite(cost)) onCost?.(cost);
     const image = await fetch(url, { signal: limited });
     if (!image.ok) throw failed("Wiro's picture wouldn't download", image.status, undefined);
     return new Uint8Array(await image.arrayBuffer());
@@ -266,7 +272,7 @@ export function nanoGptSize(sizes: string[] = [], resolution: keyof typeof TIER_
 export function nanoGptImages(settings: SettingsStore, baseUrl: string): ImageAdapter {
   const modelInfo = catalogInfo<NanoGptModel>(`${baseUrl}/images/models`);
 
-  return async (payload, signal) => {
+  return async (payload, signal, onCost) => {
     const { aspect_ratio, reference_images } = payload;
     const { imageModel, imageApiKey, imageResolution } = settings.read();
     const limited = AbortSignal.any([signal, AbortSignal.timeout(GIVE_UP_MS)]);
@@ -294,7 +300,14 @@ export function nanoGptImages(settings: SettingsStore, baseUrl: string): ImageAd
         }),
       }),
     });
-    const reply = (await response.json().catch(() => ({}))) as { data?: { b64_json?: string; url?: string }[]; error?: unknown };
+    const reply = (await response.json().catch(() => ({}))) as {
+      data?: { b64_json?: string; url?: string }[];
+      cost?: unknown;
+      paymentSource?: unknown;
+      error?: unknown;
+    };
+    // shortcut: NanoGPT's docs give `cost` with no unit, and a balance can be held in Nano, so a cost paid in Nano isn't counted as dollars. Check a real reply's paymentSource if Usage shows a dash for NanoGPT.
+    if (typeof reply.cost === "number" && !/xno|nano/i.test(String(reply.paymentSource ?? ""))) onCost?.(reply.cost);
     const [first] = reply.data ?? [];
     if (!response.ok || !(first?.b64_json || first?.url)) {
       throw apiError(imageApiKey, `Image API error: ${JSON.stringify({ status: response.status, error: reply.error })}`, response.status);

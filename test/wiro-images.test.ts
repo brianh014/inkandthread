@@ -154,6 +154,14 @@ test("an exit code sent as a number counts the same as one sent as text", async 
   expect(await adapter(payload(), never)).toEqual(new Uint8Array(PNG));
 });
 
+test("a run's totalcost, sent as text, is reported as its cost", async () => {
+  const adapter = adapterFor(flux, { pexit: "0", totalcost: "0.003510000000" });
+  const costs: number[] = [];
+
+  await adapter(payload(), never, (cost) => costs.push(cost));
+  expect(costs).toEqual([0.00351]);
+});
+
 test("a model name that isn't owner/model is refused before anything is sent with the key", async () => {
   const adapter = adapterFor(flux);
 

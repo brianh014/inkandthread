@@ -28,6 +28,7 @@ import { ChoicesIcon } from "./icons";
 import { BookTabs, MenuRibbon, Sheet } from "./menu";
 import { UpdatesSection } from "./new-version";
 import { PlayModePicker } from "./play-choices";
+import { UsageSection } from "./usage";
 
 const SECTIONS = ["Text", "Images", "Reading", "Advanced"];
 
@@ -44,8 +45,10 @@ const RESOLUTIONS = [
   ["2k", "2K (2048 × 2048 portrait, 2736 × 1536 scene)"],
 ] as const;
 const THIS_STORY = "This story";
-/** Not a setting, so outside the form and its Save. */
+/** Not settings, so outside the form and its Save. */
 const UPDATES = "Updates";
+const USAGE = "Usage";
+const OUTSIDE_FORM = [THIS_STORY, USAGE, UPDATES];
 
 export const applyLook = ({ fontSize, theme }: Settings) => {
   document.documentElement.dataset.fontSize = fontSize;
@@ -948,7 +951,7 @@ function InstallSettings({
     <form
       id="settings-form"
       className="fields settings"
-      hidden={section === THIS_STORY || section === UPDATES}
+      hidden={OUTSIDE_FORM.includes(section)}
       onSubmit={submit}
       // A required box in a hidden section stops Save with nothing to show for it, so go there. In time for the browser to point at the box.
       onInvalidCapture={(event) => {
@@ -1250,7 +1253,7 @@ function InstallSettings({
         </p>
       </div>
     </form>,
-    section !== THIS_STORY && section !== UPDATES && (
+    !OUTSIDE_FORM.includes(section) && (
       <>
         {feedback}
         <div className="row">
@@ -1281,7 +1284,7 @@ export function SettingsScreen({ id }: { id?: string }) {
         <>
           <h1 className="big">Settings</h1>
           <nav aria-label="Settings sections">
-            {[...(id ? [THIS_STORY] : []), ...SECTIONS, UPDATES].map((name) => (
+            {[...(id ? [THIS_STORY] : []), ...SECTIONS.filter((name) => name !== "Advanced"), USAGE, UPDATES, "Advanced"].map((name) => (
               <button key={name} type="button" aria-current={name === section || undefined} onClick={() => setSection(name)}>
                 {name}
               </button>
@@ -1303,6 +1306,7 @@ export function SettingsScreen({ id }: { id?: string }) {
           <ArtStyle key={id} id={id} />
         </div>
       )}
+      {section === USAGE && <UsageSection />}
       {section === UPDATES && <UpdatesSection />}
       {content}
     </Sheet>

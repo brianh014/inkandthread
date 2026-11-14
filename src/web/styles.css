@@ -34,6 +34,12 @@
   --on-accent: light-dark(#f2ead6, #16180f);
   --soft: light-dark(#dccda9, #3a3a37);
   --error: light-dark(#8f2f1c, #eda78f);
+  /* Usage's models, in this order. Checked for colour blindness against --page in each theme. */
+  --series-0: light-dark(#2f6aa3, #5c97d6);
+  --series-1: light-dark(#c47320, #c97a30);
+  --series-2: light-dark(#8a4f9e, #b27bc9);
+  --series-3: light-dark(#4f8a3a, #5f9e48);
+  --series-other: light-dark(#8a826e, #85837b);
   /* Light is aged parchment, with age spots. Dark is plain charcoal. */
   --foxing: light-dark(rgb(120 80 30 / 0.1), transparent);
   --gutter: light-dark(rgb(40 25 5 / 0.38), rgb(0 0 0 / 0.6));
@@ -2929,6 +2935,236 @@ dialog blockquote {
 
 .updates {
   justify-items: start;
+}
+
+/* Scrolls by itself on a phone, so the page doesn't. */
+.usage-table {
+  overflow-x: auto;
+}
+
+.usage table {
+  border-collapse: collapse;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage caption {
+  text-align: start;
+  font-family: var(--display);
+  font-size: 1.2em;
+  padding-block-end: 0.3em;
+}
+
+.usage th,
+.usage td {
+  text-align: end;
+  padding: 0.25em 0.45em;
+  border-block-end: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.usage th:nth-child(-n + 2),
+.usage td:nth-child(-n + 2),
+.usage th.period {
+  text-align: start;
+}
+
+.usage th.period {
+  color: var(--muted);
+  font-weight: normal;
+  padding-block-start: 0.8em;
+}
+
+.usage-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 24px;
+}
+
+.usage-totals {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding-block: 10px;
+  border-block: 1px solid var(--line);
+}
+
+.usage-totals dt {
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.usage-totals dd {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.6em;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-chart {
+  display: grid;
+  gap: 6px;
+}
+
+.usage-chart h3 {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: normal;
+  font-size: 1.3em;
+}
+
+.usage-plot {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: 160px auto;
+  gap: 4px 8px;
+}
+
+.usage-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 0.75em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-axis span {
+  line-height: 0;
+}
+
+/* Gridlines at the top, middle and baseline, behind the columns. */
+.usage-columns {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  padding-inline: 4px;
+  border-block-end: 1px solid var(--ink);
+  background:
+    linear-gradient(var(--line), var(--line)) top / 100% 1px no-repeat,
+    linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat;
+}
+
+.usage-column {
+  flex: 1;
+  max-width: 36px;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+}
+
+.usage-column[data-hovered] {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 4px 4px 0 0;
+}
+
+.usage-segment {
+  min-height: 2px;
+}
+
+.usage-segment:last-child {
+  border-radius: 4px 4px 0 0;
+}
+
+[data-slot="0"] {
+  background: var(--series-0);
+}
+[data-slot="1"] {
+  background: var(--series-1);
+}
+[data-slot="2"] {
+  background: var(--series-2);
+}
+[data-slot="3"] {
+  background: var(--series-3);
+}
+[data-slot="other"] {
+  background: var(--series-other);
+}
+
+.usage-labels {
+  display: flex;
+  gap: 6px;
+  padding-inline: 4px;
+  font-size: 0.75em;
+  color: var(--muted);
+}
+
+.usage-labels span {
+  flex: 1;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.usage-tip {
+  position: absolute;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  gap: 3px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--page);
+  font-size: 0.85em;
+  /* Its own half of the chart, beside the bar, so it never runs off the page. */
+  width: max-content;
+  max-width: calc(50% - 24px);
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.25);
+}
+
+.usage-tip[data-side="left"] {
+  left: calc(var(--at) + 24px);
+}
+
+.usage-tip[data-side="right"] {
+  right: calc(100% - var(--at) + 24px);
+}
+
+.usage-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-inline-end: 6px;
+  border-radius: 2px;
+}
+
+.usage-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9em;
+}
+
+.usage-legend b {
+  font-weight: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 760px) {
+  .usage-totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Every other label, as twelve weeks don't fit. */
+  .usage-labels span:nth-child(even) {
+    visibility: hidden;
+  }
+
+  /* So each label left may run into its hidden neighbour's room. */
+  .usage-labels span {
+    overflow: visible;
+  }
 }
 
 .toast a {

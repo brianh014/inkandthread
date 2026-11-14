@@ -10,6 +10,7 @@ import { startServer } from "./rest-api";
 import { settingsStore } from "./settings-store";
 import { textProvider } from "./text-provider";
 import { isCompiled, removeReplacedPrograms } from "./updater";
+import { usageStore } from "./usage-store";
 
 // A Mac app can't keep Saves inside itself, which macOS may run from a read-only copy.
 const inMacApp = isCompiled && process.execPath.includes(".app/Contents/MacOS/");
@@ -66,6 +67,7 @@ if (
 const server = startServer({
   savesDir: join(dataDir, "Saves"),
   settings,
+  usage: usageStore(join(dataDir, "usage.sqlite")),
   textProvider: fake ? fakeTextProvider : textProvider(settings),
   imageAdapter: fake
     ? fakeImages

@@ -331,8 +331,10 @@ const toVersion24 = (db: Database) => {
 
 /** A Continue was kept as the words it sent, so rewording them left old ones unrecognised. Now it is an empty player Message. */
 const toVersion25 = (db: Database) =>
-  db.run("UPDATE messages SET text = '' WHERE role = 'player' AND text = ?", [
+  db.run("UPDATE messages SET text = '' WHERE role = 'player' AND text IN (?, ?)", [
     "The player takes no action this Turn. Continue the story: the PC does nothing new, so move the scene forward on its own, then stop with the PC free to act.",
+    // Saved for a few hours before Continues were kept empty.
+    "The player takes no action this Turn. Continue the story from this moment: the PC does nothing new, so let the people and world around them carry on for one beat, without moving time on or ending what is under way, then stop with the PC free to act.",
   ]);
 
 /** One step per schema version, where step N takes a Save from version N to N + 1. New Saves take them too, so they can't drift from old ones. */

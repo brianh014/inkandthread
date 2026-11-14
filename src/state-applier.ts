@@ -223,23 +223,28 @@ function mergeNpc(state: State, name: string, into: string) {
   if (summary !== undefined) pcKnown.summaries = { [into]: summary, ...summaries };
 }
 
-/** Changes `state` and returns nothing, or returns why `operation` is disproved, having changed nothing. The reason goes to the Server Log, so it never quotes the operation. */
-/** The Plot Threads this reply has resolved or rewritten, and those it is still waiting to add because the list was full. */
-type ThreadsSoFar = { gone: string[]; waiting: string[] };
+/** What this reply made of each Plot Thread it changed, its replacement or null once resolved, and those still waiting to be added because the list was full. */
+type ThreadsSoFar = { became: Map<string, string | null>; waiting: string[] };
 
 /**
- * The shown thread `text` names, or undefined when it names none or one this reply already resolved or rewrote, so that
- * a thread that's gone is never matched to another that shares its words. "full" when it names one still waiting to be added.
+ * The open thread `text` names, followed to what this reply made of it, so that a thread already changed is never matched
+ * to another that shares its words. `resolved` when this reply closed it, and `wait` when it is still waiting to be added.
  */
-function namedThread(state: State, text: string, { gone, waiting }: ThreadsSoFar) {
+function namedThread(state: State, text: string, { became, waiting }: ThreadsSoFar) {
   // Only those the prompt showed, as a Save from before the limit can hold more.
-  const thread = closestThread([...state.plotThreads.slice(0, MAX_PLOT_THREADS), ...gone, ...waiting], text);
-  const wait = thread !== undefined && waiting.includes(thread);
-  const resolved = thread !== undefined && gone.includes(thread);
-  return { thread: wait || resolved ? undefined : thread, wait, gone: resolved };
+  const shown = state.plotThreads.slice(0, MAX_PLOT_THREADS);
+  // Once each, as a thread in two lists would tie with itself and match nothing.
+  const named = closestThread([...new Set([...shown, ...became.keys(), ...waiting])], text);
+  if (named === undefined || shown.includes(named)) return { thread: named };
+  if (waiting.includes(named)) return { wait: true };
+  let now: string | null | undefined = named;
+  // A few steps at most, in case a reply rewrites a thread back and forth.
+  for (let step = 0; typeof now === "string" && !shown.includes(now) && became.has(now) && step < MAX_PLOT_THREADS; step++) now = became.get(now);
+  return now === null ? { resolved: true } : { thread: now };
 }
 
-function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = { gone: [], waiting: [] }): string | undefined {
+/** Changes `state` and returns nothing, or returns why `operation` is disproved, having changed nothing. The reason goes to the Server Log, so it never quotes the operation. */
+function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = { became: new Map(), waiting: [] }): string | undefined {
   switch (operation.op) {
     case "add_item":
       state.inventory[operation.slot].push(operation.item);
@@ -321,29 +326,32 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       state.worldBible = state.worldBible.filter(({ title, alwaysOn }) => alwaysOn || title !== operation.title);
       return;
     case "add_plot_thread":
+      if (state.plotThreads.includes(operation.thread)) return "already there";
       if (state.plotThreads.length >= MAX_PLOT_THREADS) {
         threads.waiting.push(operation.thread);
         return "full";
       }
-      return addOnce(state.plotThreads, operation.thread) ? undefined : "already there";
+      state.plotThreads.push(operation.thread);
+      return;
     case "update_plot_thread": {
-      const { thread, wait } = namedThread(state, operation.thread, threads);
+      const { thread, wait, resolved } = namedThread(state, operation.thread, threads);
+      // Closed earlier in this reply, so a rewrite mustn't open it again.
+      if (resolved) return;
       // A thread that matches none would be added, so it meets the same limit.
       if (wait || (thread === undefined && state.plotThreads.length >= MAX_PLOT_THREADS)) {
         threads.waiting.push(operation.replacement);
         return "full";
       }
       replaceOnce(state.plotThreads, thread ?? operation.thread, operation.replacement);
-      if (thread !== undefined && thread !== operation.replacement) threads.gone.push(thread);
+      if (thread !== undefined && thread !== operation.replacement) threads.became.set(thread, operation.replacement);
       return;
     }
     case "resolve_plot_thread": {
-      const { thread, wait, gone } = namedThread(state, operation.thread, threads);
+      const { thread, wait, resolved } = namedThread(state, operation.thread, threads);
       if (wait) return "full";
-      // Resolved already in this reply, so there's nothing left to do.
-      if (gone) return;
+      if (resolved) return;
       if (thread === undefined || !take(state.plotThreads, thread)) return "not there";
-      threads.gone.push(thread);
+      threads.became.set(thread, null);
       return;
     }
     case "set_pc_appearance":
@@ -370,12 +378,12 @@ const IGNORABLE: StateOperation["op"][] = ["resolve_loose_end", "add_known_npc",
 // A full list of Plot Threads is the Narrator's to tidy later, not worth a whole response.
 const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }) => IGNORABLE.includes(op) || reason === "already there" || reason === "full";
 
-/** Applies operations in order, so each is judged against the ones before it. */
+/** Applies operations in order, so each is judged against the ones before it, except that a Plot Thread change refused as full is tried once more at the end. */
 export function applyOperations(state: State, operations: StateOperation[]) {
   const next = structuredClone(state);
   let repeats = 0;
   const full: StateOperation[] = [];
-  const threads: ThreadsSoFar = { gone: [], waiting: [] };
+  const threads: ThreadsSoFar = { became: new Map(), waiting: [] };
   const refusals = operations.flatMap(({ ...operation }) => {
     if (isRepeat(next, operation)) repeats++;
     const reason = apply(next, operation, threads);

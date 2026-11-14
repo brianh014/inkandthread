@@ -247,11 +247,10 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
     "/saves/:id/setup": {
       // The New Story form's first step, for Start Over. An allowlist, so nothing hidden reaches the player.
       GET: (req) => {
-        const { id } = req.params;
-        const { title, theme, startingHook, pc, importantCharacters = [] } = saves.read(id);
+        const { worldBrief, title, theme, startingHook, pc, importantCharacters } = saves.setup(req.params.id);
         const { name, background, physicalTraits, skills, personality, other } = pc;
         return Response.json({
-          worldBrief: saves.startingBrief(id),
+          worldBrief,
           title,
           theme,
           startingHook,

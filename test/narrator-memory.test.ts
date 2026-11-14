@@ -177,6 +177,46 @@ test("at a full list, a rewrite of a thread the reply is still waiting to add wa
   expect(next.plotThreads).toEqual([...THREADS.slice(0, 2), ...fullOf(...THREADS).slice(3), "Rhys is caught."]);
 });
 
+test("resolving a thread by its old words after rewriting it in the same reply resolves the rewrite", () => {
+  const next = run(
+    withState({ plotThreads: [...THREADS] }),
+    { op: "update_plot_thread", thread: THREADS[0]!, replacement: "The lighthouse is watched now." },
+    { op: "resolve_plot_thread", thread: THREADS[0]! },
+  );
+
+  expect(next.plotThreads).toEqual(THREADS.slice(1));
+});
+
+test("rewriting a thread this reply already resolved doesn't bring it back", () => {
+  const next = run(
+    withState({ plotThreads: [...THREADS] }),
+    { op: "resolve_plot_thread", thread: THREADS[0]! },
+    { op: "update_plot_thread", thread: THREADS[0]!, replacement: "The lighthouse is watched now." },
+  );
+
+  expect(next.plotThreads).toEqual(THREADS.slice(1));
+});
+
+test("at a full list, adding a thread that's already open doesn't stop it being resolved", () => {
+  const { next } = applyOperations(withState({ plotThreads: fullOf(...THREADS) }), [
+    { op: "add_plot_thread", thread: THREADS[0]! },
+    { op: "resolve_plot_thread", thread: THREADS[0]! },
+  ]);
+
+  expect(next.plotThreads).not.toContain(THREADS[0]);
+});
+
+test("a thread rewritten and rewritten back still matches a paraphrase", () => {
+  const next = run(
+    withState({ plotThreads: [...THREADS] }),
+    { op: "update_plot_thread", thread: THREADS[2]!, replacement: "Gone quiet." },
+    { op: "update_plot_thread", thread: "Gone quiet.", replacement: THREADS[2]! },
+    { op: "resolve_plot_thread", thread: "A plague ship drifts toward the harbor; no one aboard is seen alive." },
+  );
+
+  expect(next.plotThreads).toEqual(THREADS.slice(0, 2));
+});
+
 test("a miscopied Plot Thread is matched only among those the Narrator was shown", () => {
   const hidden = "Smugglers in Greyport move stolen relics through the old lighthouse by night.";
   const state = withState({ plotThreads: [...fullOf(...THREADS), hidden] });

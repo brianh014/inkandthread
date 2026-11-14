@@ -135,13 +135,13 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
     const headers = keyHeader(textApiKey);
     const sent = prompt.map(({ content }) => content).join("\n");
     // A provider may echo what it was sent, and this text goes to the Server Log at Verbose, so no key and nothing of the prompt.
+    const unkeyed = (text: string) => (textApiKey ? text.replaceAll(textApiKey, "[key]") : text);
     const redacted = (detail: string) => {
-      const short = (textApiKey ? detail.replaceAll(textApiKey, "[key]") : detail).slice(0, 300);
+      const short = unkeyed(detail).slice(0, 300);
       for (let at = 0; at + ECHO_CHARS <= short.length; at++) if (sent.includes(short.slice(at, at + ECHO_CHARS))) return "[it repeats the prompt]";
       return short;
     };
     // Story in log is the one place a log holds story text, as the player chose it for debugging. Never the key, should the text hold it.
-    const unkeyed = (text: string) => (textApiKey ? text.replaceAll(textApiKey, "[key]") : text);
     if (chosen.storyInLog) log.story("text", "Prompt text", { prompt: prompt.map(({ role, content }) => ({ role, content: unkeyed(content) })) });
     const failure = (error: ProviderError | undefined, status: number) => {
       if (isRefusal(error)) return new ContentRefused();

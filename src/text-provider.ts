@@ -141,9 +141,8 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
       return short;
     };
     // Story in log is the one place a log holds story text, as the player chose it for debugging. Never the key, should the text hold it.
-    const story = (message: string, text: string) =>
-      chosen.storyInLog && log.story("text", message, { text: textApiKey ? text.replaceAll(textApiKey, "[key]") : text });
-    story("Prompt text", JSON.stringify(prompt, null, 1));
+    const unkeyed = (text: string) => (textApiKey ? text.replaceAll(textApiKey, "[key]") : text);
+    if (chosen.storyInLog) log.story("text", "Prompt text", { prompt: prompt.map(({ role, content }) => ({ role, content: unkeyed(content) })) });
     const failure = (error: ProviderError | undefined, status: number) => {
       if (isRefusal(error)) return new ContentRefused();
       log.verbose("text", "Text Provider error", () => ({ detail: redacted(JSON.stringify({ status, error })) }));
@@ -248,7 +247,7 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
       clearTimeout(deadline);
       const logAs = seen.failed && !signal.aborted ? log.warning : log.info;
       logAs("text", "Text reply", () => ({ ...seen, chars: reply.length, ms: Date.now() - started }));
-      if (reply) story("Text reply text", reply);
+      if (chosen.storyInLog && reply) log.story("text", "Text reply text", { text: unkeyed(reply) });
     }
   };
 }

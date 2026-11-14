@@ -83,9 +83,13 @@ test("each Image Prompt goes to the log only with Story in log on", async () => 
   await enableImages();
   const id = await app.createSave();
 
-  const quiet = await logOf(async () => settled((await playTurn(id), id)));
+  const drawn = async () => {
+    await playTurn(id);
+    await settled(id);
+  };
+  const quiet = await logOf(drawn);
   await app.patch("/settings", { storyInLog: true });
-  const told = await logOf(async () => settled((await playTurn(id), id)));
+  const told = await logOf(drawn);
 
   expect(quiet).not.toContain("A flooded street at dusk");
   expect(told).toContain("Image prompt");

@@ -179,7 +179,7 @@ The player-facing record of only what the PC knows or has encountered, where the
 _Avoid_: Log
 
 **Server Log**:
-The app's own record of what it did, for tracing a problem: the console and `logs/novelforge.log`. It never holds story text, only ids that lead to it in the Save. It has nothing to do with the Chapters, which are the story's own record.
+The app's own record of what it did, for tracing a problem: the console and `logs/novelforge.log`. It holds no story text, only ids that lead to it in the Save, unless the player turns on Story in log to debug, when it also holds every prompt, reply and Image Prompt. It has nothing to do with the Chapters, which are the story's own record.
 _Avoid_: Log (alone), debug log
 
 **Log Level**:

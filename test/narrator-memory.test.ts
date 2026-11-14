@@ -151,6 +151,42 @@ test("a new Plot Thread sent before the resolve that makes room for it is still 
   expect(next.plotThreads).toEqual([...fullOf(...THREADS).filter((thread) => thread !== THREADS[2]), "New."]);
 });
 
+test("a Plot Thread this reply already resolved or rewrote is never matched to another that shares its words", () => {
+  const twins = ["Greyport smugglers fear the lighthouse keeper.", "Greyport smugglers fear the lighthouse keeper's daughter."];
+  const state = withState({ plotThreads: [...twins] });
+
+  const next = run(
+    state,
+    { op: "resolve_plot_thread", thread: twins[0]! },
+    { op: "resolve_plot_thread", thread: "Greyport smugglers fear the lighthouse keeper" },
+  );
+
+  expect(next.plotThreads).toEqual(twins.slice(1));
+});
+
+test("at a full list, a rewrite of a thread the reply is still waiting to add waits for it, and touches no other", () => {
+  const state = withState({ plotThreads: fullOf(...THREADS) });
+
+  const next = run(
+    state,
+    { op: "add_plot_thread", thread: "Captain Rhys of Greyport flees the Guild." },
+    { op: "resolve_plot_thread", thread: THREADS[2]! },
+    { op: "update_plot_thread", thread: "Captain Rhys of Greyport flees the Guild.", replacement: "Rhys is caught." },
+  );
+
+  expect(next.plotThreads).toEqual([...THREADS.slice(0, 2), ...fullOf(...THREADS).slice(3), "Rhys is caught."]);
+});
+
+test("a miscopied Plot Thread is matched only among those the Narrator was shown", () => {
+  const hidden = "Smugglers in Greyport move stolen relics through the old lighthouse by night.";
+  const state = withState({ plotThreads: [...fullOf(...THREADS), hidden] });
+
+  const next = run(state, { op: "update_plot_thread", thread: hidden.replace("by night", "at night"), replacement: "Watched." });
+
+  expect(next.plotThreads[0]).toBe("Watched.");
+  expect(next.plotThreads.at(-1)).toBe(hidden);
+});
+
 test("a Plot Thread added and then rewritten in one reply ends up rewritten", () => {
   expect(run(withState({}), { op: "add_plot_thread", thread: "A" }, { op: "update_plot_thread", thread: "A", replacement: "B" }).plotThreads).toEqual(["B"]);
 });

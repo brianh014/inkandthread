@@ -16,12 +16,21 @@ const REPLIES_SHOWING_PEOPLE = 2;
 // JSON encoding means player text can never close the delimiter early.
 const inCharacter = (text: string) => JSON.stringify({ in_character: text });
 
-/** The player Message of a Continue, a Turn with no player input. The page shows a rule in its place. */
+/** What a Continue, a Turn with no player input, sends in place of the player's words. Never saved, so it can be reworded freely. */
 export const CONTINUE_INPUT =
-  "The player takes no action this Turn. Continue the story: the PC does nothing new, so move the scene forward on its own, then stop with the PC free to act.";
+  "The player takes no action this Turn. Continue the story from this moment: the PC does nothing new, so let the people and world around them carry on for one beat, without moving time on or ending what is under way, then stop with the PC free to act.";
+
+/** A Continue's player Message: a marker, never the words sent, so those can change. The page shows a rule in its place. */
+export const CONTINUE = "(Continue)";
+export const isContinueInput = (text: string) => text === CONTINUE;
+/** A Message as a call outside a Turn reads it, with a Continue said in plain words. */
+export const plainMessage = ({ role, text }: Pick<Message, "role" | "text">) => ({
+  role,
+  text: role === "player" && isContinueInput(text) ? "(The player let the story carry on.)" : text,
+});
 
 // A Continue is an instruction, and must never read as the PC's own words.
-const playerWords = (text: string) => (text === CONTINUE_INPUT ? CONTINUE_INPUT : inCharacter(text));
+const playerWords = (text: string) => (isContinueInput(text) ? CONTINUE_INPUT : inCharacter(text));
 
 const toPrompt =
   (npcs: State["npcs"], peopleFrom: number) =>
@@ -149,7 +158,7 @@ export const chapterTitlePrompt = (memories: string[], recent: Message[]): Promp
     role: "system",
     content: `Set title to a title for a chapter of a story, in two to six words, like a chapter title in a novel. The user sends memories of the chapter's earlier events, then its last Messages. Name what the chapter is about, with no Lore Entry or Plot Thread secrets and no dice, numbers or Checks. Reply only with JSON: {"title": "the title"}.`,
   },
-  { role: "user", content: JSON.stringify({ memories, messages: recent.map(({ role, text }) => ({ role, text })) }) },
+  { role: "user", content: JSON.stringify({ memories, messages: recent.map(plainMessage) }) },
 ];
 
 /**
@@ -161,7 +170,7 @@ export const memoryPrompt = (batch: Message[], previous?: string): Prompt => [
     role: "system",
     content: `Set scene_memory to a memory of the story Messages the user sends, ${MEMORY_RULES} Cover only what happens in these Messages and where, saying whose place it is, and never recap the story before them. Use fewer words if they hold less, and add nothing they don't show.${previous ? ` For context only, this memory comes just before them, so carry on from it and repeat none of it: ${JSON.stringify(previous)}` : ""} Reply only with JSON: {"scene_memory": "the memory"}.`,
   },
-  { role: "user", content: JSON.stringify(batch.map(({ role, text }) => ({ role, text }))) },
+  { role: "user", content: JSON.stringify(batch.map(plainMessage)) },
 ];
 
 /** A Save from before Loose Ends has none, and only the Narrator can read them out of the story so far. A player who emptied the list meant it. */

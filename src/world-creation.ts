@@ -4,7 +4,16 @@ import { type ImagePipeline, pcLooks, pcNow, restyledBy, visibleNpcs } from "./i
 import { LONG_TEXT } from "./limits";
 import { errorType, log } from "./logger";
 import { activateLore } from "./lore-activation";
-import { HOLDS_TOGETHER, IN_ITS_WORLD_AND_STYLE, imageGuidance, LOOKS, LORE_TOKEN_BUDGET, type Prompt, REQUESTED_IMAGE_PROMPT } from "./prompt-assembler";
+import {
+  HOLDS_TOGETHER,
+  IN_ITS_WORLD_AND_STYLE,
+  imageGuidance,
+  LOOKS,
+  LORE_TOKEN_BUDGET,
+  plainMessage,
+  type Prompt,
+  REQUESTED_IMAGE_PROMPT,
+} from "./prompt-assembler";
 import type { SettingsStore } from "./settings-store";
 import type { Message, Save, SaveStore } from "./save-store";
 import {
@@ -363,7 +372,7 @@ ${imageInstructions(context)}`,
       location: state.scene.location,
       pc: { name: save.pc.name, looks: pcLooks(pcNow(save.pc, state), state.inventory.wearing) },
       people: visibleNpcs(state).map(({ name, appearance }) => ({ name, looks: appearance })),
-      recent_story: messages.slice(-RECENT_STORY).map(({ role, text }) => ({ role, text })),
+      recent_story: messages.slice(-RECENT_STORY).map(plainMessage),
     }),
   ];
   return askForJson(context.textProvider, prompt, RequestedReply, "The Narrator refused this picture. Reword it and try again.", signal);

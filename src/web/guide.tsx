@@ -223,7 +223,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           <li>
             {tool(SendIcon, "Send")}, or Enter: send your move. Shift+Enter starts a new line. {tool(StopIcon, "Stop")} halts a reply while it's being written.
           </li>
-          <li>{tool(ContinueIcon, "Continue")}: send nothing and let the Narrator move the story on by itself.</li>
+          <li>{tool(ContinueIcon, "Continue")}: send nothing and let the people around your PC carry the moment on, without skipping ahead.</li>
           <li>
             {tool(DecideIcon, "Decide for me")} (with the box empty): the Narrator suggests a move for your PC, for you to send or change. With words in the box
             it becomes {tool(DecideIcon, "Enhance")}, which polishes what you wrote; <b>Undo</b> puts your words back.

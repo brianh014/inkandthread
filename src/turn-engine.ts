@@ -7,7 +7,7 @@ import { errorFields, errorType, log } from "./logger";
 import {
   assemblePrompt,
   chapterTitlePrompt,
-  CONTINUE_INPUT,
+  isContinueInput,
   editInstruction,
   journalChange,
   memoryDue,
@@ -289,7 +289,7 @@ export async function playTurn(
     pcName: saves.read(id).pc.name,
     memory,
     // The PC attempts nothing in a Continue, so there is nothing to roll for.
-    rollCheck: mayCheck && input !== CONTINUE_INPUT ? (request) => resolveCheck(request, dice, nearMissMargin) : undefined,
+    rollCheck: mayCheck && !isContinueInput(input) ? (request) => resolveCheck(request, dice, nearMissMargin) : undefined,
     playMode,
     commit: (narration, check, advance, choices) => saves.commitTurn(id, basedOn, input, narration, check, advance, choices),
     committed: (messageId, scene) => images.sceneChanged(id, messageId, scene),

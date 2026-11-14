@@ -766,3 +766,23 @@ test("Start Over gets a Save's first step as the story began, with nothing hidde
     importantCharacters: [],
   });
 });
+
+test("a Continue a Save kept in its old words, or empty, becomes the Continue marker when the Save opens", async () => {
+  const older = [
+    "The player takes no action this Turn. Continue the story: the PC does nothing new, so move the scene forward on its own, then stop with the PC free to act.",
+    "The player takes no action this Turn. Continue the story from this moment: the PC does nothing new, so let the people and world around them carry on for one beat, without moving time on or ending what is under way, then stop with the PC free to act.",
+  ];
+  play(narration("The rain keeps on."), narration("And on."));
+  const id = await app.createSave();
+  for (const input of older) await app.post(`/saves/${id}/turns`, { input });
+  await app.stop();
+  // As a Save from before Continues were a marker, with one as an empty Message as one build kept them.
+  const db = new Database(savePath(id));
+  db.run("UPDATE messages SET text = '' WHERE id = (SELECT MIN(id) FROM messages WHERE role = 'player')");
+  db.run("PRAGMA user_version = 24");
+  db.close();
+  play();
+
+  const players = (await messagesOf(id)).filter(({ role }) => role === "player");
+  expect(players.map(({ text }) => text)).toEqual(["(Continue)", "(Continue)"]);
+});

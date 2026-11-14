@@ -1,5 +1,6 @@
 import type { Ref } from "react";
 import type { Message } from "./api";
+import { isContinue } from "./chat-style";
 import { ChapterIcon, DuplicateIcon, EditIcon, RegenerateIcon, RevertIcon, RewriteIcon } from "./icons";
 
 /** What a Message's row of tools does. Only the latest response is replaceable, and only once no Turn is running. */
@@ -25,6 +26,8 @@ export function MessageControls(props: {
   actions: MessageActions;
 }) {
   const { message, latest, replaceable, replayable, open, rewriteButton, actions } = props;
+  // A Continue's text is only its marker, so it is named instead.
+  const words = isContinue(message) ? "Continue" : message.text.slice(0, 40);
   return (
     <div className="row actions">
       {message.role === "player" && replayable && (
@@ -32,7 +35,7 @@ export function MessageControls(props: {
           type="button"
           className="icon"
           title="Edit and replay from here"
-          aria-label={`Edit and replay from your words: ${message.text.slice(0, 40)}`}
+          aria-label={`Edit and replay from your words: ${words}`}
           onClick={() => actions.replay(message)}
         >
           {EditIcon}
@@ -43,7 +46,7 @@ export function MessageControls(props: {
           type="button"
           className="icon revert"
           title="Revert to here"
-          aria-label={`Revert to this Message: ${message.text.slice(0, 40)}`}
+          aria-label={`Revert to this Message: ${words}`}
           onClick={() => actions.revert(message)}
         >
           {RevertIcon}
@@ -53,7 +56,7 @@ export function MessageControls(props: {
         type="button"
         className="icon revert"
         title="Duplicate from here"
-        aria-label={`Duplicate from this Message: ${message.text.slice(0, 40)}`}
+        aria-label={`Duplicate from this Message: ${words}`}
         aria-haspopup="dialog"
         onClick={() => actions.duplicate(message)}
       >

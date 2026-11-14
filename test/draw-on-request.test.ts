@@ -88,6 +88,22 @@ const callText = () =>
     .map(({ content }) => content)
     .join("\n");
 
+test("a Scene Image and a requested one are drawn from their reviewed prompts", async () => {
+  drawn = scriptedImages(png(1), png(2), png(3), png(4));
+  written = scriptedTextProvider(turn("A figure waits by the sea wall.", scene("The sea wall")), written_("A figure watches the tide."));
+  app = startApp(savesDir, written.textProvider, scriptedDice(), 2, drawn.imageAdapter, undefined, async (description) => `${description} Checked.`);
+  await app.patch("/settings", { imageModel: "fake/image", imageApiKey: "image-key" });
+  const id = await newSave();
+  await playTurn(id);
+  await request(id, "the tide");
+  await settled(id);
+
+  const prompts = drawn.payloads.filter(({ aspect_ratio }) => aspect_ratio === "16:9").map(({ prompt }) => prompt);
+  expect(prompts).toEqual(["A figure waits by the sea wall. Checked.", "A figure watches the tide. Checked."]);
+  // A pose the player asks for, such as a hug, wins over the rules that keep people apart.
+  expect(written.prompts[1]![0]!.content).toContain("draw that pose as asked");
+});
+
 test("a request draws from the text call's prompt, joins the latest Message and leaves its Scene Image alone", async () => {
   await play([turn("A wet street", scene("The ferry")), written_("A woman on a bench")], png(1), png(2), png(3));
   const id = await newSave();

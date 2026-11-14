@@ -499,23 +499,62 @@ test("every reply is sent with the token limit from Settings", async () => {
   expect(provider.requests.map(({ body }) => body.max_tokens)).toEqual([16_000, 4000]);
 });
 
-test("a reply cut off at the token limit fails the Turn at once, without the retries that would each run as long", async () => {
-  play([
-    [
-      delta('{"check":null,"narration":"On and on'),
-      `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "length" }] })}
+const cutOff = [
+  delta('{"check":null,"narration":"On and on'),
+  `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "length" }] })}
 
 `,
-    ],
-  ]);
+];
+
+test("a reply cut off at the token limit is written again, as a model stuck in a loop mostly isn't the next time", async () => {
+  play([cutOff, narrated("The tide rises.")]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+
+  expect(provider.requests).toHaveLength(2);
+  expect((await storedMessages(id)).at(-1)).toMatchObject({ text: "The tide rises." });
+});
+
+test("a reply that runs on far past any real one is stopped early and written again, and three fail the Turn", async () => {
+  // Never finishing, so only the length of what it has sent can stop it.
+  const loop = async function* () {
+    yield delta('{"check":null,"narration":"');
+    for (let at = 0; at < 1000; at++) yield delta("and on and on and on and on and on and on and on and on. ");
+  };
+  play([loop, loop, loop]);
   const id = await app.createSave();
 
   const failed = await app.post(`/saves/${id}/turns`, { input: "I wait." });
 
   expect(failed.status).toBe(502);
+  expect(provider.requests).toHaveLength(3);
+  expect(await storedMessages(id)).toEqual([]);
+});
+
+test("thinking a model streams in its reply doesn't count toward a runaway", async () => {
+  const thinker = async function* () {
+    yield delta("<think>");
+    for (let at = 0; at < 600; at++) yield delta("Let me weigh where the scene goes from here. ");
+    yield delta("</think>");
+    yield* narrated("The tide rises.");
+  };
+  play([thinker]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+  expect(provider.requests).toHaveLength(1);
+});
+
+test("outside a Turn, a reply cut off at the token limit fails at once and says why, as another try would run as long", async () => {
+  play([cutOff, cutOff, cutOff]);
+  const id = await app.createSave();
+
+  const failed = await app.post(`/saves/${id}/world-change`, { change: "the mayor smuggles" });
+
+  expect(failed.status).toBe(502);
   expect(await failed.text()).toContain("ran far too long");
   expect(provider.requests).toHaveLength(1);
-  expect(await storedMessages(id)).toEqual([]);
 });
 
 test("a reply that streams past the time limit in Settings is stopped, and nothing is saved", async () => {

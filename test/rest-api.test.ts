@@ -8,7 +8,7 @@ import type { State } from "../src/state-applier";
 import type { ImagePipeline } from "../src/image-pipeline";
 import { settingsStore } from "../src/settings-store";
 import { ContentRefused, playTurn } from "../src/turn-engine";
-import { narration, scriptedDice, scriptedTextProvider, startApp, tempFolder, turnEvents } from "./support";
+import { narration, scriptedDice, scriptedTextProvider, startApp, tempFolder, turnEvents, withSummary } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
 let savesDir: string;
@@ -1021,8 +1021,8 @@ const alwaysOnEntry = (title: string, content: string) => ({ title, keywords: []
 
 test("the rolling summary reaches later prompts, and Revert restores the right one", async () => {
   const { app, prompts } = play(
-    narration("One.", { op: "set_summary", summary: "first-summary" }),
-    narration("Two.", { op: "set_summary", summary: "second-summary" }),
+    narration("One.", withSummary("first-summary")),
+    narration("Two.", withSummary("second-summary")),
     narration("Three."),
     narration("Four."),
   );
@@ -1217,7 +1217,7 @@ test("no player-facing response reveals the World Bible or Plot Threads", async 
       "A horn sounds.",
       { op: "add_lore_entry", title: lore, keywords: ["MARKER-KEYWORD"], content: lore },
       { op: "add_plot_thread", thread },
-      { op: "set_summary", summary: "MARKER-SUMMARY" },
+      withSummary("MARKER-SUMMARY"),
     ),
     "not json",
     "not json",
@@ -1381,7 +1381,7 @@ test("the Journal holds the summary, what the PC knows, known NPCs and the Full 
       { op: "add_npc", name: "Mara", appearance: "grey coat" },
       { op: "add_known_npc", name: "Mara" },
       { op: "add_known_fact", fact: "The ferry stopped running." },
-      { op: "set_summary", summary: "Ash reached the docks." },
+      withSummary("Ash reached the docks."),
     ),
   );
   const id = await app.createSave();
@@ -1504,7 +1504,7 @@ test("the Journal never reveals secrets or Checks", async () => {
       { op: "add_npc", name: "Mara", appearance: "MARKER-KNOWN-APPEARANCE" },
       { op: "add_known_npc", name: "Mara" },
       { op: "add_known_fact", fact: "The horn means a ship." },
-      { op: "set_summary", summary: "Ash heard a horn." },
+      withSummary("Ash heard a horn."),
     ),
   );
   const id = await app.createSave();
@@ -1526,14 +1526,14 @@ test("after a Revert, the Journal matches the restored Snapshot", async () => {
       { op: "add_npc", name: "Mara", appearance: "grey coat" },
       { op: "add_known_npc", name: "Mara" },
       { op: "add_known_fact", fact: "first-fact" },
-      { op: "set_summary", summary: "first-summary" },
+      withSummary("first-summary"),
     ),
     narration(
       "Tobin nods.",
       { op: "add_npc", name: "Tobin", appearance: "red scarf" },
       { op: "add_known_npc", name: "Tobin" },
       { op: "add_known_fact", fact: "second-fact" },
-      { op: "set_summary", summary: "second-summary" },
+      withSummary("second-summary"),
     ),
   );
   const id = await app.createSave();
@@ -1657,7 +1657,7 @@ test("inventory and status never reveal secrets or Checks", async () => {
       { op: "add_plot_thread", thread: "MARKER-PLOT-THREAD" },
       { op: "add_npc", name: "MARKER-NPC", appearance: "MARKER-APPEARANCE" },
       { op: "add_known_fact", fact: "MARKER-FACT" },
-      { op: "set_summary", summary: "MARKER-SUMMARY" },
+      withSummary("MARKER-SUMMARY"),
       { op: "add_item", slot: "carrying", item: "lantern" },
       { op: "set_health", health: "winded" },
     ),
@@ -1711,13 +1711,11 @@ test("a Rewrite's direction holds for the next responses, survives a Regenerate,
 
 test("Regenerate replaces the latest Narrator response and its state, leaving nothing stale", async () => {
   const { app, prompts } = play(
-    narration(
-      "You find a lantern.",
-      { op: "add_item", slot: "carrying", item: "lantern" },
-      { op: "set_summary", summary: "Found a lantern." },
-      { op: "add_known_fact", fact: "Lanterns float." },
-    ),
-    narration("You find a rope.", { op: "add_item", slot: "carrying", item: "rope" }, { op: "set_summary", summary: "Found a rope." }),
+    narration("You find a lantern.", { op: "add_item", slot: "carrying", item: "lantern" }, withSummary("Found a lantern."), {
+      op: "add_known_fact",
+      fact: "Lanterns float.",
+    }),
+    narration("You find a rope.", { op: "add_item", slot: "carrying", item: "rope" }, withSummary("Found a rope.")),
     narration("You climb."),
   );
   const id = await app.createSave();
@@ -1963,7 +1961,7 @@ test.each([
   ["a Text Provider failure", new Error("network down"), 502, "retryable"],
   ["a content refusal", new ContentRefused(), 422, "refused"],
 ])("%s leaves the file untouched and hands the feedback back", async (_, reply, status, failure) => {
-  const { app } = play(narration("Rain.", { op: "set_summary", summary: "It rained." }), ...Array(3).fill(reply));
+  const { app } = play(narration("Rain.", withSummary("It rained.")), ...Array(3).fill(reply));
   const id = await app.createSave();
   await app.post(`/saves/${id}/turns`, { input: "I wait." });
   const before = readFileSync(join(savesDir, `${id}.sqlite`));
@@ -1977,7 +1975,7 @@ test.each([
 
 test("a refused operation fails after the retries, keeping the response and its state", async () => {
   const bad = narration("You drop it.", { op: "remove_item", item: "unicorn" });
-  const { app, prompts } = play(narration("Rain.", { op: "set_summary", summary: "It rained." }), bad, bad, bad);
+  const { app, prompts } = play(narration("Rain.", withSummary("It rained.")), bad, bad, bad);
   const id = await app.createSave();
   await app.post(`/saves/${id}/turns`, { input: "I wait." });
 
@@ -1990,7 +1988,7 @@ test("a refused operation fails after the retries, keeping the response and its 
 });
 
 test("a replacement that fails partway through its commit changes nothing", async () => {
-  const { app } = play(narration("Rain.", { op: "set_summary", summary: "It rained." }), narration("Snow.", { op: "set_summary", summary: "It snowed." }));
+  const { app } = play(narration("Rain.", withSummary("It rained.")), narration("Snow.", withSummary("It snowed.")));
   const id = await app.createSave();
   await app.post(`/saves/${id}/turns`, { input: "I wait." });
   {
@@ -2085,7 +2083,7 @@ test("a replacement sweeps what only the old response held, and Revert still wor
 });
 
 test("a replaced Turn reverts and duplicates like any other, and leaves no orphaned sections", async () => {
-  const { app } = play(narration("Rain."), narration("Snow.", { op: "set_summary", summary: "It snowed." }));
+  const { app } = play(narration("Rain."), narration("Snow.", withSummary("It snowed.")));
   const id = await app.createSave();
   await app.post(`/saves/${id}/turns`, { input: "I wait." });
   await regenerate(app, id, 2);

@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Dice } from "./check-resolver";
 import { InvalidWorkflow } from "./comfy-workflow";
 import type { ImageAdapter, ImageModelList } from "./image-adapter";
-import type { ImagePipeline, PictureWriter } from "./image-pipeline";
+import type { ImagePipeline, PictureReviewer, PictureWriter } from "./image-pipeline";
 import { LONG_TEXT } from "./limits";
 import type { liveTurns } from "./live-turns";
 import { TurnRunning, WorldChanging } from "./live-turns";
@@ -43,6 +43,8 @@ export type ServerOptions = {
   port: number;
   /** How a Cover's or portrait's prompt is written. By default the text model writes it. */
   writePicture?: PictureWriter;
+  /** In tests, as the real one asks the text model. */
+  reviewPicture?: PictureReviewer;
   /**
    * The downloaded app, which the Menu's Quit ends, as does `idleMs` with no page open, since closing the browser
    * leaves nothing else to. A server can't be quit from a page.

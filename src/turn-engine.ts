@@ -36,7 +36,15 @@ export type TurnEvents = (event: "narration" | "restart", data: object) => void;
 export class ContentRefused extends Error {}
 /** A failure whose message is fit to show the player. */
 export class TextProviderFailed extends Error {}
+/** The reply reached the token limit and was cut off. */
+export class ReplyCutOff extends TextProviderFailed {}
 class InvalidResponse extends Error {}
+
+const RAN_ON = "ran on far too long";
+// Twice the longest real reply in players' logs, so only a model stuck in a loop reaches it, long before the token limit. An
+// opening introduces the world's people and places, so it gets twice as much. Thinking a local model streams isn't counted.
+// shortcut: one fixed size for every model, measured on one player's DeepSeek logs; make it a Setting if real replies reach it.
+const RUNAWAY_CHARS = 24_000;
 
 /** The Turn wrote nothing. `input` is the player's text, so they can edit it or send it again. */
 export class TurnFailed extends Error {
@@ -50,9 +58,13 @@ export class TurnFailed extends Error {
   }
 }
 
+// set_summary was offered once, and a model that still sends it, such as one with no schema mode, only repeats the summary field.
+const withoutRetired = (operations: unknown) =>
+  Array.isArray(operations) ? operations.filter((operation) => (operation as { op?: unknown })?.op !== "set_summary") : operations;
+
 const FinishedTurn = z.object({
   narration: z.string().trim().min(1),
-  state_operations: z.array(StateOperation).default([]),
+  state_operations: z.preprocess(withoutRetired, z.array(StateOperation).default([])),
   people: z.array(Person).catch([]),
   summary: z.string().catch(""),
   recent_summary: z.string().nullish().catch(""),
@@ -206,6 +218,10 @@ function turnPrompt(
       imageInstructions: current.imageInstructions,
       directions,
       journalEdits,
+      memoryTimes: saves.storyTimesAt(
+        id,
+        state.sceneMemories.map(({ firstMessage }) => firstMessage),
+      ),
       input,
       // shortcut: the schema is in the cached start of the prompt, so switching Play Mode costs one uncached Turn. Move the choices rule below the cache if players switch often.
       responseSchema: JSON.stringify(SCHEMAS[save.playMode].any),
@@ -384,9 +400,11 @@ async function narrate(
     narrationSent = 0;
     let generation: string | undefined;
     let partial = "";
+    const runaway = new AbortController();
     const onText = (text: string) => {
-      if (edited !== undefined) return;
       partial += text;
+      if (withoutThinking(partial).length > RUNAWAY_CHARS * (kind === "opening" ? 2 : 1)) runaway.abort(RAN_ON);
+      if (edited !== undefined) return;
       const narration = narrationSoFar(partial);
       if (narration.length <= narrationSent) return;
       emit("narration", { text: narration.slice(narrationSent) });
@@ -396,9 +414,15 @@ async function narrate(
       const reply = await askNarrator(
         textProvider,
         [...prompt, ...(check ? [resultInstruction(check)] : []), ...(unplacedBefore ? [SET_SCENE_NOTE] : [])],
-        { schema: check || !rollCheck ? schemas.noCheck : schemas.any, onText, onGeneration: (id) => (generation = id), signal },
+        {
+          schema: check || !rollCheck ? schemas.noCheck : schemas.any,
+          onText,
+          onGeneration: (id) => (generation = id),
+          signal: AbortSignal.any([signal, runaway.signal]),
+        },
         input,
         refusal,
+        runaway.signal,
       );
       const response = parseReply<z.infer<typeof NarratorResponse | typeof EditedTurn>>(reply, edited === undefined ? NarratorResponse : EditedTurn);
       if (response.check) {
@@ -410,7 +434,7 @@ async function narrate(
       const { state_operations, people, summary, recent_summary, scene_changed, visual_description, chapter_ends } = response;
       const narration = edited ?? (response.narration as string);
       // The last attempt keeps such a reply, as losing the Turn costs more than a long speech.
-      // A picture without set_scene takes the last location as its caption and its previous image as a reference.
+      // A picture without set_scene would be drawn from the last scene's place and people, which may have moved on, so it's dropped.
       const unplaced = scene_changed && !state_operations.some(({ op }) => op === "set_scene") ? "a picture without set_scene" : undefined;
       const spoken = edited === undefined ? spokenLineFault(narration) : undefined;
       const choices = playMode === "choices" ? usableChoices(response.choices) : undefined;
@@ -422,6 +446,7 @@ async function narrate(
       if (spoken === LONG_SPEECH) log.warning("turn", "Long speech kept", { attempt, generation });
       // The player picks again from a Regenerate, or switches to Free Text.
       if (unchosen) log.warning("turn", "Turn kept without Choices", { attempt, generation });
+      if (unplaced) log.warning("turn", "Picture dropped without set_scene", { attempt, generation });
       const memory = await pendingMemory;
       let moved = false;
       let location = "";
@@ -458,9 +483,9 @@ async function narrate(
       // The Turn is saved by now, so image trouble must not report it failed, or the player would send it again.
       try {
         committed(messages.at(-1)!.id, {
-          changed: moved || !!scene_changed,
+          changed: moved || (!!scene_changed && !unplaced),
           moved,
-          description: visual_description?.trim() ?? "",
+          description: unplaced ? "" : (visual_description?.trim() ?? ""),
           location,
           npcs,
           wearing,
@@ -523,6 +548,7 @@ function playerReason({ cause }: InvalidResponse) {
   if (cause === "a speaker tag without its [") return "A spoken line in the last reply was missing its speaker";
   if (cause === "a picture without set_scene") return "The last reply moved to a new scene without saying where";
   if (cause === NO_CHOICES) return "The last reply offered no choices";
+  if (cause === RAN_ON) return "The last reply ran on far too long";
   if (Array.isArray(cause)) return "The last reply changed the story in a way that doesn't fit what's already true";
   if (cause === undefined) return "The last reply asked for a second dice roll";
   return "The last reply came back garbled";
@@ -539,10 +565,20 @@ function retryIfInvalid(cause: unknown, attempt: number, input: string, generati
   return playerReason(cause);
 }
 
-async function askNarrator(textProvider: TextProvider, prompt: Prompt, request: Parameters<TextProvider>[1], input: string, refusal: string) {
+async function askNarrator(
+  textProvider: TextProvider,
+  prompt: Prompt,
+  request: Parameters<TextProvider>[1],
+  input: string,
+  refusal: string,
+  runaway?: AbortSignal,
+) {
   try {
     return await textProvider(prompt, request);
   } catch (cause) {
+    // In a Turn, a runaway is a model stuck in a loop, which a fresh try mostly isn't, so it gets the retries a garbled reply does.
+    // Any other call that reaches the token limit would likely reach it again, so it fails at once and says why.
+    if (runaway && (runaway.aborted || cause instanceof ReplyCutOff)) throw new InvalidResponse(RAN_ON, { cause });
     if (cause instanceof ContentRefused) {
       throw new TurnFailed(refusal, "refused", input, { cause });
     }

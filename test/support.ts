@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Dice } from "../src/check-resolver";
 import type { ImageAdapter, ImagePayload } from "../src/image-adapter";
-import type { PictureWriter } from "../src/image-pipeline";
+import type { PictureReviewer, PictureWriter } from "../src/image-pipeline";
 import { type LogLevel, setLogLevel } from "../src/logger";
 import { startServer } from "../src/rest-api";
 import type { Prompt } from "../src/prompt-assembler";
@@ -27,7 +27,10 @@ export async function logOf(run: () => Promise<unknown>, level: LogLevel = "verb
   }
 }
 
-export const narration = (text: string, ...state_operations: unknown[]) => JSON.stringify({ narration: text, state_operations });
+/** A reply's summary field, which `narration` takes among its operations. */
+export const withSummary = (summary: string) => ({ summary });
+export const narration = (text: string, ...parts: object[]) =>
+  JSON.stringify({ narration: text, state_operations: parts.filter((part) => "op" in part), ...Object.assign({}, ...parts.filter((part) => !("op" in part))) });
 
 /** Replies with each entry in turn, throwing Errors, and records every prompt. */
 export function scriptedTextProvider(...replies: (string | Error)[]) {
@@ -125,9 +128,11 @@ export function startApp(
   imageAdapter = scriptedImages().imageAdapter,
   // The templates, so that a scripted conversation isn't asked for Image Prompts it never planned.
   writePicture: PictureWriter = async (_ask, _style, fallback) => fallback,
+  // Kept as written, for the same reason.
+  reviewPicture: PictureReviewer = async (description) => description,
 ) {
   const settings = settingsStore(join(dirname(savesDir), "settings.json"));
-  const start = () => startServer({ savesDir, settings, textProvider, imageAdapter, dice, nearMissMargin, port: 0, writePicture });
+  const start = () => startServer({ savesDir, settings, textProvider, imageAdapter, dice, nearMissMargin, port: 0, writePicture, reviewPicture });
   let server = start();
   const post = (path: string, body: unknown) => postJson(new URL(path, server.url), body);
   return {

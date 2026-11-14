@@ -1,5 +1,8 @@
 import { expect, test } from "bun:test";
+import { join } from "node:path";
 import { assemblePrompt } from "../src/prompt-assembler";
+import { saveStore } from "../src/save-store";
+import { tempFolder } from "./support";
 import { applyEdit, applyOperations, openingState, type State, type StateOperation } from "../src/state-applier";
 
 const at = (storyTime: State["storyTime"]) => ({ ...structuredClone(openingState), storyTime });
@@ -61,4 +64,43 @@ test("the Narrator is asked to set a missing Story Time only in a story already 
   expect(prompt(null, false)).not.toContain("storyTime is null");
   expect(prompt(DUSK, true)).not.toContain("storyTime is null");
   expect(prompt(DUSK, true)).toContain('"storyTime":{"day":3,"date":"3rd of Lowtide","timeOfDay":"dusk"}');
+});
+
+test("each Scene Memory opens with the Story Time its scene began at, and one from before Story Time has none", () => {
+  const text = assemblePrompt({
+    save: { worldBrief: "A drowned city", pc: { name: "Ash" }, startingHook: "" },
+    state: {
+      ...at(DUSK),
+      sceneMemories: [
+        { firstMessage: 1, lastMessage: 4, text: "Ash met Hesper." },
+        { firstMessage: 5, lastMessage: 8, text: "Ash crossed the bay." },
+      ],
+    },
+    messages: [],
+    memoryTimes: { 5: "3rd of Lowtide, dusk" },
+    modelInstructions: "",
+    input: "I wait.",
+    responseSchema: "{}",
+    promptStyle: null,
+  })
+    .map(({ content }) => content)
+    .join("\n");
+
+  expect(text).toContain(JSON.stringify(["Ash met Hesper.", "3rd of Lowtide, dusk: Ash crossed the bay."]));
+  expect(text).toContain("to the date and time the Scene Memory of it opens with, never a guess");
+});
+
+test("a memory is dated from the Story Time just before its first Message, as that Message's Turn may move time on", () => {
+  const folder = tempFolder();
+  const saves = saveStore(join(folder.path, "Saves"));
+  const id = saves.create({ worldBrief: "A drowned city", pc: { name: "Ash" } });
+  const play = (storyTime: State["storyTime"]) =>
+    saves.commitTurn(id, saves.latestMessageId(id), "I wait.", "Rain.", undefined, (state) => ({ ...state, storyTime }));
+  play(null);
+  play(DUSK);
+  play({ day: 4, date: "4th of Lowtide", timeOfDay: "dawn" });
+
+  // 4 is the reply that set dusk, and 6 the one that moved on to dawn.
+  expect(saves.storyTimesAt(id, [1, 4, 5, 6])).toEqual({ 5: "3rd of Lowtide, dusk", 6: "3rd of Lowtide, dusk" });
+  folder.remove();
 });

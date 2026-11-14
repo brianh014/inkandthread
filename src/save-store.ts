@@ -763,6 +763,24 @@ export function saveStore(savesDir: string) {
       return latestMessage(db);
     },
 
+    /**
+     * The Story Time just before each of `messageIds`, read as the PC would, for those the story had one by then. Before,
+     * as the Turn that wrote a Message may have moved time on, and a memory is dated from when its scene began.
+     */
+    storyTimesAt(id: string, messageIds: number[]) {
+      using db = open(id);
+      const before = db.query<{ content: string }, [number]>(
+        "SELECT s.content FROM snapshot_sections ss JOIN sections s ON s.id = ss.section_id WHERE ss.name = 'storyTime' AND ss.message_id < ? ORDER BY ss.message_id DESC LIMIT 1",
+      );
+      const times: Record<number, string> = {};
+      for (const messageId of messageIds) {
+        const row = before.get(messageId);
+        const time = row && (JSON.parse(row.content) as State["storyTime"]);
+        if (time) times[messageId] = [time.date, time.timeOfDay].filter(Boolean).join(", ");
+      }
+      return times;
+    },
+
     /** Edits since the latest Message, which the next one stores. */
     pendingEdits(id: string) {
       using db = open(id);

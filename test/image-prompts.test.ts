@@ -107,7 +107,7 @@ test("an Image Prompt puts each person once in what they do, keeps props plain a
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain("never in a list of who is there");
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain("keep their hands empty otherwise");
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain("Picture at most three people and leave anyone else out of view.");
-  expect(REQUESTED_IMAGE_PROMPT.prose).toContain("at least an arm's length of clear space between people's bodies");
+  expect(REQUESTED_IMAGE_PROMPT.prose).toContain("say plainly where each body is, where each one's arms go and where each head is");
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain("each named plainly with its size, material and place");
   expect(IN_ITS_WORLD_AND_STYLE).toContain("Say which real era and region the place, buildings and clothing resemble");
   expect(IN_ITS_WORLD_AND_STYLE).toContain("in a world set before about 1600, such as an ancient or medieval one, never write coat");

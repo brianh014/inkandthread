@@ -120,7 +120,6 @@ export const StateOperation = z.discriminatedUnion("op", [
   z.object({ op: z.literal("add_plot_thread"), thread: nonEmpty }),
   z.object({ op: z.literal("update_plot_thread"), thread: nonEmpty, replacement: nonEmpty }),
   z.object({ op: z.literal("resolve_plot_thread"), thread: nonEmpty }),
-  z.object({ op: z.literal("set_summary"), summary: nonEmpty }),
   z.object({ op: z.literal("set_pc_appearance"), appearance: nonEmpty }),
   z.object({ op: z.literal("set_story_time"), days_passed: z.number().int().min(0), date: nonEmpty.nullable(), time_of_day: nonEmpty }),
 ]);
@@ -269,9 +268,6 @@ function apply(state: State, operation: StateOperation): string | undefined {
       return;
     case "resolve_plot_thread":
       return take(state.plotThreads, operation.thread) ? undefined : "not there";
-    case "set_summary":
-      state.summary = operation.summary;
-      return;
     case "set_pc_appearance":
       state.pcAppearance = operation.appearance;
       return;

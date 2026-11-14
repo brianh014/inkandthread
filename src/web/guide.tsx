@@ -8,6 +8,7 @@ import {
   DeleteIcon,
   DrawIcon,
   DuplicateIcon,
+  StartOverIcon,
   EditIcon,
   ExportIcon,
   RegenerateIcon,
@@ -379,6 +380,10 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         </p>
         <ul>
           <li>{tool(DuplicateIcon, "Duplicate")}: copy a Save, to branch a story or keep a backup before a risky move.</li>
+          <li>
+            {tool(StartOverIcon, "Start Over")}: begin a new story from this one's first step, its world, PC and Important Characters as the story began, all
+            for you to change. Nothing played and no pictures carry over, and it replaces any story you were setting up.
+          </li>
           <li>{tool(ExportIcon, "Export")}: download a Save as one file, pictures and all, to back it up or move it to another computer.</li>
           <li>
             <b>Import a Save</b>: bring an exported Save back in.

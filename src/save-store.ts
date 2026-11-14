@@ -731,6 +731,15 @@ export function saveStore(savesDir: string) {
       db.run("INSERT OR REPLACE INTO cover (id, bytes, prompt) VALUES (1, ?, ?)", [bytes, prompt]);
     },
 
+    /**
+     * The World Brief the story began with, before any Journal edit.
+     * shortcut: a Save from before the brief moved into its Snapshots may hold an edited one here, fix it only if a player notices.
+     */
+    startingBrief(id: string) {
+      using db = open(id);
+      return db.query<{ world_brief: string }, []>("SELECT world_brief FROM save").get()!.world_brief;
+    },
+
     setTheme(id: string, theme: string) {
       using db = open(id);
       db.run("UPDATE save SET theme = ?", [theme]);

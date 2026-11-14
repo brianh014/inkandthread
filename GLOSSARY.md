@@ -196,3 +196,7 @@ _Avoid_: Undo, rollback
 **Save**:
 One story on disk, and the player-facing word for that file. Duplicating a Save is how the player branches a story.
 _Avoid_: Branch, slot
+
+**Start Over**:
+Beginning a new Story with the New Story form's first step filled in from a Save, as that story began: its World Brief, Title, Theme, Starting Hook, PC and Important Characters. The later steps start fresh, so nothing played carries over and no picture: every one is drawn anew. It replaces any story the form was holding.
+_Avoid_: Duplicate (which copies the whole Save), restart, template

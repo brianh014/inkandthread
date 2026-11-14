@@ -242,6 +242,29 @@ test("Load Story opens a story, and a Duplicate is a second one", async ({ page 
   await expect(page.getByRole("heading", { name: title, level: 1 })).toBeVisible();
 });
 
+test("Start Over opens the New Story form filled in from a Save's first step, with no pictures", async ({ page }) => {
+  const { title } = await newStory(page);
+
+  await page.goto("/#/load");
+  const listed = page
+    .getByRole("listitem")
+    .filter({ has: page.getByRole("link", { name: `Open ${title}` }) })
+    .first();
+  const brief = (await listed.locator(".brief").textContent())!;
+  const pcName = (await listed.locator("p.muted").first().textContent())!;
+  await page
+    .getByRole("button", { name: `Start Over from ${title}` })
+    .first()
+    .click();
+
+  await expect(page).toHaveURL(/#\/new$/);
+  await expect(page.getByLabel("What is your story called?")).toHaveValue(title);
+  await expect(page.getByLabel("Describe your world and story")).toHaveValue(brief);
+  await expect(page.getByLabel("What is your character's name?")).toHaveValue(pcName);
+  await expect(page.getByLabel("What is your character wearing and carrying?")).toHaveValue("");
+  await expect(page.getByRole("img")).toHaveCount(0);
+});
+
 test("Duplicate from here asks first, and then opens the copy", async ({ page }) => {
   await newStory(page);
   const story = page.url();

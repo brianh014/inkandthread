@@ -731,6 +731,36 @@ export function saveStore(savesDir: string) {
       db.run("INSERT OR REPLACE INTO cover (id, bytes, prompt) VALUES (1, ?, ?)", [bytes, prompt]);
     },
 
+    /**
+     * The New Story form's first step as the story began, with the World Brief from before any Journal edit.
+     * shortcut: a Save from before the brief moved into its Snapshots may hold an edited one here, fix it only if a player notices.
+     */
+    setup(id: string) {
+      using db = open(id);
+      const save = db
+        .query<
+          {
+            world_brief: string;
+            title: string;
+            theme: string;
+            starting_hook: string;
+            pc_name: string;
+            pc_details: string;
+            important_characters: string | null;
+          },
+          []
+        >("SELECT world_brief, title, theme, starting_hook, pc_name, pc_details, important_characters FROM save")
+        .get()!;
+      return {
+        worldBrief: save.world_brief,
+        title: save.title,
+        theme: save.theme,
+        startingHook: save.starting_hook,
+        pc: { ...(JSON.parse(save.pc_details) as PcDetails), name: save.pc_name },
+        importantCharacters: save.important_characters === null ? [] : (JSON.parse(save.important_characters) as ImportantCharacter[]),
+      };
+    },
+
     setTheme(id: string, theme: string) {
       using db = open(id);
       db.run("UPDATE save SET theme = ?", [theme]);

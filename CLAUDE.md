@@ -16,7 +16,7 @@ Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/ag
 
 Create an HTML report of UI options only when the user asks for one, for a large visual change. Otherwise build UI changes directly.
 
-Follow the conventions in `CONTRIBUTING.md`: Glossary terms, `shortcut:` comments, Zod at every route, allowlisted responses, and no key or story text in a log.
+Follow the conventions in `CONTRIBUTING.md`: Glossary terms, `shortcut:` comments, Zod at every route, allowlisted responses, and no key or story text in a log, except through Story in log (`log.story`), which the player turns on to debug.
 
 ### Recommended setup
 

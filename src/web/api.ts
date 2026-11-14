@@ -92,6 +92,12 @@ export function reportEvent(event: string, fields: Record<string, number | strin
 export const listSaves = () => request<{ saves: ListedSave[] }>("/saves").then(({ saves }) => saves);
 
 export const getSave = (id: string) => request<OpenSave>(`/saves/${id}`);
+/** A Save's first step of the New Story form, as the story began, for Start Over. */
+export type SaveSetup = Pick<OpenSave, "worldBrief" | "title" | "theme" | "startingHook"> & {
+  pc: OpenSave["pc"];
+  importantCharacters: Pick<Character, "name" | "description">[];
+};
+export const saveSetup = (id: string) => request<SaveSetup>(`/saves/${id}/setup`);
 
 export const saveArtStyle = (id: string, artStyle: string) => request<{ artStyle: string }>(`/saves/${id}`, { ...jsonBody({ artStyle }), method: "PATCH" });
 

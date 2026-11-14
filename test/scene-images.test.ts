@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { ImageAdapter } from "../src/image-adapter";
-import { PNG, png, scriptedImages, scriptedTextProvider, startApp, tempFolder } from "./support";
+import { logOf, PNG, png, scriptedImages, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 type Images = { images: { messageId: number; caption: string; redraws: 0 }[]; pending: boolean; session: number; drawing?: string; more?: number };
 
@@ -76,6 +76,24 @@ test("a Turn that changes the scene gets a Scene Image in its Save, served as an
   expect(await served.bytes()).toEqual(new Uint8Array(PNG));
   expect(images.payloads[0]).toMatchObject({ aspect_ratio: "16:9", reference_images: [] });
   expect(images.payloads[0]!.prompt).toContain("A flooded street at dusk");
+});
+
+test("each Image Prompt goes to the log only with Story in log on", async () => {
+  play([newScene(), newScene("A dry street at noon", "The dry street")], PNG, PNG);
+  await enableImages();
+  const id = await app.createSave();
+
+  const drawn = async () => {
+    await playTurn(id);
+    await settled(id);
+  };
+  const quiet = await logOf(drawn);
+  await app.patch("/settings", { storyInLog: true });
+  const told = await logOf(drawn);
+
+  expect(quiet).not.toContain("A flooded street at dusk");
+  expect(told).toContain("Image prompt");
+  expect(told).toContain("A dry street at noon");
 });
 
 test("scene_changed in the same place asks for an image", async () => {

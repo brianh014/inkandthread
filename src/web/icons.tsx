@@ -16,6 +16,8 @@ export const AskIcon = icon("M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM9.1 9a3 3
 export const DownIcon = icon("M12 4v16M5 13l7 7 7-7");
 export const UpIcon = icon("M12 20V4M5 11l7-7 7 7");
 export const DuplicateIcon = icon("M8 3h9l3 3v12H8zM4 7v14h11");
+/** An arrow coming round to begin again. */
+export const StartOverIcon = icon("M4 12a8 8 0 1 0 2.4-5.7M4 3v4h4");
 export const ExportIcon = icon("M12 4v11M7 10l5 5 5-5M4 15v5h16v-5");
 /** A name tag. */
 export const RenameIcon = icon("M3 12V4h8l10 10-8 8zM7.5 7.5h.01");

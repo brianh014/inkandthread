@@ -28,7 +28,7 @@ Unit tests use the fakes in `test/` and never a real key. `SLOW_TESTS=1 bun test
 - **Decisions:** record a decision that shapes the design as an ADR in [`docs/adr/`](docs/adr/), numbered after the last.
 - **Comments** say why, not what. A known limit taken on purpose gets a comment starting `shortcut:`, which names the limit and when to lift it.
 - **Server routes** live in one module per area (`*-routes.ts`), which takes the shared `ServerContext` from `src/http.ts`. Validate every request body with a Zod schema through `parseBody`, and answer with an allowlist of fields, never a whole stored object.
-- **Secrets:** an API key must never reach a response or a log line. Logs carry counts and ids, never story text.
+- **Secrets:** an API key must never reach a response or a log line. Logs carry counts and ids, never story text, except the prompts and replies when the player turns on Story in log (Settings → Advanced) for debugging.
 - **Lint suppressions** need a reason: `// biome-ignore lint/<group>/<rule>: why`. `useExhaustiveDependencies` is off, as many effects deliberately re-run on a trigger value or leave out functions made anew on each render.
 - **Tests:** a bug fix comes with a test that fails without it. Test through the HTTP routes or a module's exported functions, as the app uses them.
 

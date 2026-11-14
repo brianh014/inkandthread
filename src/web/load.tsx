@@ -1,7 +1,8 @@
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
-import { coverUrl, deleteSave, duplicateSave, importSave, type ListedSave, listSaves, storyName } from "./api";
-import { DeleteIcon, DuplicateIcon, ExportIcon } from "./icons";
+import { coverUrl, deleteSave, duplicateSave, importSave, type ListedSave, listSaves, saveSetup, storyName } from "./api";
+import { DeleteIcon, DuplicateIcon, ExportIcon, StartOverIcon } from "./icons";
 import { ConfirmDialog, DeleteDialog, MenuRibbon, Sheet } from "./menu";
+import { draftFrom, STEPS, STORAGE_KEY } from "./wizard-draft";
 import { Zoomable } from "./zoom";
 
 const lastChanged = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -39,6 +40,22 @@ export function LoadStory() {
 
   // Apart from the action, as a list that fails to load doesn't undo an Import, and the player shouldn't import it twice.
   const refresh = () => listSaves().then(setSaves, (failure: Error) => setError(failure.message));
+
+  // Replaces any story the New Story form held, as the player has chosen to begin this one instead.
+  const startOver = (id: string) => {
+    setError("");
+    saveSetup(id).then(
+      (setup) => {
+        try {
+          sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draftFrom(setup)));
+        } catch {
+          // Blocked storage: the form opens blank rather than not at all.
+        }
+        location.hash = STEPS[0]!.hash;
+      },
+      (failure: Error) => setError(failure.message),
+    );
+  };
 
   function importChosen(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -110,6 +127,16 @@ export function LoadStory() {
                       onClick={() => busy || setDuplicating({ id: save.id, name })}
                     >
                       {DuplicateIcon}
+                    </button>
+                    <button
+                      type="button"
+                      className="icon"
+                      title="Start Over"
+                      aria-label={`Start Over from ${name}`}
+                      aria-disabled={busy}
+                      onClick={() => busy || startOver(save.id)}
+                    >
+                      {StartOverIcon}
                     </button>
                     <a className="icon" title="Export" href={`/saves/${save.id}/export`} download aria-label={`Export ${name}`}>
                       {ExportIcon}

@@ -10,7 +10,8 @@ type Fields = Record<string, unknown>;
 
 const WRITERS = { error: "error", warning: "warn", info: "info", verbose: "debug" } as const;
 
-const MOST_LOG_BYTES = 10 * 1024 * 1024;
+// Room for a couple of hundred prompts with Story in log on.
+const MOST_LOG_BYTES = 25 * 1024 * 1024;
 const MOST_MESSAGE_CHARS = 300;
 
 // Quiet until the app says which build it is, so the tests aren't flooded.
@@ -58,7 +59,7 @@ function toFile(line: string) {
   if (!logFile) return;
   try {
     if (logBytes >= MOST_LOG_BYTES) {
-      // Before the rename, so a file that won't rotate is tried again at its next 10 MB, not on every line.
+      // Before the rename, so a file that won't rotate is tried again at its next 25 MB, not on every line.
       logBytes = 0;
       renameSync(logFile, `${logFile}.1`);
     }
@@ -105,6 +106,8 @@ export const log = {
   verbose: atLevel("verbose"),
   /** Printed whatever the Log Level, or a player on Warning couldn't find the app. */
   startup: (message: string) => write("info", "info", "startup", message),
+  /** Story text, written only when the player turns on Story in log, so whatever the Log Level. */
+  story: (area: string, message: string, fields: Fields) => write("info", "info", area, message, fields),
 };
 
 /**

@@ -749,3 +749,20 @@ test("an exported Save keeps its Message times through import", async () => {
   expect(messageTimes(imported)).toEqual(messageTimes(id));
   expect(messageTimes(id)[0]!.created_at).not.toBeNull();
 });
+
+test("Start Over gets a Save's first step as the story began, with nothing hidden", async () => {
+  play();
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/edits`, { edit: "worldBrief", text: "A city drained dry" });
+
+  const setup = (await app.get(`/saves/${id}/setup`).then((r) => r.json())) as Record<string, unknown>;
+
+  expect(setup).toEqual({
+    worldBrief: "A drowned city",
+    title: "",
+    theme: "",
+    startingHook: "",
+    pc: { name: "Ash" },
+    importantCharacters: [],
+  });
+});

@@ -83,6 +83,7 @@ test("a fresh install has images on, Prose, medium type, blank Model Instruction
     theme: "system",
     logLevel: null,
     defaultLogLevel: "warning",
+    storyInLog: false,
     canQuit: false,
   });
 });
@@ -121,6 +122,7 @@ test("every setting survives a restart, and no key comes back", async () => {
     comfyMode: "advanced",
     comfyWorkflow: JSON.stringify({ "1": { class_type: "CLIPTextEncode", inputs: { text: "{{prompt}}" } } }),
     comfyFreeMemory: true,
+    storyInLog: true,
   };
   const response = await change({
     textBaseUrl: "http://localhost:1234/v1",

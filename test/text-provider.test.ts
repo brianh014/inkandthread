@@ -693,6 +693,20 @@ test("the log shows how each reply went, and none of the story", async () => {
   for (const story of ["The tide rises", "A wet day", "I wade forward", "Ada"]) expect(log).not.toContain(story);
 });
 
+test("with Story in log on, each prompt and reply goes to the log whatever the Log Level, but never the key", async () => {
+  play([narrated("The tide rises over test-key.")]);
+  await app.patch("/settings", { storyInLog: true, logLevel: "error" });
+  const id = await app.createSave();
+
+  const log = await logOf(() => streamTurn(id, "I wade forward.").then(turnEvents));
+  // The Log Level is the whole process's, so the tests after this one get theirs back.
+  await app.patch("/settings", { logLevel: null });
+
+  expect(log).toContain("The tide rises over [key].");
+  expect(log).toContain("I wade forward.");
+  expect(log).not.toContain("test-key");
+});
+
 test("a client that leaves is logged as that, not as a failed Turn", async () => {
   play([
     async function* () {

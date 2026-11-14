@@ -330,7 +330,7 @@ The server uses `Bun.serve` with no web framework, and Zod validates Narrator JS
 
 ## Server Log
 
-Every part of the app logs through `src/logger.ts`, so a problem can be traced from the Server Log alone. A line is the time, Log Level, area, message and JSON fields, in that order. Lines go to the console and to `logs/novelforge.log` beside `Saves`, created owner-only, which rotates at 10 MB and keeps one older file. If the file can't be written, the app carries on with the console and warns once.
+Every part of the app logs through `src/logger.ts`, so a problem can be traced from the Server Log alone. A line is the time, Log Level, area, message and JSON fields, in that order. Lines go to the console and to `logs/novelforge.log` beside `Saves`, created owner-only, which rotates at 25 MB and keeps one older file. If the file can't be written, the app carries on with the console and warns once.
 
 Each Log Level includes the ones above it here:
 
@@ -343,7 +343,7 @@ Each Log Level includes the ones above it here:
 
 The default is Verbose running from source, and Warning on a compiled build. A saved Log Level beats it, and a build with none saved keeps following its default. The startup lines, with the app's addresses, always print.
 
-The Server Log holds no World Bible, Plot Thread, world rule, story text, player input, Image Prompt or API key at any level, so it can be shared for help. A line about a Save gives its Save id, and its Message id or image where it has one, so the text can be found in the Save. A retried or failed Narrator reply is in no Save, so its line gives the generation id, which finds it in the provider's own logs where the provider keeps them. Requests log by route pattern, never the real path, and Settings changes by field name, never value.
+The Server Log holds no World Bible, Plot Thread, world rule, story text, player input, Image Prompt or API key at any level, so it can be shared for help. The one exception is Story in log (Settings → Advanced, off by default): for debugging, it writes every prompt, reply and Image Prompt in full, whatever the Log Level, with the text key taken out. A line about a Save gives its Save id, and its Message id or image where it has one, so the text can be found in the Save. A retried or failed Narrator reply is in no Save, so its line gives the generation id, which finds it in the provider's own logs where the provider keeps them. Requests log by route pattern, never the real path, and Settings changes by field name, never value.
 
 An error is logged by type, status and message, never its `cause`. Text from a Text Provider goes in at Verbose only, without the key, cut short, and held back if it repeats the prompt. An image model's error text is left out altogether, as it can lead with the Image Prompt, so that line gives the type and status.
 

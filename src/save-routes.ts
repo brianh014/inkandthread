@@ -244,6 +244,21 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         }
       },
     },
+    "/saves/:id/setup": {
+      // The New Story form's first step, for Start Over. An allowlist, so nothing hidden reaches the player.
+      GET: (req) => {
+        const { worldBrief, title, theme, startingHook, pc, importantCharacters } = saves.setup(req.params.id);
+        const { name, background, physicalTraits, skills, personality, other } = pc;
+        return Response.json({
+          worldBrief,
+          title,
+          theme,
+          startingHook,
+          pc: { name, background, physicalTraits, skills, personality, other },
+          importantCharacters: importantCharacters.map(({ name, description }) => ({ name, description })),
+        });
+      },
+    },
     "/saves/:id/duplicate": {
       POST: async (req) => {
         const { fromMessage } = await parseBody(req, DuplicateRequest);

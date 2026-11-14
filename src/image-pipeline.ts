@@ -263,7 +263,14 @@ export function imagePipeline(
   };
   const dropped = (id: string, job: Job, reason: string) => log.info("images", "Image dropped", { ...about(id, job), reason });
 
-  const adapter: ImageAdapter = (payload, signal) => adapters[settings.read().imageProvider](payload, signal);
+  const adapter: ImageAdapter = (payload, signal) => {
+    const { imageProvider, storyInLog } = settings.read();
+    if (storyInLog) {
+      const { reference_images, ...asked } = payload;
+      log.story("images", "Image prompt", { ...asked, references: reference_images.map(({ role }) => role) });
+    }
+    return adapters[imageProvider](payload, signal);
+  };
 
   function ready() {
     const current = settings.read();

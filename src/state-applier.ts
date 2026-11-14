@@ -160,6 +160,53 @@ function replaceOnce(list: string[], value: string, replacement: string) {
   if (!list.includes(replacement)) list.splice(index === -1 ? list.length : index, 0, replacement);
 }
 
+// Words shorter than four letters are skipped too, so these are only the common longer ones.
+const COMMON_WORDS = new Set([
+  "that",
+  "this",
+  "with",
+  "from",
+  "they",
+  "their",
+  "them",
+  "have",
+  "been",
+  "will",
+  "into",
+  "when",
+  "what",
+  "were",
+  "than",
+  "then",
+  "there",
+  "about",
+  "would",
+  "which",
+  "while",
+]);
+const wordsOf = (text: string) =>
+  new Set(
+    text
+      .toLowerCase()
+      .match(/[\p{L}\p{N}]{4,}/gu)
+      ?.filter((word) => !COMMON_WORDS.has(word)),
+  );
+
+/**
+ * The thread `text` names: itself, or else the one sharing most of its words, as Narrators paraphrase a long thread they
+ * were told to copy. Threads in one story share names, so it takes half the longer one's words, and a tie is no match.
+ */
+export function closestThread(threads: string[], text: string) {
+  if (threads.includes(text)) return text;
+  const words = wordsOf(text);
+  const scored = threads.map((thread) => {
+    const theirs = wordsOf(thread);
+    return { thread, score: [...words].filter((word) => theirs.has(word)).length / Math.max(words.size, theirs.size, 1) };
+  });
+  const [best, next] = scored.sort((a, b) => b.score - a.score);
+  return best && best.score >= 0.5 && best.score !== next?.score ? best.thread : undefined;
+}
+
 /**
  * Makes `name` and `into` one person, or renames `name` if `into` isn't in the state. Someone already gone is no reason to
  * lose a response. Portraits stay as they are, so a Revert needs nothing undone: the known list hides the merged one's.
@@ -176,8 +223,28 @@ function mergeNpc(state: State, name: string, into: string) {
   if (summary !== undefined) pcKnown.summaries = { [into]: summary, ...summaries };
 }
 
+/** What this reply made of each Plot Thread it changed, its replacement or null once resolved, and those still waiting to be added because the list was full. */
+type ThreadsSoFar = { became: Map<string, string | null>; waiting: string[] };
+
+/**
+ * The open thread `text` names, followed to what this reply made of it, so that a thread already changed is never matched
+ * to another that shares its words. `resolved` when this reply closed it, and `wait` when it is still waiting to be added.
+ */
+function namedThread(state: State, text: string, { became, waiting }: ThreadsSoFar) {
+  // Only those the prompt showed, as a Save from before the limit can hold more.
+  const shown = state.plotThreads.slice(0, MAX_PLOT_THREADS);
+  // Once each, as a thread in two lists would tie with itself and match nothing.
+  const named = closestThread([...new Set([...shown, ...became.keys(), ...waiting])], text);
+  if (named === undefined || shown.includes(named)) return { thread: named };
+  if (waiting.includes(named)) return { wait: true };
+  let now: string | null | undefined = named;
+  // A few steps at most, in case a reply rewrites a thread back and forth.
+  for (let step = 0; typeof now === "string" && !shown.includes(now) && became.has(now) && step < MAX_PLOT_THREADS; step++) now = became.get(now);
+  return now === null ? { resolved: true } : { thread: now };
+}
+
 /** Changes `state` and returns nothing, or returns why `operation` is disproved, having changed nothing. The reason goes to the Server Log, so it never quotes the operation. */
-function apply(state: State, operation: StateOperation): string | undefined {
+function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = { became: new Map(), waiting: [] }): string | undefined {
   switch (operation.op) {
     case "add_item":
       state.inventory[operation.slot].push(operation.item);
@@ -259,15 +326,34 @@ function apply(state: State, operation: StateOperation): string | undefined {
       state.worldBible = state.worldBible.filter(({ title, alwaysOn }) => alwaysOn || title !== operation.title);
       return;
     case "add_plot_thread":
-      if (state.plotThreads.length >= MAX_PLOT_THREADS) return "full";
-      return addOnce(state.plotThreads, operation.thread) ? undefined : "already there";
-    case "update_plot_thread":
-      // A miscopied thread would be added, so it meets the same limit.
-      if (!state.plotThreads.includes(operation.thread) && state.plotThreads.length >= MAX_PLOT_THREADS) return "full";
-      replaceOnce(state.plotThreads, operation.thread, operation.replacement);
+      if (state.plotThreads.includes(operation.thread)) return "already there";
+      if (state.plotThreads.length >= MAX_PLOT_THREADS) {
+        threads.waiting.push(operation.thread);
+        return "full";
+      }
+      state.plotThreads.push(operation.thread);
       return;
-    case "resolve_plot_thread":
-      return take(state.plotThreads, operation.thread) ? undefined : "not there";
+    case "update_plot_thread": {
+      const { thread, wait, resolved } = namedThread(state, operation.thread, threads);
+      // Closed earlier in this reply, so a rewrite mustn't open it again.
+      if (resolved) return;
+      // A thread that matches none would be added, so it meets the same limit.
+      if (wait || (thread === undefined && state.plotThreads.length >= MAX_PLOT_THREADS)) {
+        threads.waiting.push(operation.replacement);
+        return "full";
+      }
+      replaceOnce(state.plotThreads, thread ?? operation.thread, operation.replacement);
+      if (thread !== undefined && thread !== operation.replacement) threads.became.set(thread, operation.replacement);
+      return;
+    }
+    case "resolve_plot_thread": {
+      const { thread, wait, resolved } = namedThread(state, operation.thread, threads);
+      if (wait) return "full";
+      if (resolved) return;
+      if (thread === undefined || !take(state.plotThreads, thread)) return "not there";
+      threads.became.set(thread, null);
+      return;
+    }
     case "set_pc_appearance":
       state.pcAppearance = operation.appearance;
       return;
@@ -292,15 +378,24 @@ const IGNORABLE: StateOperation["op"][] = ["resolve_loose_end", "add_known_npc",
 // A full list of Plot Threads is the Narrator's to tidy later, not worth a whole response.
 const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }) => IGNORABLE.includes(op) || reason === "already there" || reason === "full";
 
-/** Applies operations in order, so each is judged against the ones before it. */
+/** Applies operations in order, so each is judged against the ones before it, except that a Plot Thread change refused as full is tried once more at the end. */
 export function applyOperations(state: State, operations: StateOperation[]) {
   const next = structuredClone(state);
   let repeats = 0;
+  const full: StateOperation[] = [];
+  const threads: ThreadsSoFar = { became: new Map(), waiting: [] };
   const refusals = operations.flatMap(({ ...operation }) => {
     if (isRepeat(next, operation)) repeats++;
-    const reason = apply(next, operation);
-    return reason ? [{ op: operation.op, reason }] : [];
+    const reason = apply(next, operation, threads);
+    if (reason === "full") full.push(operation);
+    return reason && reason !== "full" ? [{ op: operation.op, reason }] : [];
   });
+  // Tried again after the reply's resolves, which may have made room for them.
+  threads.waiting = [];
+  for (const operation of full) {
+    const reason = apply(next, operation, threads);
+    if (reason) refusals.push({ op: operation.op, reason });
+  }
   return { next, refused: refusals.filter((refusal) => !isHarmless(refusal)), ignored: refusals.filter(isHarmless), repeats };
 }
 

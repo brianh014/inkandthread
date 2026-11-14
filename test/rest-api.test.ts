@@ -985,6 +985,19 @@ test("a Continue reaches the Narrator as an instruction, not as the PC's words, 
   expect(prompts.at(-1)!.at(-1)!.content).toBe(CONTINUE_INPUT);
 });
 
+test("a Continue a Save kept in its earlier words is still a Continue, sent as it reads now, and rolls no Check", async () => {
+  const earlier =
+    "The player takes no action this Turn. Continue the story: the PC does nothing new, so move the scene forward on its own, then stop with the PC free to act.";
+  const { app, prompts } = playWithDice([], JSON.stringify({ check: { skill: "Stealth", difficulty: 12 } }), narration("The rain keeps on."));
+  const id = await app.createSave();
+
+  const response = await app.post(`/saves/${id}/turns`, { input: earlier });
+
+  expect(response.status).toBe(201);
+  expect(prompts.at(-1)!.at(-1)!.content).toBe(CONTINUE_INPUT);
+  expect(CONTINUE_INPUT).toContain("without moving time on or ending what is under way");
+});
+
 test("a prompt holds in order the Messages that no Scene Memory covers yet", async () => {
   const replies = Array.from({ length: 42 }, (_, turn) => narration(`Reply ${turn}.`));
   replies.splice(40, 0, JSON.stringify({ scene_memory: "Early days." })); // At 80 Messages, a memory call comes before the Turn's own.

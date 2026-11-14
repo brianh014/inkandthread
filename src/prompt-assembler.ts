@@ -18,10 +18,16 @@ const inCharacter = (text: string) => JSON.stringify({ in_character: text });
 
 /** The player Message of a Continue, a Turn with no player input. The page shows a rule in its place. */
 export const CONTINUE_INPUT =
-  "The player takes no action this Turn. Continue the story: the PC does nothing new, so move the scene forward on its own, then stop with the PC free to act.";
+  "The player takes no action this Turn. Continue the story from this moment: the PC does nothing new, so let the people and world around them carry on for one beat, without moving time on or ending what is under way, then stop with the PC free to act.";
 
-// A Continue is an instruction, and must never read as the PC's own words.
-const playerWords = (text: string) => (text === CONTINUE_INPUT ? CONTINUE_INPUT : inCharacter(text));
+// A Save keeps a Continue's words as they were sent, so one from before a rewording is still a Continue.
+const EARLIER_CONTINUES = [
+  "The player takes no action this Turn. Continue the story: the PC does nothing new, so move the scene forward on its own, then stop with the PC free to act.",
+];
+export const isContinueInput = (text: string) => text === CONTINUE_INPUT || EARLIER_CONTINUES.includes(text);
+
+// A Continue is an instruction, and must never read as the PC's own words. An earlier one is sent as it reads now.
+const playerWords = (text: string) => (isContinueInput(text) ? CONTINUE_INPUT : inCharacter(text));
 
 const toPrompt =
   (npcs: State["npcs"], peopleFrom: number) =>

@@ -1,4 +1,4 @@
-import { CONTINUE_INPUT, OPENING_INPUT } from "../prompt-assembler";
+import { isContinueInput, OPENING_INPUT } from "../prompt-assembler";
 import type { Chapter, Message, Settings } from "./api";
 
 const NUMERALS: [number, string][] = [
@@ -42,7 +42,7 @@ export type ChatStyle = Settings["chatStyle"];
 /** `rule` is a Continue, which shows as a short line between the responses. */
 export type Beat = { speaker?: string; player?: boolean; rule?: boolean; text: string };
 
-export const isContinue = ({ role, text }: Pick<Message, "role" | "text">) => role === "player" && text === CONTINUE_INPUT;
+export const isContinue = ({ role, text }: Pick<Message, "role" | "text">) => role === "player" && isContinueInput(text);
 export const ContinueRule = () => <hr className="continued" aria-label="The story continues" />;
 /** A `replaces` response is left out of the story while its replacement arrives. */
 export type TurnInProgress = { input: string; narration: string; replaces?: Message; edit?: boolean; retry?: string };

@@ -3,6 +3,7 @@ dist/
 Saves/
 logs/
 settings.json
+usage.sqlite
 settings.json.unfinished
 held-images/
 .scratch/

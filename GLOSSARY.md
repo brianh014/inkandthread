@@ -182,6 +182,10 @@ _Avoid_: Log
 The app's own record of what it did, for tracing a problem: the console and `logs/novelforge.log`. It holds no story text, only ids that lead to it in the Save, unless the player turns on Story in log to debug, when it also holds every prompt, reply and Image Prompt. It has nothing to do with the Chapters, which are the story's own record.
 _Avoid_: Log (alone), debug log
 
+**Usage**:
+The tally, in Settings, of every request the app made to the AI, by day and by provider and model, text and pictures apart: how many, how many failed, the tokens for text, and the cost where the provider reports one. It holds no story text, belongs to no Save, and is kept for the whole install.
+_Avoid_: Stats, Spend, Cost (alone)
+
 **Log Level**:
 How much goes in the Server Log: Error, Warning, Info or Verbose, each including the ones before it. A Default choice follows the build.
 _Avoid_: Debug level

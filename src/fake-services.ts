@@ -185,7 +185,7 @@ function meetImportant(prompt: Parameters<TextProvider>[0], people: { name: stri
 }
 
 /** Answers every request at once with `sample` of its schema, streamed in a few pieces like a real model. */
-export const fakeTextProvider: TextProvider = async (prompt, { schema, onText, signal }) => {
+export const fakeTextProvider: TextProvider = async (prompt, { schema, onText, onUsage, signal }) => {
   const sampled = schema && (sample(schema as Schema) as Record<string, unknown>);
   const title = titleIn(prompt);
   if (sampled && title && typeof sampled.text === "string")
@@ -203,6 +203,14 @@ export const fakeTextProvider: TextProvider = async (prompt, { schema, onText, s
     await pause(Number(process.env.FAKE_STREAM_MS ?? 30), signal);
     onText(reply.slice(at, at + 40));
   }
+  // Made-up numbers, so Usage has something to show.
+  const sent = Math.ceil(prompt.reduce((chars, { content }) => chars + content.length, 0) / 4);
+  onUsage?.({
+    prompt_tokens: sent,
+    completion_tokens: Math.ceil(reply.length / 4),
+    prompt_tokens_details: { cached_tokens: Math.floor(sent / 2) },
+    cost: sent / 1e6,
+  });
   return reply;
 };
 

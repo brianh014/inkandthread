@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { newStory } from "./support";
 
 test("a Reading setting is saved and still applies after a reload", async ({ page }) => {
   await page.goto("/#/settings");
@@ -69,4 +70,20 @@ test("a LoRA's strength box follows the list when switching back to a family bri
   await family("SD 1.5/SDXL (faces change between pictures)");
 
   await expect(strength).toHaveValue("0.5");
+});
+
+test("Usage charts the AI's requests by model, with a table behind it, outside the settings form", async ({ page }) => {
+  await newStory(page);
+  await page.goto("/#/settings");
+  await page.getByRole("button", { name: "Usage" }).click();
+  await expect(page.getByRole("heading", { name: "Text" })).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: "fake-narrator" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save settings" })).toHaveCount(0);
+
+  await page.locator("label", { hasText: "Requests" }).click();
+  await page.getByText("Month", { exact: true }).click();
+  await page.getByRole("button", { name: "Show as a table" }).click();
+  const text = page.getByRole("table", { name: "Text" });
+  await expect(text.getByRole("row").filter({ hasText: "fake-narrator" })).toBeVisible();
+  await expect(text.getByRole("columnheader", { name: /^[A-Z][a-z]+ \d{4}$/ })).toBeVisible();
 });

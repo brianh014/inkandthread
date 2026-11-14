@@ -12,6 +12,7 @@ import { ContentRefused, TextProviderFailed } from "./turn-engine";
 
 // Only the online providers have a list. ComfyUI's models come from /settings/comfy-models.
 const ImageModelsQuery = z.object({ provider: OnlineImageProvider });
+const UsageQuery = z.strictObject({ by: z.enum(["day", "week", "month"]) });
 
 /** `profiles` with each one's key taken out. */
 const unkeyed = <T extends object>(profiles: Record<string, T>, key: keyof T) =>
@@ -151,6 +152,11 @@ export function settingsRoutes({ options, images }: ServerContext, local: ImageA
         const { provider } = ImageModelsQuery.parse(Object.fromEntries(new URL(req.url).searchParams));
         return Response.json({ models: (await options.imageModels?.(provider, req.signal)) ?? [] });
       },
+    },
+    // Numbers and Settings values only, as `summary` allowlists its fields.
+    "/settings/usage": {
+      // startServer always gives one.
+      GET: (req) => Response.json(options.usage!.summary(UsageQuery.parse(Object.fromEntries(new URL(req.url).searchParams)).by)),
     },
     "/settings/text-hosts": {
       GET: async (req) => Response.json({ hosts: await textHosts(settings, new URL(req.url).searchParams.get("model") ?? "", req.signal) }),

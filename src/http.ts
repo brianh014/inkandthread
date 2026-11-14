@@ -22,6 +22,7 @@ import {
 import type { OnlineImageProvider, SettingsStore } from "./settings-store";
 import { type TextProvider, TurnFailed } from "./turn-engine";
 import { UpdateFailed } from "./updater";
+import type { UsageStore } from "./usage-store";
 
 /** What every route module shares: the request checks, the error answers, and the server's parts. */
 
@@ -52,6 +53,8 @@ export type ServerOptions = {
   quittable?: { idleMs: number };
   /** Where the newest release is asked for. GitHub's by default; tests serve their own. */
   latestRelease?: string;
+  /** Usage, kept for the whole install. Tests get one in memory. */
+  usage?: UsageStore;
 };
 
 /** The one of each a server runs on, which every area's routes share. */

@@ -112,6 +112,8 @@ NovelForge has no AI of its own, so it needs a key from an AI service before it 
 
 [Google AI Studio](https://aistudio.google.com) gives a free key with a Google account, no card needed. Sign in, choose **Get API key**, then in **Settings → Text** choose **Google AI Studio**, paste the key, save, and pick a Gemini Flash model. The free tier limits how many Turns a day you get, and Google may use what you send, your story among it, to improve its products. The same key draws pictures with Nano Banana under **Settings → Images → Google AI Studio**, but pictures aren't free: turn on billing in AI Studio first.
 
+**Settings → Usage** shows how many requests NovelForge sent to each provider and model, by day, week or month, with the tokens for text and the cost wherever the provider reports it, as OpenRouter does.
+
 ### Updating
 
 When a new version is out, a notice at the top of the screen says so, and **Settings → Updates** can check at any time. Choose **Install**, and NovelForge downloads it, restarts and comes back to the same page, on every system and for the Server too. Your Saves and Settings stay as they are, and if the new version fails to start, the old one comes back. To check, NovelForge asks GitHub for the newest release every few hours; nothing else is sent.

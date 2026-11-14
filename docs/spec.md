@@ -143,7 +143,7 @@ Lore Entry activation:
 * The current state carries every Loose End on every Turn, so they don't depend on the summary. If the list is empty once the story has begun, the prompt asks the Narrator to fill it from the summary, known facts and recent Messages, which is how a Save from before Loose Ends gets them
 * Scene Memories fade older story without losing it, so the Narrator's memory runs from full Messages, to Scene Memories, to the summary. Every Scene Memory goes in the first system message on every Turn, oldest first, with no keywords or retrieval
 * The Message window is every Message after the last one a Scene Memory covers, so a Message can't leave the prompt uncovered. Once it reaches 100 Messages, the Turn asks for a Scene Memory of its oldest 20 in about 100 words, in the nullable `scene_memory` field. The server records the Message range, and a reply can't choose it. A missed memory costs nothing: the Turn commits, the window keeps those Messages, and the next Turn asks again. Only a finished Turn writes one. A Save from before Scene Memories starts its window at its latest 100 Messages, and older ones stay with the summary. After a Revert to before that point, the latest 100 Messages stand in until a memory is written. `scripts/backfill-scene-memories.ts` is a one-off that writes the memories such a Save lacks, on a copy of it, from each batch and the memory rules alone
-* A story keeps at most eight Plot Threads. A Turn's add on a full list is dropped without costing the Turn, a World Change or new world that would go past eight is unusable, and a Save from before the limit sends only its first eight. The Narrator brings a thread forward at a natural pause of its own choosing, never by cutting into a conversation the player is still having
+* A story keeps at most eight Plot Threads, and when eight are open the prompt says so beside them. A thread a Turn changes is matched to the closest open one the prompt showed when it isn't copied exactly, sharing at least half the longer one's words with no tie, and a reply's changes are followed through it, so a thread it rewrote or resolved is never matched to another. A Turn's add or rewrite on a full list is tried again after the rest of the reply, and dropped without costing the Turn if there's still no room, a World Change or new world that would go past eight is unusable, and a Save from before the limit sends only its first eight. The Narrator brings a thread forward at a natural pause of its own choosing, never by cutting into a conversation the player is still having
 * The last instruction before the player's action keeps the PC's choices and speech to the player, and treats anything the PC is said to think as private
 * Other entries activate when their keywords appear in recent Messages, within a token budget, the latest mentioned first
 * Activation allows one level of recursion
@@ -299,6 +299,7 @@ Per install:
   * Test text \- a prompt box and Test button at the bottom of the Text settings send that prompt to the saved model, with the Model Instructions as the system prompt and no schema. The reply shows there with its time, time to the first word, approximate length and speed, and the model
 * Advanced
   * Log Level \- Default, Error, Warning, Info or Verbose. Default shows what it is on this build, and a change applies as soon as it's saved
+  * Story in log \- off by default. On, every prompt, reply and Image Prompt goes into the Server Log too, for advanced debugging
 * UI Settings
   * Chat style \- Script, Prose (the default), Bubbles or Stage box, from the UI options report. It changes how the Story shows Messages, not the Full Log, which stays exactly as written
   * Theme - Match this device (the default), Light or Dark
@@ -311,12 +312,14 @@ Model switching is allowed mid-story, and a LoRA list carries across Saves, so i
 # Main Menu
 
 * New Story
-* Load Story \- load, duplicate, delete with confirmation, and import or export a Save file
+* Load Story \- load, duplicate, Start Over, delete with confirmation, and import or export a Save file
 * Settings
 
 A story is always called by its Title, with its PC's name as a second line under it on Load Story and the Story's left page. A Save with no Title goes by the PC's name, as that's all that tells such Saves apart.
 
 Every Turn saves automatically, so there is no manual save. Players branch a story by duplicating a Save, either from this menu or with “Duplicate from here” on any Message.
+
+Start Over begins a new story from a Save: the New Story form opens with its first step filled in as that story began, with the World Brief from before any Journal edit, its Title, Theme, Starting Hook, PC and Important Characters, all for the player to change. The PC's inventory box starts empty, as the Save keeps only the items it became. The later steps start fresh, so no world, Art Style, Play Mode or picture carries over, and it replaces any story the form was holding. A Save from before Important Characters were kept starts with none.
 
 # Tech
 

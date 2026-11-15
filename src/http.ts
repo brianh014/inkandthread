@@ -165,7 +165,12 @@ export function logged<Route extends string>(routes: Bun.Serve.Routes<undefined,
       const response = await Promise.resolve()
         .then(() => handler(req))
         .catch(errorResponse);
-      log.verbose("http", "Request", () => ({ method, status: response.status, ms: Math.round(performance.now() - started) }));
+      // Anything but a read is an action, logged by default so none goes unrecorded; reads are only for tracing.
+      (method === "GET" ? log.verbose : log.info)("http", method === "GET" ? "Request" : "Action", () => ({
+        method,
+        status: response.status,
+        ms: Math.round(performance.now() - started),
+      }));
       return response;
     });
   };

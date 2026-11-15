@@ -18,7 +18,7 @@ Create an HTML report of UI options only when the user asks for one, for a large
 
 Follow the conventions in `CONTRIBUTING.md`: Glossary terms, `shortcut:` comments, Zod at every route, allowlisted responses, and no key or story text in a log, except through Story in log (`log.story`), which the player turns on to debug.
 
-Log every action by default, whether the player, the app or the AI takes it: what happened, with ids, counts, settings values and outcomes, such as a Check's difficulty and result or the names of a Turn's state operations. Keys and story text stay out unless Story in log is on. A change that adds an action, such as a route, a tool, a Narrator operation or a background job, adds its log lines in the same change, so nothing goes unrecorded.
+Log every action by default, whether the player, the app or the AI takes it: what happened, with ids, counts, settings values and outcomes, such as a Check's difficulty and result or the names of a Turn's state operations. Keys and story text stay out unless Story in log is on. The shared route wrapper (`logged` in `src/http.ts`) already logs every request that changes something at Info, the downloaded app's default level, with its route, Save, method and status. So a change that adds an action, such as a route, a tool, a Narrator operation or a background job, adds a detail line where the outcome needs more than a status, as "Turn committed" and "World Change applied" do. Do it in the same change, so nothing goes unrecorded.
 
 ### Recommended setup
 

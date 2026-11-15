@@ -484,8 +484,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         </p>
         <h3>Advanced</h3>
         <p>
-          <b>Log Level</b>: how much goes in the log in the <code>logs</code> folder. Raise it to Verbose to trace a problem. The log never holds your keys, and
-          holds your story's text only with Story in log on.
+          <b>Log Level</b>: how much goes in the log in the <code>logs</code> folder. By default it notes everything you and the AI do, and what came of it.
+          Raise it to Verbose to trace a problem. The log never holds your keys, and holds your story's text only with Story in log on.
         </p>
         <p>
           <b>Story in log</b>: also writes everything sent to the AI and every reply, picture prompts too, story text included, to the log. It's only needed for

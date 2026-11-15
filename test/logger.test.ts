@@ -84,7 +84,7 @@ test("context reaches every line it causes, and an error's cause and a parser's 
 
 test("the default is Verbose on a debug build and Warning on a compiled one", () => {
   expect(defaultLevelFor(false)).toBe("verbose");
-  expect(defaultLevelFor(true)).toBe("warning");
+  expect(defaultLevelFor(true)).toBe("info");
 });
 
 test("a saved Log Level beats the default and applies at once, and clearing it follows the default again", async () => {

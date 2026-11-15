@@ -199,6 +199,8 @@ export const requestedImageUrl = (id: string, { ref, redraws }: Pick<RequestedIm
   `/saves/${id}/requested-images/${ref}/image?v=${redraws}`;
 
 /** What a story is called. A Save from before titles has only its PC to tell it apart. */
+/** What Load Story calls a Save file that won't open. */
+export const UNREADABLE_SAVE = "Unreadable Save";
 export const storyName = ({ title, pc }: { title: string; pc: { name: string } }) => title || pc.name;
 
 export const coverUrl = (id: string, redraws: number) => `/saves/${id}/cover?v=${redraws}`;

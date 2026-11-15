@@ -248,7 +248,9 @@ function UsageTable<R extends Row>(props: { caption: string; rows: R[]; by: Usag
 export const QUIET_TURNS = 50;
 
 /** What a story's Turns would show if the Narrator kept skipping its tools, worded for the Narrator table. */
-export function quietNotes({ title, model, sinceCheck, sinceTime }: Pick<NarratorStory, "title" | "model" | "sinceCheck" | "sinceTime">) {
+export function quietNotes({ title, model, sinceCheck, sinceTime, latest }: Pick<NarratorStory, "title" | "model" | "sinceCheck" | "sinceTime" | "latest">) {
+  // A model the story has moved on from isn't skipping anything now.
+  if (!latest) return [];
   const who = `${title}, ${model || "—"}`;
   return [
     sinceCheck >= QUIET_TURNS && `${who}: no Check in the last ${count(sinceCheck)} Turns.`,
@@ -291,7 +293,8 @@ function NarratorTable() {
       <h3>Narrator</h3>
       <p className="muted">
         What the Narrator did in each story over your Turns, from when this count began, for each model that wrote there. Few Checks, or many Turns with no
-        change, mean the AI is skipping its tools. Counts only, nothing of your story.
+        change, mean the AI is skipping its tools. Turns you later Reverted, Rewrote or Regenerated stay counted as first played. Counts only, nothing of your
+        story.
       </p>
       {stories.length === 0 ? (
         <p className="muted">No Turns counted yet.</p>

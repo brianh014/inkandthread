@@ -285,6 +285,7 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         await parseBody(req, NoFields);
         const deleted = saves.revert(req.params.id, Number(req.params.messageId));
         images.forget(req.params.id, Number(req.params.messageId), "revert");
+        options.usage?.reverted(req.params.id);
         return Response.json(deleted);
       },
     },

@@ -70,6 +70,8 @@ export type NarratorRow = {
   threadsResolved: number;
   sinceCheck: number;
   sinceTime: number;
+  /** Whether this is the model the story last played with, the only row whose counts since still mean anything. */
+  latest: boolean;
 };
 
 const GROUPED: Record<UsagePeriod, string> = {
@@ -96,8 +98,11 @@ export function usageStore(path = ":memory:") {
         ${Object.keys(COUNTED)
           .map((column) => `${column} INTEGER NOT NULL`)
           .join(", ")},
-        since_check INTEGER NOT NULL, since_time INTEGER NOT NULL,
+        since_check INTEGER NOT NULL, since_time INTEGER NOT NULL, last INTEGER NOT NULL,
         PRIMARY KEY (save, model))`);
+      // A file from a build of this branch before `last` was added.
+      if (!db.query("SELECT 1 FROM pragma_table_info('narrator') WHERE name = 'last'").get())
+        db.run("ALTER TABLE narrator ADD COLUMN last INTEGER NOT NULL DEFAULT 0");
       return db;
     } catch (error) {
       // Or Windows holds a damaged file for the whole run.
@@ -120,11 +125,14 @@ export function usageStore(path = ":memory:") {
       tokens_in = tokens_in + excluded.tokens_in, tokens_out = tokens_out + excluded.tokens_out, cached = cached + excluded.cached,
       cost = CASE WHEN excluded.cost IS NULL THEN cost ELSE coalesce(cost, 0) + excluded.cost END, priced = priced + excluded.priced`);
   const summed = ["turns", "checks", ...Object.values(DIFFICULTIES), "unchanged", ...Object.keys(COUNTED)];
-  // A count since resets to 0 on the Turn that has the thing, and otherwise grows by one.
-  const addTurn = db.query(`INSERT INTO narrator VALUES ($save, $model, ${summed.map((column) => `$${column}`).join(", ")}, $since_check, $since_time)
+  // A count since resets to 0 on the Turn that has the thing, and otherwise grows by one. `last` orders rows by the Turn that
+  // last touched them, so a story's current model is known.
+  const addTurn = db.query(`INSERT INTO narrator VALUES ($save, $model, ${summed.map((column) => `$${column}`).join(", ")}, $since_check, $since_time,
+      (SELECT coalesce(max(last), 0) + 1 FROM narrator))
     ON CONFLICT (save, model) DO UPDATE SET ${summed.map((column) => `${column} = ${column} + excluded.${column}`).join(", ")},
       since_check = CASE WHEN excluded.checks > 0 THEN 0 ELSE since_check + 1 END,
-      since_time = CASE WHEN excluded.time_moved > 0 THEN 0 ELSE since_time + 1 END`);
+      since_time = CASE WHEN excluded.time_moved > 0 THEN 0 ELSE since_time + 1 END, last = excluded.last`);
+  const reverted = db.query("UPDATE narrator SET since_check = 0, since_time = 0 WHERE save = ?");
 
   return {
     /** `day` is for tests; the app stamps the local date. */
@@ -169,13 +177,27 @@ export function usageStore(path = ":memory:") {
         log.warning("usage", "A Turn wasn't counted", errorFields(error));
       }
     },
-    /** Every Save's counts, for each model that wrote in it, the most played first. */
+    /**
+     * After a Revert, the Turns it took out stay counted, as they were played, but how long it's been since a Check or since
+     * time moved can't be known, so both start again. shortcut: there's no per-Turn record to take counts back; keep one if exact totals matter.
+     */
+    reverted(save: string) {
+      try {
+        reverted.run(save);
+      } catch (error) {
+        log.warning("usage", "A Revert wasn't noted in the Narrator counts", errorFields(error));
+      }
+    },
+    /** Every Save's counts for each model that wrote in it, a story's rows together, the most played story first. */
     narrator() {
-      return db
-        .query(`SELECT save, model, turns, checks, easy, moderate, hard, very_hard AS veryHard, unchanged, time_moved AS timeMoved, scenes, facts,
+      return (
+        db
+          .query(`SELECT save, model, turns, checks, easy, moderate, hard, very_hard AS veryHard, unchanged, time_moved AS timeMoved, scenes, facts,
           loose_opened AS looseOpened, loose_closed AS looseClosed, threads_added AS threadsAdded, threads_moved AS threadsMoved,
-          threads_resolved AS threadsResolved, since_check AS sinceCheck, since_time AS sinceTime FROM narrator ORDER BY turns DESC`)
-        .all() as NarratorRow[];
+          threads_resolved AS threadsResolved, since_check AS sinceCheck, since_time AS sinceTime, last = max(last) OVER (PARTITION BY save) AS latest
+          FROM narrator ORDER BY sum(turns) OVER (PARTITION BY save) DESC, save, last DESC`)
+          .all() as (Omit<NarratorRow, "latest"> & { latest: number })[]
+      ).map((row) => ({ ...row, latest: row.latest === 1 }));
     },
     summary(by: UsagePeriod) {
       const rows = db

@@ -111,8 +111,9 @@ describe("Narrator usage", () => {
     usage.turn("a", "m", { operations: ["update_plot_thread", "add_loose_end", "set_scene"] });
     usage.turn("a", "other", { difficulty: "Easy", operations: ["resolve_loose_end"] });
 
-    const [first, second] = usage.narrator();
-    expect(first).toEqual({
+    // The story played last with "other", so its row comes first and is the one whose counts since apply.
+    const [latest, earlier] = usage.narrator();
+    expect(earlier).toEqual({
       save: "a",
       model: "m",
       turns: 3,
@@ -132,8 +133,26 @@ describe("Narrator usage", () => {
       threadsResolved: 0,
       sinceCheck: 2,
       sinceTime: 2,
+      latest: false,
     });
-    expect(second).toMatchObject({ model: "other", turns: 1, checks: 1, easy: 1, looseClosed: 1, sinceCheck: 0, sinceTime: 1 });
+    expect(latest).toMatchObject({ model: "other", turns: 1, checks: 1, easy: 1, looseClosed: 1, sinceCheck: 0, sinceTime: 1, latest: true });
+  });
+
+  test("keeps a story's rows together, most played story first, and a Revert restarts its counts since", () => {
+    const usage = usageStore();
+    usage.turn("x", "a", { operations: [] });
+    usage.turn("y", "a", { operations: [] });
+    usage.turn("y", "a", { operations: [] });
+    usage.turn("x", "b", { operations: [] });
+    usage.turn("x", "b", { operations: [] });
+    expect(usage.narrator().map(({ save, model }) => `${save}/${model}`)).toEqual(["x/b", "x/a", "y/a"]);
+
+    usage.reverted("x");
+    expect(usage.narrator().map(({ save, sinceCheck, sinceTime, turns }) => [save, sinceCheck, sinceTime, turns])).toEqual([
+      ["x", 0, 0, 2],
+      ["x", 0, 0, 1],
+      ["y", 2, 2, 2],
+    ]);
   });
 
   test("counts only the player's own Turns, names each story, logs a Check without its action, and drops a deleted story", async () => {
@@ -154,16 +173,22 @@ describe("Narrator usage", () => {
     expect(log).toContain('"check":{"difficulty":"Very Hard","roll":4,"outcome":"failure","degree":"plain"}');
     expect(log).not.toContain("Leap the flooded gap");
     const { stories } = (await (await app.get("/settings/usage/narrator")).json()) as { stories: Record<string, unknown>[] };
-    expect(stories).toEqual([expect.objectContaining({ save: id, title: "Ash", turns: 1, checks: 1, veryHard: 1, unchanged: 1 })]);
+    expect(stories).toEqual([expect.objectContaining({ save: id, title: "Ash", turns: 1, checks: 1, veryHard: 1, unchanged: 1, sinceTime: 1 })]);
+
+    // Regenerate gave the reply a new id, so this goes back to the player's own words.
+    expect((await app.post(`/saves/${id}/messages/1/revert`, {})).status).toBe(200);
+    expect(await (await app.get("/settings/usage/narrator")).json()).toEqual({ stories: [expect.objectContaining({ turns: 1, sinceTime: 0 })] });
 
     await app.delete(`/saves/${id}`);
     expect(await (await app.get("/settings/usage/narrator")).json()).toEqual({ stories: [] });
   });
 
   test("points out a story that went quiet", () => {
-    const quiet = { title: "Ash", model: "m", sinceCheck: QUIET_TURNS, sinceTime: QUIET_TURNS - 1 };
+    const quiet = { title: "Ash", model: "m", sinceCheck: QUIET_TURNS, sinceTime: QUIET_TURNS - 1, latest: true };
     expect(quietNotes(quiet)).toEqual([`Ash, m: no Check in the last ${QUIET_TURNS} Turns.`]);
     expect(quietNotes({ ...quiet, sinceCheck: 0 })).toEqual([]);
+    // A model the story has moved on from.
+    expect(quietNotes({ ...quiet, latest: false })).toEqual([]);
   });
 });
 

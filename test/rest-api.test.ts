@@ -2413,10 +2413,13 @@ test("every action is logged at Info with its route, Save, method and status, an
   const log = await logOf(async () => {
     await app.post(`/saves/${id}/notes`, { text: "Ask about the ferry" });
     await app.get(`/saves/${id}/messages`);
+    // The page's heartbeat isn't the player doing anything.
+    await app.post("/alive", {});
   }, "info");
 
   expect(log).toContain(`"route":"/saves/:id/notes","save":"${id}","method":"POST","status":201`);
   expect(log).toContain("INFO http Action");
   expect(log).not.toContain("/saves/:id/messages");
+  expect(log).not.toContain("/alive");
   expect(log).not.toContain("Ask about the ferry");
 });

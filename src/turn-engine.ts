@@ -293,7 +293,7 @@ export async function playTurn(
     picture: images.ready(),
   });
   const kind = input === OPENING_INPUT ? "opening" : "turn";
-  // Read before the call, as it's the model asked. shortcut: a Rewrite, Regenerate or Edit keeps the first reply's counts, recount them if the report needs to match the story exactly.
+  // Read before the call, as it's the model asked. shortcut: a Rewrite, Regenerate, Edit or Revert keeps the first reply's counts (a Revert restarts the counts since), recount them if the report needs to match the story exactly.
   const model = settings.read().textModel;
   return narrate(textProvider, signal, emit, {
     kind,

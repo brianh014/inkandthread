@@ -9,6 +9,7 @@ import { estimateTokens } from "./lore-activation";
 import { OnlineImageProvider, type SettingsChange, SettingsUpdate } from "./settings-store";
 import { textHosts, textModels } from "./text-provider";
 import { ContentRefused, TextProviderFailed } from "./turn-engine";
+import { storyName, UNREADABLE_SAVE } from "./web/api";
 
 // Only the online providers have a list. ComfyUI's models come from /settings/comfy-models.
 const ImageModelsQuery = z.object({ provider: OnlineImageProvider });
@@ -161,12 +162,12 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
     // Counts only, with each story's title as Load Story shows it. A deleted story's counts stay in the file but aren't shown.
     "/settings/usage/narrator": {
       GET: () => {
-        const titles = new Map(saves.list().map((save) => [save.id, "unreadable" in save ? "" : save.title || save.pc.name]));
+        const titles = new Map(saves.list().map((save) => [save.id, "unreadable" in save ? UNREADABLE_SAVE : storyName(save)]));
         return Response.json({
           stories: options
             .usage!.narrator()
             .filter(({ save }) => titles.has(save))
-            .map(({ save, ...counts }) => ({ save, title: titles.get(save) || "A story that won't open", ...counts })),
+            .map(({ save, ...counts }) => ({ save, title: titles.get(save)!, ...counts })),
         });
       },
     },

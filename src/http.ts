@@ -145,6 +145,9 @@ export const imageResponse = (bytes: Uint8Array<ArrayBuffer>) =>
     headers: { "Content-Type": imageType(bytes) ?? "application/octet-stream", "X-Content-Type-Options": "nosniff" },
   });
 
+/** POSTs that aren't the player doing anything: the page's heartbeat every 30s, and page events, which log their own line. */
+const NOT_ACTIONS = new Set(["/alive", "/log"]);
+
 const LOOPBACK_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
 export const isLoopback = (hostname: string) => LOOPBACK_HOST.test(hostname) || hostname === "::1";
 
@@ -165,8 +168,9 @@ export function logged<Route extends string>(routes: Bun.Serve.Routes<undefined,
       const response = await Promise.resolve()
         .then(() => handler(req))
         .catch(errorResponse);
-      // Anything but a read is an action, logged by default so none goes unrecorded; reads are only for tracing.
-      (method === "GET" ? log.verbose : log.info)("http", method === "GET" ? "Request" : "Action", () => ({
+      // Anything but a read is an action, logged by default so none goes unrecorded; reads, and the page's own pings, are only for tracing.
+      const action = method !== "GET" && !NOT_ACTIONS.has(route);
+      (action ? log.info : log.verbose)("http", action ? "Action" : "Request", () => ({
         method,
         status: response.status,
         ms: Math.round(performance.now() - started),

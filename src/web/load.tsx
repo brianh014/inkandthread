@@ -113,39 +113,44 @@ export function LoadStory() {
               <p className="muted">Last changed {lastChanged.format(save.updatedAt)}</p>
               <div className="row">
                 {!("unreadable" in save) && (
-                  <>
-                    <a className="action" href={`#/play/${save.id}`} aria-label={`Open ${name}`}>
-                      Open
-                    </a>
-                    <button
-                      type="button"
-                      className="icon"
-                      title="Duplicate"
-                      aria-label={`Duplicate ${name}`}
-                      aria-haspopup="dialog"
-                      aria-disabled={busy}
-                      onClick={() => busy || setDuplicating({ id: save.id, name })}
-                    >
-                      {DuplicateIcon}
-                    </button>
-                    <button
-                      type="button"
-                      className="icon"
-                      title="Start Over"
-                      aria-label={`Start Over from ${name}`}
-                      aria-disabled={busy}
-                      onClick={() => busy || startOver(save.id)}
-                    >
-                      {StartOverIcon}
-                    </button>
-                    <a className="icon" title="Export" href={`/saves/${save.id}/export`} download aria-label={`Export ${name}`}>
-                      {ExportIcon}
-                    </a>
-                  </>
+                  <a className="action" href={`#/play/${save.id}`} aria-label={`Open ${name}`}>
+                    Open
+                  </a>
                 )}
-                <button type="button" className="icon" title="Delete" aria-label={`Delete ${name}`} aria-haspopup="dialog" onClick={() => setDeleting(save)}>
-                  {DeleteIcon}
-                </button>
+                {/* Its own group, so on a phone the tools take a line under Open. */}
+                <div className="save-tools">
+                  {!("unreadable" in save) && (
+                    <>
+                      <button
+                        type="button"
+                        className="icon"
+                        title="Duplicate"
+                        aria-label={`Duplicate ${name}`}
+                        aria-haspopup="dialog"
+                        aria-disabled={busy}
+                        onClick={() => busy || setDuplicating({ id: save.id, name })}
+                      >
+                        {DuplicateIcon}
+                      </button>
+                      <button
+                        type="button"
+                        className="icon"
+                        title="Start Over"
+                        aria-label={`Start Over from ${name}`}
+                        aria-disabled={busy}
+                        onClick={() => busy || startOver(save.id)}
+                      >
+                        {StartOverIcon}
+                      </button>
+                      <a className="icon" title="Export" href={`/saves/${save.id}/export`} download aria-label={`Export ${name}`}>
+                        {ExportIcon}
+                      </a>
+                    </>
+                  )}
+                  <button type="button" className="icon" title="Delete" aria-label={`Delete ${name}`} aria-haspopup="dialog" onClick={() => setDeleting(save)}>
+                    {DeleteIcon}
+                  </button>
+                </div>
               </div>
             </li>
           );

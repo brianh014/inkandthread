@@ -8,7 +8,7 @@ import type { ImageTarget, PlayMode, Reply as Message, Save, SaveStore } from ".
 import type { ImageProfile, SettingsChange, TextProfile } from "../settings-store";
 import type { State, VisibleEdit } from "../state-applier";
 import type { Character, EnhanceField, PcDraft, WorldChoices, WorldField, WorldPc } from "../world-creation";
-import type { UsagePeriod, UsageStore } from "../usage-store";
+import type { NarratorRow, UsagePeriod, UsageStore } from "../usage-store";
 
 export type { Character, EnhanceField, ImageKind, Message, PcDraft, PlayMode, Save, WorldChoices, WorldField };
 export type ListedSave = ReturnType<SaveStore["list"]>[number];
@@ -131,6 +131,8 @@ export type UpdateStatus = { version: string; failed: boolean; latest?: { versio
 
 export type Usage = ReturnType<UsageStore["summary"]>;
 export const getUsage = (by: UsagePeriod) => request<Usage>(`/settings/usage?by=${by}`);
+export type NarratorStory = NarratorRow & { title: string };
+export const getNarratorUsage = () => request<{ stories: NarratorStory[] }>("/settings/usage/narrator");
 
 /** `fresh` asks GitHub now, rather than within the last few hours. */
 export const getUpdate = (fresh = false) => request<UpdateStatus>(fresh ? "/update?fresh=1" : "/update");

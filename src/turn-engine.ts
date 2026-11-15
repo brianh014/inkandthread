@@ -20,6 +20,7 @@ import {
 } from "./prompt-assembler";
 import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } from "./save-store";
 import type { SettingsStore } from "./settings-store";
+import type { NarratorTurn, UsageStore } from "./usage-store";
 import { applyOperations, introduce, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
 import { readable } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
@@ -192,6 +193,8 @@ type Narrated = {
   commit: (narration: string, check: Check | undefined, advance: (state: State) => State, choices: string[] | undefined) => Reply[];
   /** Runs once the Turn is committed, so image work is never part of its transaction. */
   committed: (messageId: number, scene: Scene) => void;
+  /** Tallies a committed player's Turn for the Narrator report. */
+  counted?: (turn: NarratorTurn) => void;
 };
 
 /** The prompt for a Turn's reply, and the Scene Memory due alongside it. Settings are read once, so the whole prompt comes from one copy. */
@@ -269,7 +272,8 @@ export async function playTurn(
     nearMissMargin,
     settings,
     images,
-  }: { textProvider: TextProvider; dice: Dice; nearMissMargin: number; settings: SettingsStore; images: ImagePipeline },
+    usage,
+  }: { textProvider: TextProvider; dice: Dice; nearMissMargin: number; settings: SettingsStore; images: ImagePipeline; usage?: UsageStore },
   id: string,
   input: string,
   signal: AbortSignal,
@@ -288,8 +292,11 @@ export async function playTurn(
     journalEdits: saves.pendingEdits(id),
     picture: images.ready(),
   });
+  const kind = input === OPENING_INPUT ? "opening" : "turn";
+  // Read before the call, as it's the model asked. shortcut: a Rewrite, Regenerate or Edit keeps the first reply's counts, recount them if the report needs to match the story exactly.
+  const model = settings.read().textModel;
   return narrate(textProvider, signal, emit, {
-    kind: input === OPENING_INPUT ? "opening" : "turn",
+    kind,
     prompt,
     input,
     refusal: "The Narrator refused this message. Edit it and try again.",
@@ -300,6 +307,8 @@ export async function playTurn(
     playMode,
     commit: (narration, check, advance, choices) => saves.commitTurn(id, basedOn, input, narration, check, advance, choices),
     committed: (messageId, scene) => images.sceneChanged(id, messageId, scene),
+    // Only what the player did counts, so not the opening or a Continue, which have nothing to check.
+    counted: kind === "turn" && !isContinueInput(input) ? (turn) => usage?.turn(id, model, turn) : undefined,
   });
 }
 
@@ -393,7 +402,21 @@ async function narrate(
   textProvider: TextProvider,
   signal: AbortSignal,
   emit: TurnEvents,
-  { kind, prompt, input, refusal, pcName, narration: edited, check: storedCheck, memory: pendingMemory, rollCheck, playMode, commit, committed }: Narrated,
+  {
+    kind,
+    prompt,
+    input,
+    refusal,
+    pcName,
+    narration: edited,
+    check: storedCheck,
+    memory: pendingMemory,
+    rollCheck,
+    playMode,
+    commit,
+    committed,
+    counted,
+  }: Narrated,
 ) {
   const schemas = SCHEMAS[playMode];
   // Kept across attempts, so an invalid reply can never change the outcome.
@@ -504,17 +527,19 @@ async function narrate(
       }
       if (repeated > 0) log.info("turn", "Repeats ignored", { count: repeated });
       if (ignored.length > 0) log.warning("turn", "Operations ignored", { reason: refusalText(ignored) });
-      // Counts only, so that the log never repeats the story.
+      const operations = state_operations.map(({ op }) => op);
+      counted?.({ difficulty: check?.difficulty, operations });
+      // Counts only, so that the log never repeats the story: a Check's action is the player's words, so it's left out.
       log.info("turn", "Turn committed", () => ({
         kind,
         message: messages.at(-1)!.id,
         attempts: attempt,
-        check: !!check,
+        check: check ? { difficulty: check.difficulty, roll: check.roll, outcome: check.outcome, degree: check.degree } : false,
         narration: narration.length,
         summary: summary.trim().length,
         ...(memory && { memoryFirst: memory.firstMessage, memoryLast: memory.lastMessage, memoryLength: memory.text.length }),
         people: people.length,
-        operations: state_operations.map(({ op }) => op),
+        operations,
         sceneChanged: !!scene_changed,
         chapterEnds: !!chapter_ends,
       }));

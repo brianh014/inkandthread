@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import type { UsagePeriod } from "../usage-store";
-import { getUsage, type Usage } from "./api";
+import { getNarratorUsage, getUsage, type NarratorStory, type Usage } from "./api";
 import { Choices } from "./art-style-picker";
 
 const PERIODS: Record<string, UsagePeriod> = { Day: "day", Week: "week", Month: "month" };
@@ -244,6 +244,95 @@ function UsageTable<R extends Row>(props: { caption: string; rows: R[]; by: Usag
   );
 }
 
+/** How many player's Turns in a row without something before the Narrator table points it out. */
+export const QUIET_TURNS = 50;
+
+/** What a story's Turns would show if the Narrator kept skipping its tools, worded for the Narrator table. */
+export function quietNotes({ title, model, sinceCheck, sinceTime }: Pick<NarratorStory, "title" | "model" | "sinceCheck" | "sinceTime">) {
+  const who = `${title}, ${model || "—"}`;
+  return [
+    sinceCheck >= QUIET_TURNS && `${who}: no Check in the last ${count(sinceCheck)} Turns.`,
+    sinceTime >= QUIET_TURNS && `${who}: story time hasn't moved in ${count(sinceTime)} Turns.`,
+  ].filter((note): note is string => !!note);
+}
+
+const NARRATOR_COLUMNS: [string, (row: NarratorStory) => string][] = [
+  ["Turns", (row) => count(row.turns)],
+  ["Checks", (row) => count(row.checks)],
+  ["Easy / Moderate / Hard / Very Hard", (row) => [row.easy, row.moderate, row.hard, row.veryHard].map(count).join(" / ")],
+  ["No change", (row) => count(row.unchanged)],
+  ["Time moved", (row) => count(row.timeMoved)],
+  ["Scenes", (row) => count(row.scenes)],
+  ["Facts", (row) => count(row.facts)],
+  ["Loose Ends opened / settled", (row) => `${count(row.looseOpened)} / ${count(row.looseClosed)}`],
+  ["Plot Threads new / moved / ended", (row) => `${count(row.threadsAdded)} / ${count(row.threadsMoved)} / ${count(row.threadsResolved)}`],
+];
+
+/** How the Narrator used its tools in each story: Checks and state changes over the player's Turns, for each model that wrote there. */
+function NarratorTable() {
+  const [stories, setStories] = useState<NarratorStory[]>();
+  const [error, setError] = useState("");
+  useEffect(() => {
+    getNarratorUsage().then(
+      ({ stories }) => setStories(stories),
+      (failure: Error) => setError(failure.message),
+    );
+  }, []);
+  if (error)
+    return (
+      <p role="alert" className="error">
+        {error}
+      </p>
+    );
+  if (!stories) return null;
+  const notes = stories.flatMap(quietNotes);
+  return (
+    <section className="usage-narrator">
+      <h3>Narrator</h3>
+      <p className="muted">
+        What the Narrator did in each story over your Turns, from when this count began, for each model that wrote there. Few Checks, or many Turns with no
+        change, mean the AI is skipping its tools. Counts only, nothing of your story.
+      </p>
+      {stories.length === 0 ? (
+        <p className="muted">No Turns counted yet.</p>
+      ) : (
+        <div className="usage-table">
+          <table>
+            <caption className="visually-hidden">The Narrator's Checks and state changes, by story and model</caption>
+            <thead>
+              <tr>
+                {["Story", "Model", ...NARRATOR_COLUMNS.map(([name]) => name)].map((name) => (
+                  <th key={name} scope="col">
+                    {name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {stories.map((row) => (
+                <tr key={`${row.save} ${row.model}`}>
+                  <td>{row.title}</td>
+                  <td>{row.model || "—"}</td>
+                  {NARRATOR_COLUMNS.map(([name, cell]) => (
+                    <td key={name}>{cell(row)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {notes.length > 0 && (
+        <ul className="usage-notes">
+          {notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 /** Usage: how many AI requests went to each provider and model, with tokens and the cost where the provider reports it. */
 export function UsageSection() {
   const [by, setBy] = useState<UsagePeriod>("day");
@@ -353,6 +442,7 @@ export function UsageSection() {
             </div>
           </>
         ))}
+      <NarratorTable />
     </div>
   );
 }

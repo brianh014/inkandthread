@@ -2952,6 +2952,12 @@ dialog blockquote {
   overflow-x: auto;
 }
 
+/* One column no wider than the page, so a wide table scrolls inside it instead of widening the page. */
+.fields.usage {
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .usage table {
   border-collapse: collapse;
   width: 100%;

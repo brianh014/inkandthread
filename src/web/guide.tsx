@@ -20,6 +20,7 @@ import {
   UploadIcon,
 } from "./icons";
 import { MenuRibbon, Sheet } from "./menu";
+import { QUIET_TURNS } from "./usage";
 
 /** The Reader's Guide: what NovelForge is and how to use every part of it, one section at a time, kept in the URL hash. */
 
@@ -470,6 +471,12 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           provider reported, so it shows a dash where the provider reports none, such as ComfyUI, and ≥ where only some requests did. Nothing of your story is
           kept.
         </p>
+        <p>
+          Below it, <b>Narrator</b> shows how the AI used its tools in each story, over your Turns: how many Checks it asked for and how hard, and how often it
+          moved story time, changed the scene, noted what your PC learned, and opened or settled Loose Ends and Plot Threads. Few Checks, or many Turns with no
+          change, mean the AI you chose is skipping them, and a note says so after {QUIET_TURNS} Turns without a Check or without time moving. Try another AI
+          and compare. It counts from the version that added it, so an older story shows only its newer Turns.
+        </p>
         <h3>This Story</h3>
         <p>How you play this story, Free Text or Choices, and its Art Style.</p> <h3>Updates</h3>
         <p>
@@ -477,8 +484,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         </p>
         <h3>Advanced</h3>
         <p>
-          <b>Log Level</b>: how much goes in the log in the <code>logs</code> folder. Raise it to Verbose to trace a problem. The log never holds your keys, and
-          holds your story's text only with Story in log on.
+          <b>Log Level</b>: how much goes in the log in the <code>logs</code> folder. By default it notes everything you and the AI do, and what came of it.
+          Raise it to Verbose to trace a problem. The log never holds your keys, and holds your story's text only with Story in log on.
         </p>
         <p>
           <b>Story in log</b>: also writes everything sent to the AI and every reply, picture prompts too, story text included, to the log. It's only needed for

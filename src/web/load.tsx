@@ -1,5 +1,5 @@
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
-import { coverUrl, deleteSave, duplicateSave, importSave, type ListedSave, listSaves, saveSetup, storyName } from "./api";
+import { coverUrl, deleteSave, duplicateSave, importSave, type ListedSave, listSaves, saveSetup, storyName, UNREADABLE_SAVE } from "./api";
 import { DeleteIcon, DuplicateIcon, ExportIcon, StartOverIcon } from "./icons";
 import { ConfirmDialog, DeleteDialog, MenuRibbon, Sheet } from "./menu";
 import { draftFrom, STEPS, STORAGE_KEY } from "./wizard-draft";
@@ -99,7 +99,7 @@ export function LoadStory() {
       )}
       <ul className="saves">
         {saves?.map((save) => {
-          const name = "unreadable" in save ? "Unreadable Save" : storyName(save);
+          const name = "unreadable" in save ? UNREADABLE_SAVE : storyName(save);
           return (
             <li key={save.id} className={"hasCover" in save && save.hasCover ? "with-cover" : undefined}>
               {"hasCover" in save && save.hasCover && <Zoomable lazy src={coverUrl(save.id, save.coverRedraws)} alt={`Cover of ${name}`} />}

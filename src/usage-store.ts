@@ -34,6 +34,46 @@ type Row = {
   priced: number;
 };
 
+/** A player's Turn as the Narrator answered it: the Check's difficulty if one was rolled, and the names of its state operations. Never a word of the story. */
+export type NarratorTurn = { difficulty?: "Easy" | "Moderate" | "Hard" | "Very Hard"; operations: string[] };
+
+/** The operations each count adds up, by the column it goes in. */
+const COUNTED: Record<string, string[]> = {
+  time_moved: ["set_story_time"],
+  scenes: ["set_scene"],
+  facts: ["add_known_fact", "update_known_fact"],
+  loose_opened: ["add_loose_end"],
+  loose_closed: ["resolve_loose_end"],
+  threads_added: ["add_plot_thread"],
+  threads_moved: ["update_plot_thread"],
+  threads_resolved: ["resolve_plot_thread"],
+};
+const DIFFICULTIES = { Easy: "easy", Moderate: "moderate", Hard: "hard", "Very Hard": "very_hard" } as const;
+
+export type NarratorRow = {
+  save: string;
+  model: string;
+  turns: number;
+  checks: number;
+  easy: number;
+  moderate: number;
+  hard: number;
+  veryHard: number;
+  unchanged: number;
+  timeMoved: number;
+  scenes: number;
+  facts: number;
+  looseOpened: number;
+  looseClosed: number;
+  threadsAdded: number;
+  threadsMoved: number;
+  threadsResolved: number;
+  sinceCheck: number;
+  sinceTime: number;
+  /** Whether this is the model the story last played with, the only row whose counts since still mean anything. */
+  latest: boolean;
+};
+
 const GROUPED: Record<UsagePeriod, string> = {
   day: "day",
   // The Monday of its week.
@@ -51,7 +91,18 @@ export function usageStore(path = ":memory:") {
         day TEXT NOT NULL, kind TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL,
         requests INTEGER NOT NULL, failed INTEGER NOT NULL, tokens_in INTEGER NOT NULL, tokens_out INTEGER NOT NULL,
         cached INTEGER NOT NULL, cost REAL, priced INTEGER NOT NULL,
-        PRIMARY KEY (day, kind, provider, model))`);
+        PRIMARY KEY (day, kind, provider, model));
+      CREATE TABLE IF NOT EXISTS narrator (
+        save TEXT NOT NULL, model TEXT NOT NULL, turns INTEGER NOT NULL, checks INTEGER NOT NULL,
+        easy INTEGER NOT NULL, moderate INTEGER NOT NULL, hard INTEGER NOT NULL, very_hard INTEGER NOT NULL, unchanged INTEGER NOT NULL,
+        ${Object.keys(COUNTED)
+          .map((column) => `${column} INTEGER NOT NULL`)
+          .join(", ")},
+        since_check INTEGER NOT NULL, since_time INTEGER NOT NULL, last INTEGER NOT NULL,
+        PRIMARY KEY (save, model))`);
+      // A file from a build of this branch before `last` was added.
+      if (!db.query("SELECT 1 FROM pragma_table_info('narrator') WHERE name = 'last'").get())
+        db.run("ALTER TABLE narrator ADD COLUMN last INTEGER NOT NULL DEFAULT 0");
       return db;
     } catch (error) {
       // Or Windows holds a damaged file for the whole run.
@@ -73,6 +124,15 @@ export function usageStore(path = ":memory:") {
     ON CONFLICT (day, kind, provider, model) DO UPDATE SET requests = requests + excluded.requests, failed = failed + excluded.failed,
       tokens_in = tokens_in + excluded.tokens_in, tokens_out = tokens_out + excluded.tokens_out, cached = cached + excluded.cached,
       cost = CASE WHEN excluded.cost IS NULL THEN cost ELSE coalesce(cost, 0) + excluded.cost END, priced = priced + excluded.priced`);
+  const summed = ["turns", "checks", ...Object.values(DIFFICULTIES), "unchanged", ...Object.keys(COUNTED)];
+  // A count since resets to 0 on the Turn that has the thing, and otherwise grows by one. `last` orders rows by the Turn that
+  // last touched them, so a story's current model is known.
+  const addTurn = db.query(`INSERT INTO narrator VALUES ($save, $model, ${summed.map((column) => `$${column}`).join(", ")}, $since_check, $since_time,
+      (SELECT coalesce(max(last), 0) + 1 FROM narrator))
+    ON CONFLICT (save, model) DO UPDATE SET ${summed.map((column) => `${column} = ${column} + excluded.${column}`).join(", ")},
+      since_check = CASE WHEN excluded.checks > 0 THEN 0 ELSE since_check + 1 END,
+      since_time = CASE WHEN excluded.time_moved > 0 THEN 0 ELSE since_time + 1 END, last = excluded.last`);
+  const reverted = db.query("UPDATE narrator SET since_check = 0, since_time = 0 WHERE save = ?");
 
   return {
     /** `day` is for tests; the app stamps the local date. */
@@ -96,6 +156,48 @@ export function usageStore(path = ":memory:") {
         // A tally must never fail a Turn or a picture.
         log.warning("usage", "A request wasn't counted", errorFields(error));
       }
+    },
+    /** Counts one player's Turn for its Save and the text model that wrote it. */
+    turn(save: string, model: string, { difficulty, operations }: NarratorTurn) {
+      const times = (names: string[]) => operations.filter((op) => names.includes(op)).length;
+      const counts = Object.fromEntries(Object.entries(COUNTED).map(([column, names]) => [column, times(names)]));
+      try {
+        addTurn.run({
+          save,
+          model,
+          turns: 1,
+          checks: difficulty ? 1 : 0,
+          ...Object.fromEntries(Object.entries(DIFFICULTIES).map(([name, column]) => [column, difficulty === name ? 1 : 0])),
+          unchanged: operations.length === 0 ? 1 : 0,
+          ...counts,
+          since_check: difficulty ? 0 : 1,
+          since_time: counts.time_moved ? 0 : 1,
+        });
+      } catch (error) {
+        log.warning("usage", "A Turn wasn't counted", errorFields(error));
+      }
+    },
+    /**
+     * After a Revert, the Turns it took out stay counted, as they were played, but how long it's been since a Check or since
+     * time moved can't be known, so both start again. shortcut: there's no per-Turn record to take counts back; keep one if exact totals matter.
+     */
+    reverted(save: string) {
+      try {
+        reverted.run(save);
+      } catch (error) {
+        log.warning("usage", "A Revert wasn't noted in the Narrator counts", errorFields(error));
+      }
+    },
+    /** Every Save's counts for each model that wrote in it, a story's rows together, the most played story first. */
+    narrator() {
+      return (
+        db
+          .query(`SELECT save, model, turns, checks, easy, moderate, hard, very_hard AS veryHard, unchanged, time_moved AS timeMoved, scenes, facts,
+          loose_opened AS looseOpened, loose_closed AS looseClosed, threads_added AS threadsAdded, threads_moved AS threadsMoved,
+          threads_resolved AS threadsResolved, since_check AS sinceCheck, since_time AS sinceTime, last = max(last) OVER (PARTITION BY save) AS latest
+          FROM narrator ORDER BY sum(turns) OVER (PARTITION BY save) DESC, save, last DESC`)
+          .all() as (Omit<NarratorRow, "latest"> & { latest: number })[]
+      ).map((row) => ({ ...row, latest: row.latest === 1 }));
     },
     summary(by: UsagePeriod) {
       const rows = db

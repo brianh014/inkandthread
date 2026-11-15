@@ -8,7 +8,7 @@ import type { State } from "../src/state-applier";
 import type { ImagePipeline } from "../src/image-pipeline";
 import { settingsStore } from "../src/settings-store";
 import { ContentRefused, playTurn } from "../src/turn-engine";
-import { narration, scriptedDice, scriptedTextProvider, startApp, tempFolder, turnEvents, withSummary } from "./support";
+import { logOf, narration, scriptedDice, scriptedTextProvider, startApp, tempFolder, turnEvents, withSummary } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
 let savesDir: string;
@@ -2404,4 +2404,22 @@ test("a Turn already saved is still a success when image work after it throws, s
   await playTurn(saves, { textProvider, dice: scriptedDice(), nearMissMargin: 2, settings, images }, id, "I wade forward.", new AbortController().signal);
 
   expect(saves.messages(id).map(({ role }) => role)).toEqual(["player", "narrator"]);
+});
+
+test("every action is logged at Info with its route, Save, method and status, and a read only at Verbose", async () => {
+  const { app } = play();
+  const id = await app.createSave();
+
+  const log = await logOf(async () => {
+    await app.post(`/saves/${id}/notes`, { text: "Ask about the ferry" });
+    await app.get(`/saves/${id}/messages`);
+    // The page's heartbeat isn't the player doing anything.
+    await app.post("/alive", {});
+  }, "info");
+
+  expect(log).toContain(`"route":"/saves/:id/notes","save":"${id}","method":"POST","status":201`);
+  expect(log).toContain("INFO http Action");
+  expect(log).not.toContain("/saves/:id/messages");
+  expect(log).not.toContain("/alive");
+  expect(log).not.toContain("Ask about the ferry");
 });

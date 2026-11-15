@@ -23,7 +23,8 @@ let fileFailed = false;
 
 const context = new AsyncLocalStorage<Fields>();
 
-export const defaultLevelFor = (isCompiled: boolean): LogLevel => (isCompiled ? "warning" : "verbose");
+// Info for players, so every action is in the log by default; Verbose from source, for every step.
+export const defaultLevelFor = (isCompiled: boolean): LogLevel => (isCompiled ? "info" : "verbose");
 
 export const defaultLogLevel = () => buildLevel;
 

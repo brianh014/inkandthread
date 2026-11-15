@@ -9,6 +9,7 @@ import { estimateTokens } from "./lore-activation";
 import { OnlineImageProvider, type SettingsChange, SettingsUpdate } from "./settings-store";
 import { textHosts, textModels } from "./text-provider";
 import { ContentRefused, TextProviderFailed } from "./turn-engine";
+import { storyName, UNREADABLE_SAVE } from "./web/api";
 
 // Only the online providers have a list. ComfyUI's models come from /settings/comfy-models.
 const ImageModelsQuery = z.object({ provider: OnlineImageProvider });
@@ -19,7 +20,7 @@ const unkeyed = <T extends object>(profiles: Record<string, T>, key: keyof T) =>
   Object.fromEntries(Object.entries(profiles).map(([at, { [key]: _key, ...rest }]) => [at, rest])) as Record<string, Omit<T, typeof key>>;
 
 /** Settings and their tests. `local` is the ComfyUI adapter, and `workflow` how its last job went, which only the screen shows. */
-export function settingsRoutes({ options, images }: ServerContext, local: ImageAdapter, workflow: { problem: string }) {
+export function settingsRoutes({ options, images, saves }: ServerContext, local: ImageAdapter, workflow: { problem: string }) {
   const { settings } = options;
   // An allowlist, so the API key can never reach a response.
   const publicSettings = () => {
@@ -157,6 +158,18 @@ export function settingsRoutes({ options, images }: ServerContext, local: ImageA
     "/settings/usage": {
       // startServer always gives one.
       GET: (req) => Response.json(options.usage!.summary(UsageQuery.parse(Object.fromEntries(new URL(req.url).searchParams)).by)),
+    },
+    // Counts only, with each story's title as Load Story shows it. A deleted story's counts stay in the file but aren't shown.
+    "/settings/usage/narrator": {
+      GET: () => {
+        const titles = new Map(saves.list().map((save) => [save.id, "unreadable" in save ? UNREADABLE_SAVE : storyName(save)]));
+        return Response.json({
+          stories: options
+            .usage!.narrator()
+            .filter(({ save }) => titles.has(save))
+            .map(({ save, ...counts }) => ({ save, title: titles.get(save)!, ...counts })),
+        });
+      },
     },
     "/settings/text-hosts": {
       GET: async (req) => Response.json({ hosts: await textHosts(settings, new URL(req.url).searchParams.get("model") ?? "", req.signal) }),

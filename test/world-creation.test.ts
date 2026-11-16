@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { saveStore } from "../src/save-store";
 import { ContentRefused } from "../src/turn-engine";
-import { narration, scriptedTextProvider, startApp, tempFolder } from "./support";
+import { logOf, narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
 let savesDir: string;
@@ -277,6 +277,64 @@ test("Enhance rewrites one box from the player's words and their other choices",
   expect(JSON.parse(user!.content)).toEqual({ ...setup, idea: "A city on a whale" });
 });
 
+test("a Nudge comes back as edits, so the rest of the box stays word for word, and a misquote or overflow is asked again", async () => {
+  // A nearly full box, as a whole rewrite of one ran past the limit on every try.
+  const background = `Ash grew up by the docks. Ash is super strong. ${"He fixes boats. ".repeat(240)}`.trim();
+  const edit = (old: string, replacement: string) => JSON.stringify({ edits: [{ old, new: replacement }] });
+  play(
+    edit("Ash is strong.", "Ash bends light."),
+    edit("Ash is super strong.", `Ash bends light.${" x".repeat(200)}`),
+    edit("Ash is super strong.", "Ash bends light."),
+  );
+  const pc = { name: "Ash", background, physicalTraits: "", inventory: "" };
+
+  let response: Response | undefined;
+  const log = await logOf(async () => {
+    response = await app.post("/enhance", { ...setup, pc, field: "background", text: background, nudge: " a different power " });
+  });
+
+  expect(await response!.json()).toEqual({ text: background.replace("Ash is super strong.", "Ash bends light.") });
+  expect(prompts).toHaveLength(3);
+  expect(log).toContain('"how":"nudge"');
+  expect(log).not.toContain("different power");
+  const [system, user] = prompts[0]!;
+  expect(system!.content).toContain("edit every passage the change affects, so that nothing left contradicts it");
+  // The box is past its word target, so the edits are told there's no room to grow.
+  expect(system!.content).toContain("room for only about 0 more words");
+  expect(JSON.parse(user!.content)).toMatchObject({ idea: background, change: "a different power" });
+});
+
+test("a Nudge that runs through a whole box can rewrite all of it in one edit, and several edits apply in turn", async () => {
+  const background = "Ash is super strong. He lifts ships. Strength runs in his family.";
+  const rewritten = "Ash bends light. He hides ships in shimmer. Light runs in his family.";
+  play(
+    JSON.stringify({ edits: [{ old: background, new: rewritten }] }),
+    JSON.stringify({
+      edits: [
+        { old: "super strong", new: "able to bend light" },
+        { old: "lifts ships", new: "hides ships" },
+      ],
+    }),
+  );
+  const pc = { name: "Ash", background, physicalTraits: "", inventory: "" };
+  const nudge = () => app.post("/enhance", { ...setup, pc, field: "background", text: background, nudge: "a different power" });
+
+  expect(await (await nudge()).json()).toEqual({ text: rewritten });
+  expect(await (await nudge()).json()).toEqual({ text: "Ash is able to bend light. He hides ships. Strength runs in his family." });
+});
+
+test("a Nudge to a name rewrites it whole, and an empty box or an overlong Nudge isn't a Nudge", async () => {
+  play(JSON.stringify({ text: "Ash" }), JSON.stringify({ text: "Ash Vale" }));
+  const pc = { name: "Ashford Vale", background: "", physicalTraits: "", inventory: "" };
+
+  expect(await (await app.post("/enhance", { ...setup, pc, field: "name", text: "Ashford Vale", nudge: "shorter" })).json()).toEqual({ text: "Ash" });
+  expect(prompts[0]![0]!.content).toContain("keep about the same length");
+  await app.post("/enhance", { ...setup, pc, field: "name", text: "", nudge: "shorter" });
+  expect(prompts[1]![0]!.content).toContain("from scratch");
+  expect(JSON.parse(prompts[1]![1]!.content).change).toBeUndefined();
+  expect((await app.post("/enhance", { ...setup, field: "worldBrief", text: "A city", nudge: "x".repeat(201) })).status).toBe(400);
+});
+
 test("Enhance reads the PC boxes for a PC field, and works without a theme", async () => {
   play(JSON.stringify({ text: "rope\nbrass lantern" }));
   const pc = { name: "Ash", background: "", physicalTraits: "", inventory: "rope, lamp" };
@@ -304,6 +362,22 @@ test("Enhance writes an Important Character's description from their row and the
   expect(JSON.parse(user!.content)).toMatchObject({ character: { name: "Mara", description: "" }, characters });
 });
 
+test("a long box is asked for its word target but refused only well over it, leaving room to change it later", async () => {
+  play(JSON.stringify({ text: "word ".repeat(460) }), JSON.stringify({ text: "word ".repeat(350).trim() }));
+
+  const response = await app.post("/enhance", {
+    ...setup,
+    pc: { name: "Ash", background: "", physicalTraits: "", inventory: "" },
+    field: "background",
+    text: "",
+  });
+
+  expect(await response.json()).toEqual({ text: "word ".repeat(350).trim() });
+  expect(prompts).toHaveLength(2);
+  expect(prompts[0]![0]!.content).toContain("at most 300 words");
+  expect(prompts[0]![0]!.content).not.toContain("4000 characters");
+});
+
 test("Enhance retries an Important Character's description too long for its box", async () => {
   play(JSON.stringify({ text: "x".repeat(4001) }), JSON.stringify({ text: "A smuggler." }));
   const characters = [{ name: "Mara", description: "A smuggler" }];
@@ -312,7 +386,8 @@ test("Enhance retries an Important Character's description too long for its box"
 
   expect(await response.json()).toEqual({ text: "A smuggler." });
   expect(prompts).toHaveLength(2);
-  expect(prompts[0]![0]!.content).toContain("at most 4000 characters");
+  // Within its word target, so the box can only overflow in characters by a single long word, which is still refused.
+  expect(prompts[0]![0]!.content).toContain("at most 150 words");
 });
 
 test("a world takes at most ten Important Characters, each with a name", async () => {
@@ -345,9 +420,9 @@ test.each(["name", "characterName"])("Enhance on a %s box writes only a name, re
   expect(prompts[0]![0]!.content).toContain("only the name, in at most 5 words");
 });
 
-test("Enhance on the looks box keeps to thirty words, or the player's own length if longer, retrying a longer reply", async () => {
+test("Enhance on the looks box keeps to thirty words, or the player's own length if longer, retrying one a quarter over", async () => {
   play(
-    JSON.stringify({ text: "tall ".repeat(31) }),
+    JSON.stringify({ text: "tall ".repeat(39) }),
     JSON.stringify({ text: "Tall and lean, with a scar on one cheek." }),
     JSON.stringify({ text: "word ".repeat(40) }),
   );
@@ -364,7 +439,7 @@ test("Enhance on the looks box keeps to thirty words, or the player's own length
 
 test("Enhance on the wearing and carrying box details only the player's items, as a list of at most forty words, retrying prose", async () => {
   play(
-    JSON.stringify({ text: "item ".repeat(41) }),
+    JSON.stringify({ text: "item ".repeat(51) }),
     JSON.stringify({ text: "Rain falls. Your coat hangs heavy." }),
     JSON.stringify({ text: "oilskin coat, narrow single-edged knife" }),
   );

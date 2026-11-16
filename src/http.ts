@@ -29,6 +29,8 @@ import type { UsageStore } from "./usage-store";
 export type ServerOptions = {
   savesDir: string;
   textProvider: TextProvider;
+  /** Reviews the world and World Changes, sent with the reviewer's settings. Without one, as in tests with a scripted Narrator, nothing is reviewed. */
+  reviewProvider?: TextProvider;
   /**
    * One adapter for every online provider, as tests and --fake use, or one per provider. A list must name them all, so a provider
    * added later can't fall back to another's adapter and send it that provider's key.

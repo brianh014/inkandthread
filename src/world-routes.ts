@@ -116,6 +116,7 @@ const CharacterBoxes = z.object({ name: z.string().trim().max(80), description: 
 const EnhanceRequest = z.object({
   field: z.enum(ENHANCE_FIELDS),
   text: longText,
+  nudge: Nudge,
   theme: z.string().trim(),
   title: z.string().trim(),
   worldBrief: longText,

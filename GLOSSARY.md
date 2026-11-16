@@ -51,7 +51,7 @@ A titled run of consecutive Messages, read as one piece in the Journal. One Chap
 _Avoid_: Act, part, Scene (that is a place and situation, and a Chapter may hold many)
 
 **Scene Image**:
-A generated image showing the current moment of a Scene.
+A generated image showing the current moment of a Scene, drawn when the Scene changes, or also when enough happens within it if the player asks for more.
 
 **Requested Image**:
 An extra picture drawn on the spot from the player's own words and the recent story, which joins the latest Message beside any Scene Image. It is not a Turn, so the Narrator never hears about it.
@@ -72,6 +72,10 @@ _Avoid_: Regenerate (that redoes a Turn or a whole world)
 **Update**:
 Drawing a Cover or portrait again from a new Image Prompt written from the story as it stands. A portrait's Update keeps the face of the portrait it replaces; a Redraw draws a new one.
 _Avoid_: Redo
+
+**Review**:
+A second AI call that checks a new world, or a World Change before it is applied, for faults such as contradictions and plot holes, and quietly fixes them. It runs on the Narrator's model, or on a reviewer model the player chooses.
+_Avoid_: Critic, judge, validator
 
 **Check**:
 A hidden test of a risky PC action against a difficulty the Narrator sets before the outcome is known. The player never sees a Check.

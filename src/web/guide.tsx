@@ -44,7 +44,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <p>
           NovelForge is a choose-your-own visual novel that is written as you play. You make a world and a character, your <b>PC</b>, then act and speak only as
           them. An AI plays the <b>Narrator</b>: it tells the story, voices everyone else, keeps track of the world and quietly decides whether what you try
-          works. An image AI draws the Cover, portraits and scenes as you go.
+          works. The world it builds has secret Plot Threads of its own, so the story can turn in ways you don't expect. An image AI draws the Cover, portraits
+          and scenes as you go.
         </p>
         <p>NovelForge runs on your own computer. It brings no AI of its own: you connect the ones you choose, and your stories stay on your computer.</p>
         <h3>Your first story</h3>
@@ -180,7 +181,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         </ul>
         <p>
           Each box has {tool(DecideIcon, "Write")} when it's empty and {tool(DecideIcon, "Enhance")} when it isn't: the Narrator writes it or builds on your
-          words, and <b>Undo</b> puts yours back. {tool(DecideIcon, "Pick for me")} fills every empty box at once and leaves the ones you wrote, and never
+          words. Once a box holds something, {tool(RewriteIcon, "Nudge")} has the Narrator change one thing you name, such as "a different power", and keep the
+          rest. <b>Undo</b> puts your words back. {tool(DecideIcon, "Pick for me")} fills every empty box at once and leaves the ones you wrote, and never
           touches Important Characters.
         </p>
         <h3>2. Art</h3>
@@ -419,7 +421,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           </li>
           <li>
             <b>Thinking</b> (OpenRouter, NanoGPT and Google AI Studio): how long an AI that thinks before it writes may think. Lower is quicker and cheaper,
-            though some AIs ignore it. On High, raise <b>Longest thinking</b>.
+            though some AIs ignore it. On High, some AIs think past <b>Longest thinking</b>, and the reply is then stopped and asked again, which can fail every
+            try: use Medium, or raise <b>Longest thinking</b>.
           </li>
           <li>
             Each provider keeps its own key, model and settings, so switching back brings them back. Where a provider lists its models, choose{" "}
@@ -441,6 +444,13 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           </li>
           <li>
             <b>Longest Question answer, in words</b>: for Ask the Narrator.
+          </li>
+          <li>
+            <b>Review</b>: after your world is built, and before any change to it is made, the AI takes a second look for contradictions, plot holes and thin
+            storylines, and quietly fixes them, keeping its secrets from you. Tick <b>Review with another model</b> to have a different AI do it, such as a
+            capable but cheaper one like GPT-6.1 Luna, as one can catch what another misses. It uses the Narrator's provider unless you untick{" "}
+            <b>Same provider as the Narrator</b> and give it its own. Its calls show in Usage under its own model. <b>Review thinking</b> lets reviews think
+            harder, or less, than the story. On High, some AIs think past <b>Longest thinking</b>, and the world is then kept unreviewed.
           </li>
           <li>
             <b>Test text</b>: sends a short prompt to check the AI works. A paid provider may charge for it.

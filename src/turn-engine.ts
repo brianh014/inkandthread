@@ -40,6 +40,8 @@ export type TextProvider = (
     schema?: object;
     /** An Image Prompt's call, which has its own thinking limit. */
     picture?: boolean;
+    /** How many levels below the player's Thinking to ask for, after a reply thought past the limit. */
+    lessThinking?: number;
     onText: (text: string) => void;
     onGeneration?: (id: string) => void;
     onUsage?: (usage: TextUsage) => void;
@@ -312,18 +314,15 @@ function turnPrompt(
   };
 }
 
+/** What a World Change needs: the Narrator, the reviewer and the pictures a change can restyle. */
+type WorldContext = { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline; reviewProvider?: TextProvider };
+
 /**
  * Brings the hidden world in line with the player's Journal edits in a call of its own, as a Turn busy writing the
  * story can skip state changes. `stateOf` reads the state the reply starts from, and a stale request throws there,
  * before any call. Any other failure only skips it, as the reply is still told of the edits.
  */
-async function settleJournal(
-  saves: SaveStore,
-  context: { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline },
-  id: string,
-  signal: AbortSignal,
-  stateOf: () => State,
-) {
+async function settleJournal(saves: SaveStore, context: WorldContext, id: string, signal: AbortSignal, stateOf: () => State) {
   const change = journalChange(saves.pendingEdits(id));
   if (!change) return;
   stateOf();
@@ -344,14 +343,23 @@ export async function playTurn(
     settings,
     images,
     usage,
-  }: { textProvider: TextProvider; dice: Dice; nearMissMargin: number; settings: SettingsStore; images: ImagePipeline; usage?: UsageStore },
+    reviewProvider,
+  }: {
+    textProvider: TextProvider;
+    dice: Dice;
+    nearMissMargin: number;
+    settings: SettingsStore;
+    images: ImagePipeline;
+    usage?: UsageStore;
+    reviewProvider?: TextProvider;
+  },
   id: string,
   input: string,
   signal: AbortSignal,
   emit: TurnEvents = () => {},
   mayCheck = true,
 ) {
-  await settleJournal(saves, { textProvider, settings, images }, id, signal, () => saves.latestState(id));
+  await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.latestState(id));
   const basedOn = saves.latestMessageId(id);
   const state = saves.latestState(id);
   const messages = saves.messages(id);
@@ -392,14 +400,14 @@ export function playOpening(saves: SaveStore, engine: Parameters<typeof playTurn
 /** Rewrite, when there is `feedback`, or Regenerate. Takes no Dice: the Turn's stored Check stands, and a Turn without one stays without. */
 export async function replaceResponse(
   saves: SaveStore,
-  { textProvider, settings, images }: { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline },
+  { textProvider, settings, images, reviewProvider }: WorldContext,
   id: string,
   messageId: number,
   feedback: string | undefined,
   signal: AbortSignal,
   emit: TurnEvents = () => {},
 ) {
-  await settleJournal(saves, { textProvider, settings, images }, id, signal, () => saves.turnToReplace(id, messageId).state);
+  await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.turnToReplace(id, messageId).state);
   const { input, narration, check, state, messages, sceneImage, journalEdits } = saves.turnToReplace(id, messageId);
   // The old picture goes with its response, so the new one always gets its own, whatever the Narrator decides.
   const hadPicture = !!sceneImage || images.sceneDrawing(id, messageId);
@@ -437,14 +445,14 @@ export async function replaceResponse(
 /** An Edit: the player's words replace the latest response's, and the Narrator brings the state in line with them. The picture and any Check stay. */
 export async function editResponse(
   saves: SaveStore,
-  { textProvider, settings, images }: { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline },
+  { textProvider, settings, images, reviewProvider }: WorldContext,
   id: string,
   messageId: number,
   text: string,
   signal: AbortSignal,
   emit: TurnEvents = () => {},
 ) {
-  await settleJournal(saves, { textProvider, settings, images }, id, signal, () => saves.turnToReplace(id, messageId).state);
+  await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.turnToReplace(id, messageId).state);
   const { input, state, messages, journalEdits } = saves.turnToReplace(id, messageId);
   const { prompt, memory, playMode } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
@@ -774,12 +782,19 @@ export async function askForJson<T>(
   { picture = false } = {},
 ) {
   let generation: string | undefined;
-  const request = { schema: jsonSchemaOf(schema), picture, onText: () => {}, onGeneration: (id: string) => (generation = id), signal };
+  let lessThinking = 0;
+  let asked = prompt;
   for (let attempt = 1; ; attempt++) {
+    const request = { schema: jsonSchemaOf(schema), picture, lessThinking, onText: () => {}, onGeneration: (id: string) => (generation = id), signal };
     try {
-      return parseReply(await askNarrator(textProvider, prompt, request, "", refusal), schema);
+      return parseReply(await askNarrator(textProvider, asked, request, "", refusal), schema);
     } catch (cause) {
       retryIfInvalid(cause, attempt, "", generation);
+      const reason = whyInvalid(cause as InvalidResponse);
+      // The same level would most likely think past the limit again.
+      if (reason === OVERTHOUGHT) lessThinking++;
+      // After the prompt, so the provider's cache still holds, and in the app's own words, never the reply's.
+      else asked = [...prompt, { role: "system", content: `Your last reply couldn't be used: ${reason}. Reply again, fixing that.` }];
     }
   }
 }

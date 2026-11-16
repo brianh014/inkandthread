@@ -4,7 +4,7 @@
 
 <p align="center">A choose-your-own visual novel, written as you play.</p>
 
-NovelForge is a single-player story game. You build a world and a character, then act and speak only as that character, while an AI plays the Narrator: it runs the story, voices everyone else, keeps track of the world, and rolls the dice when what you try could fail. An image AI draws the Cover, portraits and scenes as the story goes.
+NovelForge is a single-player story game, played like a Telltale game or a choose-your-own-adventure book. You build a world and a character, then act and speak only as that character, while an AI plays the Narrator: it plots in secret, so the story turns in ways you don't see coming, runs the story, voices everyone else, keeps track of the world, and quietly decides whether what you try works. An image AI draws the Cover, the portraits and a picture for each scene, as in a visual novel.
 
 It runs on your own computer and talks to models you choose. Bring an OpenAI-compatible text API (OpenRouter, DeepInfra, a local server) and, for pictures, OpenRouter, Wiro or your own ComfyUI.
 
@@ -12,15 +12,15 @@ It runs on your own computer and talks to models you choose. Bring an OpenAI-com
 
 ## Features
 
-Most AI roleplay is one long chat with a model that agrees with everything, forgets what happened an hour ago and writes your character's lines for you. NovelForge is built as a game instead, with the AI as its storyteller.
+Most AI roleplay is one long chat with a model that agrees with everything, forgets what happened an hour ago and writes your character's lines for you. NovelForge is built as a story game instead: its Plot Threads are already there, hidden, and you find them by playing. Unlike open-ended AI chat, the story has a plot of its own, and unlike AI story apps that keep you on a set path, that plot answers your choices.
 
+- **The world keeps secrets.** The New Story wizard builds a full world from your Theme, ideas and characters, with its own history, places and secret Plot Threads. The Narrator brings them into play when you least expect it, so the story can surprise you the way a written one does. The plot is hidden, not fixed: the threads wait in the world and answer what you do, so a choice you make stays made. Like a long series of books, with the same main character in the same world, a thread plays out as the story reaches it, and when they're used up the Narrator starts new ones, so the story can go on as long as you like. Write it all yourself, or let the Narrator fill in what you leave empty.
 - **Your character is yours.** The Narrator never speaks or acts for your PC, never moves them somewhere or skips time on its own, and stops each reply at the moment your PC would answer or choose. Type your move, or pick from three Choices.
 - **Things can go wrong.** Left to itself, an AI lets everything work. When your PC tries something risky, the Narrator sets how hard it is first, then a hidden die decides, so a bold plan can fail and a long shot can come off.
-- **The world keeps secrets.** The New Story wizard builds a full world from your Theme, ideas and characters, with its own history, places and secret Plot Threads, which you uncover by playing. Write it all yourself, or let the Narrator fill in what you leave empty.
 - **It remembers.** The story is kept as structured state, not just chat history: who your PC has met and what they know, Loose Ends still open, the time and date, and short Old Memories of everything older. You read and edit it all in the Journal, which holds only what your PC knows, and the Narrator gets what it needs each Turn, so a long story stays straight.
 - **Nothing is final.** Every Message keeps a full Snapshot of the story, so you can rewrite, edit or regenerate a reply, step back to any point at once, branch off into a copy and try another path, or Start Over with the same world and characters. Tell the Narrator to change the world in your own words, or switch AI in the middle of a story.
-- **Pictures that stay in character.** A Cover, a portrait for each person, kept up to date as their looks change, and a picture whenever the scene changes or you ask for one. Image models that take reference pictures draw scenes from the portraits, so faces stay the same, and the Gallery lets you redraw, nudge or replace any picture with your own.
-- **Yours, on your computer.** No account and no subscription. Each story is one file on your own disk that you can duplicate, export and import, and you choose the AI, from a cheap hosted one to one on your own graphics card.
+- **A visual novel, drawn as you go.** A Cover, a portrait for each person, kept up to date as their looks change, and a picture whenever the scene changes or you ask for one. Image models that take reference pictures draw scenes from the portraits, so faces stay the same, and the Gallery lets you redraw, nudge or replace any picture with your own.
+- **Your AI, your stories.** Bring your own AI, and what you make is yours: no platform holds your stories, sets content rules for them, or charges a subscription. No account is needed. Each story is one file on your own disk that you can duplicate, export and import. For privacy, run both the text AI and the pictures (ComfyUI) on your own graphics card so nothing leaves your computer, or on OpenRouter pick a **Provider** in Settings whose policy is not to store or log prompts (OpenRouter lists each provider's data policy).
 
 ## Screenshots
 
@@ -159,6 +159,8 @@ bun src/main.ts --fake --open
 ### Text: a hosted API
 
 Use a hosted text API, such as OpenRouter (see [Connecting an AI](#connecting-an-ai)), [NanoGPT](https://nano-gpt.com), Google AI Studio or any other OpenAI-compatible provider. Every Turn sends the Narrator the newest Messages in full, plus the world, the Journal and the Old Memories, so a long story's prompt grows past 30,000 tokens. Large hosted models take all of it, keep the story straight and return the Narrator's JSON first time, for pennies a Turn. Staying on one provider keeps its prompt cache, which makes each Turn cheaper.
+
+**Review.** After the world is built, and before a change to it is made, the AI takes a second look and quietly fixes contradictions, plot holes and thin storylines. A model checking its own work tends to pass it, so in **Settings → Text → Review**, tick **Review with another model** and pick a capable model from a different family than the Narrator's. It needn't be the most expensive: a smarter, lower-cost model such as GPT-6.1 Luna, on Medium thinking, does the job, where High thinking costs more and can run past **Longest thinking**.
 
 A local model works too: choose **Local / OpenAI server** and give the address of Ollama (`http://localhost:11434/v1`), LM Studio (`http://localhost:1234/v1`) or another OpenAI-compatible server. It suits short stories, play with nothing leaving your computer, and trying things out. A 10 GB GPU fits a model of about 12B at Q4 with a 16,000-token context, so the Narrator sees much less of a long story, and a Turn can take a minute. To get the most from it:
 

@@ -442,7 +442,7 @@ export type World = Pick<State, "worldBible" | "worldRules" | "plotThreads">;
 const words = z.string().trim().min(1);
 // Untrimmed, as a quote must match what a Turn stored, and Turns store text as it came.
 const quote = z.string().min(1);
-const namesSomething = (change: { old: string | null; new: string | null }) => change.old !== null || change.new !== null;
+export const namesSomething = (change: { old: string | null; new: string | null }) => change.old !== null || change.new !== null;
 
 export const LoreEntryReply = z.object({ title: words, keywords: z.array(words).min(3), content: words });
 

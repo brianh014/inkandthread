@@ -57,10 +57,10 @@ export const readable = (messages: Message[]) =>
 
 /**
  * Marks a model sometimes puts in narration that aren't story: a Markdown quote ">" before a paragraph, and a speaker tag
- * written as `[Name: ""]` or `[Name:]`. Taken out of a reply before it's saved, and when shown, for Messages saved before.
+ * written as `[Name: ""]` or `[Name:]` before a quote. Taken out of a reply before it's saved, and when shown, for Messages saved before.
  */
 export const withoutStrayMarks = (text: string) =>
-  text.replace(/^[ \t]*>[ \t]*/gm, "").replace(/^([ \t]*)\[([^[\]:\n]+?)[ \t]*:[ \t]*(?:""|“”)?[ \t]*\][ \t]*:?[ \t]*/gm, "$1[$2]: ");
+  text.replace(/^[ \t]*>[ \t]*/gm, "").replace(/^([ \t]*)\[([^[\]:\n]+?)[ \t]*:[ \t]*(?:""|“”)?[ \t]*\][ \t]*:?[ \t]*(?=["“])/gm, "$1[$2]: ");
 
 /** The Narrator is told to write `[Name]:`, but real models also drop the brackets. Anything else, including a tag still streaming, is narration. */
 export function messageBeats({ role, text }: Pick<Message, "role" | "text">): Beat[] {

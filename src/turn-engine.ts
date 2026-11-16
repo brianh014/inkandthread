@@ -747,7 +747,14 @@ async function nextMemory(
   }
 }
 
-export async function askForJson<T>(textProvider: TextProvider, prompt: Prompt, schema: z.ZodType<T>, refusal: string, signal: AbortSignal, picture = false) {
+export async function askForJson<T>(
+  textProvider: TextProvider,
+  prompt: Prompt,
+  schema: z.ZodType<T>,
+  refusal: string,
+  signal: AbortSignal,
+  { picture = false } = {},
+) {
   let generation: string | undefined;
   const request = { schema: jsonSchemaOf(schema), picture, onText: () => {}, onGeneration: (id: string) => (generation = id), signal };
   for (let attempt = 1; ; attempt++) {

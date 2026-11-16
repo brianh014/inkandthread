@@ -115,6 +115,8 @@ const routing = ({ textRouting, textHost, textHostFallback }: Routing) =>
 /** The one Text Provider: any OpenAI-compatible server, using the Settings at the time of each call. */
 export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LIMITS): TextProvider {
   const schemaSupport = new Map<string, boolean>();
+  // OpenRouter models whose listing takes `reasoning`. Sent to any other, it would leave a schema call, which requires every parameter, no host.
+  const thinks = new Set<string>();
   // Servers that refused `stream_options`, so they aren't asked again until the app restarts.
   const usageRefused = new Set<string>();
 
@@ -126,8 +128,10 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
     const models = await listModels(url, headers, signal, listMs);
     // Without an answer, JSON validation and retries still work, so ask again on the next call.
     if (!models) return false;
-    const supported = !!models.find(({ id }) => id === model)?.supported_parameters.includes("structured_outputs");
+    const params = models.find(({ id }) => id === model)?.supported_parameters ?? [];
+    const supported = params.includes("structured_outputs");
     schemaSupport.set(`${url} ${model}`, supported);
+    if (params.includes("reasoning")) thinks.add(`${url} ${model}`);
     return supported;
   }
 
@@ -188,7 +192,7 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
           ...(askUsage && { stream_options: { include_usage: true } }),
           max_tokens: textMaxTokens,
           // Changes nothing in the prompt, so the provider's cache still holds.
-          ...(openRouter && textThinking !== "default" && { reasoning: { effort: textThinking } }),
+          ...(textThinking !== "default" && thinks.has(`${url} ${textModel}`) && { reasoning: { effort: textThinking } }),
           ...(useSchema && { response_format: { type: "json_schema", json_schema: { name: "narrator_response", strict: true, schema } } }),
           // OpenRouter only: a strict server such as OpenAI refuses a field it does not know.
           ...(openRouter && { provider: { ...(useSchema && { require_parameters: true }), ...routing(chosen) } }),

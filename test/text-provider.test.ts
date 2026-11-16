@@ -515,14 +515,24 @@ test("every reply is sent with the token limit from Settings", async () => {
   expect(provider.requests.map(({ body }) => body.max_tokens)).toEqual([16_000, 4000]);
 });
 
-test("OpenRouter is sent the Thinking level only once the player picks one", async () => {
-  play([narrated("Rain."), narrated("Sleet.")], {}, scriptedDice(), true);
+test("OpenRouter is sent the Thinking level only once the player picks one, and only for a model that takes it", async () => {
+  const thinking = { data: [{ id: "fake/model", supported_parameters: ["structured_outputs", "reasoning"] }] };
+  play([narrated("Rain."), narrated("Sleet.")], thinking, scriptedDice(), true);
   const id = await app.createSave();
   await app.post(`/saves/${id}/turns`, { input: "I wait." });
   settingsStore(join(folder.path, "settings.json")).update({ textThinking: "low" });
   await app.post(`/saves/${id}/turns`, { input: "I wait." });
 
   expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([undefined, { effort: "low" }]);
+});
+
+test("a model whose listing doesn't take reasoning is never sent it", async () => {
+  play([narrated("Rain.")], schemaModel, scriptedDice(), true);
+  settingsStore(join(folder.path, "settings.json")).update({ textThinking: "low" });
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect(provider.requests.at(-1)!.body.reasoning).toBeUndefined();
 });
 
 test("a model stuck thinking is stopped at the thinking limit and asked again", async () => {
@@ -555,6 +565,7 @@ test('a speaker tag written as [Name: ""] is saved as [Name]:, and shows as one'
 
   expect((await storedMessages(id)).at(-1)!.text).toBe('She sits.\n\n[Lena]: "I want to see it."\n\n[Mara]: "Fine."');
   expect(messageBeats({ role: "narrator", text: '[Lena: ""] "Here."' })).toEqual([{ speaker: "Lena", text: '"Here."' }]);
+  expect(messageBeats({ role: "narrator", text: "[Note:] The door is shut." })).toEqual([{ text: "[Note:] The door is shut." }]);
 });
 
 test("a reply that marks its paragraphs as Markdown quotes is saved without the marks, and shows without them", async () => {

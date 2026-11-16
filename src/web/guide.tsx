@@ -428,7 +428,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             <b>Longest reply, in tokens</b> and <b>in minutes</b>: limits on one reply.
           </li>
           <li>
-            <b>Thinking</b> (OpenRouter): how long an AI that thinks before it writes may think. Lower is quicker and cheaper, though some AIs ignore it.
+            <b>Thinking</b> (OpenRouter): how long an AI that thinks before it writes may think. Lower is quicker and cheaper, though some AIs ignore it. On
+            High, raise <b>Longest thinking</b>.
           </li>
           <li>
             <b>Longest thinking, in tokens</b>, for the story and for a picture's prompt: an AI that thinks past it is stopped and asked again.

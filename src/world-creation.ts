@@ -148,7 +148,7 @@ const PC_IS_CANON =
 
 /** What makes a world one a story grows from, for the Narrator that builds it and the review that strengthens it. */
 const STORY_CRAFT =
-  "Make it a world stories grow from: every plot thread has someone who wants something and something at stake, people and factions pull against each other, the opening gives the PC a reason to be drawn in, every mystery has its answer in the lore entries, and every part is particular to this world rather than stock.";
+  "Make it a world stories grow from: every plot thread is a story of its own, not one more part of the same secret, with someone who wants something and something at stake, and says what is true, never what the PC will do; people and factions pull against each other, the opening gives the PC a reason to be drawn in, every mystery has its answer in the lore entries, and every part is particular to this world rather than stock.";
 
 /** The player's choices a world is built from, as the Narrator is sent them. */
 const worldChoicesData = ({ title, theme, worldBrief, startingHook, characters = [] }: WorldChoices, { pc, inventory }: WorldPc) => ({

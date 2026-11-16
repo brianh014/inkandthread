@@ -1,4 +1,4 @@
-import { type Ref, useState } from "react";
+import type { Ref } from "react";
 import type { Message, MessageCheck } from "./api";
 import { isContinue } from "./chat-style";
 import { ChapterIcon, DieIcon, DuplicateIcon, EditIcon, RegenerateIcon, RevertIcon, RewriteIcon } from "./icons";
@@ -31,74 +31,76 @@ export function MessageControls(props: {
   // A Continue's text is only its marker, so it is named instead.
   const words = isContinue(message) ? "Continue" : message.text.slice(0, 40);
   return (
-    <div className="row actions">
-      {check && <CheckDie check={check} />}
-      {message.role === "player" && replayable && (
-        <button
-          type="button"
-          className="icon"
-          title="Edit and replay from here"
-          aria-label={`Edit and replay from your words: ${words}`}
-          onClick={() => actions.replay(message)}
-        >
-          {EditIcon}
-        </button>
-      )}
-      {!latest && (
+    <>
+      {check && <CheckResult check={check} />}
+      <div className="row actions">
+        {message.role === "player" && replayable && (
+          <button
+            type="button"
+            className="icon"
+            title="Edit and replay from here"
+            aria-label={`Edit and replay from your words: ${words}`}
+            onClick={() => actions.replay(message)}
+          >
+            {EditIcon}
+          </button>
+        )}
+        {!latest && (
+          <button
+            type="button"
+            className="icon revert"
+            title="Revert to here"
+            aria-label={`Revert to this Message: ${words}`}
+            onClick={() => actions.revert(message)}
+          >
+            {RevertIcon}
+          </button>
+        )}
         <button
           type="button"
           className="icon revert"
-          title="Revert to here"
-          aria-label={`Revert to this Message: ${words}`}
-          onClick={() => actions.revert(message)}
+          title="Duplicate from here"
+          aria-label={`Duplicate from this Message: ${words}`}
+          aria-haspopup="dialog"
+          onClick={() => actions.duplicate(message)}
         >
-          {RevertIcon}
+          {DuplicateIcon}
         </button>
-      )}
-      <button
-        type="button"
-        className="icon revert"
-        title="Duplicate from here"
-        aria-label={`Duplicate from this Message: ${words}`}
-        aria-haspopup="dialog"
-        onClick={() => actions.duplicate(message)}
-      >
-        {DuplicateIcon}
-      </button>
-      {latest && (
-        <button
-          type="button"
-          className="icon"
-          title="End the chapter here"
-          aria-label="End the chapter here"
-          aria-expanded={open.chapterEnd}
-          onClick={actions.toggleChapterEnd}
-        >
-          {ChapterIcon}
-        </button>
-      )}
-      {replaceable && (
-        <>
+        {latest && (
           <button
             type="button"
-            ref={rewriteButton}
             className="icon"
-            title="Rewrite"
-            aria-label="Rewrite"
-            aria-expanded={open.rewrite}
-            onClick={() => actions.rewrite(message)}
+            title="End the chapter here"
+            aria-label="End the chapter here"
+            aria-expanded={open.chapterEnd}
+            onClick={actions.toggleChapterEnd}
           >
-            {RewriteIcon}
+            {ChapterIcon}
           </button>
-          <button type="button" className="icon" title="Edit" aria-label="Edit" aria-expanded={open.edit} onClick={() => actions.edit(message)}>
-            {EditIcon}
-          </button>
-          <button type="button" className="icon" title="Regenerate" aria-label="Regenerate" aria-haspopup="dialog" onClick={actions.regenerate}>
-            {RegenerateIcon}
-          </button>
-        </>
-      )}
-    </div>
+        )}
+        {replaceable && (
+          <>
+            <button
+              type="button"
+              ref={rewriteButton}
+              className="icon"
+              title="Rewrite"
+              aria-label="Rewrite"
+              aria-expanded={open.rewrite}
+              onClick={() => actions.rewrite(message)}
+            >
+              {RewriteIcon}
+            </button>
+            <button type="button" className="icon" title="Edit" aria-label="Edit" aria-expanded={open.edit} onClick={() => actions.edit(message)}>
+              {EditIcon}
+            </button>
+            <button type="button" className="icon" title="Regenerate" aria-label="Regenerate" aria-haspopup="dialog" onClick={actions.regenerate}>
+              {RegenerateIcon}
+            </button>
+          </>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -110,16 +112,12 @@ const RESULTS: Record<string, string> = {
   bad: "failed badly",
 };
 
-/** The die on a Message that had a Check: its difficulty, roll and result on hover, or on a tap, as a phone has no hover. */
-function CheckDie({ check }: { check: MessageCheck }) {
-  const [shown, setShown] = useState(false);
-  const words = `${check.difficulty}, rolled ${check.roll}: ${RESULTS[check.degree] ?? check.outcome}. ${check.action}`;
+/** The Check on a Message, in words beside a die, on its own line under the reply. */
+function CheckResult({ check }: { check: MessageCheck }) {
   return (
-    <>
-      <button type="button" className="icon" title={words} aria-label={`Check: ${words}`} aria-expanded={shown} onClick={() => setShown(!shown)}>
-        {DieIcon}
-      </button>
-      {shown && <span className="muted">{words}</span>}
-    </>
+    <p className="check-result">
+      {DieIcon}
+      {check.difficulty}, rolled {check.roll}: {RESULTS[check.degree] ?? check.outcome}. {check.action}
+    </p>
   );
 }

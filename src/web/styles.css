@@ -1892,6 +1892,27 @@ a.action {
   gap: 0;
 }
 
+/* Show Checks: the roll under a reply, quiet beside the story. */
+.check-result {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  margin: 0.3em 0 0;
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+.check-result svg {
+  flex: none;
+  width: 1.1em;
+  height: 1.1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 /* Pictures start under the buttons, not beside them. */
 .message .actions ~ .inline-image {
   clear: right;

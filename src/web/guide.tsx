@@ -292,7 +292,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           </li>
           <li>
             {tool(DieIcon, "Check")} (with <b>Show Checks</b> on): when what your PC tried could go either way, a hidden roll of a twenty-sided die decided it.
-            Point at or tap the die for how hard it was, the roll and the result.
+            A line under the reply says how hard it was, the roll and the result.
           </li>
         </ul>
         <h3>Changing the world</h3>
@@ -469,7 +469,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             <b>Font size</b>: small, medium or large.
           </li>
           <li>
-            <b>Show Checks</b>: a die on each reply where a roll decided how something went. Off by default, so the story reads without them.
+            <b>Show Checks</b>: a line under each reply where a roll decided how something went. Off by default, so the story reads without them.
           </li>
         </ul>
         <h3>Usage</h3>

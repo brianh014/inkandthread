@@ -1234,7 +1234,7 @@ function InstallSettings({
           Show Checks
         </label>
         <p className="muted">
-          A die under a reply where the Narrator rolled to decide how something went, with how hard it was, the roll and the result. Off, the dice stay hidden.
+          A line under a reply where the Narrator rolled to decide how something went, with how hard it was, the roll and the result. Off, the dice stay hidden.
         </p>
       </div>
 

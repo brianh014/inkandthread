@@ -17,6 +17,9 @@ _Avoid_: Character (alone), player (when the character is meant)
 **NPC**:
 Any character in the world voiced by the Narrator.
 
+**What an NPC Knows**:
+A hidden list for each NPC of what they have learned or lived through in play, newest last, at most twelve. The Narrator sees only the lists of the NPCs in the scene or named by the player, and adds to one with `npc_learns`. The player never sees it, as it can hold what the PC never saw.
+
 ### Story structure
 
 **Story**:

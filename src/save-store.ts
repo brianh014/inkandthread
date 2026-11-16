@@ -337,6 +337,9 @@ const toVersion25 = (db: Database) =>
     "The player takes no action this Turn. Continue the story from this moment: the PC does nothing new, so let the people and world around them carry on for one beat, without moving time on or ending what is under way, then stop with the PC free to act.",
   ]);
 
+/** What each NPC knows, which starts empty, as nothing could record it yet. */
+const toVersion26 = addMissingSections;
+
 /** One step per schema version, where step N takes a Save from version N to N + 1. New Saves take them too, so they can't drift from old ones. */
 const MIGRATIONS = [
   toVersion1,
@@ -364,6 +367,7 @@ const MIGRATIONS = [
   toVersion23,
   toVersion24,
   toVersion25,
+  toVersion26,
 ];
 
 function schemaVersion(db: Database) {

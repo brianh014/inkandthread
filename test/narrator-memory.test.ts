@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { activateLore } from "../src/lore-activation";
 import { assemblePrompt } from "../src/prompt-assembler";
-import { applyOperations, MAX_PLOT_THREADS, openingState, type LoreEntry, type State, type StateOperation } from "../src/state-applier";
+import { applyOperations, MAX_NPC_KNOWS, MAX_PLOT_THREADS, openingState, type LoreEntry, type State, type StateOperation } from "../src/state-applier";
 
 const entry = (title: string, keywords: string[], extra: Partial<LoreEntry> = {}): LoreEntry => ({
   title,
@@ -278,6 +278,37 @@ test("merging into a name the state doesn't have renames the NPC", () => {
 test("a merge of someone not in the state, or of someone into themselves, changes nothing and doesn't cost the Turn", () => {
   expect(run(twoPeople(), { op: "merge_npc", name: "Nobody", into: "Nadia" })).toEqual(twoPeople());
   expect(run(twoPeople(), { op: "merge_npc", name: "Nadia", into: "Nadia" })).toEqual(twoPeople());
+});
+
+test("an NPC keeps what they learn, once each and only the newest few, and a merge joins both lists", () => {
+  const learns = (name: string, fact: string): StateOperation => ({ op: "npc_learns", name, fact });
+  const facts = Array.from({ length: MAX_NPC_KNOWS + 1 }, (_, i) => `Fact ${String.fromCharCode(97 + i)}`);
+
+  const next = run(twoPeople(), ...facts.map((fact) => learns("Nadia", fact)), learns("Nadia", "Fact b"), learns("Woman with notebook", "Saw the fire"));
+
+  expect(next.npcKnows.Nadia).toEqual(facts.slice(1));
+  expect(run(next, merge).npcKnows).toEqual({ Nadia: [...facts.slice(2), "Saw the fire"] });
+});
+
+test("npc_learns for someone not in the state, or with no words, changes nothing and doesn't cost the Turn", () => {
+  const { next, refused, ignored } = applyOperations(twoPeople(), [
+    { op: "npc_learns", name: "Nobody", fact: "A secret" },
+    { op: "npc_learns", name: "Nadia", fact: ", ." },
+  ]);
+
+  expect(next).toEqual(twoPeople());
+  expect(refused).toEqual([]);
+  expect(ignored).toHaveLength(2);
+});
+
+test("the Narrator sees what people know only for those in the scene or named by the player", () => {
+  const npcKnows = { "Woman with notebook": ["SEEN-HERE."], Nadia: ["NAMED-NOW."], Other: ["ELSEWHERE."] };
+
+  const prompt = promptFor({ ...twoPeople(), npcKnows }, "I call for Nadia.");
+
+  expect(prompt).toContain("SEEN-HERE.");
+  expect(prompt).toContain("NAMED-NOW.");
+  expect(prompt).not.toContain("ELSEWHERE.");
 });
 
 const promptFor = (sections: Partial<State> = {}, input = "I wait.") => {

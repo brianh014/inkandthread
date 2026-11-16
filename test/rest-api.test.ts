@@ -785,7 +785,11 @@ const resultOf = (prompt: unknown) =>
 
 test.each([
   ["Very Hard", 20, 2, "success", "strong"],
-  ["Hard", 15, 2, "success", "clean"],
+  ["Hard", 16, 2, "success", "clean"],
+  ["Hard", 15, 2, "success", "mixed"],
+  ["Hard", 15, 0, "success", "clean"],
+  ["Hard", 12, 3, "success", "mixed"],
+  ["Hard", 11, 3, "failure", "plain"],
   ["Hard", 14, 2, "success", "mixed"],
   ["Hard", 13, 2, "success", "mixed"],
   ["Hard", 12, 2, "failure", "plain"],
@@ -793,8 +797,10 @@ test.each([
   ["Hard", 10, 5, "success", "mixed"],
   ["Easy", 1, 2, "failure", "bad"],
   ["Easy", 1, 10, "failure", "bad"],
-  ["Easy", 5, 2, "success", "clean"],
-  ["Moderate", 10, 2, "success", "clean"],
+  ["Easy", 5, 2, "success", "mixed"],
+  ["Easy", 6, 2, "success", "clean"],
+  ["Moderate", 10, 2, "success", "mixed"],
+  ["Moderate", 11, 2, "success", "clean"],
   ["Very Hard", 19, 2, "success", "mixed"],
 ])("%s with a %i and a near-miss margin of %i is a %s, degree %s", async (difficulty, roll, margin, outcome, degree) => {
   const script = scriptedTextProvider(requestCheck(difficulty), narration("It is decided."));

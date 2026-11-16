@@ -90,7 +90,7 @@ const server = startServer({
     .number()
     .int()
     .min(0)
-    .parse(process.env.NEAR_MISS_MARGIN ?? 2),
+    .parse(process.env.NEAR_MISS_MARGIN ?? 3),
   port,
   // shortcut: anyone on the network can play, change Settings and spend the saved keys, add accounts if the server leaves a trusted LAN.
   hostname: process.env.HOST ?? (app ? "127.0.0.1" : "0.0.0.0"),

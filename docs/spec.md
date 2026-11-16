@@ -181,7 +181,7 @@ Results also carry a degree:
 
 * Natural 20 is always a strong success
 * Natural 1 is always a bad failure
-* A near miss is a mixed result, where the PC succeeds at a cost. The exact margin is tuned in playtesting
+* Just making the target, or missing it by up to the near-miss margin (3 by default), is a mixed result, where the PC succeeds at a cost. Only beating the target is a clean success
 
 The roll is stored with the Turn, so Rewrite and Regenerate reuse it. Only a new Turn rolls again.
 

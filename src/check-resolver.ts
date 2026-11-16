@@ -13,8 +13,9 @@ export const CheckRequest = z.object({
 function judge(roll: number, dc: number, nearMissMargin: number) {
   if (roll === 20) return { outcome: "success", degree: "strong" };
   if (roll === 1) return { outcome: "failure", degree: "bad" };
+  // Just making it, or just missing, succeeds at a cost: only beating the target is clean. A margin of 0 has no cost band.
+  if (nearMissMargin > 0 && roll <= dc && dc - roll <= nearMissMargin) return { outcome: "success", degree: "mixed" };
   if (roll >= dc) return { outcome: "success", degree: "clean" };
-  if (dc - roll <= nearMissMargin) return { outcome: "success", degree: "mixed" };
   return { outcome: "failure", degree: "plain" };
 }
 

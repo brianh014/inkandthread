@@ -1140,8 +1140,9 @@ function InstallSettings({
               onChange={(textThinking) => set({ textThinking })}
             />
             <p className="muted">
-              How long a model that thinks before it writes may think. Less is quicker and cheaper. A model that doesn't take it is sent nothing. On High, raise
-              Longest thinking, as some models then think past it.
+              How long a model that thinks before it writes may think. Less is quicker and cheaper. A model that doesn't take it is sent nothing. On High, some
+              models think past Longest thinking, and the reply is then stopped and asked again, which can fail every try. Use Medium, or raise Longest
+              thinking.
             </p>
           </>
         )}

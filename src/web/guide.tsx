@@ -421,7 +421,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           </li>
           <li>
             <b>Thinking</b> (OpenRouter, NanoGPT and Google AI Studio): how long an AI that thinks before it writes may think. Lower is quicker and cheaper,
-            though some AIs ignore it. On High, raise <b>Longest thinking</b>.
+            though some AIs ignore it. On High, some AIs think past <b>Longest thinking</b>, and the reply is then stopped and asked again, which can fail every
+            try: use Medium, or raise <b>Longest thinking</b>.
           </li>
           <li>
             Each provider keeps its own key, model and settings, so switching back brings them back. Where a provider lists its models, choose{" "}

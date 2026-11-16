@@ -277,6 +277,22 @@ test("Enhance rewrites one box from the player's words and their other choices",
   expect(JSON.parse(user!.content)).toEqual({ ...setup, idea: "A city on a whale" });
 });
 
+test("a Nudge changes only what the player asked, and an empty box ignores it", async () => {
+  play(JSON.stringify({ text: "Ash can bend light." }), JSON.stringify({ text: "Ash Vale" }));
+  const pc = { name: "Ash", background: "Ash is super strong.", physicalTraits: "", inventory: "" };
+
+  const response = await app.post("/enhance", { ...setup, pc, field: "background", text: "Ash is super strong.", nudge: " a different power " });
+
+  expect(await response.json()).toEqual({ text: "Ash can bend light." });
+  const [system, user] = prompts[0]!;
+  expect(system!.content).toContain("keep everything else in idea as it is");
+  expect(JSON.parse(user!.content)).toMatchObject({ idea: "Ash is super strong.", change: "a different power" });
+  await app.post("/enhance", { ...setup, pc, field: "name", text: "", nudge: "shorter" });
+  expect(prompts[1]![0]!.content).toContain("from scratch");
+  expect(JSON.parse(prompts[1]![1]!.content).change).toBeUndefined();
+  expect((await app.post("/enhance", { ...setup, field: "worldBrief", text: "A city", nudge: "x".repeat(201) })).status).toBe(400);
+});
+
 test("Enhance reads the PC boxes for a PC field, and works without a theme", async () => {
   play(JSON.stringify({ text: "rope\nbrass lantern" }));
   const pc = { name: "Ash", background: "", physicalTraits: "", inventory: "rope, lamp" };

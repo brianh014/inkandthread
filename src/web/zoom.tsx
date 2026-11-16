@@ -68,6 +68,21 @@ export function PromptBox({
   );
 }
 
+const PICTURE_NUDGE = {
+  tip: "Nudge: draw it again with a few words of your own",
+  example: "such as smiling",
+  explain: "A new prompt is written with your words in it, and the picture is drawn again. Each picture drawn may cost money.",
+  submit: "Draw it",
+};
+
+/** For a New Story box: the Narrator rewrites it as asked, keeping the rest. */
+export const TEXT_NUDGE = {
+  tip: "Nudge: have the Narrator change one thing, in a few words of your own",
+  example: "such as pick a different power",
+  explain: "The Narrator changes what you ask and keeps the rest. Undo puts the box back.",
+  submit: "Change it",
+};
+
 /**
  * An icon that opens a dialog for a few words of the player's own, such as "smiling", worked into the picture's next prompt,
  * which is then drawn. `initial` is the nudge used last, where one is kept.
@@ -77,11 +92,14 @@ export function NudgeButton({
   disabled,
   initial = "",
   onNudge,
+  words = PICTURE_NUDGE,
 }: {
   label: string;
   disabled?: boolean;
   initial?: string;
   onNudge: (nudge: string) => void;
+  /** What the dialog says, for a nudge to something other than a picture. */
+  words?: typeof PICTURE_NUDGE;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [nudge, setNudge] = useState(initial);
@@ -91,7 +109,7 @@ export function NudgeButton({
       <button
         type="button"
         className="icon"
-        title="Nudge: draw it again with a few words of your own"
+        title={words.tip}
         aria-label={label}
         aria-haspopup="dialog"
         disabled={disabled}
@@ -114,16 +132,16 @@ export function NudgeButton({
           <h2 id={title}>Nudge</h2>
           <label>
             What should be different?
-            <input maxLength={200} placeholder="such as smiling" value={nudge} onChange={(event) => setNudge(event.target.value)} />
+            <input maxLength={200} placeholder={words.example} value={nudge} onChange={(event) => setNudge(event.target.value)} />
           </label>
-          <p className="muted">A new prompt is written with your words in it, and the picture is drawn again. Each picture drawn may cost money.</p>
+          <p className="muted">{words.explain}</p>
           {/* Cancel first, as a modal focuses its first control, and that mustn't be the one that draws. */}
           <div className="row">
             <button type="button" className="quiet" onClick={() => dialog.current!.close()}>
               Cancel
             </button>
             <button type="submit" className="action" disabled={!nudge.trim()}>
-              Draw it
+              {words.submit}
             </button>
           </div>
         </form>

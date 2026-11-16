@@ -222,10 +222,13 @@ export async function enhance(
   {
     field,
     text: idea,
+    nudge = "",
     ...choices
   }: {
     field: EnhanceField;
     text: string;
+    /** The player's own few words on what to change, such as "a different power". It only applies to a box that holds something. */
+    nudge?: string;
     theme: string;
     title: string;
     worldBrief: string;
@@ -240,15 +243,19 @@ export async function enhance(
   // A longer draft keeps its length, as Enhance never drops what the player wrote.
   const words = WORD_LIMITS[field] && Math.max(WORD_LIMITS[field], countWords(idea));
   const reply = field === "title" ? TitleReply : isName ? NameReply : z.object({ text: fits(words ? limited(field, words) : text) });
-  const task = isName
-    ? `${idea ? `idea is the player's own draft of ${ABOUT[field]}. Give a fuller or more fitting name in its spirit, keeping any part of it they chose.` : `Write ${ABOUT[field]} from scratch, fresh and fitting their other choices.`} text is only the name, in at most ${NAME_WORDS} words, never who they are or anything else about them.`
-    : field === "inventory"
-      ? idea
-        ? `idea is the player's own draft of ${ABOUT[field]}. Give each item in it a few words of detail that fit their other choices. Keep every item, and never add one.`
-        : `Write ${ABOUT[field]} from scratch: about four to eight items that suit the world and their background.`
-      : idea
-        ? `idea is the player's own draft of ${ABOUT[field]}. Rewrite it to be richer, more specific and better written. Keep every fact and intention in it, and add only what fits their idea and their other choices.`
-        : `Write ${ABOUT[field]} from scratch, fresh and specific, agreeing with everything in their other choices.`;
+  const change = idea && nudge;
+  const nameOnly = ` text is only the name, in at most ${NAME_WORDS} words, never who they are or anything else about them.`;
+  const task = change
+    ? `idea is ${ABOUT[field]} as it stands, and change is what the player wants different about it. Make that change, and keep everything else in idea as it is.${isName ? nameOnly : ""}`
+    : isName
+      ? `${idea ? `idea is the player's own draft of ${ABOUT[field]}. Give a fuller or more fitting name in its spirit, keeping any part of it they chose.` : `Write ${ABOUT[field]} from scratch, fresh and fitting their other choices.`}${nameOnly}`
+      : field === "inventory"
+        ? idea
+          ? `idea is the player's own draft of ${ABOUT[field]}. Give each item in it a few words of detail that fit their other choices. Keep every item, and never add one.`
+          : `Write ${ABOUT[field]} from scratch: about four to eight items that suit the world and their background.`
+        : idea
+          ? `idea is the player's own draft of ${ABOUT[field]}. Rewrite it to be richer, more specific and better written. Keep every fact and intention in it, and add only what fits their idea and their other choices.`
+          : `Write ${ABOUT[field]} from scratch, fresh and specific, agreeing with everything in their other choices.`;
   const limit =
     field === "inventory"
       ? ` text is only a comma-separated list of items, in at most ${words} words, with no sentences.`
@@ -263,7 +270,7 @@ export async function enhance(
 ${task}${limit}${most} Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))}
 ${modelInstructions(context)}`,
     },
-    playerChoices({ ...(idea && { idea }), ...choices }),
+    playerChoices({ ...(idea && { idea }), ...(change && { change }), ...choices }),
   ];
   return (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal)).text;
 }

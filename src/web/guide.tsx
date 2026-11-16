@@ -180,7 +180,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         </ul>
         <p>
           Each box has {tool(DecideIcon, "Write")} when it's empty and {tool(DecideIcon, "Enhance")} when it isn't: the Narrator writes it or builds on your
-          words, and <b>Undo</b> puts yours back. {tool(DecideIcon, "Pick for me")} fills every empty box at once and leaves the ones you wrote, and never
+          words. Once a box holds something, {tool(RewriteIcon, "Nudge")} has the Narrator change one thing you name, such as "a different power", and keep the
+          rest. <b>Undo</b> puts your words back. {tool(DecideIcon, "Pick for me")} fills every empty box at once and leaves the ones you wrote, and never
           touches Important Characters.
         </p>
         <h3>2. Art</h3>

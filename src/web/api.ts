@@ -306,7 +306,8 @@ export const enhance = (
   text: string,
   choices: Omit<WorldChoices, "artStyle"> & { pc?: PcDraft; character?: Character },
   signal?: AbortSignal,
-) => request<{ text: string }>("/enhance", { ...jsonBody({ ...choices, field, text }), signal }).then(({ text }) => text);
+  nudge = "",
+) => request<{ text: string }>("/enhance", { ...jsonBody({ ...choices, field, text, nudge }), signal }).then(({ text }) => text);
 
 export const editJournal = (id: string, edit: VisibleEdit) => request<object>(`/saves/${id}/edits`, jsonBody(edit));
 

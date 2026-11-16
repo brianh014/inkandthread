@@ -22,6 +22,7 @@ import { blank, characterLabel, type Draft, newRef, npcPicture, OWN_THEME, redre
 import { WorldForm } from "./wizard-form";
 import { Heading, LeaveWorld, PickForMe, Working } from "./wizard-frame";
 import { type Naming, PictureSection } from "./wizard-pictures";
+import { NudgeButton, TEXT_NUDGE } from "./zoom";
 
 /** Steps live in the hash like screens, so the browser's back button walks them. `step` is the part after `#/new/`: none, "art" or "overview". */
 export function NewStory({ step }: { step?: string }) {
@@ -267,10 +268,11 @@ export function NewStory({ step }: { step?: string }) {
     const key = row?.key ?? field;
     const before = enhanced[key];
     const action = value.trim() ? "Enhance" : "Write";
-    const improve = () =>
+    // With a nudge, the Narrator changes what the player asked and keeps the rest.
+    const improve = (nudge = "") =>
       inPlace(() =>
         run("The Narrator is thinking…", async (signal) => {
-          const now = await enhance(field, value, { ...worldChoices, pc: draft.pc, ...(row && { character: row.character }) }, signal);
+          const now = await enhance(field, value, { ...worldChoices, pc: draft.pc, ...(row && { character: row.character }) }, signal, nudge);
           // Enhancing the Narrator's own words again keeps the player's, so Undo still goes back to what they wrote.
           setEnhanced((current) => ({ ...current, [key]: { was: current[key]?.now === value ? current[key].was : value, now } }));
           write(now);
@@ -283,7 +285,8 @@ export function NewStory({ step }: { step?: string }) {
             Undo
           </button>
         )}
-        <button type="button" className="icon" title={action} aria-label={`${action}: ${label}`} disabled={!!busy} onClick={improve}>
+        {value.trim() && <NudgeButton label={`Nudge: ${label}`} disabled={!!busy} words={TEXT_NUDGE} onNudge={improve} />}
+        <button type="button" className="icon" title={action} aria-label={`${action}: ${label}`} disabled={!!busy} onClick={() => improve()}>
           {DecideIcon}
         </button>
       </div>

@@ -285,10 +285,10 @@ export function NewStory({ step }: { step?: string }) {
             Undo
           </button>
         )}
-        {value.trim() && <NudgeButton label={`Nudge: ${label}`} disabled={!!busy} words={TEXT_NUDGE} onNudge={improve} />}
         <button type="button" className="icon" title={action} aria-label={`${action}: ${label}`} disabled={!!busy} onClick={() => improve()}>
           {DecideIcon}
         </button>
+        {value.trim() && <NudgeButton label={`Nudge: ${label}`} disabled={!!busy} words={TEXT_NUDGE} onNudge={improve} />}
       </div>
     );
   };

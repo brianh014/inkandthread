@@ -111,6 +111,11 @@ test("a story makes and shows everything: pictures, characters, Turns, a Questio
   await expect(continueButton).toBeHidden();
   await page.getByRole("button", { name: "Enhance" }).click();
   await expect(input).not.toHaveValue("I look around.");
+  // Enhanced twice, Undo still goes back to the player's own words, not the first Enhance.
+  const once = await input.inputValue();
+  await page.getByRole("button", { name: "Enhance" }).click();
+  await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
+  await expect(input).not.toHaveValue(once);
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(input).toHaveValue("I look around.");
   await expect(page.getByRole("button", { name: "Undo" })).toBeHidden();

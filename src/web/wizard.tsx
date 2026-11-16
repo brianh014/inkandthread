@@ -252,7 +252,8 @@ export function NewStory({ step }: { step?: string }) {
     const improve = () =>
       run("The Narrator is thinking…", async (signal) => {
         const now = await enhance(field, value, { ...worldChoices, pc: draft.pc, ...(row && { character: row.character }) }, signal);
-        setEnhanced((current) => ({ ...current, [key]: { was: value, now } }));
+        // Enhancing the Narrator's own words again keeps the player's, so Undo still goes back to what they wrote.
+        setEnhanced((current) => ({ ...current, [key]: { was: current[key]?.now === value ? current[key].was : value, now } }));
         write(now);
       });
     return (

@@ -354,10 +354,12 @@ export function Play({ id }: { id: string }) {
     try {
       const draft = draftNow();
       const was = draft.trim();
+      // Enhancing the Narrator's own words again keeps the player's, so Undo still goes back to what they wrote.
+      const own = enhanced?.now === draft ? enhanced.was : draft;
       const now = await decideForMe(id, was, leaving.current.signal);
       // After setDraft, which drops an earlier Enhance's Undo.
       setDraft(now);
-      setEnhanced(was ? { was: draft, now } : undefined);
+      setEnhanced(was ? { was: own, now } : undefined);
       inputBox.current?.focus();
     } catch (failure) {
       if (!leaving.current.signal.aborted) setError((failure as Error).message);

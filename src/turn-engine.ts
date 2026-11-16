@@ -677,7 +677,8 @@ async function askNarrator(
   } catch (cause) {
     // In a Turn, a runaway is a model stuck in a loop, which a fresh try mostly isn't, so it gets the retries a garbled reply does.
     // Any other call that reaches the token limit would likely reach it again, so it fails at once and says why.
-    if (runaway && (runaway.aborted || cause instanceof ReplyCutOff)) throw new InvalidResponse(RAN_ON, { cause });
+    // The reason is the cause, as whyInvalid and playerReason read it: given the error, a runaway was logged as a Check request.
+    if (runaway && (runaway.aborted || cause instanceof ReplyCutOff)) throw new InvalidResponse(undefined, { cause: RAN_ON });
     if (cause instanceof ContentRefused) {
       throw new TurnFailed(refusal, "refused", input, { cause });
     }

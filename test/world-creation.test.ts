@@ -290,7 +290,9 @@ test("a Nudge changes only what the player asked, and an empty box ignores it", 
   expect(log).toContain('"how":"nudge"');
   expect(log).not.toContain("different power");
   const [system, user] = prompts[0]!;
-  expect(system!.content).toContain("keep everything else in idea as it is");
+  expect(system!.content).toContain("keep everything else in idea as it is, and keep about the same length");
+  // A full box's limit in words too, as a Nudge to a long background ran past it in characters on every try.
+  expect(system!.content).toContain("at most 4000 characters, about 667 words");
   expect(JSON.parse(user!.content)).toMatchObject({ idea: "Ash is super strong.", change: "a different power" });
   await app.post("/enhance", { ...setup, pc, field: "name", text: "", nudge: "shorter" });
   expect(prompts[1]![0]!.content).toContain("from scratch");

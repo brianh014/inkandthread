@@ -246,7 +246,7 @@ export async function enhance(
   const change = idea && nudge;
   const nameOnly = ` text is only the name, in at most ${NAME_WORDS} words, never who they are or anything else about them.`;
   const task = change
-    ? `idea is ${ABOUT[field]} as it stands, and change is what the player wants different about it. Make that change, and keep everything else in idea as it is.${isName ? nameOnly : ""}`
+    ? `idea is what the box holds now: ${ABOUT[field]}. change is what the player wants different about it. Make that change, keep everything else in idea as it is, and keep about the same length.${isName ? nameOnly : ""}`
     : isName
       ? `${idea ? `idea is the player's own draft of ${ABOUT[field]}. Give a fuller or more fitting name in its spirit, keeping any part of it they chose.` : `Write ${ABOUT[field]} from scratch, fresh and fitting their other choices.`}${nameOnly}`
       : field === "inventory"
@@ -262,7 +262,8 @@ export async function enhance(
       : words
         ? ` text is at most ${words} words.`
         : "";
-  const most = field === "title" || isName ? "" : ` text is at most ${LONG_TEXT} characters.`;
+  // In words as well, as models count words far better than characters. Six characters a word leaves room for long words.
+  const most = field === "title" || isName ? "" : ` text is at most ${LONG_TEXT} characters, about ${Math.round(LONG_TEXT / 6)} words.`;
   const prompt: Prompt = [
     {
       role: "system",

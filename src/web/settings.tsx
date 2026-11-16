@@ -1013,6 +1013,21 @@ function InstallSettings({
         {textChoice === "openrouter" && (
           <>
             <Picker
+              label="Thinking"
+              value={draft.textThinking}
+              choices={[
+                { value: "default", label: "The model's own" },
+                { value: "low", label: "Low" },
+                { value: "medium", label: "Medium" },
+                { value: "high", label: "High" },
+              ]}
+              onChange={(textThinking) => set({ textThinking })}
+            />
+            <p className="muted">
+              How long a model that thinks before it writes may think. Less is quicker and cheaper. A model that doesn't take it is sent nothing. On High, raise
+              Longest thinking, as some models then think past it.
+            </p>
+            <Picker
               label="Provider"
               value={draft.textHost}
               choices={[
@@ -1069,25 +1084,6 @@ function InstallSettings({
           A reply that runs past either limit is stopped and nothing is saved, so a stuck model can't run up your bill. Reasoning counts toward the tokens, and
           the minutes start once the reply begins.
         </p>
-        {textChoice === "openrouter" && (
-          <>
-            <Picker
-              label="Thinking"
-              value={draft.textThinking}
-              choices={[
-                { value: "default", label: "The model's own" },
-                { value: "low", label: "Low" },
-                { value: "medium", label: "Medium" },
-                { value: "high", label: "High" },
-              ]}
-              onChange={(textThinking) => set({ textThinking })}
-            />
-            <p className="muted">
-              How long a model that thinks before it writes may think. Less is quicker and cheaper. A model that doesn't take it is sent nothing. On High, raise
-              Longest thinking, as some models then think past it.
-            </p>
-          </>
-        )}
         <label>
           Longest thinking, in tokens
           <input

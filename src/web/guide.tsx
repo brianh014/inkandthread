@@ -418,6 +418,10 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             who serves the model. See {link("models", "Choosing your AI")}.
           </li>
           <li>
+            <b>Thinking</b> (OpenRouter): how long an AI that thinks before it writes may think. Lower is quicker and cheaper, though some AIs ignore it. On
+            High, raise <b>Longest thinking</b>.
+          </li>
+          <li>
             Each provider keeps its own key, model and settings, so switching back brings them back. Where a provider lists its models, choose{" "}
             <b>Type a model name…</b> at the end of the list for one it leaves out, and {tool(ChoicesIcon, "Choose from the list")} to go back.
           </li>
@@ -426,10 +430,6 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           </li>
           <li>
             <b>Longest reply, in tokens</b> and <b>in minutes</b>: limits on one reply.
-          </li>
-          <li>
-            <b>Thinking</b> (OpenRouter): how long an AI that thinks before it writes may think. Lower is quicker and cheaper, though some AIs ignore it. On
-            High, raise <b>Longest thinking</b>.
           </li>
           <li>
             <b>Longest thinking, in tokens</b>, for the story and for a picture's prompt: an AI that thinks past it is stopped and asked again.

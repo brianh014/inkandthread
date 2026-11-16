@@ -2212,6 +2212,38 @@ test("a Check's result that isn't a story is retried, and if it never is the pla
   expect(await messageTexts(again.app, other)).toEqual([]);
 });
 
+test("a Check's result that's only punctuation is told as declined too", async () => {
+  const { app } = playWithDice([12], requestCheck("Hard"), narration(","), narration(","), narration(","));
+  const id = await app.createSave();
+
+  const response = await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+
+  expect(response.status).toBe(422);
+  expect(await response.json()).toMatchObject({ failure: "refused" });
+});
+
+test("a Check's result whose prose speaks of stakes is a story, and kept", async () => {
+  const story = 'Mara steadies you at the edge.\n\n[Mara]: "Here are the stakes: your life or his."\n\nYou jump, and land.';
+  const { app, prompts } = playWithDice([16], requestCheck("Hard"), narration(story));
+  const id = await app.createSave();
+
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+
+  expect(prompts).toHaveLength(2);
+  expect((await messageTexts(app, id)).at(-1)).toBe(story);
+});
+
+test("a rating with a difficulty the app doesn't know is retried, never narrated without a roll", async () => {
+  const unknown = JSON.stringify({ check: { action: "Leap", stakes: "a fall", difficulty: "Trivial" }, narration: "You simply land." });
+  const { app, prompts } = playWithDice([], unknown, narration("You wait instead."));
+  const id = await app.createSave();
+
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+
+  expect(prompts).toHaveLength(2);
+  expect((await messageTexts(app, id)).at(-1)).toBe("You wait instead.");
+});
+
 test("a reply whose narration has no words is retried", async () => {
   const { app, prompts } = playWithDice([], narration(","), narration("The rain keeps on."));
   const id = await app.createSave();

@@ -809,7 +809,8 @@ export function saveStore(savesDir: string) {
             stored = JSON.parse(hidden_check);
           } catch {}
           const check = StoredCheck.safeParse(stored).data;
-          if (!check) log.warning("saves", "Check unreadable", { save: id, message: messageId });
+          // Verbose, as the page asks again after every Turn and the row stays as it is.
+          if (!check) log.verbose("saves", "Check unreadable", { save: id, message: messageId });
           return check ? [{ messageId, ...check }] : [];
         });
     },

@@ -79,11 +79,8 @@ const withoutRetired = (operations: unknown) =>
   Array.isArray(operations) ? operations.filter((operation) => (operation as { op?: unknown })?.op !== "set_summary") : operations;
 
 const FinishedTurn = z.object({
-  // Words, not just punctuation, as a reply once came back as a lone comma.
-  narration: z
-    .string()
-    .trim()
-    .regex(/\p{L}{2}/u),
+  // Whether it has words is checked once it's parsed, so a Check's result without any is told as declined.
+  narration: z.string().trim().min(1),
   state_operations: z.preprocess(withoutRetired, z.array(StateOperation).default([])),
   people: z.array(Person).catch([]),
   summary: z.string().catch(""),
@@ -183,8 +180,11 @@ const NO_CHOICES = "no usable choices";
 // A model that won't write a Check's result can't refuse in words when the provider holds it to the schema, so it sends
 // something that isn't a story: replies came back as a lone comma, a single name and the rating written out.
 const DECLINED = "a story the AI declined to write";
-const RATING_TALK = /\b(?:difficulty|stakes?|outcome|degree)\s*:/i;
+const RATING_TALK = /\bdifficulty\s*:\s*(?:none|easy|moderate|hard|very hard)\b|\bwhat['’]?s at stake\s*:/i;
 const declined = (narration: string) => (narration.match(/\p{L}+/gu)?.length ?? 0) < 2 || RATING_TALK.test(narration);
+// Words, not just punctuation, as a reply once came back as a lone comma.
+const NO_WORDS = "a story with no words";
+const hasWords = (narration: string) => /\p{L}{2}/u.test(narration);
 
 // The check a reply opens with: null, or the rating's flat object of strings. One pattern, so streaming and the early stop agree.
 // shortcut: a reply in another key order or after prose shows no narration until the Turn is done, loosen this only if real models do that often.
@@ -211,10 +211,10 @@ function openingCheck(reply: string): unknown {
 
 const isNone = (opened: unknown) => opened === null || (opened as { difficulty?: unknown }).difficulty === NONE;
 
-/** The narration in a visible reply, empty until the reply has shown it is not a Check request. */
+/** The narration in a visible reply whose check is known to be None or null. */
 function narrationSoFar(reply: string) {
   const start = reply.match(NARRATION_START);
-  if (!start || !isNone(JSON.parse(start[1]!))) return "";
+  if (!start) return "";
   return JSON.parse(`"${reply.slice(start[0].length).match(COMPLETE_JSON_CHARACTERS)![0]}"`) as string;
 }
 
@@ -481,19 +481,23 @@ async function narrate(
     // A model asked to hold its narration for the roll mostly writes it anyway, which is thrown away, so the reply stops at the rating.
     const early = new AbortController();
     let rated: z.infer<typeof CheckRequest> | undefined;
-    // Once the reply's check is complete, it's never looked at again.
-    let checkSeen = !!check || !rollCheck;
+    // Worked out once the reply's check is complete, and never looked at again: only a None or null check lets narration stream.
+    let opened: unknown;
+    let none = false;
     const onText = (text: string) => {
       partial += text;
       const visible = withoutThinking(partial);
       if (visible.length > RUNAWAY_CHARS * (kind === "opening" ? 2 : 1)) runaway.abort(RAN_ON);
-      if (!checkSeen) {
-        const opened = openingCheck(visible);
-        checkSeen = opened !== undefined;
-        rated = opened === undefined || isNone(opened) ? undefined : CheckRequest.safeParse(opened).data;
-        if (rated) early.abort(new StoppedOnPurpose(RATED));
+      if (opened === undefined) {
+        opened = openingCheck(visible);
+        none = opened !== undefined && isNone(opened);
+        if (opened !== undefined && !none && !check && rollCheck) {
+          // shortcut: OpenRouter's record gives a stopped call's usage; other providers' stopped rating calls go uncounted in Usage, add a lookup if one offers it.
+          rated = CheckRequest.safeParse(opened).data;
+          if (rated) early.abort(new StoppedOnPurpose(RATED));
+        }
       }
-      if (edited !== undefined) return;
+      if (edited !== undefined || !none) return;
       const narration = narrationSoFar(visible);
       if (narration.length <= narrationSent) return;
       emit("narration", { text: narration.slice(narrationSent) });
@@ -528,7 +532,8 @@ async function narrate(
       // The last attempt keeps such a reply, as losing the Turn costs more than a long speech.
       // A picture without set_scene would be drawn from the last scene's place and people, which may have moved on, so it's dropped.
       // Never kept, even on the last attempt, as what isn't a story is no Turn.
-      if (check && edited === undefined && declined(narration)) throw new InvalidResponse(undefined, { cause: DECLINED });
+      if (edited === undefined && check && declined(narration)) throw new InvalidResponse(undefined, { cause: DECLINED });
+      if (edited === undefined && !hasWords(narration)) throw new InvalidResponse(undefined, { cause: NO_WORDS });
       const unplaced = scene_changed && !state_operations.some(({ op }) => op === "set_scene") ? "a picture without set_scene" : undefined;
       const spoken = edited === undefined ? spokenLineFault(narration) : undefined;
       const choices = playMode === "choices" ? usableChoices(response.choices) : undefined;

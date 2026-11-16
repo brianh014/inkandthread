@@ -4,7 +4,7 @@ import type { LoreEntry } from "./state-applier";
 export const estimateTokens = (text: string) => Math.ceil(text.length / 4);
 
 // Whole words only, so "art" does not activate on "party". The lookarounds exist because \b only knows ASCII letters.
-const wholeWord = (keyword: string) => new RegExp(`(?<![\\p{L}\\p{N}])${RegExp.escape(keyword)}(?![\\p{L}\\p{N}])`, "giu");
+export const wholeWord = (keyword: string, flags = "giu") => new RegExp(`(?<![\\p{L}\\p{N}])${RegExp.escape(keyword)}(?![\\p{L}\\p{N}])`, flags);
 
 /** Where in `text` any keyword last appears, or -1. */
 const lastMention = (text: string, { keywords }: LoreEntry) =>

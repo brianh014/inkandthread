@@ -1,3 +1,4 @@
+import { messageBeats } from "../src/web/chat-style";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { settingsStore } from "../src/settings-store";
@@ -520,6 +521,20 @@ const cutOff = [
 
 `,
 ];
+
+test("a reply that marks its paragraphs as Markdown quotes is saved without the marks, and shows without them", async () => {
+  play([narrated('>The tide rises.\n\n> [Nadia]: "Run."')]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+
+  const text = (await storedMessages(id)).at(-1)!.text;
+  expect(text).toBe('The tide rises.\n\n[Nadia]: "Run."');
+  expect(messageBeats({ role: "narrator", text: '>The tide rises.\n>Nadia: "Run."' })).toEqual([
+    { text: "The tide rises." },
+    { speaker: "Nadia", text: '"Run."' },
+  ]);
+});
 
 test("a reply cut off at the token limit is written again, as a model stuck in a loop mostly isn't the next time", async () => {
   play([cutOff, narrated("The tide rises.")]);

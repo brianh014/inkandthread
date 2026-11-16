@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { activateLore } from "../src/lore-activation";
 import { assemblePrompt } from "../src/prompt-assembler";
-import { applyOperations, MAX_PLOT_THREADS, openingState, type LoreEntry, type State, type StateOperation } from "../src/state-applier";
+import { applyOperations, MAX_NPC_KNOWS, MAX_PLOT_THREADS, openingState, type LoreEntry, type State, type StateOperation } from "../src/state-applier";
 
 const entry = (title: string, keywords: string[], extra: Partial<LoreEntry> = {}): LoreEntry => ({
   title,
@@ -279,6 +279,83 @@ test("a merge of someone not in the state, or of someone into themselves, change
   expect(run(twoPeople(), { op: "merge_npc", name: "Nobody", into: "Nadia" })).toEqual(twoPeople());
   expect(run(twoPeople(), { op: "merge_npc", name: "Nadia", into: "Nadia" })).toEqual(twoPeople());
 });
+
+test("an NPC keeps what they learn, once each and only the newest few, and a merge joins both lists", () => {
+  const learns = (name: string, fact: string): StateOperation => ({ op: "npc_learns", name, fact });
+  const facts = Array.from({ length: MAX_NPC_KNOWS + 1 }, (_, i) => `Fact ${String.fromCharCode(97 + i)}`);
+
+  const next = run(twoPeople(), ...facts.map((fact) => learns("Nadia", fact)), learns("Nadia", "Fact b"), learns("Woman with notebook", "Saw the fire"));
+
+  expect(next.npcKnows.Nadia).toEqual(facts.slice(1));
+  // The kept one's own are the newest, so the other's go first when the list is full.
+  expect(run(next, merge).npcKnows).toEqual({ Nadia: facts.slice(1) });
+  expect(run(next, { op: "merge_npc", name: "Nadia", into: "Woman with notebook" }).npcKnows["Woman with notebook"]).toEqual([
+    ...facts.slice(2),
+    "Saw the fire",
+  ]);
+});
+
+test("npc_learns for someone not in the state, or with no words, changes nothing and doesn't cost the Turn", () => {
+  const { next, refused, ignored } = applyOperations(twoPeople(), [
+    { op: "npc_learns", name: "Nobody", fact: "A secret" },
+    { op: "npc_learns", name: "Nadia", fact: ", ." },
+  ]);
+
+  expect(next).toEqual(twoPeople());
+  expect(refused).toEqual([]);
+  expect(ignored).toHaveLength(2);
+});
+
+test("a merge keeps a fact both knew among the kept one's own, so the cap can't drop it first", () => {
+  const state = twoPeople();
+  const own = Array.from({ length: MAX_NPC_KNOWS }, (_, i) => `Own ${i}`);
+  state.npcKnows = { "Woman with notebook": ["Shared", "Other's"], Nadia: ["Shared", ...own.slice(1)] };
+
+  expect(run(state, merge).npcKnows.Nadia).toEqual(["Shared", ...own.slice(1)]);
+});
+
+test("an NPC named like something every object has learns as anyone else does", () => {
+  const state = withState({ npcs: [{ name: "constructor", appearance: "looks" }] });
+
+  expect(run(state, { op: "npc_learns", name: "constructor", fact: "Saw the fire" }).npcKnows).toEqual({ constructor: ["Saw the fire"] });
+});
+
+test("npc_learns by part of a name reaches the one NPC it can mean", () => {
+  const state = withState({ npcs: [{ name: "Nadia Petrova", appearance: "looks" }] });
+
+  expect(run(state, { op: "npc_learns", name: "Nadia", fact: "Saw the fire" }).npcKnows).toEqual({ "Nadia Petrova": ["Saw the fire"] });
+});
+
+test("the Narrator sees what people know only for those in the scene or named by the player or the last reply", () => {
+  const people = ["Woman with notebook", "Nadia Petrova", "Jean-Luc O'Brien", "Will Ash", "The Ferryman", "The Old Man", "Al", "Arriving", "Other"];
+  const state = withState({
+    npcs: people.map((name) => ({ name, appearance: "looks" })),
+    scene: { location: "A room", visibleCast: ["Woman with notebook"] },
+    npcKnows: Object.fromEntries(people.map((name) => [name, [`KNOWS-${name.toUpperCase()}.`]])),
+  });
+
+  const prompt = textOfPrompt(
+    assemblePrompt({
+      save: { worldBrief: "", pc: { name: "Ash" }, startingHook: "" } as never,
+      state,
+      messages: [
+        { id: 1, role: "player", text: "I wait." },
+        { id: 2, role: "narrator", text: "Arriving steps in." },
+      ],
+      modelInstructions: "",
+      input: "Alright, I call for Nadia and the ferryman, and ask Jean-Luc what we will do.",
+      responseSchema: "{}",
+      promptStyle: null,
+    }),
+  );
+
+  for (const name of ["Woman with notebook", "Nadia Petrova", "Jean-Luc O'Brien", "The Ferryman", "Arriving"])
+    expect(prompt).toContain(`KNOWS-${name.toUpperCase()}.`);
+  // "will" isn't Will, "Al" isn't in "Alright", and "the" alone isn't The Old Man.
+  for (const name of ["Will Ash", "The Old Man", "Al", "Other"]) expect(prompt).not.toContain(`KNOWS-${name.toUpperCase()}.`);
+});
+
+const textOfPrompt = (prompt: { content: string }[]) => prompt.map(({ content }) => content).join("\n");
 
 const promptFor = (sections: Partial<State> = {}, input = "I wait.") => {
   const prompt = assemblePrompt({

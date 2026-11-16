@@ -131,6 +131,7 @@ function storyChanges(people: string[]) {
     // Everyone a reply meets is in the scene, as a real Narrator's set_scene would say, so they show under Recent Characters.
     { op: "set_scene", location: "The old sea wall", visible_cast: people },
     ...people.map((name, index) => ({ op: "set_known_npc_summary", name, summary: WHO[(at * people.length + index) % WHO.length] })),
+    ...people.map((name) => ({ op: "npc_learns", name, fact: pick(FACTS) })),
     { op: "add_known_fact", fact: pick(FACTS) },
     { op: "add_loose_end", loose_end: pick(LOOSE_ENDS) },
     { op: "set_health", health: pick(HEALTH) },

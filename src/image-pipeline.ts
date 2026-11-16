@@ -4,7 +4,7 @@ import type { ImageAdapter, ImagePayload } from "./image-adapter";
 import { errorType, log } from "./logger";
 import { type ImageTarget, imageType, OPENING_SNAPSHOT, type Pictured, type Save, SaveNotFound, type SaveStore } from "./save-store";
 import type { SettingsStore } from "./settings-store";
-import type { State } from "./state-applier";
+import { findPerson, named, type State } from "./state-applier";
 import type { PictureAsk } from "./world-creation";
 
 export type ImagePipeline = ReturnType<typeof imagePipeline>;
@@ -100,16 +100,6 @@ export function pcLooks({ name, physicalTraits = "" }: Save["pc"], wearing: stri
         ? `fully clothed in what this says they wear, leaving out what they only carry: ${unnamed(outfit.trim().replace(/\s*\n\s*/g, " "))}`
         : "fully clothed in everyday clothes that suit them";
   return [traits, dressed].filter(Boolean).join(", ");
-}
-
-const named = (full: string, mark: string) => full.toLowerCase() === mark.toLowerCase() || full.toLowerCase().split(" ").includes(mark.toLowerCase());
-
-/** Narrators shorten names, so part of one counts when it can only mean one person. */
-function findPerson(npcs: Npc[], mark: string) {
-  const exact = npcs.find(({ name }) => name === mark);
-  if (exact) return exact;
-  const partly = npcs.filter(({ name }) => named(name, mark));
-  return partly.length === 1 ? partly[0] : undefined;
 }
 
 /**

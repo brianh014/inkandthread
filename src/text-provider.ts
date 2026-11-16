@@ -224,6 +224,8 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
       const whole = response.headers.get("content-type")?.includes("application/json");
       for await (const data of whole ? [await response.text()] : eventData(response.body, heardFrom)) {
         if (data === "[DONE]") break;
+        // A body that came in one piece is all read before fetch sees an abort, so a caller's stop must end it here.
+        signal.throwIfAborted();
         deadline ??= setTimeout(() => overrun.abort(), textReplyMinutes * 60 * 1000);
         seen.lines = ((seen.lines as number) ?? 0) + 1;
         // Enough to tell cut-off JSON from an HTML page, and it can't hold a word of the story.
@@ -249,6 +251,7 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
           onText(text);
         }
       }
+      signal.throwIfAborted();
       return reply;
     } catch (cause) {
       // A caller that stops a reply for its own reason gives it in the app's own words: as a string, or as a stop on purpose.

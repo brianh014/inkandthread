@@ -8,6 +8,8 @@ export type State = {
   inventory: { wearing: string[]; carrying: string[] };
   status: { health: string; injuries: string[]; conditions: string[] };
   npcs: { name: string; appearance: string }[];
+  /** What each NPC has learned or lived through in play, newest last, by name. Hidden from the player, as it can hold what the PC never saw. */
+  npcKnows: Record<string, string[]>;
   scene: { location: string; visibleCast: string[] };
   /** `summaries` says who each known NPC is, as the PC understands it. A Save from before them has none. */
   pcKnown: { facts: string[]; npcs: string[]; summaries?: Record<string, string> };
@@ -43,6 +45,7 @@ export const openingState: State = {
   inventory: { wearing: [], carrying: [] },
   status: { health: "unhurt", injuries: [], conditions: [] },
   npcs: [],
+  npcKnows: {},
   scene: { location: "", visibleCast: [] },
   pcKnown: { facts: [], npcs: [] },
   looseEnds: [],
@@ -67,6 +70,7 @@ export const StateSections = {
   inventory: z.object({ wearing: stringList, carrying: stringList }),
   status: z.object({ health: z.string(), injuries: stringList, conditions: stringList }),
   npcs: z.array(z.object({ name: z.string(), appearance: z.string() })),
+  npcKnows: z.record(z.string(), stringList),
   scene: z.object({ location: z.string(), visibleCast: stringList }),
   pcKnown: z.object({ facts: stringList, npcs: stringList, summaries: z.record(z.string(), z.string()).optional() }),
   looseEnds: stringList,
@@ -96,6 +100,11 @@ export const StateOperation = z.discriminatedUnion("op", [
   z.object({ op: z.literal("add_npc"), name: nonEmpty, appearance: nonEmpty }),
   z.object({ op: z.literal("update_npc"), name: nonEmpty, appearance: nonEmpty }),
   z.object({ op: z.literal("merge_npc"), name: nonEmpty, into: nonEmpty }),
+  z.object({
+    op: z.literal("npc_learns"),
+    name: nonEmpty,
+    fact: nonEmpty.describe("one short sentence of what this NPC learned or lived through in play, as they would remember it"),
+  }),
   z.object({ op: z.literal("set_scene"), location: nonEmpty, visible_cast: z.array(nonEmpty) }),
   z.object({ op: z.literal("add_known_fact"), fact: nonEmpty }),
   z.object({ op: z.literal("update_known_fact"), fact: nonEmpty, replacement: nonEmpty }),
@@ -127,6 +136,16 @@ export type StateOperation = z.infer<typeof StateOperation>;
 
 const findNpc = (state: State, name: string) => state.npcs.find((npc) => npc.name === name);
 
+export const named = (full: string, mark: string) => full.toLowerCase() === mark.toLowerCase() || full.toLowerCase().split(" ").includes(mark.toLowerCase());
+
+/** Narrators shorten names, so part of one counts when it can only mean one person. */
+export function findPerson<Npc extends { name: string }>(npcs: Npc[], mark: string) {
+  const exact = npcs.find(({ name }) => name === mark);
+  if (exact) return exact;
+  const partly = npcs.filter(({ name }) => named(name, mark));
+  return partly.length === 1 ? partly[0] : undefined;
+}
+
 function take(list: string[], value: string) {
   const index = list.indexOf(value);
   if (index === -1) return false;
@@ -143,6 +162,9 @@ export const MAX_STATUS = 3;
 
 /** The most Plot Threads the Narrator keeps open, so it isn't pulling on a dozen at once. A world starts with three to six. */
 export const MAX_PLOT_THREADS = 8;
+
+/** The most an NPC's list of what they know keeps, newest last, so the lists of a crowded scene stay a few lines each. */
+export const MAX_NPC_KNOWS = 12;
 
 function addOnce(list: string[], value: string) {
   if (list.includes(value)) return false;
@@ -221,6 +243,11 @@ function mergeNpc(state: State, name: string, into: string) {
   if (scene.visibleCast.includes(name)) replaceOnce(scene.visibleCast, name, into);
   const { [name]: summary, ...summaries } = pcKnown.summaries ?? {};
   if (summary !== undefined) pcKnown.summaries = { [into]: summary, ...summaries };
+  if (!Object.hasOwn(state.npcKnows, name)) return;
+  const { [name]: knew = [], ...knows } = state.npcKnows;
+  const kept = Object.hasOwn(knows, into) ? knows[into]! : [];
+  // The kept one's own last, shared ones too, so the cap drops the other's first.
+  state.npcKnows = { ...knows, [into]: [...knew.filter((fact) => !kept.includes(fact)), ...kept].slice(-MAX_NPC_KNOWS) };
 }
 
 /** What this reply made of each Plot Thread it changed, its replacement or null once resolved, and those still waiting to be added because the list was full. */
@@ -276,6 +303,17 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
     case "merge_npc":
       mergeNpc(state, operation.name, operation.into);
       return;
+    case "npc_learns": {
+      // A reply squeezed by its schema can send a scrap here, and then they just know less.
+      const name = findPerson(state.npcs, operation.name)?.name;
+      if (!name) return "no such NPC";
+      if (!/\p{L}/u.test(operation.fact)) return "no words";
+      // Own keys only, as a name such as "constructor" would find what every object has.
+      const knows = Object.hasOwn(state.npcKnows, name) ? state.npcKnows[name]! : [];
+      if (!addOnce(knows, operation.fact)) return "already there";
+      state.npcKnows = { ...state.npcKnows, [name]: knows.slice(-MAX_NPC_KNOWS) };
+      return;
+    }
     case "set_scene": {
       // The cast only steers images, so a name the state lacks is left out rather than failing the Turn.
       const visibleCast = [...new Set(operation.visible_cast)].filter((name) => findNpc(state, name));
@@ -374,7 +412,7 @@ const isRepeat = ({ pcKnown, looseEnds }: State, operation: StateOperation) =>
   (operation.op === "add_loose_end" && looseEnds.includes(operation.loose_end));
 
 // None of these contradict the narration, so they aren't worth a whole response. Someone nameless is added once they're named.
-const IGNORABLE: StateOperation["op"][] = ["resolve_loose_end", "add_known_npc", "set_known_npc_summary", "set_story_time"];
+const IGNORABLE: StateOperation["op"][] = ["resolve_loose_end", "add_known_npc", "set_known_npc_summary", "set_story_time", "npc_learns"];
 // A full list of Plot Threads is the Narrator's to tidy later, not worth a whole response.
 const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }) => IGNORABLE.includes(op) || reason === "already there" || reason === "full";
 

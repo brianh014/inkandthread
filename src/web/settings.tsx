@@ -28,7 +28,7 @@ import { ChoicesIcon } from "./icons";
 import { BookTabs, MenuRibbon, Sheet } from "./menu";
 import { UpdatesSection } from "./new-version";
 import { PlayModePicker } from "./play-choices";
-import { UsageSection } from "./usage";
+import { NarratorTable, UsageSection } from "./usage";
 
 const SECTIONS = ["Text", "Images", "Reading", "Advanced"];
 
@@ -984,6 +984,23 @@ function InstallSettings({
             />
           </label>
         )}
+        {/* Right under the provider, as the key is what lets its models be listed. */}
+        <label>
+          {local ? "Text API key (most local servers need none)" : "Text API key"}
+          <input
+            type="password"
+            autoComplete="new-password"
+            placeholder={keyHint(saved.textKeysFor.includes(draft.textBaseUrl))}
+            value={textKey}
+            onChange={(e) => setTextKey(e.target.value)}
+          />
+        </label>
+        {needsKey && (
+          <p className="notice">
+            A key only goes to the server it was entered for, so this server needs its own. Enter it above. The old server's key is kept for when you switch
+            back.
+          </p>
+        )}
         <ModelField key={draft.textBaseUrl} label="Text model" value={draft.textModel} list={addressSaved ? models : undefined} onChange={chooseModel} />
         {local && !addressSaved && <p className="muted">Save the address to choose from this server's models.</p>}
         {textChoice === "google" && (
@@ -1026,22 +1043,6 @@ function InstallSettings({
             )}
             <p className="muted">Staying on one provider keeps its prompt cache, which can cut the cost of a Turn.</p>
           </>
-        )}
-        <label>
-          {local ? "Text API key (most local servers need none)" : "Text API key"}
-          <input
-            type="password"
-            autoComplete="new-password"
-            placeholder={keyHint(saved.textKeysFor.includes(draft.textBaseUrl))}
-            value={textKey}
-            onChange={(e) => setTextKey(e.target.value)}
-          />
-        </label>
-        {needsKey && (
-          <p className="notice">
-            A key only goes to the server it was entered for, so this server needs its own. Enter it above. The old server's key is kept for when you switch
-            back.
-          </p>
         )}
         <label>
           Extra Narrator Instructions
@@ -1156,6 +1157,18 @@ function InstallSettings({
           ]}
           onChange={(imageProvider) => set({ imageProvider, ...(saved.imageProfiles[imageProvider] ?? { imageModel: "" }) })}
         />
+        {draft.imageProvider !== "local" && (
+          <label>
+            Image API key
+            <input
+              type="password"
+              autoComplete="new-password"
+              placeholder={keyHint(saved.imageKeysFor.includes(draft.imageProvider))}
+              value={imageKey}
+              onChange={(e) => setImageKey(e.target.value)}
+            />
+          </label>
+        )}
         <Picker
           label="Resolution"
           value={draft.imageResolution}
@@ -1178,16 +1191,6 @@ function InstallSettings({
               list={imageModels}
               onChange={(imageModel) => set({ imageModel })}
             />
-            <label>
-              Image API key
-              <input
-                type="password"
-                autoComplete="new-password"
-                placeholder={keyHint(saved.imageKeysFor.includes(draft.imageProvider))}
-                value={imageKey}
-                onChange={(e) => setImageKey(e.target.value)}
-              />
-            </label>
           </>
         ) : (
           <ComfySettings draft={draft} saved={saved} set={set} />
@@ -1228,7 +1231,7 @@ function InstallSettings({
         />
       </div>
 
-      <div data-section="Advanced" className="fields" hidden={section !== "Advanced"}>
+      <div data-section="Advanced" className="fields usage" hidden={section !== "Advanced"}>
         <h2>Advanced</h2>
         <Picker
           label="Log Level"
@@ -1251,6 +1254,7 @@ function InstallSettings({
           Also writes everything sent to the AI and every reply, picture prompts too, story text included, to the Server Log. Only needed for advanced
           debugging, so leave it off otherwise.
         </p>
+        {section === "Advanced" && <NarratorTable />}
       </div>
     </form>,
     !OUTSIDE_FORM.includes(section) && (

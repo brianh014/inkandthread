@@ -271,7 +271,7 @@ const NARRATOR_COLUMNS: [string, (row: NarratorStory) => string][] = [
 ];
 
 /** How the Narrator used its tools in each story: Checks and state changes over the player's Turns, for each model that wrote there. */
-function NarratorTable() {
+export function NarratorTable() {
   const [stories, setStories] = useState<NarratorStory[]>();
   const [error, setError] = useState("");
   useEffect(() => {
@@ -291,11 +291,7 @@ function NarratorTable() {
   return (
     <section className="usage-narrator">
       <h3>Narrator</h3>
-      <p className="muted">
-        What the Narrator did in each story over your Turns, from when this count began, for each model that wrote there. Few Checks, or many Turns with no
-        change, mean the AI is skipping its tools. Turns you later Reverted, Rewrote or Regenerated stay counted as first played. Counts only, nothing of your
-        story.
-      </p>
+      <p className="muted">How often the AI used its tools in each story. Few Checks or many Turns with no change mean it's skipping them.</p>
       {stories.length === 0 ? (
         <p className="muted">No Turns counted yet.</p>
       ) : (
@@ -445,7 +441,6 @@ export function UsageSection() {
             </div>
           </>
         ))}
-      <NarratorTable />
     </div>
   );
 }

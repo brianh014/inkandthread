@@ -44,7 +44,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <p>
           NovelForge is a choose-your-own visual novel that is written as you play. You make a world and a character, your <b>PC</b>, then act and speak only as
           them. An AI plays the <b>Narrator</b>: it tells the story, voices everyone else, keeps track of the world and quietly decides whether what you try
-          works. An image AI draws the Cover, portraits and scenes as you go.
+          works. The world it builds has secret Plot Threads of its own, so the story can turn in ways you don't expect. An image AI draws the Cover, portraits
+          and scenes as you go.
         </p>
         <p>NovelForge runs on your own computer. It brings no AI of its own: you connect the ones you choose, and your stories stay on your computer.</p>
         <h3>Your first story</h3>

@@ -71,7 +71,11 @@ const withoutRetired = (operations: unknown) =>
   Array.isArray(operations) ? operations.filter((operation) => (operation as { op?: unknown })?.op !== "set_summary") : operations;
 
 const FinishedTurn = z.object({
-  narration: z.string().trim().min(1),
+  // Words, not just punctuation, as a reply once came back as a lone comma.
+  narration: z
+    .string()
+    .trim()
+    .regex(/\p{L}{2}/u),
   state_operations: z.preprocess(withoutRetired, z.array(StateOperation).default([])),
   people: z.array(Person).catch([]),
   summary: z.string().catch(""),
@@ -116,7 +120,12 @@ const ResponseShape = z.object({
   check: z.object({
     action: CheckRequest.shape.action,
     stakes: z.string().describe("in a few words, what could go wrong, and how anyone it touches would truly take it"),
-    difficulty: z.enum([NONE, ...CheckRequest.shape.difficulty.options]),
+    // The odds beside the names, as a model that wrote stakes of real harm still chose Moderate, not knowing what it meant.
+    difficulty: z
+      .enum([NONE, ...CheckRequest.shape.difficulty.options])
+      .describe(
+        "from the stakes: None when it can't fail and nothing rides on it, Easy when it almost always works, Moderate when it's about even, Hard when it usually fails or would rarely be welcomed, Very Hard when only rare luck makes it work or welcome",
+      ),
   }),
   narration: z.string().nullable(),
   state_operations: z.array(StateOperation),

@@ -2147,6 +2147,17 @@ test("a stream of a replacement follows the Turn's contract, restarting after an
   expect(events.at(-1)!.data).toEqual({ messages: [{ id: 3, role: "narrator", text: "Snow." }] });
 });
 
+test("a reply whose narration has no words is retried", async () => {
+  const { app, prompts } = playWithDice([], narration(","), narration("The rain keeps on."));
+  const id = await app.createSave();
+
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect(prompts).toHaveLength(2);
+  const { messages } = (await (await app.get(`/saves/${id}/messages`)).json()) as { messages: { text: string }[] };
+  expect(messages.at(-1)!.text).toBe("The rain keeps on.");
+});
+
 test("an action rated None streams and finishes the Turn with no roll, while a rated one rolls", async () => {
   const none = `{"check":{"action":"Wave to \\"Sam\\"","stakes":"nothing, a friendly wave","difficulty":"None"},"narration":"Sam waves back.","state_operations":[]}`;
   const replies = [none, requestCheck("Hard"), narration("It holds.")];

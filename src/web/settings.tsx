@@ -1045,7 +1045,8 @@ function InstallSettings({
     // Local brings back the last local server used, if any.
     const local = Object.keys(saved.textProfiles).findLast((at) => !Object.values(TEXT_PROVIDERS).includes(at)) ?? "";
     const textBaseUrl = provider === "local" ? local : TEXT_PROVIDERS[provider];
-    set({ textBaseUrl, ...(saved.textProfiles[textBaseUrl] ?? { textModel: "", textHost: "" }) });
+    // A reviewer on the Narrator's provider names its model the old provider's way, so it is chosen again.
+    set({ textBaseUrl, ...(saved.textProfiles[textBaseUrl] ?? { textModel: "", textHost: "" }), ...(draft.reviewSameProvider && { reviewModel: "" }) });
   };
   const needsKey = saved.hasTextApiKey && draft.textBaseUrl !== saved.textBaseUrl && !saved.textKeysFor.includes(draft.textBaseUrl) && !textKey.trim();
   const keyHint = (stored: boolean) => (stored ? "Saved. Type a new key to replace it." : "None saved");

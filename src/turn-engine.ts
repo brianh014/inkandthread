@@ -312,18 +312,15 @@ function turnPrompt(
   };
 }
 
+/** What a World Change needs: the Narrator, the reviewer and the pictures a change can restyle. */
+type WorldContext = { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline; reviewProvider?: TextProvider };
+
 /**
  * Brings the hidden world in line with the player's Journal edits in a call of its own, as a Turn busy writing the
  * story can skip state changes. `stateOf` reads the state the reply starts from, and a stale request throws there,
  * before any call. Any other failure only skips it, as the reply is still told of the edits.
  */
-async function settleJournal(
-  saves: SaveStore,
-  context: { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline; reviewProvider?: TextProvider },
-  id: string,
-  signal: AbortSignal,
-  stateOf: () => State,
-) {
+async function settleJournal(saves: SaveStore, context: WorldContext, id: string, signal: AbortSignal, stateOf: () => State) {
   const change = journalChange(saves.pendingEdits(id));
   if (!change) return;
   stateOf();
@@ -401,12 +398,7 @@ export function playOpening(saves: SaveStore, engine: Parameters<typeof playTurn
 /** Rewrite, when there is `feedback`, or Regenerate. Takes no Dice: the Turn's stored Check stands, and a Turn without one stays without. */
 export async function replaceResponse(
   saves: SaveStore,
-  {
-    textProvider,
-    settings,
-    images,
-    reviewProvider,
-  }: { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline; reviewProvider?: TextProvider },
+  { textProvider, settings, images, reviewProvider }: WorldContext,
   id: string,
   messageId: number,
   feedback: string | undefined,
@@ -451,12 +443,7 @@ export async function replaceResponse(
 /** An Edit: the player's words replace the latest response's, and the Narrator brings the state in line with them. The picture and any Check stay. */
 export async function editResponse(
   saves: SaveStore,
-  {
-    textProvider,
-    settings,
-    images,
-    reviewProvider,
-  }: { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline; reviewProvider?: TextProvider },
+  { textProvider, settings, images, reviewProvider }: WorldContext,
   id: string,
   messageId: number,
   text: string,

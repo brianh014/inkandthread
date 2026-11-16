@@ -215,10 +215,12 @@ export const reviewerSettings = (settings: TextSettings): TextSettings => ({
   read: () => {
     const all = settings.read();
     const textThinking = all.reviewThinking === "same" ? all.textThinking : all.reviewThinking;
-    if (!all.reviewOtherModel) return { ...all, textThinking };
+    // A review reads the whole world, so it may think as long as the longer limit allows, or Review thinking would be cut off.
+    const thinking = { textThinking, textThinkingTokens: Math.max(all.textThinkingTokens, all.pictureThinkingTokens) };
+    if (!all.reviewOtherModel) return { ...all, ...thinking };
     const server = all.reviewSameProvider ? {} : { textBaseUrl: all.reviewBaseUrl, textApiKey: all.reviewApiKey };
     // The Narrator's chosen host may not offer the reviewer's model.
-    return { ...all, ...server, textModel: all.reviewModel, textThinking, textHost: "" };
+    return { ...all, ...server, ...thinking, textModel: all.reviewModel, textHost: "" };
   },
 });
 

@@ -23,6 +23,7 @@ import {
   MAX_PLOT_THREADS,
   ListChange,
   LoreEntryReply,
+  namesSomething,
   openingState,
   type State,
   type StateOperation,
@@ -558,32 +559,48 @@ const WorldChange = WorldUpdate.extend({
     .default(null),
 });
 
+const changesSomething = ({
+  lore_entries,
+  removed_lore,
+  world_rules,
+  plot_threads,
+  world_brief,
+  summary,
+  facts,
+  npc_summaries,
+  npc_looks,
+  pc_looks,
+  inventory,
+  status,
+}: z.infer<typeof WorldChange>) =>
+  [lore_entries, removed_lore, world_rules, plot_threads, facts, npc_summaries, npc_looks].some((list) => list.length > 0) ||
+  [world_brief, summary, pc_looks, inventory, status].some((part) => part !== null);
+
+/** Whether each edit's `old` is copied exactly from `list`, or adds. */
+const quotes = (list: string[], changes: { old: string | null }[]) => changes.every(({ old }) => old === null || list.includes(old));
+
 // A misquoted entry can't be matched, and a reply with no change would tell the player it was done when it wasn't.
 // A player's change must change something, but settling Journal edits may find nothing to.
 const fitsWorld = ({ worldBible, worldRules, plotThreads, pcKnown, npcs }: State, mayKeep: boolean) =>
-  WorldChange.refine(
-    ({ lore_entries, removed_lore, world_rules, plot_threads, world_brief, summary, facts, npc_summaries, npc_looks, pc_looks, inventory, status }) => {
-      const quotes = (list: string[], changes: typeof world_rules) => changes.every(({ old }) => old === null || list.includes(old));
-      const changed =
-        [lore_entries, removed_lore, world_rules, plot_threads, facts, npc_summaries, npc_looks].some((list) => list.length > 0) ||
-        [world_brief, summary, pc_looks, inventory, status].some((part) => part !== null);
-      // The same rule as a Turn's status.
-      const statusInWords = status === null || ![status.health, ...status.injuries, ...status.conditions].some(hasNumber);
-      // Past the limit a thread never reaches a Turn's prompt, so the change would do nothing. A Save from before the limit may hold more, but not gain any.
-      const threadsFit = plot_threads.reduce(changeList, plotThreads).length <= Math.max(MAX_PLOT_THREADS, plotThreads.length);
-      return (
-        (changed || mayKeep) &&
-        statusInWords &&
-        threadsFit &&
-        removed_lore.every((title) => worldBible.some((entry) => entry.title === title)) &&
-        quotes(worldRules, world_rules) &&
-        quotes(plotThreads, plot_threads) &&
-        quotes(pcKnown.facts, facts) &&
-        npc_summaries.every(({ name }) => pcKnown.npcs.includes(name)) &&
-        npc_looks.every(({ name }) => npcs.some((npc) => npc.name === name))
-      );
-    },
-  );
+  WorldChange.refine((reply) => {
+    const { removed_lore, world_rules, plot_threads, facts, npc_summaries, npc_looks, status } = reply;
+    const changed = changesSomething(reply);
+    // The same rule as a Turn's status.
+    const statusInWords = status === null || ![status.health, ...status.injuries, ...status.conditions].some(hasNumber);
+    // Past the limit a thread never reaches a Turn's prompt, so the change would do nothing. A Save from before the limit may hold more, but not gain any.
+    const threadsFit = plot_threads.reduce(changeList, plotThreads).length <= Math.max(MAX_PLOT_THREADS, plotThreads.length);
+    return (
+      (changed || mayKeep) &&
+      statusInWords &&
+      threadsFit &&
+      removed_lore.every((title) => worldBible.some((entry) => entry.title === title)) &&
+      quotes(worldRules, world_rules) &&
+      quotes(plotThreads, plot_threads) &&
+      quotes(pcKnown.facts, facts) &&
+      npc_summaries.every(({ name }) => pcKnown.npcs.includes(name)) &&
+      npc_looks.every(({ name }) => npcs.some((npc) => npc.name === name))
+    );
+  });
 
 /** How a World Change is written, for the Narrator that writes one and the review that corrects it. */
 const CHANGE_FORM = `List only what changes, as everything you leave out stays exactly as it is, and never repeat what stays the same.
@@ -636,6 +653,8 @@ export async function changeWorld(context: Context, state: State, change: string
     "The Narrator refused this change. Reword it and try again.",
     signal,
   );
+  // Settling Journal edits may find nothing to change, and nothing is no change to review.
+  if (!changesSomething(proposed)) return proposed;
   const reply = z.object({ fixed: z.array(z.enum(CHANGE_FAULTS)), change: fits.nullable() });
   const prompt: Prompt = [
     {
@@ -675,8 +694,9 @@ async function reviewed<T>(
   signal: AbortSignal,
   review: (reviewer: TextProvider) => Promise<{ result: T; reasons: string[] }>,
 ) {
-  if (!context.reviewProvider) return unreviewed;
   const model = reviewerSettings(context.settings).read().textModel;
+  // No reviewer model chosen means no review, as Settings tells the player, not a failed call in Usage every time.
+  if (!context.reviewProvider || !model) return unreviewed;
   try {
     const { result, reasons } = await review(context.reviewProvider);
     const faults = Object.fromEntries([...new Set(reasons)].map((reason) => [reason, reasons.filter((each) => each === reason).length]));
@@ -743,7 +763,7 @@ export async function applyWorldChange(
 type WorldReply = z.infer<typeof WorldReply>;
 
 const fault = z.enum(WORLD_FAULTS);
-const ReviewedChange = z.object({ fault, old: text.nullable(), new: text.nullable() });
+const ReviewedChange = z.object({ fault, old: text.nullable(), new: text.nullable() }).refine(namesSomething);
 /** A World review's edits, each with the fault it fixes. Only what changes, so a review can't lose a part by leaving it out. */
 const WorldReview = z.object({
   world_overview: z.object({ fault, text }).nullable(),
@@ -773,7 +793,6 @@ function withReview(world: WorldReply, review: WorldReview): WorldReply {
 
 /** The World review: a second look at a new world for faults, and for story where it's thin, before the player sees it. */
 function reviewWorld(context: Context, choices: WorldChoices, pc: WorldPc, world: WorldReply, signal: AbortSignal) {
-  const quotes = (list: string[], changes: { old: string | null }[]) => changes.every(({ old }) => old === null || list.includes(old));
   // An edit must name what it changes, and the world it leaves must still be one a new world could be.
   const reply = WorldReview.refine(
     (review) =>

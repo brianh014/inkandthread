@@ -11,7 +11,12 @@ beforeEach(() => {
 });
 afterEach(() => folder.remove());
 
-const settings = () => settingsStore(join(folder.path, "settings.json"));
+// With a model, as a reviewer without one isn't asked.
+const settings = () => {
+  const store = settingsStore(join(folder.path, "settings.json"));
+  store.update({ textModel: "narrator/model" });
+  return store;
+};
 const signal = () => new AbortController().signal;
 const lore = (title: string) => ({ title, keywords: ["one", "two", "three"], content: `All about ${title}.` });
 const WORLD = {
@@ -101,10 +106,28 @@ test("the Journal review's corrected change is the one kept, and null keeps the 
   expect(kept.log).toContain('"outcome":"unchanged"');
 });
 
+test("an empty change isn't reviewed, nor is any change when the reviewer has no model", async () => {
+  const store = settings();
+  const ask = (proposed: object, mayKeep: boolean) => {
+    const reviewer = scriptedTextProvider(JSON.stringify({ fixed: [], change: null }));
+    const made = changeWorld(
+      { textProvider: scriptedTextProvider(JSON.stringify(proposed)).textProvider, reviewProvider: reviewer.textProvider, settings: store },
+      STATE,
+      "settle",
+      signal(),
+      mayKeep,
+    );
+    return made.then(() => reviewer.prompts.length);
+  };
+  expect(await ask({ lore_entries: [], removed_lore: [], world_rules: [], plot_threads: [] }, true)).toBe(0);
+  store.update({ reviewOtherModel: true, reviewModel: "" });
+  expect(await ask(change("Magic is rare."), false)).toBe(0);
+});
+
 test("the reviewer uses its own model, Thinking, and its own server and key only when it isn't on the Narrator's", () => {
   const store = settings();
   store.update({ textApiKey: "main-key", textModel: "narrator/model", textHost: "deepinfra", textThinking: "low" });
-  expect(reviewerSettings(store).read()).toMatchObject({ textModel: "narrator/model", textThinking: "low", textHost: "deepinfra" });
+  expect(reviewerSettings(store).read()).toMatchObject({ textModel: "narrator/model", textThinking: "low", textHost: "deepinfra", textThinkingTokens: 14_000 });
   store.update({ reviewOtherModel: true, reviewModel: "other/model", reviewThinking: "high" });
   expect(reviewerSettings(store).read()).toMatchObject({ textModel: "other/model", textApiKey: "main-key", textThinking: "high", textHost: "" });
   store.update({ reviewSameProvider: false, reviewBaseUrl: "https://nano-gpt.com/api/v1", reviewApiKey: "review-key" });

@@ -547,6 +547,16 @@ const cutOff = [
 `,
 ];
 
+test('a speaker tag written as [Name: ""] is saved as [Name]:, and shows as one', async () => {
+  play([narrated('She sits.\n\n[Lena: ""] "I want to see it."\n\n[Mara:] "Fine."')]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+
+  expect((await storedMessages(id)).at(-1)!.text).toBe('She sits.\n\n[Lena]: "I want to see it."\n\n[Mara]: "Fine."');
+  expect(messageBeats({ role: "narrator", text: '[Lena: ""] "Here."' })).toEqual([{ speaker: "Lena", text: '"Here."' }]);
+});
+
 test("a reply that marks its paragraphs as Markdown quotes is saved without the marks, and shows without them", async () => {
   play([narrated('>The tide rises.\n\n> [Nadia]: "Run."')]);
   const id = await app.createSave();

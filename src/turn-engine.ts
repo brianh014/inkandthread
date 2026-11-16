@@ -22,7 +22,7 @@ import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } fr
 import type { SettingsStore } from "./settings-store";
 import type { NarratorTurn, UsageStore } from "./usage-store";
 import { applyOperations, introduce, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
-import { readable } from "./web/chat-style";
+import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 
 /** The token counts and cost a server reports for one reply, in the OpenAI shape. OpenRouter adds `cost`. */
@@ -55,7 +55,9 @@ export class TextProviderFailed extends Error {}
 /** The reply reached the token limit and was cut off. */
 export class ReplyCutOff extends TextProviderFailed {}
 /** A model stuck thinking, which a fresh try mostly isn't, so every call retries it. */
-export class ThoughtTooLong extends ReplyCutOff {}
+export class ThoughtTooLong extends ReplyCutOff {
+  override name = "ThoughtTooLong";
+}
 class InvalidResponse extends Error {}
 
 /** An abort reason for a reply stopped on purpose, as it has given all that's needed: logged by its words, and never a failure. */
@@ -539,8 +541,8 @@ async function narrate(
         continue;
       }
       const { state_operations, people, summary, recent_summary, scene_changed, visual_description, chapter_ends } = response;
-      // Some models mark every paragraph as a Markdown quote, which the page shows as stray ">" and later replies copy.
-      const narration = edited ?? (response.narration as string).replace(/^[ \t]*>[ \t]*/gm, "");
+      // Later replies copy marks like these, so they never reach a Save.
+      const narration = edited ?? withoutStrayMarks(response.narration as string);
       // The last attempt keeps such a reply, as losing the Turn costs more than a long speech.
       // A picture without set_scene would be drawn from the last scene's place and people, which may have moved on, so it's dropped.
       // Never kept, even on the last attempt, as what isn't a story is no Turn.

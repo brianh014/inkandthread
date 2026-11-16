@@ -55,22 +55,26 @@ const SPOKEN_LINE = /^(?:\[([^[\]]+)\]|(\p{Lu}[\p{L}'’.-]*(?: \p{Lu}[\p{L}'’
 export const readable = (messages: Message[]) =>
   messages.filter(({ id, role, text }) => !(id === messages[0]?.id && role === "player" && text === OPENING_INPUT));
 
+/**
+ * Marks a model sometimes puts in narration that aren't story: a Markdown quote ">" before a paragraph, and a speaker tag
+ * written as `[Name: ""]` or `[Name:]`. Taken out of a reply before it's saved, and when shown, for Messages saved before.
+ */
+export const withoutStrayMarks = (text: string) =>
+  text.replace(/^[ \t]*>[ \t]*/gm, "").replace(/^([ \t]*)\[([^[\]:\n]+?)[ \t]*:[ \t]*(?:""|“”)?[ \t]*\][ \t]*:?[ \t]*/gm, "$1[$2]: ");
+
 /** The Narrator is told to write `[Name]:`, but real models also drop the brackets. Anything else, including a tag still streaming, is narration. */
 export function messageBeats({ role, text }: Pick<Message, "role" | "text">): Beat[] {
   if (isContinue({ role, text })) return [{ player: true, rule: true, text: "" }];
   if (role === "player") return [{ player: true, text }];
-  return (
-    text
-      .split(/\r?\n/)
-      // A ">" a model put before a paragraph is a Markdown quote mark, not story, as in Messages saved before it was taken out.
-      .map((line) => line.trim().replace(/^>\s*/, ""))
-      .filter(Boolean)
-      .map((line) => {
-        const [, tagged, bare, words] = line.match(SPOKEN_LINE) ?? [];
-        const speaker = tagged ?? bare;
-        return speaker?.trim() ? { speaker: speaker.trim(), text: words! } : { text: line };
-      })
-  );
+  return withoutStrayMarks(text)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [, tagged, bare, words] = line.match(SPOKEN_LINE) ?? [];
+      const speaker = tagged ?? bare;
+      return speaker?.trim() ? { speaker: speaker.trim(), text: words! } : { text: line };
+    });
 }
 
 // The Stage box shows one beat at a time, so a Continue's rule has nothing to set apart there.

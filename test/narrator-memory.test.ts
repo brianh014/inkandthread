@@ -306,26 +306,56 @@ test("npc_learns for someone not in the state, or with no words, changes nothing
   expect(ignored).toHaveLength(2);
 });
 
+test("a merge keeps a fact both knew among the kept one's own, so the cap can't drop it first", () => {
+  const state = twoPeople();
+  const own = Array.from({ length: MAX_NPC_KNOWS }, (_, i) => `Own ${i}`);
+  state.npcKnows = { "Woman with notebook": ["Shared", "Other's"], Nadia: ["Shared", ...own.slice(1)] };
+
+  expect(run(state, merge).npcKnows.Nadia).toEqual(["Shared", ...own.slice(1)]);
+});
+
+test("an NPC named like something every object has learns as anyone else does", () => {
+  const state = withState({ npcs: [{ name: "constructor", appearance: "looks" }] });
+
+  expect(run(state, { op: "npc_learns", name: "constructor", fact: "Saw the fire" }).npcKnows).toEqual({ constructor: ["Saw the fire"] });
+});
+
 test("npc_learns by part of a name reaches the one NPC it can mean", () => {
   const state = withState({ npcs: [{ name: "Nadia Petrova", appearance: "looks" }] });
 
   expect(run(state, { op: "npc_learns", name: "Nadia", fact: "Saw the fire" }).npcKnows).toEqual({ "Nadia Petrova": ["Saw the fire"] });
 });
 
-test("the Narrator sees what people know only for those in the scene or named by the player, by whole words in any case", () => {
+test("the Narrator sees what people know only for those in the scene or named by the player or the last reply", () => {
+  const people = ["Woman with notebook", "Nadia Petrova", "Jean-Luc O'Brien", "Will Ash", "The Ferryman", "The Old Man", "Al", "Arriving", "Other"];
   const state = withState({
-    npcs: ["Woman with notebook", "Nadia Petrova", "Al", "Other"].map((name) => ({ name, appearance: "looks" })),
+    npcs: people.map((name) => ({ name, appearance: "looks" })),
     scene: { location: "A room", visibleCast: ["Woman with notebook"] },
-    npcKnows: { "Woman with notebook": ["SEEN-HERE."], "Nadia Petrova": ["NAMED-NOW."], Al: ["INSIDE-A-WORD."], Other: ["ELSEWHERE."] },
+    npcKnows: Object.fromEntries(people.map((name) => [name, [`KNOWS-${name.toUpperCase()}.`]])),
   });
 
-  const prompt = promptFor(state, "Alright, I call for nadia.");
+  const prompt = textOfPrompt(
+    assemblePrompt({
+      save: { worldBrief: "", pc: { name: "Ash" }, startingHook: "" } as never,
+      state,
+      messages: [
+        { id: 1, role: "player", text: "I wait." },
+        { id: 2, role: "narrator", text: "Arriving steps in." },
+      ],
+      modelInstructions: "",
+      input: "Alright, I call for Nadia and the ferryman, and ask Jean-Luc what we will do.",
+      responseSchema: "{}",
+      promptStyle: null,
+    }),
+  );
 
-  expect(prompt).toContain("SEEN-HERE.");
-  expect(prompt).toContain("NAMED-NOW.");
-  expect(prompt).not.toContain("INSIDE-A-WORD.");
-  expect(prompt).not.toContain("ELSEWHERE.");
+  for (const name of ["Woman with notebook", "Nadia Petrova", "Jean-Luc O'Brien", "The Ferryman", "Arriving"])
+    expect(prompt).toContain(`KNOWS-${name.toUpperCase()}.`);
+  // "will" isn't Will, "Al" isn't in "Alright", and "the" alone isn't The Old Man.
+  for (const name of ["Will Ash", "The Old Man", "Al", "Other"]) expect(prompt).not.toContain(`KNOWS-${name.toUpperCase()}.`);
 });
+
+const textOfPrompt = (prompt: { content: string }[]) => prompt.map(({ content }) => content).join("\n");
 
 const promptFor = (sections: Partial<State> = {}, input = "I wait.") => {
   const prompt = assemblePrompt({

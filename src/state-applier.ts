@@ -243,9 +243,11 @@ function mergeNpc(state: State, name: string, into: string) {
   if (scene.visibleCast.includes(name)) replaceOnce(scene.visibleCast, name, into);
   const { [name]: summary, ...summaries } = pcKnown.summaries ?? {};
   if (summary !== undefined) pcKnown.summaries = { [into]: summary, ...summaries };
-  const { [name]: knew, ...knows } = state.npcKnows;
-  // The kept one's own last, so the cap drops the other's first.
-  if (knew) state.npcKnows = { ...knows, [into]: [...new Set([...knew, ...(knows[into] ?? [])])].slice(-MAX_NPC_KNOWS) };
+  if (!Object.hasOwn(state.npcKnows, name)) return;
+  const { [name]: knew = [], ...knows } = state.npcKnows;
+  const kept = Object.hasOwn(knows, into) ? knows[into]! : [];
+  // The kept one's own last, shared ones too, so the cap drops the other's first.
+  state.npcKnows = { ...knows, [into]: [...knew.filter((fact) => !kept.includes(fact)), ...kept].slice(-MAX_NPC_KNOWS) };
 }
 
 /** What this reply made of each Plot Thread it changed, its replacement or null once resolved, and those still waiting to be added because the list was full. */
@@ -306,7 +308,8 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const name = findPerson(state.npcs, operation.name)?.name;
       if (!name) return "no such NPC";
       if (!/\p{L}/u.test(operation.fact)) return "no words";
-      const knows = state.npcKnows[name] ?? [];
+      // Own keys only, as a name such as "constructor" would find what every object has.
+      const knows = Object.hasOwn(state.npcKnows, name) ? state.npcKnows[name]! : [];
       if (!addOnce(knows, operation.fact)) return "already there";
       state.npcKnows = { ...state.npcKnows, [name]: knows.slice(-MAX_NPC_KNOWS) };
       return;

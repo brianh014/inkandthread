@@ -1,5 +1,5 @@
 import type { Check } from "./check-resolver";
-import { activateLore, estimateTokens } from "./lore-activation";
+import { activateLore, estimateTokens, wholeWord } from "./lore-activation";
 import type { Message, Save } from "./save-store";
 import { MAX_PLOT_THREADS, playersOwn, type SceneMemory, type State, type WorldEdit } from "./state-applier";
 import type { PromptStyle } from "./graph-builder";
@@ -252,6 +252,8 @@ function fillStoryTime(storyTime: State["storyTime"], messages: Message[]) {
 storyTime is null, so set it now: use set_story_time with days_passed 0 and the date and time of day the story has reached, as best the summary, known facts and Messages above show, and if they never give a date, choose one that fits the world and its calendar, in a few words.`;
 }
 
+const ARTICLES = new Set(["the", "a", "an"]);
+
 export function assemblePrompt({
   save: { worldBrief, pc, startingHook, artStyle = "", theme = "" },
   // Director's Notes are taken out so that any left in a Save can't steer the story now the player can't see them.
@@ -303,13 +305,15 @@ export function assemblePrompt({
 }): Prompt {
   // A Save from before the limit can hold far more, which would crowd the prompt.
   const plotThreads = allThreads.slice(0, MAX_PLOT_THREADS);
-  // Only the lists of those in the scene or named by the player, as everyone's would crowd the prompt. Whole words, any
-  // case, by any capitalised part of the name, so "Nadia" finds Nadia Petrova and "Al" isn't found in "Alright".
-  const inputWords = new Set(input.toLowerCase().match(/[\p{L}\p{N}]+/gu));
-  const mentioned = (name: string) => name.split(" ").some((part) => /^\p{Lu}/u.test(part) && inputWords.has(part.toLowerCase()));
+  const recent = messageWindow(messages, sceneMemories, memoryStart, windowMessages);
+  // Only the lists of those in the scene or named by the player or the last reply, as everyone's would crowd the prompt.
+  // The full name in any case, or a capitalised part of it as written, so "Nadia" finds Nadia Petrova, "Al" isn't in
+  // "Alright" and "will" isn't Will. Articles never count, as they start sentences.
+  const said = [input, recent.findLast(({ role }) => role === "narrator")?.text ?? ""].join("\n");
+  const parts = (name: string) => name.split(" ").filter((part) => /^\p{Lu}/u.test(part) && !ARTICLES.has(part.toLowerCase()));
+  const mentioned = (name: string) => wholeWord(name).test(said) || parts(name).some((part) => wholeWord(part, "u").test(said));
   const present = new Set([...currentState.scene.visibleCast, ...currentState.npcs.map(({ name }) => name).filter(mentioned)]);
   const npcKnows = Object.fromEntries(Object.entries(allKnows).filter(([name]) => present.has(name)));
-  const recent = messageWindow(messages, sceneMemories, memoryStart, windowMessages);
   const activeEntries = activateLore(
     worldBible,
     [...recent.map(({ text }) => text), input].join("\n"),
@@ -350,7 +354,7 @@ world_rules: ${JSON.stringify(worldRules)}
 Evaluate the player's action against world_rules. If it violates them, rate it None, as no roll can make it work, and describe the failure in character rather than fulfilling the action.
 The player alone decides what the PC says, chooses and does. Narrate the action they gave and how the world answers it, and add no decision, spoken words or change of plan for the PC. Keep the scene moving: the people in it act, talk, want things and make plans of their own without waiting to be asked. But don't stack new matters: while one is still waiting on the PC, no one brings up another. Their goals are their own and can conflict with the PC's, and so are their limits: they feel what the PC does to them as they truly would, in body and mind, and when the PC is wrong, makes a mistake or goes too far they can correct, refuse, stop or confront them, as fits who they are. Once the PC has answered someone's question, or heard their case or request and turned it down or put it off, that person doesn't raise it again unless something new gives them reason. That holds for worry about time too: once the PC has said there's time, no one asks how long is left or counts it down. People stay true to what they have said they intend, such as how long they can stay, when they have to go, what they will do and what they won't, and change course only when something in the story gives them reason, never on their own between one reply and the next. Record an intention that will matter later with add_known_fact, so it outlasts these Messages. People see things their own way, so they don't all argue for the same view. Anything the player says the PC thinks, such as a line ending in "I think", is a private thought and is not spoken aloud. Never repeat the player's words back, in the narration, as a line for the PC or in anyone's answer: no one opens by echoing what the PC just said. They have already said them, so go straight on to how the world answers. If the player's words assume something that isn't so, such as a misread sign or a person who isn't there, even in passing, never let it stand: make what is true clear in this reply, through what the PC sees, hears or is told, keeping every secret.
 Invent freely in the present: new people, places, events and details. But when anyone refers to something the PC did, said or was told earlier, it must be in the Messages, Scene Memories, summary or known facts above, with nothing added to it. A person can reveal something new about their own past, as news to the PC.
-People know only what they have seen, heard or been told themselves, and only from the moment they learned it, so they can't act on the PC's private thoughts or on anything said or done out of their sight and hearing, nor claim to have known or wondered about something before they could have. npcKnows in the current state holds what those present have learned or lived through in play, beyond what anyone in their world would know, and they act on it. Whenever play shows someone learning something, or living through something that will shape how they act, such as what the PC did to them, record it with npc_learns in one short sentence, so it outlasts these Messages. Never give someone knowledge by inventing a telling the story didn't show: what the PC shared or kept secret reaches others only when play shows it being passed on, and people keep what they promised to keep quiet.
+People know only what they have seen, heard or been told themselves, and only from the moment they learned it, so they can't act on the PC's private thoughts or on anything said or done out of their sight and hearing, nor claim to have known or wondered about something before they could have. npcKnows in the current state holds what the people it names have learned or lived through in play, beyond what anyone in their world would know, and they act on it. Whenever play shows someone learning something, or living through something that will shape how they act, such as what the PC did to them, record it with npc_learns in one short sentence, so it outlasts these Messages. Never give someone knowledge by inventing a telling the story didn't show: what the PC shared or kept secret reaches others only when play shows it being passed on, and people keep what they promised to keep quiet.
 Carry on from the last reply: anything left unfinished, such as an action, a question or a person waiting, stays in play even if the player doesn't mention it.
 Avoid melodrama, cliché and overused metaphors, and prefer natural, grounded language. Tell things in order with strong verbs and conjunctions, rather than participle phrases. Vary the length and structure of your sentences. Never use em-dashes.
 Keep the prose fresh. Don't reuse the images, background details or closing moves of the replies above, or the kinds of questions and confidences people trade in them: give each scene something new to notice, vary how replies open and end, and end on what a person in the scene does, says or now faces, never on a background sound or passing detail. Leave the PC free to answer however they like: few replies should end on a choice between two things, and most should end on something other than a question or a call for the PC to tell, explain or own up to something, however it's worded. People give as much of themselves as they ask of the PC, and don't keep pressing for the PC's secrets, confessions or embarrassing stories. Say what people do more often than what they do not do. Say what is so, never what it isn't first: no "it's not X, it's Y", and no "Not X. Not Y. Z." No stock phrases such as a beat, letting something sit or land, a voice dropping, "in the way of someone who" or "here's the thing". Don't reach for eyes, hands, mugs or wall clocks to fill a pause: let people say or do something only they would. Give each person their own voice, speaking naturally, with contractions such as don't and I'm.

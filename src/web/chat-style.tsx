@@ -59,15 +59,18 @@ export const readable = (messages: Message[]) =>
 export function messageBeats({ role, text }: Pick<Message, "role" | "text">): Beat[] {
   if (isContinue({ role, text })) return [{ player: true, rule: true, text: "" }];
   if (role === "player") return [{ player: true, text }];
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [, tagged, bare, words] = line.match(SPOKEN_LINE) ?? [];
-      const speaker = tagged ?? bare;
-      return speaker?.trim() ? { speaker: speaker.trim(), text: words! } : { text: line };
-    });
+  return (
+    text
+      .split(/\r?\n/)
+      // A ">" a model put before a paragraph is a Markdown quote mark, not story, as in Messages saved before it was taken out.
+      .map((line) => line.trim().replace(/^>\s*/, ""))
+      .filter(Boolean)
+      .map((line) => {
+        const [, tagged, bare, words] = line.match(SPOKEN_LINE) ?? [];
+        const speaker = tagged ?? bare;
+        return speaker?.trim() ? { speaker: speaker.trim(), text: words! } : { text: line };
+      })
+  );
 }
 
 // The Stage box shows one beat at a time, so a Continue's rule has nothing to set apart there.

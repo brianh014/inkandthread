@@ -528,7 +528,8 @@ async function narrate(
         continue;
       }
       const { state_operations, people, summary, recent_summary, scene_changed, visual_description, chapter_ends } = response;
-      const narration = edited ?? (response.narration as string);
+      // Some models mark every paragraph as a Markdown quote, which the page shows as stray ">" and later replies copy.
+      const narration = edited ?? (response.narration as string).replace(/^[ \t]*>[ \t]*/gm, "");
       // The last attempt keeps such a reply, as losing the Turn costs more than a long speech.
       // A picture without set_scene would be drawn from the last scene's place and people, which may have moved on, so it's dropped.
       // Never kept, even on the last attempt, as what isn't a story is no Turn.

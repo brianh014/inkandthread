@@ -151,7 +151,7 @@ const ResponseShape = z.object({
   people: z
     .array(Person)
     .describe(
-      "everyone the narration names or gives a spoken line to, other than the PC, even someone only mentioned, each with their name and appearance. Someone new never gets a name the state already has for someone else, as people are matched by name",
+      "everyone the narration names or gives a spoken line to, other than the PC, even someone only mentioned, each with their name and appearance. Someone new never gets a name, or a first name, that the PC or anyone in the state already has, as people are matched by name",
     ),
   summary: z.string(),
   recent_summary: z.string(),
@@ -588,7 +588,9 @@ async function narrate(
           const introduced = introduce(state, people, pcName, state_operations);
           const { next, refused, ignored: harmless, repeats } = applyOperations(introduced.state, introduced.operations);
           // Dropping one would leave narration that disagrees with the state, so the whole Turn is invalid.
-          if (refused.length > 0) throw new InvalidResponse(undefined, { cause: refused });
+          // A shared name is kept on the last attempt, as losing the Turn costs more.
+          const clashes = attempt < MAX_ATTEMPTS ? introduced.refused : [];
+          if (clashes.length > 0 || refused.length > 0) throw new InvalidResponse(undefined, { cause: [...clashes, ...refused] });
           repeated = repeats;
           ignored = harmless;
           if (summary.trim()) next.summary = summary.trim();

@@ -666,6 +666,39 @@ test("a reply that gives the PC a spoken line is written again", async () => {
   expect((await storedMessages(id)).at(-1)!.text).toBe('He looks up.\n\n[Owen]: "Well?"');
 });
 
+const meeting = (...names: string[]) => [
+  delta(JSON.stringify({ check: null, narration: "Someone.", state_operations: [], people: names.map((name) => ({ name, appearance: "tall" })) })),
+  "data: [DONE]\n\n",
+];
+const knownPeople = async (id: string) => ((await app.get(`/saves/${id}/journal`).then((r) => r.json())) as { npcs: string[] }).npcs;
+
+test("someone new given a first name the PC or someone in the story has is written again, kept on the last attempt", async () => {
+  play([
+    meeting("Ash Tate"),
+    meeting("Mara Kade"),
+    meeting("Owen Kade", "Man in grey coat"),
+    meeting("Man in red coat", "Mrs. Owen"),
+    meeting("Mrs. Owen"),
+    meeting("Mrs. Owen"),
+  ]);
+  const id = await app.createSave();
+
+  for (const input of ["I look.", "I look.", "I look."]) expect((await app.post(`/saves/${id}/turns`, { input })).status).toBe(201);
+
+  expect(provider.requests).toHaveLength(6);
+  expect(await knownPeople(id)).toEqual(["Mara Kade", "Owen Kade", "Man in grey coat", "Mrs. Owen"]);
+});
+
+test("someone a reply names by part of their name is the person already in the story", async () => {
+  play([meeting("Owen Kade"), meeting("Owen")]);
+  const id = await app.createSave();
+
+  for (const input of ["I look.", "I wait."]) expect((await app.post(`/saves/${id}/turns`, { input })).status).toBe(201);
+
+  expect(provider.requests).toHaveLength(2);
+  expect(await knownPeople(id)).toEqual(["Owen Kade"]);
+});
+
 test("a reply whose narration is a JSON object, such as its Check request, is written again", async () => {
   const request = JSON.stringify({ action: "Ask him what he knows", stakes: "He could walk away", difficulty: "Moderate" });
   play([narrated(request), narrated("He shrugs.")]);

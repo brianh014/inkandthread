@@ -21,7 +21,8 @@ export function Heading({ step, title, busy }: { step: number; title: string; bu
   const heading = useRef<HTMLHeadingElement>(null);
   // The control that led here is gone, so keyboard and screen reader users would otherwise restart from the top.
   useEffect(() => {
-    if (!busy) heading.current?.focus();
+    // Without scrolling, as Enhance and Pick for me bring the player back to where they were on the form.
+    if (!busy) heading.current?.focus({ preventScroll: true });
   }, [step, busy]);
   return (
     <>

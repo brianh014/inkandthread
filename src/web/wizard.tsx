@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArtStylePicker, artStyleText, OWN_ART_STYLE } from "./art-style-picker";
 import { roman } from "./chat-style";
 import { PlayModePicker } from "./play-choices";
@@ -41,6 +41,8 @@ export function NewStory({ step }: { step?: string }) {
   const [enhanced, setEnhanced] = useState<Record<string, { was: string; now: string }>>({});
   const set = (change: Partial<Draft>) => setDraft((current) => ({ ...current, ...change }));
   const running = useRef<AbortController>(undefined);
+  /** Where the form was scrolled to before Enhance or Pick for me, to come back to. */
+  const scrolledTo = useRef<(readonly [Element, number])[]>(undefined);
 
   const { world, id: worldId } = draft;
   const page = step === "overview" && world && worldId ? "overview" : step === "art" ? "art" : "form";
@@ -87,6 +89,20 @@ export function NewStory({ step }: { step?: string }) {
     setBusy("");
   }
 
+  /** For work that leaves the player on the same form: the Working screen replaces it, which loses where they had scrolled to. */
+  function inPlace(work: () => Promise<void>) {
+    // The book's page scrolls, or on a phone the whole window may.
+    const scrollers = [document.querySelector(".sheet-scroll"), document.scrollingElement].filter((element) => element !== null);
+    scrolledTo.current = scrollers.map((element) => [element, element.scrollTop] as const);
+    return work();
+  }
+  // Once the form is back on the page, before it's painted.
+  useLayoutEffect(() => {
+    if (busy || !scrolledTo.current) return;
+    for (const [element, top] of scrolledTo.current) element.scrollTop = top;
+    scrolledTo.current = undefined;
+  }, [busy]);
+
   const worldChoices = {
     title: draft.title,
     theme: themeForNarrator,
@@ -97,16 +113,18 @@ export function NewStory({ step }: { step?: string }) {
   };
 
   const fillForm = () =>
-    run("The Narrator is thinking…", async (signal) => {
-      const { title, worldBrief, startingHook, pc } = draft;
-      const picked = Object.entries(await pickForMe(themeForNarrator, { title, worldBrief, ...(draft.hookOn && { startingHook }), pc }, signal));
-      const isPc = ([field]: [string, unknown]) => field in blank.pc;
-      setDraft((current) => ({
-        ...current,
-        ...Object.fromEntries(picked.filter((box) => !isPc(box))),
-        pc: { ...current.pc, ...Object.fromEntries(picked.filter(isPc)) },
-      }));
-    });
+    inPlace(() =>
+      run("The Narrator is thinking…", async (signal) => {
+        const { title, worldBrief, startingHook, pc } = draft;
+        const picked = Object.entries(await pickForMe(themeForNarrator, { title, worldBrief, ...(draft.hookOn && { startingHook }), pc }, signal));
+        const isPc = ([field]: [string, unknown]) => field in blank.pc;
+        setDraft((current) => ({
+          ...current,
+          ...Object.fromEntries(picked.filter((box) => !isPc(box))),
+          pc: { ...current.pc, ...Object.fromEntries(picked.filter(isPc)) },
+        }));
+      }),
+    );
 
   /** Checked here, not by `required`, as spaces would pass that, and a Starting Hook of spaces would quietly become a sandbox start. */
   function formProblem() {
@@ -250,12 +268,14 @@ export function NewStory({ step }: { step?: string }) {
     const before = enhanced[key];
     const action = value.trim() ? "Enhance" : "Write";
     const improve = () =>
-      run("The Narrator is thinking…", async (signal) => {
-        const now = await enhance(field, value, { ...worldChoices, pc: draft.pc, ...(row && { character: row.character }) }, signal);
-        // Enhancing the Narrator's own words again keeps the player's, so Undo still goes back to what they wrote.
-        setEnhanced((current) => ({ ...current, [key]: { was: current[key]?.now === value ? current[key].was : value, now } }));
-        write(now);
-      });
+      inPlace(() =>
+        run("The Narrator is thinking…", async (signal) => {
+          const now = await enhance(field, value, { ...worldChoices, pc: draft.pc, ...(row && { character: row.character }) }, signal);
+          // Enhancing the Narrator's own words again keeps the player's, so Undo still goes back to what they wrote.
+          setEnhanced((current) => ({ ...current, [key]: { was: current[key]?.now === value ? current[key].was : value, now } }));
+          write(now);
+        }),
+      );
     return (
       <div className="row">
         {before?.now === value && (

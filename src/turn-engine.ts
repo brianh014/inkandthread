@@ -84,7 +84,11 @@ const FinishedTurn = z.object({
   // Checked by usableChoices, as a reply with bad Choices still holds a Turn worth keeping.
   choices: z.unknown().optional(),
 });
-const NarratorResponse = z.union([z.object({ check: CheckRequest }), FinishedTurn]);
+const NONE = "None";
+// An action rated None needs no roll, so it reads as a finished Turn.
+const unrated = (reply: unknown) =>
+  (reply as { check?: { difficulty?: unknown } })?.check?.difficulty === NONE ? { ...(reply as object), check: null } : reply;
+const NarratorResponse = z.preprocess(unrated, z.union([z.object({ check: CheckRequest }), FinishedTurn]));
 /** The player wrote the narration of an Edit, so the reply holds only what follows from it. */
 const EditedTurn = FinishedTurn.extend({ narration: z.string().nullish() });
 
@@ -106,8 +110,9 @@ export function jsonSchemaOf(schema: z.ZodType) {
 
 // What the Narrator is asked for. It is flat because strict schema modes refuse a union at the root, and check
 // comes first so that a streamed reply shows it is not a Check request before any narration arrives.
+// Every action is rated, as a check the Narrator could leave null was left null even for a move that plainly needed one.
 const ResponseShape = z.object({
-  check: CheckRequest.nullable(),
+  check: CheckRequest.extend({ difficulty: z.enum([NONE, ...CheckRequest.shape.difficulty.options]) }),
   narration: z.string().nullable(),
   state_operations: z.array(StateOperation),
   // Described here for the same reason as chapter_ends: speakers kept going missing from it.
@@ -155,7 +160,8 @@ export function usableChoices(choices: unknown) {
 const NO_CHOICES = "no usable choices";
 
 // shortcut: a reply in another key order or after prose shows no narration until the Turn is done, loosen this only if real models do that often.
-const NARRATION_START = /^\s*(?:```(?:json)?\s*)?\{\s*"check"\s*:\s*null\s*,\s*"narration"\s*:\s*"/;
+const NARRATION_START =
+  /^\s*(?:```(?:json)?\s*)?\{\s*"check"\s*:\s*(?:null|\{\s*"action"\s*:\s*"(?:[^"\\]|\\.)*"\s*,\s*"difficulty"\s*:\s*"None"\s*\})\s*,\s*"narration"\s*:\s*"/;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: JSON strings may not hold raw control characters, so this matches what they can.
 const COMPLETE_JSON_CHARACTERS = /^(?:[^"\\\x00-\x1f]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*/;
 

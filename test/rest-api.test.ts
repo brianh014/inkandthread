@@ -2147,6 +2147,34 @@ test("a stream of a replacement follows the Turn's contract, restarting after an
   expect(events.at(-1)!.data).toEqual({ messages: [{ id: 3, role: "narrator", text: "Snow." }] });
 });
 
+test("an action rated None streams and finishes the Turn with no roll, while a rated one rolls", async () => {
+  const none = `{"check":{"action":"Wave to \\"Sam\\"","difficulty":"None"},"narration":"Sam waves back.","state_operations":[]}`;
+  const replies = [none, requestCheck("Hard"), narration("It holds.")];
+  app = startApp(
+    savesDir,
+    async (_prompt, { onText }) => {
+      const reply = replies.shift()!;
+      onText(reply);
+      return reply;
+    },
+    scriptedDice(15),
+  );
+  const id = await app.createSave();
+
+  const response = await fetch(app.url(`/saves/${id}/turns`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    body: JSON.stringify({ input: "I wave." }),
+  });
+  const events = await turnEvents(response);
+  expect(events.map(({ event }) => event)).toEqual(["narration", "done"]);
+  expect(events[0]!.data).toEqual({ text: "Sam waves back." });
+
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+  const saved = ((await (await app.get(`/saves/${id}/messages`)).json()) as { messages: { text: string }[] }).messages.map(({ text }) => text);
+  expect(saved).toEqual(["I wave.", "Sam waves back.", "I leap the gap.", "It holds."]);
+});
+
 test("a stream of a replacement ends in an error event when it fails", async () => {
   const { app } = play(narration("Rain."), ...Array(3).fill("Not JSON"));
   const id = await app.createSave();

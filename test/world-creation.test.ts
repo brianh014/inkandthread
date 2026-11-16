@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { saveStore } from "../src/save-store";
 import { ContentRefused } from "../src/turn-engine";
-import { narration, scriptedTextProvider, startApp, tempFolder } from "./support";
+import { logOf, narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
 let savesDir: string;
@@ -281,9 +281,14 @@ test("a Nudge changes only what the player asked, and an empty box ignores it", 
   play(JSON.stringify({ text: "Ash can bend light." }), JSON.stringify({ text: "Ash Vale" }));
   const pc = { name: "Ash", background: "Ash is super strong.", physicalTraits: "", inventory: "" };
 
-  const response = await app.post("/enhance", { ...setup, pc, field: "background", text: "Ash is super strong.", nudge: " a different power " });
+  let response: Response | undefined;
+  const log = await logOf(async () => {
+    response = await app.post("/enhance", { ...setup, pc, field: "background", text: "Ash is super strong.", nudge: " a different power " });
+  });
 
-  expect(await response.json()).toEqual({ text: "Ash can bend light." });
+  expect(await response!.json()).toEqual({ text: "Ash can bend light." });
+  expect(log).toContain('"how":"nudge"');
+  expect(log).not.toContain("different power");
   const [system, user] = prompts[0]!;
   expect(system!.content).toContain("keep everything else in idea as it is");
   expect(JSON.parse(user!.content)).toMatchObject({ idea: "Ash is super strong.", change: "a different power" });

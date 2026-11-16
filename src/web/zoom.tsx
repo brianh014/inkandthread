@@ -78,7 +78,7 @@ const PICTURE_NUDGE = {
 /** For a New Story box: the Narrator rewrites it as asked, keeping the rest. */
 export const TEXT_NUDGE = {
   tip: "Nudge: have the Narrator change one thing, in a few words of your own",
-  example: "such as pick a different power",
+  example: "such as a different power",
   explain: "The Narrator changes what you ask and keeps the rest. Undo puts the box back.",
   submit: "Change it",
 };

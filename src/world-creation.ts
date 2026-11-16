@@ -272,7 +272,9 @@ ${modelInstructions(context)}`,
     },
     playerChoices({ ...(idea && { idea }), ...(change && { change }), ...choices }),
   ];
-  return (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal)).text;
+  const written = (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal)).text;
+  log.info("world", "Box written", { field, how: change ? "nudge" : idea ? "enhance" : "write" });
+  return written;
 }
 
 /**

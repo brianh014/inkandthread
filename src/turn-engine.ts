@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { type Check, CheckRequest, type Dice, resolveCheck } from "./check-resolver";
+import { type Check, CheckRequest, type Dice, RATED, resolveCheck } from "./check-resolver";
 import { type ImagePipeline, movedScene, portraitsDue, restyledBy, type Scene } from "./image-pipeline";
 import { promptStyle } from "./graph-builder";
 import { withArtStyleFor } from "./web/art-styles";
@@ -49,7 +49,6 @@ export class ReplyCutOff extends TextProviderFailed {}
 class InvalidResponse extends Error {}
 
 const RAN_ON = "ran on far too long";
-const RATED = "rated for a Check, so the rest isn't needed";
 // Twice the longest real reply in players' logs, so only a model stuck in a loop reaches it, long before the token limit. An
 // opening introduces the world's people and places, so it gets twice as much. Thinking a local model streams isn't counted.
 // shortcut: one fixed size for every model, measured on one player's DeepSeek logs; make it a Setting if real replies reach it.

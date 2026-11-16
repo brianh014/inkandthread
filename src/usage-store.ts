@@ -1,4 +1,5 @@
 import { Database } from "bun:sqlite";
+import { RATED } from "./check-resolver";
 import { chosenModels } from "./graph-builder";
 import type { ImageAdapter } from "./image-adapter";
 import { errorFields, log } from "./logger";
@@ -217,8 +218,11 @@ export function usageStore(path = ":memory:") {
 }
 export type UsageStore = ReturnType<typeof usageStore>;
 
-/** The player's Stop and a page that left abort with no reason of the app's; one the app gives, such as a runaway, is a failure. */
-const failedFor = (signal: AbortSignal) => !signal.aborted || typeof signal.reason === "string";
+/**
+ * The player's Stop and a page that left abort with no reason of the app's; one the app gives, such as a runaway, is a
+ * failure, except stopping a reply once it has rated a Check, which is on purpose.
+ */
+const failedFor = (signal: AbortSignal) => !signal.aborted || (typeof signal.reason === "string" && signal.reason !== RATED);
 
 /** Counts every text call, whatever it's for. */
 export function countedText(provider: TextProvider, usage: UsageStore, settings: SettingsStore): TextProvider {

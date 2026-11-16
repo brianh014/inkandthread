@@ -242,38 +242,59 @@ export async function enhance(
   const isName = NAME_FIELDS.includes(field);
   // A longer draft keeps its length, as Enhance never drops what the player wrote.
   const words = WORD_LIMITS[field] && Math.max(WORD_LIMITS[field], countWords(idea));
-  const reply = field === "title" ? TitleReply : isName ? NameReply : z.object({ text: fits(words ? limited(field, words) : text) });
+  const boxText = fits(words ? limited(field, words) : text);
+  const reply = field === "title" ? TitleReply : isName ? NameReply : z.object({ text: boxText });
   const change = idea && nudge;
+  // A Nudge to a longer box comes back as edits, so the rest stays word for word and can't grow past the box, as a whole rewrite did.
+  const byEdits = !!change && !isName && field !== "title";
+  // Undefined when an edit's old isn't in the box.
+  const edited = (edits: { old: string; new: string }[]) => {
+    let result = idea;
+    for (const { old, new: replacement } of edits) {
+      const at: number = result.indexOf(old);
+      if (at < 0) return undefined;
+      result = result.slice(0, at) + replacement + result.slice(at + old.length);
+    }
+    return result.trim();
+  };
+  const EditsReply = z
+    .object({ edits: z.array(z.object({ old: z.string().min(1), new: z.string() })).min(1) })
+    .refine(({ edits }) => boxText.safeParse(edited(edits)).success, "an edit misquotes the box, or the result doesn't fit it");
   const nameOnly = ` text is only the name, in at most ${NAME_WORDS} words, never who they are or anything else about them.`;
-  const task = change
-    ? `idea is what the box holds now: ${ABOUT[field]}. change is what the player wants different about it. Make that change, keep everything else in idea as it is, and keep about the same length.${isName ? nameOnly : ""}`
-    : isName
-      ? `${idea ? `idea is the player's own draft of ${ABOUT[field]}. Give a fuller or more fitting name in its spirit, keeping any part of it they chose.` : `Write ${ABOUT[field]} from scratch, fresh and fitting their other choices.`}${nameOnly}`
-      : field === "inventory"
-        ? idea
-          ? `idea is the player's own draft of ${ABOUT[field]}. Give each item in it a few words of detail that fit their other choices. Keep every item, and never add one.`
-          : `Write ${ABOUT[field]} from scratch: about four to eight items that suit the world and their background.`
-        : idea
-          ? `idea is the player's own draft of ${ABOUT[field]}. Rewrite it to be richer, more specific and better written. Keep every fact and intention in it, and add only what fits their idea and their other choices.`
-          : `Write ${ABOUT[field]} from scratch, fresh and specific, agreeing with everything in their other choices.`;
-  const limit =
-    field === "inventory"
+  const task = byEdits
+    ? `idea is what the box holds now: ${ABOUT[field]}. change is what the player wants different about it. Reply with edits that make that change and touch nothing else: each old is a passage copied exactly from idea, as short as will do, and new is what replaces it, or empty to remove it.`
+    : change
+      ? `idea is what the box holds now: ${ABOUT[field]}. change is what the player wants different about it. Make that change, keep everything else in idea as it is, and keep about the same length.${isName ? nameOnly : ""}`
+      : isName
+        ? `${idea ? `idea is the player's own draft of ${ABOUT[field]}. Give a fuller or more fitting name in its spirit, keeping any part of it they chose.` : `Write ${ABOUT[field]} from scratch, fresh and fitting their other choices.`}${nameOnly}`
+        : field === "inventory"
+          ? idea
+            ? `idea is the player's own draft of ${ABOUT[field]}. Give each item in it a few words of detail that fit their other choices. Keep every item, and never add one.`
+            : `Write ${ABOUT[field]} from scratch: about four to eight items that suit the world and their background.`
+          : idea
+            ? `idea is the player's own draft of ${ABOUT[field]}. Rewrite it to be richer, more specific and better written. Keep every fact and intention in it, and add only what fits their idea and their other choices.`
+            : `Write ${ABOUT[field]} from scratch, fresh and specific, agreeing with everything in their other choices.`;
+  const limit = byEdits
+    ? ""
+    : field === "inventory"
       ? ` text is only a comma-separated list of items, in at most ${words} words, with no sentences.`
       : words
         ? ` text is at most ${words} words.`
         : "";
   // In words as well, as models count words far better than characters. Six characters a word leaves room for long words.
-  const most = field === "title" || isName ? "" : ` text is at most ${LONG_TEXT} characters, about ${Math.round(LONG_TEXT / 6)} words.`;
+  const most = field === "title" || isName || byEdits ? "" : ` text is at most ${LONG_TEXT} characters, about ${Math.round(LONG_TEXT / 6)} words.`;
   const prompt: Prompt = [
     {
       role: "system",
       content: `You are the Narrator of a story, helping a player who has a general idea. ${CHOICES_ARE_DATA}
-${task}${limit}${most} Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))}
+${task}${limit}${most} Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(byEdits ? EditsReply : reply))}
 ${modelInstructions(context)}`,
     },
     playerChoices({ ...(idea && { idea }), ...(change && { change }), ...choices }),
   ];
-  const written = (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal)).text;
+  const written = byEdits
+    ? edited((await askForJson(context.textProvider, prompt, EditsReply, REFUSAL, signal)).edits)!
+    : (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal)).text;
   log.info("world", "Box written", { field, how: change ? "nudge" : idea ? "enhance" : "write" });
   return written;
 }

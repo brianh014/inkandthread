@@ -277,23 +277,37 @@ test("Enhance rewrites one box from the player's words and their other choices",
   expect(JSON.parse(user!.content)).toEqual({ ...setup, idea: "A city on a whale" });
 });
 
-test("a Nudge changes only what the player asked, and an empty box ignores it", async () => {
-  play(JSON.stringify({ text: "Ash can bend light." }), JSON.stringify({ text: "Ash Vale" }));
-  const pc = { name: "Ash", background: "Ash is super strong.", physicalTraits: "", inventory: "" };
+test("a Nudge comes back as edits, so the rest of the box stays word for word, and a misquote or overflow is asked again", async () => {
+  // A nearly full box, as a whole rewrite of one ran past the limit on every try.
+  const background = `Ash grew up by the docks. Ash is super strong. ${"He fixes boats. ".repeat(240)}`.trim();
+  const edit = (old: string, replacement: string) => JSON.stringify({ edits: [{ old, new: replacement }] });
+  play(
+    edit("Ash is strong.", "Ash bends light."),
+    edit("Ash is super strong.", `Ash bends light.${" x".repeat(200)}`),
+    edit("Ash is super strong.", "Ash bends light."),
+  );
+  const pc = { name: "Ash", background, physicalTraits: "", inventory: "" };
 
   let response: Response | undefined;
   const log = await logOf(async () => {
-    response = await app.post("/enhance", { ...setup, pc, field: "background", text: "Ash is super strong.", nudge: " a different power " });
+    response = await app.post("/enhance", { ...setup, pc, field: "background", text: background, nudge: " a different power " });
   });
 
-  expect(await response!.json()).toEqual({ text: "Ash can bend light." });
+  expect(await response!.json()).toEqual({ text: background.replace("Ash is super strong.", "Ash bends light.") });
+  expect(prompts).toHaveLength(3);
   expect(log).toContain('"how":"nudge"');
   expect(log).not.toContain("different power");
   const [system, user] = prompts[0]!;
-  expect(system!.content).toContain("keep everything else in idea as it is, and keep about the same length");
-  // A full box's limit in words too, as a Nudge to a long background ran past it in characters on every try.
-  expect(system!.content).toContain("at most 4000 characters, about 667 words");
-  expect(JSON.parse(user!.content)).toMatchObject({ idea: "Ash is super strong.", change: "a different power" });
+  expect(system!.content).toContain("Reply with edits that make that change and touch nothing else");
+  expect(JSON.parse(user!.content)).toMatchObject({ idea: background, change: "a different power" });
+});
+
+test("a Nudge to a name rewrites it whole, and an empty box or an overlong Nudge isn't a Nudge", async () => {
+  play(JSON.stringify({ text: "Ash" }), JSON.stringify({ text: "Ash Vale" }));
+  const pc = { name: "Ashford Vale", background: "", physicalTraits: "", inventory: "" };
+
+  expect(await (await app.post("/enhance", { ...setup, pc, field: "name", text: "Ashford Vale", nudge: "shorter" })).json()).toEqual({ text: "Ash" });
+  expect(prompts[0]![0]!.content).toContain("keep about the same length");
   await app.post("/enhance", { ...setup, pc, field: "name", text: "", nudge: "shorter" });
   expect(prompts[1]![0]!.content).toContain("from scratch");
   expect(JSON.parse(prompts[1]![1]!.content).change).toBeUndefined();

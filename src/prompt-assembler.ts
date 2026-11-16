@@ -401,6 +401,6 @@ export function resultInstruction({ action, outcome, degree }: Check): Prompt[nu
   return {
     role: "system",
     content: `The Check is resolved: ${JSON.stringify({ action, outcome, degree })}
-The PC makes the attempt as the player wrote it, and the result decides how it turns out, never whether they tried. A mixed degree means the PC succeeds at a cost. Narrate exactly this result as a finished Turn with check null, with those it touches reacting as they truly would, and record what it changes for them with add_known_fact or add_loose_end, so later replies keep to it. Do not request another check.`,
+The PC makes the attempt as the player wrote it, and the result decides how it turns out, never whether they tried: a failure can mean it goes wrong, or that those it touches resist, refuse or stop it. A mixed degree means the PC succeeds at a cost. Narrate exactly this result as a finished Turn with check null, with those it touches reacting as they truly would, and record what it changes for them with add_known_fact or add_loose_end, so later replies keep to it. Do not request another check.`,
   };
 }

@@ -173,6 +173,10 @@ export function usableChoices(choices: unknown) {
   return distinct.length >= 3 ? distinct.slice(0, 3) : undefined;
 }
 const NO_CHOICES = "no usable choices";
+// A model that won't write a Check's result can't refuse in words when the provider holds it to the schema, so it cuts the
+// story short instead: replies came back as a lone comma and a single name.
+const CUT_SHORT = "a story cut short";
+const ENDS_SENTENCE = /[.!?…—-]["'”’)*_]*$/u;
 
 // shortcut: a reply in another key order or after prose shows no narration until the Turn is done, loosen this only if real models do that often.
 const NARRATION_START =
@@ -509,6 +513,8 @@ async function narrate(
       const narration = edited ?? (response.narration as string);
       // The last attempt keeps such a reply, as losing the Turn costs more than a long speech.
       // A picture without set_scene would be drawn from the last scene's place and people, which may have moved on, so it's dropped.
+      // Never kept, even on the last attempt, as a scrap of a story is no Turn.
+      if (check && edited === undefined && !ENDS_SENTENCE.test(narration.trim())) throw new InvalidResponse(undefined, { cause: CUT_SHORT });
       const unplaced = scene_changed && !state_operations.some(({ op }) => op === "set_scene") ? "a picture without set_scene" : undefined;
       const spoken = edited === undefined ? spokenLineFault(narration) : undefined;
       const choices = playMode === "choices" ? usableChoices(response.choices) : undefined;
@@ -624,6 +630,7 @@ function playerReason({ cause }: InvalidResponse) {
   if (cause === "a speaker tag without its [") return "A spoken line in the last reply was missing its speaker";
   if (cause === "a picture without set_scene") return "The last reply moved to a new scene without saying where";
   if (cause === NO_CHOICES) return "The last reply offered no choices";
+  if (cause === CUT_SHORT) return "The last reply stopped short, which can mean the AI won't write this";
   if (cause === RAN_ON) return "The last reply ran on far too long";
   if (Array.isArray(cause)) return "The last reply changed the story in a way that doesn't fit what's already true";
   if (cause === undefined) return "The last reply asked for a second dice roll";
@@ -636,7 +643,11 @@ function retryIfInvalid(cause: unknown, attempt: number, input: string, generati
   const reason = whyInvalid(cause);
   log.warning("turn", "Unusable Narrator reply", { attempt, of: MAX_ATTEMPTS, reason, generation });
   if (attempt === MAX_ATTEMPTS) {
-    throw new TurnFailed("The Narrator gave no usable response", "retryable", input, { cause: new Error(reason) });
+    const message =
+      reason === CUT_SHORT
+        ? "The AI kept stopping short, which usually means it won't write this. Try another move, or another AI."
+        : "The Narrator gave no usable response";
+    throw new TurnFailed(message, "retryable", input, { cause: new Error(reason) });
   }
   return playerReason(cause);
 }

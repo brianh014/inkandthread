@@ -2176,6 +2176,19 @@ test("a reply stops as soon as it rates a Check, and the roll and result call go
   expect(messages.at(-1)!.text).toBe("You land, just.");
 });
 
+test("a Check's result cut short is retried, and if it keeps stopping short the player is told the AI may not write it", async () => {
+  const { app, prompts } = playWithDice([12], requestCheck("Hard"), narration("Nadia"), narration("You land, shaken."));
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+  expect(prompts).toHaveLength(3);
+
+  const again = playWithDice([12], requestCheck("Hard"), narration("Nadia"), narration("Nadia"), narration("Nadia"));
+  const other = await again.app.createSave();
+  const response = await again.app.post(`/saves/${other}/turns`, { input: "I leap the gap." });
+  expect(response.status).toBe(502);
+  expect(JSON.stringify(await response.json())).toContain("usually means it won't write this");
+});
+
 test("a reply whose narration has no words is retried", async () => {
   const { app, prompts } = playWithDice([], narration(","), narration("The rain keeps on."));
   const id = await app.createSave();

@@ -409,7 +409,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>Text</h3>
         <ul>
           <li>
-            <b>Text provider, Server address, Text model, Text API key</b>: where your Narrator is. With OpenRouter, <b>Provider</b> and <b>Routing</b> choose
+            <b>Text provider, Server address, Text API key, Text model</b>: where your Narrator is. With OpenRouter, <b>Provider</b> and <b>Routing</b> choose
             who serves the model. See {link("models", "Choosing your AI")}.
           </li>
           <li>
@@ -471,12 +471,6 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           provider reported, so it shows a dash where the provider reports none, such as ComfyUI, and ≥ where only some requests did. Nothing of your story is
           kept.
         </p>
-        <p>
-          Below it, <b>Narrator</b> shows how the AI used its tools in each story, over your Turns: how many Checks it asked for and how hard, and how often it
-          moved story time, changed the scene, noted what your PC learned, and opened or settled Loose Ends and Plot Threads. Few Checks, or many Turns with no
-          change, mean the AI you chose is skipping them, and a note says so after {QUIET_TURNS} Turns without a Check or without time moving. Try another AI
-          and compare. It counts from the version that added it, so an older story shows only its newer Turns.
-        </p>
         <h3>This Story</h3>
         <p>How you play this story, Free Text or Choices, and its Art Style.</p> <h3>Updates</h3>
         <p>
@@ -490,6 +484,10 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <p>
           <b>Story in log</b>: also writes everything sent to the AI and every reply, picture prompts too, story text included, to the log. It's only needed for
           advanced debugging, so leave it off otherwise, and turn it off before you share the log.
+        </p>
+        <p>
+          <b>Narrator</b>: how often the AI used its tools in each story, such as Checks and moving story time. A note names a story after {QUIET_TURNS} Turns
+          without either. If it's low, try another AI and compare.
         </p>
       </>
     ),

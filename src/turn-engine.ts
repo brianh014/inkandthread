@@ -40,6 +40,8 @@ export type TextProvider = (
     schema?: object;
     /** An Image Prompt's call, which has its own thinking limit. */
     picture?: boolean;
+    /** How many levels below the player's Thinking to ask for, after a reply thought past the limit. */
+    lessThinking?: number;
     onText: (text: string) => void;
     onGeneration?: (id: string) => void;
     onUsage?: (usage: TextUsage) => void;
@@ -780,12 +782,19 @@ export async function askForJson<T>(
   { picture = false } = {},
 ) {
   let generation: string | undefined;
-  const request = { schema: jsonSchemaOf(schema), picture, onText: () => {}, onGeneration: (id: string) => (generation = id), signal };
+  let lessThinking = 0;
+  let asked = prompt;
   for (let attempt = 1; ; attempt++) {
+    const request = { schema: jsonSchemaOf(schema), picture, lessThinking, onText: () => {}, onGeneration: (id: string) => (generation = id), signal };
     try {
-      return parseReply(await askNarrator(textProvider, prompt, request, "", refusal), schema);
+      return parseReply(await askNarrator(textProvider, asked, request, "", refusal), schema);
     } catch (cause) {
       retryIfInvalid(cause, attempt, "", generation);
+      const reason = whyInvalid(cause as InvalidResponse);
+      // The same level would most likely think past the limit again.
+      if (reason === OVERTHOUGHT) lessThinking++;
+      // After the prompt, so the provider's cache still holds, and in the app's own words, never the reply's.
+      else asked = [...prompt, { role: "system", content: `Your last reply couldn't be used: ${reason}. Reply again, fixing that.` }];
     }
   }
 }

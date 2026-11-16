@@ -125,6 +125,10 @@ const routing = ({ textRouting, textHost, textHostFallback }: Routing) =>
   textHost ? { order: [textHost], allow_fallbacks: textHostFallback } : textRouting === "default" ? {} : { sort: textRouting };
 
 /** The one Text Provider: any OpenAI-compatible server, using the Settings at the time of each call. */
+const LEVELS = ["low", "medium", "high"];
+/** `steps` levels below `level`, and never below Low. The model's own level is taken as one that thinks too long, so it goes to Low. */
+const lowerThinking = (level: string, steps: number) => LEVELS[Math.max(0, LEVELS.indexOf(level) - steps)] ?? "low";
+
 export function textProvider(settings: TextSettings, { silenceMs, listMs } = LIMITS): TextProvider {
   const schemaSupport = new Map<string, boolean>();
   // Whether a model takes `reasoning`, by its provider's listing, or false after it refused one. Sent to a model that doesn't, on
@@ -181,9 +185,19 @@ export function textProvider(settings: TextSettings, { silenceMs, listMs } = LIM
     return takes ?? false;
   }
 
-  return async (prompt, { schema, picture, onText, onGeneration, onUsage, signal }) => {
-    const { textBaseUrl, textApiKey, textModel, textMaxTokens, textReplyMinutes, textThinking, textThinkingTokens, pictureThinkingTokens, ...chosen } =
-      settings.read();
+  return async (prompt, { schema, picture, lessThinking = 0, onText, onGeneration, onUsage, signal }) => {
+    const {
+      textBaseUrl,
+      textApiKey,
+      textModel,
+      textMaxTokens,
+      textReplyMinutes,
+      textThinking: chosenThinking,
+      textThinkingTokens,
+      pictureThinkingTokens,
+      ...chosen
+    } = settings.read();
+    const textThinking = lessThinking ? lowerThinking(chosenThinking, lessThinking) : chosenThinking;
     const thinkingTokens = picture ? pictureThinkingTokens : textThinkingTokens;
     if (!textModel) throw new TextProviderFailed("No text model is set, so choose one in Settings");
     const url = textBaseUrl.replace(/\/$/, "");

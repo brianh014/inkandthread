@@ -104,7 +104,7 @@ const WORD_LIMITS: Partial<Record<EnhanceField, number>> = {
 const countWords = (words: string) => words.split(/\s+/).filter(Boolean).length;
 // A model is asked for a word limit but refused only a quarter over it, as a few words over shouldn't fail a whole call.
 const withinLimit = (words: string, limit: number) => countWords(words) <= Math.ceil(limit * 1.25);
-const atMost = (limit: number) => text.refine((words) => withinLimit(words, limit), "longer than its word limit");
+const atMost = (limit: number) => text.refine((words) => withinLimit(words, limit), `over ${limit} words`);
 // An item list never has a second sentence, so prose is retried.
 const limited = (field: EnhanceField, limit: number) => (field === "inventory" ? atMost(limit).refine((list) => !/[.!?]\s+\S/.test(list)) : atMost(limit));
 
@@ -359,7 +359,7 @@ const ANSWER_WORDS = 80;
 // Asked for well under the limit, as "at most 80" ran over it on most broad questions.
 const ANSWER_TARGET = 60;
 // The prompt asks for at most ANSWER_WORDS, but only a reply over the player's answerRejectWords is thrown out, as a few words over failed whole Questions.
-const answerReply = (rejectOver: number) => z.object({ text: text.refine((words) => countWords(words) <= rejectOver, "longer than its word limit") });
+const answerReply = (rejectOver: number) => z.object({ text: text.refine((words) => countWords(words) <= rejectOver, `over ${rejectOver} words`) });
 
 /**
  * The Narrator's answer to a Question, like a DM answering a player. It sees what the PC knows plus the Lore a Turn
@@ -843,17 +843,22 @@ function withReview(world: WorldReply, review: WorldReview): WorldReply {
 
 /** The World review: a second look at a new world for faults, and for story where it's thin, before the player sees it. */
 function reviewWorld(context: Context, choices: WorldChoices, pc: WorldPc, world: WorldReply, signal: AbortSignal) {
-  // An edit must name what it changes, and the world it leaves must still be one a new world could be.
+  // An edit must name what it changes, and the world it leaves must still be one a new world could be. Each says its own fault, as a retry tells the model which.
   const reply = WorldReview.refine(
-    (review) =>
-      quotes(world.world_rules, review.world_rules) &&
-      quotes(world.plot_threads, review.plot_threads) &&
-      [...review.world_rules, ...review.plot_threads].every(
-        (change) => change.new === null || withinLimit(change.new, Math.max(LINE_WORDS, countWords(change.old ?? ""))),
-      ) &&
-      WorldReply.safeParse(withReview(world, review)).success,
-    "an edit names nothing in the world, runs long, or leaves it unfit",
-  );
+    (review) => quotes(world.world_rules, review.world_rules) && quotes(world.plot_threads, review.plot_threads),
+    "an old isn't copied exactly from the world",
+  )
+    .refine(
+      (review) =>
+        [...review.world_rules, ...review.plot_threads].every(
+          (change) => change.new === null || withinLimit(change.new, Math.max(LINE_WORDS, countWords(change.old ?? ""))),
+        ),
+      "a new world rule or plot thread runs well past a sentence or two",
+    )
+    .refine(
+      (review) => WorldReply.safeParse(withReview(world, review)).success,
+      `the edits leave the world unfit, such as fewer than three or more than ${MAX_PLOT_THREADS} plot_threads`,
+    );
   const prompt: Prompt = [
     {
       role: "system",

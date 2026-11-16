@@ -418,8 +418,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             who serves the model. See {link("models", "Choosing your AI")}.
           </li>
           <li>
-            <b>Thinking</b> (OpenRouter and NanoGPT): how long an AI that thinks before it writes may think. Lower is quicker and cheaper, though some AIs
-            ignore it. On High, raise <b>Longest thinking</b>.
+            <b>Thinking</b> (OpenRouter, NanoGPT and Google AI Studio): how long an AI that thinks before it writes may think. Lower is quicker and cheaper,
+            though some AIs ignore it. On High, raise <b>Longest thinking</b>.
           </li>
           <li>
             Each provider keeps its own key, model and settings, so switching back brings them back. Where a provider lists its models, choose{" "}
@@ -432,7 +432,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             <b>Longest reply, in tokens</b> and <b>in minutes</b>: limits on one reply.
           </li>
           <li>
-            <b>Longest thinking, in tokens</b>, for the story and for a picture's prompt: an AI that thinks past it is stopped and asked again.
+            <b>Longest thinking, in tokens</b>, for the story and for a picture's prompt: an AI that thinks past it is stopped and asked again. Google AI Studio
+            keeps its thinking to itself, so these can't stop it there.
           </li>
           <li>
             <b>Recent Messages sent to the Narrator</b>: how many of the newest Messages it reads in full. More remembers more but costs more; older ones are

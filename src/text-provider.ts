@@ -75,6 +75,9 @@ const CapabilityList = z.object({
   data: z.array(z.object({ id: z.string(), capabilities: z.object({ reasoning: z.boolean().catch(false) }).catch({ reasoning: false }) })),
 });
 
+const GoogleModel = z.object({ thinking: z.boolean().catch(false) });
+const isGoogle = (url: string) => url.includes("generativelanguage.googleapis.com");
+
 /** The answer at `url`, or undefined without a usable one. */
 async function list<T>(url: string, shape: z.ZodType<T>, headers: Record<string, string>, signal: AbortSignal, listMs: number) {
   try {
@@ -143,9 +146,23 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
   }
 
   /** Off OpenRouter, a model thinks if a detailed listing says so. A server without one, such as a local one, is never sent `reasoning`. */
-  async function listCapabilities(url: string, model: string, headers: Record<string, string>, signal: AbortSignal) {
+  async function listCapabilities(url: string, model: string, apiKey: string, headers: Record<string, string>, signal: AbortSignal) {
     const key = `${url} ${model}`;
     if (capabilitiesListed.has(key)) return;
+    if (isGoogle(url)) {
+      // Google's OpenAI-compatible list says nothing of thinking, but its own API does, and takes the key in its own header.
+      const found = await list(
+        `${url.replace(/\/openai$/, "")}/models/${encodeURIComponent(model)}`,
+        GoogleModel,
+        { "x-goog-api-key": apiKey },
+        signal,
+        listMs,
+      );
+      if (!found) return;
+      capabilitiesListed.add(key);
+      if (found.thinking) thinks.add(key);
+      return;
+    }
     const models = (await list(`${url}/models?detailed=true`, CapabilityList, headers, signal, listMs))?.data;
     // Without an answer, ask again on the next call.
     if (!models) return;
@@ -209,8 +226,10 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
           // OpenRouter reports usage anyway; other servers, Google's and local ones among them, only when asked.
           ...(askUsage && { stream_options: { include_usage: true } }),
           max_tokens: textMaxTokens,
-          // Changes nothing in the prompt, so the provider's cache still holds.
-          ...(textThinking !== "default" && thinks.has(`${url} ${textModel}`) && { reasoning: { effort: textThinking } }),
+          // Changes nothing in the prompt, so the provider's cache still holds. Google takes only OpenAI's own field.
+          ...(textThinking !== "default" &&
+            thinks.has(`${url} ${textModel}`) &&
+            (isGoogle(url) ? { reasoning_effort: textThinking } : { reasoning: { effort: textThinking } })),
           ...(useSchema && { response_format: { type: "json_schema", json_schema: { name: "narrator_response", strict: true, schema } } }),
           // OpenRouter only: a strict server such as OpenAI refuses a field it does not know.
           ...(openRouter && { provider: { ...(useSchema && { require_parameters: true }), ...routing(chosen) } }),
@@ -222,7 +241,7 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
 
     try {
       const useSchema = schema !== undefined && (await supportsSchema(url, textModel, headers, signal));
-      if (!openRouter && textThinking !== "default") await listCapabilities(url, textModel, headers, signal);
+      if (!openRouter && textThinking !== "default") await listCapabilities(url, textModel, textApiKey, headers, signal);
       seen.schema = useSchema;
       const askUsage = !openRouter && !usageRefused.has(url);
       let response = await send(useSchema, askUsage);

@@ -543,6 +543,21 @@ test("off OpenRouter, the Thinking level goes only to a model whose detailed lis
   expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([{ effort: "high" }, undefined]);
 });
 
+test("Google is sent the Thinking level as reasoning_effort, only for a model its own API says thinks", async () => {
+  play([narrated("Rain."), narrated("Sleet.")]);
+  const settings = settingsStore(join(folder.path, "settings.json"));
+  settings.update({ textBaseUrl: provider.googleUrl, textApiKey: "test-key", textModel: "gemini-thinking", textThinking: "low" });
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+  settings.update({ textModel: "gemma-plain" });
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect(provider.requests.map(({ body }) => [body.reasoning_effort, body.reasoning])).toEqual([
+    ["low", undefined],
+    [undefined, undefined],
+  ]);
+});
+
 test("a local server with no detailed listing is never sent reasoning", async () => {
   play([narrated("Rain.")], { data: [{ id: "fake/model" }] });
   settingsStore(join(folder.path, "settings.json")).update({ textThinking: "high" });

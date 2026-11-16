@@ -163,6 +163,7 @@ type FakeReply = Response | string[] | (() => AsyncIterable<string>);
  * reply: a Response, whole SSE strings, or a generator that can wait between them. Records every chat request.
  */
 const OPENROUTER_PATH = "/openrouter.ai/api/v1";
+const GOOGLE_PATH = "/generativelanguage.googleapis.com/v1beta";
 
 export function fakeOpenAi(replies: FakeReply[], initialModels: unknown = { data: [] }) {
   let models = initialModels;
@@ -171,8 +172,13 @@ export function fakeOpenAi(replies: FakeReply[], initialModels: unknown = { data
     port: 0,
     idleTimeout: 0,
     // Also under a path naming OpenRouter, which the Text Provider tells apart by its address.
-    routes: Object.fromEntries(
-      ["/v1", OPENROUTER_PATH].flatMap((base) => [
+    routes: Object.fromEntries([
+      // Google's own API, which says whether a model thinks: here, any model named for it.
+      [
+        `${GOOGLE_PATH}/models/:model`,
+        (req: Bun.BunRequest<`${typeof GOOGLE_PATH}/models/:model`>) => Response.json({ thinking: req.params.model.includes("thinking") }),
+      ],
+      ...["/v1", OPENROUTER_PATH, `${GOOGLE_PATH}/openai`].flatMap((base) => [
         [`${base}/models`, () => (models ? Response.json(models) : new Response("Not found", { status: 404 }))],
         [
           `${base}/chat/completions`,
@@ -190,12 +196,13 @@ export function fakeOpenAi(replies: FakeReply[], initialModels: unknown = { data
           },
         ],
       ]),
-    ),
+    ]),
   });
   return {
     requests,
     baseUrl: new URL("/v1", server.url).href,
     openRouterUrl: new URL(OPENROUTER_PATH, server.url).href,
+    googleUrl: new URL(`${GOOGLE_PATH}/openai`, server.url).href,
     setModels: (next: unknown) => {
       models = next;
     },

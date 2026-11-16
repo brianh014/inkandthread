@@ -1010,7 +1010,7 @@ function InstallSettings({
           </p>
         )}
         {addressSaved && models?.length === 0 && <p className="muted">No models listed. Make sure the server is running, or type the model's name.</p>}
-        {(textChoice === "openrouter" || textChoice === "nanogpt") && (
+        {!local && (
           <>
             <Picker
               label="Thinking"

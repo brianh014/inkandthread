@@ -287,7 +287,12 @@ test("an NPC keeps what they learn, once each and only the newest few, and a mer
   const next = run(twoPeople(), ...facts.map((fact) => learns("Nadia", fact)), learns("Nadia", "Fact b"), learns("Woman with notebook", "Saw the fire"));
 
   expect(next.npcKnows.Nadia).toEqual(facts.slice(1));
-  expect(run(next, merge).npcKnows).toEqual({ Nadia: [...facts.slice(2), "Saw the fire"] });
+  // The kept one's own are the newest, so the other's go first when the list is full.
+  expect(run(next, merge).npcKnows).toEqual({ Nadia: facts.slice(1) });
+  expect(run(next, { op: "merge_npc", name: "Nadia", into: "Woman with notebook" }).npcKnows["Woman with notebook"]).toEqual([
+    ...facts.slice(2),
+    "Saw the fire",
+  ]);
 });
 
 test("npc_learns for someone not in the state, or with no words, changes nothing and doesn't cost the Turn", () => {
@@ -301,13 +306,24 @@ test("npc_learns for someone not in the state, or with no words, changes nothing
   expect(ignored).toHaveLength(2);
 });
 
-test("the Narrator sees what people know only for those in the scene or named by the player", () => {
-  const npcKnows = { "Woman with notebook": ["SEEN-HERE."], Nadia: ["NAMED-NOW."], Other: ["ELSEWHERE."] };
+test("npc_learns by part of a name reaches the one NPC it can mean", () => {
+  const state = withState({ npcs: [{ name: "Nadia Petrova", appearance: "looks" }] });
 
-  const prompt = promptFor({ ...twoPeople(), npcKnows }, "I call for Nadia.");
+  expect(run(state, { op: "npc_learns", name: "Nadia", fact: "Saw the fire" }).npcKnows).toEqual({ "Nadia Petrova": ["Saw the fire"] });
+});
+
+test("the Narrator sees what people know only for those in the scene or named by the player, by whole words in any case", () => {
+  const state = withState({
+    npcs: ["Woman with notebook", "Nadia Petrova", "Al", "Other"].map((name) => ({ name, appearance: "looks" })),
+    scene: { location: "A room", visibleCast: ["Woman with notebook"] },
+    npcKnows: { "Woman with notebook": ["SEEN-HERE."], "Nadia Petrova": ["NAMED-NOW."], Al: ["INSIDE-A-WORD."], Other: ["ELSEWHERE."] },
+  });
+
+  const prompt = promptFor(state, "Alright, I call for nadia.");
 
   expect(prompt).toContain("SEEN-HERE.");
   expect(prompt).toContain("NAMED-NOW.");
+  expect(prompt).not.toContain("INSIDE-A-WORD.");
   expect(prompt).not.toContain("ELSEWHERE.");
 });
 

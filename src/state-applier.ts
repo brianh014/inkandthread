@@ -136,6 +136,16 @@ export type StateOperation = z.infer<typeof StateOperation>;
 
 const findNpc = (state: State, name: string) => state.npcs.find((npc) => npc.name === name);
 
+export const named = (full: string, mark: string) => full.toLowerCase() === mark.toLowerCase() || full.toLowerCase().split(" ").includes(mark.toLowerCase());
+
+/** Narrators shorten names, so part of one counts when it can only mean one person. */
+export function findPerson<Npc extends { name: string }>(npcs: Npc[], mark: string) {
+  const exact = npcs.find(({ name }) => name === mark);
+  if (exact) return exact;
+  const partly = npcs.filter(({ name }) => named(name, mark));
+  return partly.length === 1 ? partly[0] : undefined;
+}
+
 function take(list: string[], value: string) {
   const index = list.indexOf(value);
   if (index === -1) return false;
@@ -234,7 +244,8 @@ function mergeNpc(state: State, name: string, into: string) {
   const { [name]: summary, ...summaries } = pcKnown.summaries ?? {};
   if (summary !== undefined) pcKnown.summaries = { [into]: summary, ...summaries };
   const { [name]: knew, ...knows } = state.npcKnows;
-  if (knew) state.npcKnows = { ...knows, [into]: [...new Set([...(knows[into] ?? []), ...knew])].slice(-MAX_NPC_KNOWS) };
+  // The kept one's own last, so the cap drops the other's first.
+  if (knew) state.npcKnows = { ...knows, [into]: [...new Set([...knew, ...(knows[into] ?? [])])].slice(-MAX_NPC_KNOWS) };
 }
 
 /** What this reply made of each Plot Thread it changed, its replacement or null once resolved, and those still waiting to be added because the list was full. */
@@ -292,11 +303,12 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       return;
     case "npc_learns": {
       // A reply squeezed by its schema can send a scrap here, and then they just know less.
-      if (!findNpc(state, operation.name)) return "no such NPC";
+      const name = findPerson(state.npcs, operation.name)?.name;
+      if (!name) return "no such NPC";
       if (!/\p{L}/u.test(operation.fact)) return "no words";
-      const knows = state.npcKnows[operation.name] ?? [];
+      const knows = state.npcKnows[name] ?? [];
       if (!addOnce(knows, operation.fact)) return "already there";
-      state.npcKnows = { ...state.npcKnows, [operation.name]: knows.slice(-MAX_NPC_KNOWS) };
+      state.npcKnows = { ...state.npcKnows, [name]: knows.slice(-MAX_NPC_KNOWS) };
       return;
     }
     case "set_scene": {

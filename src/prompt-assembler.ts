@@ -303,8 +303,11 @@ export function assemblePrompt({
 }): Prompt {
   // A Save from before the limit can hold far more, which would crowd the prompt.
   const plotThreads = allThreads.slice(0, MAX_PLOT_THREADS);
-  // Only the lists of those in the scene or named by the player, as everyone's would crowd the prompt.
-  const present = new Set([...currentState.scene.visibleCast, ...currentState.npcs.map(({ name }) => name).filter((name) => input.includes(name))]);
+  // Only the lists of those in the scene or named by the player, as everyone's would crowd the prompt. Whole words, any
+  // case, by any capitalised part of the name, so "Nadia" finds Nadia Petrova and "Al" isn't found in "Alright".
+  const inputWords = new Set(input.toLowerCase().match(/[\p{L}\p{N}]+/gu));
+  const mentioned = (name: string) => name.split(" ").some((part) => /^\p{Lu}/u.test(part) && inputWords.has(part.toLowerCase()));
+  const present = new Set([...currentState.scene.visibleCast, ...currentState.npcs.map(({ name }) => name).filter(mentioned)]);
   const npcKnows = Object.fromEntries(Object.entries(allKnows).filter(([name]) => present.has(name)));
   const recent = messageWindow(messages, sceneMemories, memoryStart, windowMessages);
   const activeEntries = activateLore(
@@ -405,6 +408,6 @@ export function resultInstruction({ action, outcome, degree }: Check): Prompt[nu
   return {
     role: "system",
     content: `The Check is resolved: ${JSON.stringify({ action, outcome, degree })}
-The PC makes the attempt as the player wrote it, and the result decides how it turns out, never whether they tried. A mixed degree means the PC succeeds at a cost. When it rests on how someone takes it, success means they welcome it, a cost means they welcome it with some hurt or doubt, and a failure means they resist, refuse or stop it; otherwise a failure means it goes wrong. Narrate exactly this result as a finished Turn with check null, with those it touches reacting as they truly would, and record what it changes for each person it touched with npc_learns, so later replies keep to it. Do not request another check.`,
+The PC makes the attempt as the player wrote it, and the result decides how it turns out, never whether they tried. A mixed degree means the PC succeeds at a cost. When it rests on how someone takes it, success means they welcome it, a cost means they welcome it with some hurt or doubt, and a failure means they resist, refuse or stop it; otherwise a failure means it goes wrong. Narrate exactly this result as a finished Turn with check null, with those it touches reacting as they truly would, and record what it changes with add_known_fact or add_loose_end, and what each person it touched takes from it with npc_learns, so later replies keep to it. Do not request another check.`,
   };
 }

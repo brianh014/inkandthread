@@ -647,6 +647,25 @@ test('a speaker tag written as [Name: ""] is saved as [Name]:, and shows as one'
   expect(messageBeats({ role: "narrator", text: "[Note:] The door is shut." })).toEqual([{ text: "[Note:] The door is shut." }]);
 });
 
+test("a speaker written without brackets is saved as [Name]:, so later replies copy that", async () => {
+  play([narrated('She sits.\n\nNadia: "I saw him."\n\nSign: “Closed”\n\nThen: nothing.')]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+
+  expect((await storedMessages(id)).at(-1)!.text).toBe('She sits.\n\n[Nadia]: "I saw him."\n\n[Sign]: “Closed”\n\nThen: nothing.');
+});
+
+test("a reply that gives the PC a spoken line is written again", async () => {
+  play([narrated('He looks up.\n\nAsh: "Look at me."'), narrated('He looks up.\n\n[Owen]: "Well?"')]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+
+  expect(provider.requests).toHaveLength(2);
+  expect((await storedMessages(id)).at(-1)!.text).toBe('He looks up.\n\n[Owen]: "Well?"');
+});
+
 test("a reply whose narration is a JSON object, such as its Check request, is written again", async () => {
   const request = JSON.stringify({ action: "Ask him what he knows", stakes: "He could walk away", difficulty: "Moderate" });
   play([narrated(request), narrated("He shrugs.")]);

@@ -21,7 +21,7 @@ import {
 import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } from "./save-store";
 import type { SettingsStore } from "./settings-store";
 import type { NarratorTurn, UsageStore } from "./usage-store";
-import { applyOperations, introduce, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
+import { applyOperations, introduce, named, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 
@@ -561,7 +561,7 @@ async function narrate(
       if (edited === undefined && !hasWords(narration)) throw new InvalidResponse(undefined, { cause: NO_WORDS });
       if (edited === undefined && isJsonObject(narration)) throw new InvalidResponse(undefined, { cause: JSON_NARRATION });
       const unplaced = scene_changed && !state_operations.some(({ op }) => op === "set_scene") ? "a picture without set_scene" : undefined;
-      const spoken = edited === undefined ? spokenLineFault(narration) : undefined;
+      const spoken = edited === undefined ? spokenLineFault(narration, pcName) : undefined;
       const choices = playMode === "choices" ? usableChoices(response.choices) : undefined;
       const unchosen = playMode === "choices" && !choices ? NO_CHOICES : undefined;
       // A long speech is only logged, as rewriting it restarted too many Turns the player could see.
@@ -645,17 +645,20 @@ async function narrate(
   }
 }
 
-/** Why the spoken lines break the reply's shape, if they do: a tag missing its "[", or someone speaking more than twice. */
-export function spokenLineFault(narration: string) {
+/** Why the spoken lines break the reply's shape, if they do: a tag missing its "[", a line for the PC, or someone speaking more than twice. */
+export function spokenLineFault(narration: string, pcName: string) {
   const lines = new Map<string, number>();
   for (const line of narration.split("\n").map((text) => text.trim())) {
     if (/^[^[\]\s][^[\]]*\]:/.test(line)) return "a speaker tag without its [";
     const speaker = line.match(/^\[([^[\]]+)\]:/)?.[1]?.trim();
+    // The player alone writes what the PC says, and the prompt saying so was ignored.
+    if (speaker && pcName && named(pcName, speaker)) return PC_LINE;
     if (speaker) lines.set(speaker, (lines.get(speaker) ?? 0) + 1);
   }
   return [...lines.values()].some((count) => count > 2) ? LONG_SPEECH : undefined;
 }
 const LONG_SPEECH = "someone speaks more than twice";
+const PC_LINE = "a spoken line for the PC";
 
 type Refusal = { op: string; reason: string };
 const refusalText = (refusals: Refusal[]) => refusals.map(({ op, reason }) => `${op}: ${reason}`).join(", ");
@@ -673,6 +676,7 @@ function whyInvalid({ cause }: InvalidResponse) {
 /** What a player is told of an invalid reply, never quoting it, as a reply may hold secrets. */
 function playerReason({ cause }: InvalidResponse) {
   if (cause === "a speaker tag without its [") return "A spoken line in the last reply was missing its speaker";
+  if (cause === PC_LINE) return "The last reply spoke for your character";
   if (cause === "a picture without set_scene") return "The last reply moved to a new scene without saying where";
   if (cause === NO_CHOICES) return "The last reply offered no choices";
   if (cause === DECLINED) return "The last reply wasn't a story, which can mean the AI's content rules block this";

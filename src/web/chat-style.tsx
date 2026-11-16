@@ -48,8 +48,7 @@ export const ContinueRule = () => <hr className="continued" aria-label="The stor
 export type TurnInProgress = { input: string; narration: string; replaces?: Message; edit?: boolean; retry?: string };
 export type StageBeat = { beat: Beat; message?: Message; number: number; of: number };
 
-// shortcut: a bare name is any capitalized words before a colon and a quote, so "Sign: “Closed”" gets a speaker and "Jan van Dijk" doesn't, match against the state's names if that shows up.
-const SPOKEN_LINE = /^(?:\[([^[\]]+)\]|(\p{Lu}[\p{L}'’.-]*(?: \p{Lu}[\p{L}'’.-]*){0,3})(?=:\s*["“])):\s*(.*)$/u;
+const SPOKEN_LINE = /^\[([^[\]]+)\]:\s*(.*)$/;
 
 /** The story as the player reads it, without the stored Message that opened it. */
 export const readable = (messages: Message[]) =>
@@ -57,12 +56,17 @@ export const readable = (messages: Message[]) =>
 
 /**
  * Marks a model sometimes puts in narration that aren't story: a Markdown quote ">" before a paragraph, and a speaker tag
- * written as `[Name: ""]` or `[Name:]` before a quote. Taken out of a reply before it's saved, and when shown, for Messages saved before.
+ * written as `[Name: ""]`, `[Name:]` or a bare `Name:` before a quote, which become `[Name]:`, so later replies copy that.
+ * Taken out of a reply before it's saved, and when shown, for Messages saved before.
  */
+// shortcut: a bare name is any capitalized words before a colon and a quote, so "Sign: “Closed”" gets a speaker and "Jan van Dijk" doesn't, match against the state's names if that shows up.
 export const withoutStrayMarks = (text: string) =>
-  text.replace(/^[ \t]*>[ \t]*/gm, "").replace(/^([ \t]*)\[([^[\]:\n]+?)[ \t]*:[ \t]*(?:""|“”)?[ \t]*\][ \t]*:?[ \t]*(?=["“])/gm, "$1[$2]: ");
+  text
+    .replace(/^[ \t]*>[ \t]*/gm, "")
+    .replace(/^([ \t]*)\[([^[\]:\n]+?)[ \t]*:[ \t]*(?:""|“”)?[ \t]*\][ \t]*:?[ \t]*(?=["“])/gm, "$1[$2]: ")
+    .replace(/^([ \t]*)(\p{Lu}[\p{L}'’.-]*(?: \p{Lu}[\p{L}'’.-]*){0,3}):[ \t]*(?=["“])/gmu, "$1[$2]: ");
 
-/** The Narrator is told to write `[Name]:`, but real models also drop the brackets. Anything else, including a tag still streaming, is narration. */
+/** The Narrator is told to write `[Name]:`. Anything else, including a tag still streaming, is narration. */
 export function messageBeats({ role, text }: Pick<Message, "role" | "text">): Beat[] {
   if (isContinue({ role, text })) return [{ player: true, rule: true, text: "" }];
   if (role === "player") return [{ player: true, text }];
@@ -71,8 +75,7 @@ export function messageBeats({ role, text }: Pick<Message, "role" | "text">): Be
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [, tagged, bare, words] = line.match(SPOKEN_LINE) ?? [];
-      const speaker = tagged ?? bare;
+      const [, speaker, words] = line.match(SPOKEN_LINE) ?? [];
       return speaker?.trim() ? { speaker: speaker.trim(), text: words! } : { text: line };
     });
 }

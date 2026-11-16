@@ -418,8 +418,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             who serves the model. See {link("models", "Choosing your AI")}.
           </li>
           <li>
-            <b>Thinking</b> (OpenRouter): how long an AI that thinks before it writes may think. Lower is quicker and cheaper, though some AIs ignore it. On
-            High, raise <b>Longest thinking</b>.
+            <b>Thinking</b> (OpenRouter and NanoGPT): how long an AI that thinks before it writes may think. Lower is quicker and cheaper, though some AIs
+            ignore it. On High, raise <b>Longest thinking</b>.
           </li>
           <li>
             Each provider keeps its own key, model and settings, so switching back brings them back. Where a provider lists its models, choose{" "}

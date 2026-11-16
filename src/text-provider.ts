@@ -70,6 +70,11 @@ const ModelList = z.object({
   data: z.array(z.object({ id: z.string(), supported_parameters: z.array(z.string()).catch([]) })),
 });
 
+// NanoGPT's detailed listing, which says which models think under `capabilities` instead.
+const CapabilityList = z.object({
+  data: z.array(z.object({ id: z.string(), capabilities: z.object({ reasoning: z.boolean().catch(false) }).catch({ reasoning: false }) })),
+});
+
 /** The answer at `url`, or undefined without a usable one. */
 async function list<T>(url: string, shape: z.ZodType<T>, headers: Record<string, string>, signal: AbortSignal, listMs: number) {
   try {
@@ -115,8 +120,10 @@ const routing = ({ textRouting, textHost, textHostFallback }: Routing) =>
 /** The one Text Provider: any OpenAI-compatible server, using the Settings at the time of each call. */
 export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LIMITS): TextProvider {
   const schemaSupport = new Map<string, boolean>();
-  // OpenRouter models whose listing takes `reasoning`. Sent to any other, it would leave a schema call, which requires every parameter, no host.
+  // Models whose listing says they take `reasoning`. Sent to any other on OpenRouter, it would leave a schema call, which requires every parameter, no host.
   const thinks = new Set<string>();
+  // Other servers' models already looked up in a detailed listing, such as NanoGPT's.
+  const capabilitiesListed = new Set<string>();
   // Servers that refused `stream_options`, so they aren't asked again until the app restarts.
   const usageRefused = new Set<string>();
 
@@ -133,6 +140,17 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
     schemaSupport.set(`${url} ${model}`, supported);
     if (params.includes("reasoning")) thinks.add(`${url} ${model}`);
     return supported;
+  }
+
+  /** Off OpenRouter, a model thinks if a detailed listing says so. A server without one, such as a local one, is never sent `reasoning`. */
+  async function listCapabilities(url: string, model: string, headers: Record<string, string>, signal: AbortSignal) {
+    const key = `${url} ${model}`;
+    if (capabilitiesListed.has(key)) return;
+    const models = (await list(`${url}/models?detailed=true`, CapabilityList, headers, signal, listMs))?.data;
+    // Without an answer, ask again on the next call.
+    if (!models) return;
+    capabilitiesListed.add(key);
+    if (models.find(({ id }) => id === model)?.capabilities.reasoning) thinks.add(key);
   }
 
   return async (prompt, { schema, picture, onText, onGeneration, onUsage, signal }) => {
@@ -204,6 +222,7 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
 
     try {
       const useSchema = schema !== undefined && (await supportsSchema(url, textModel, headers, signal));
+      if (!openRouter && textThinking !== "default") await listCapabilities(url, textModel, headers, signal);
       seen.schema = useSchema;
       const askUsage = !openRouter && !usageRefused.has(url);
       let response = await send(useSchema, askUsage);

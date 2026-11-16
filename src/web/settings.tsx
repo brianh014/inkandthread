@@ -1010,7 +1010,7 @@ function InstallSettings({
           </p>
         )}
         {addressSaved && models?.length === 0 && <p className="muted">No models listed. Make sure the server is running, or type the model's name.</p>}
-        {textChoice === "openrouter" && (
+        {(textChoice === "openrouter" || textChoice === "nanogpt") && (
           <>
             <Picker
               label="Thinking"
@@ -1027,6 +1027,10 @@ function InstallSettings({
               How long a model that thinks before it writes may think. Less is quicker and cheaper. A model that doesn't take it is sent nothing. On High, raise
               Longest thinking, as some models then think past it.
             </p>
+          </>
+        )}
+        {textChoice === "openrouter" && (
+          <>
             <Picker
               label="Provider"
               value={draft.textHost}

@@ -526,6 +526,32 @@ test("OpenRouter is sent the Thinking level only once the player picks one, and 
   expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([undefined, { effort: "low" }]);
 });
 
+test("off OpenRouter, the Thinking level goes only to a model whose detailed listing says it thinks, as NanoGPT's does", async () => {
+  const listing = {
+    data: [
+      { id: "fake/model", capabilities: { reasoning: true } },
+      { id: "plain/model", capabilities: { reasoning: false } },
+    ],
+  };
+  play([narrated("Rain."), narrated("Sleet.")], listing);
+  settingsStore(join(folder.path, "settings.json")).update({ textThinking: "high" });
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+  settingsStore(join(folder.path, "settings.json")).update({ textModel: "plain/model" });
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([{ effort: "high" }, undefined]);
+});
+
+test("a local server with no detailed listing is never sent reasoning", async () => {
+  play([narrated("Rain.")], { data: [{ id: "fake/model" }] });
+  settingsStore(join(folder.path, "settings.json")).update({ textThinking: "high" });
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect(provider.requests.at(-1)!.body.reasoning).toBeUndefined();
+});
+
 test("a model whose listing doesn't take reasoning is never sent it", async () => {
   play([narrated("Rain.")], schemaModel, scriptedDice(), true);
   settingsStore(join(folder.path, "settings.json")).update({ textThinking: "low" });

@@ -2,7 +2,9 @@ import { messageBeats } from "../src/web/chat-style";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { settingsStore } from "../src/settings-store";
+import { introduce } from "../src/state-applier";
 import { textProvider } from "../src/text-provider";
+import { spokenLineFault } from "../src/turn-engine";
 import { delta, fakeOpenAi, logOf, scriptedDice, startApp, tempFolder, turnEvents } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -515,12 +517,227 @@ test("every reply is sent with the token limit from Settings", async () => {
   expect(provider.requests.map(({ body }) => body.max_tokens)).toEqual([16_000, 4000]);
 });
 
+test("OpenRouter is sent the Thinking level only once the player picks one, and only for a model that takes it", async () => {
+  const thinking = { data: [{ id: "fake/model", supported_parameters: ["structured_outputs", "reasoning"] }] };
+  play([narrated("Rain."), narrated("Sleet.")], thinking, scriptedDice(), true);
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+  settingsStore(join(folder.path, "settings.json")).update({ textThinking: "low" });
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([undefined, { effort: "low" }]);
+});
+
+test("an OpenRouter model list that doesn't answer is asked again, so the Thinking level isn't lost until a restart", async () => {
+  play([narrated("Rain."), narrated("Sleet.")], {}, scriptedDice(), true);
+  settingsStore(join(folder.path, "settings.json")).update({ textThinking: "low" });
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+  provider.setModels({ data: [{ id: "fake/model", supported_parameters: ["structured_outputs", "reasoning"] }] });
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([undefined, { effort: "low" }]);
+});
+
+test("NanoGPT is sent the Thinking level only for a model its detailed listing says thinks", async () => {
+  const listing = {
+    data: [
+      { id: "fake/model", capabilities: { reasoning: true } },
+      { id: "plain/model", capabilities: { reasoning: false } },
+    ],
+  };
+  play([narrated("Rain."), narrated("Sleet.")], listing);
+  settingsStore(join(folder.path, "settings.json")).update({
+    textBaseUrl: provider.nanoGptUrl,
+    textApiKey: "test-key",
+    textModel: "fake/model",
+    textThinking: "high",
+  });
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+  settingsStore(join(folder.path, "settings.json")).update({ textModel: "plain/model" });
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([{ effort: "high" }, undefined]);
+});
+
+test("Google is sent the Thinking level as reasoning_effort, only for a model its own API says thinks", async () => {
+  play([narrated("Rain."), narrated("Sleet.")]);
+  const settings = settingsStore(join(folder.path, "settings.json"));
+  settings.update({ textBaseUrl: provider.googleUrl, textApiKey: "test-key", textModel: "gemini-thinking", textThinking: "low" });
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+  settings.update({ textModel: "gemma-plain" });
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect(provider.requests.map(({ body }) => [body.reasoning_effort, body.reasoning])).toEqual([
+    ["low", undefined],
+    [undefined, undefined],
+  ]);
+});
+
+test("a Thinking level a host refuses is dropped for that model, and the schema is kept", async () => {
+  const thinking = { data: [{ id: "fake/model", supported_parameters: ["structured_outputs", "reasoning"] }] };
+  const noHost = new Response(JSON.stringify({ error: { message: "No endpoints found" } }), { status: 404 });
+  play([noHost, narrated("Rain."), narrated("Sleet.")], thinking, scriptedDice(), true);
+  settingsStore(join(folder.path, "settings.json")).update({ textThinking: "low" });
+  const id = await app.createSave();
+
+  const log = await logOf(async () => {
+    await app.post(`/saves/${id}/turns`, { input: "I wait." });
+    await app.post(`/saves/${id}/turns`, { input: "I wait." });
+  });
+
+  expect(provider.requests.map(({ body }) => [!!body.reasoning, !!body.response_format])).toEqual([
+    [true, true],
+    [false, true],
+    [false, true],
+  ]);
+  expect(log).toContain("Thinking level refused");
+  expect(log).toContain('"thinkingSent":false');
+});
+
+test("the Settings test is sent the Thinking level too, though it has no schema", async () => {
+  const thinking = { data: [{ id: "fake/model", supported_parameters: ["reasoning"] }] };
+  play([[delta("Hello."), "data: [DONE]\n\n"]], thinking, scriptedDice(), true);
+  settingsStore(join(folder.path, "settings.json")).update({ textThinking: "medium" });
+  await textProvider(settingsStore(join(folder.path, "settings.json")))([{ role: "user", content: "Hi" }], {
+    onText: () => {},
+    signal: new AbortController().signal,
+  });
+
+  expect(provider.requests[0]!.body.reasoning).toEqual({ effort: "medium" });
+});
+
+test("a local server is never sent reasoning, even with a level kept from another provider", async () => {
+  play([narrated("Rain.")], { data: [{ id: "fake/model", capabilities: { reasoning: true } }] });
+  settingsStore(join(folder.path, "settings.json")).update({ textThinking: "high" });
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect(provider.requests.at(-1)!.body.reasoning).toBeUndefined();
+});
+
+test("a model whose listing doesn't take reasoning is never sent it", async () => {
+  play([narrated("Rain.")], schemaModel, scriptedDice(), true);
+  settingsStore(join(folder.path, "settings.json")).update({ textThinking: "low" });
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect(provider.requests.at(-1)!.body.reasoning).toBeUndefined();
+});
+
+test("a model stuck thinking is stopped at the thinking limit and asked again", async () => {
+  const thinking = async function* () {
+    for (let at = 0; at < 1000; at++) yield `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "Hmm, let me think again. " } }] })}\n\n`;
+  };
+  play([thinking, narrated("The tide rises.")]);
+  settingsStore(join(folder.path, "settings.json")).update({ textThinkingTokens: 1000 });
+  const id = await app.createSave();
+
+  const log = await logOf(async () => expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201));
+
+  expect(provider.requests).toHaveLength(2);
+  expect(log).toContain("thought far too long");
+  expect((await storedMessages(id)).at(-1)).toMatchObject({ text: "The tide rises." });
+});
+
 const cutOff = [
   delta('{"check":null,"narration":"On and on'),
   `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "length" }] })}
 
 `,
 ];
+
+test('a speaker tag written as [Name: ""] is saved as [Name]:, and shows as one', async () => {
+  play([narrated('She sits.\n\n[Lena: ""] "I want to see it."\n\n[Mara:] "Fine."')]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+
+  expect((await storedMessages(id)).at(-1)!.text).toBe('She sits.\n\n[Lena]: "I want to see it."\n\n[Mara]: "Fine."');
+  expect(messageBeats({ role: "narrator", text: '[Lena: ""] "Here."' })).toEqual([{ speaker: "Lena", text: '"Here."' }]);
+  expect(messageBeats({ role: "narrator", text: "[Note:] The door is shut." })).toEqual([{ text: "[Note:] The door is shut." }]);
+});
+
+test("a speaker written without brackets is saved as [Name]:, so later replies copy that", async () => {
+  play([narrated('She sits.\n\nNadia: "I saw him."\n\nSign: “Closed”\n\nThen: nothing.')]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+
+  expect((await storedMessages(id)).at(-1)!.text).toBe('She sits.\n\n[Nadia]: "I saw him."\n\n[Sign]: “Closed”\n\nThen: nothing.');
+});
+
+test("a reply that gives the PC a spoken line is written again", async () => {
+  play([narrated('He looks up.\n\nAsh: "Look at me."'), narrated('He looks up.\n\n[Owen]: "Well?"')]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+
+  expect(provider.requests).toHaveLength(2);
+  expect((await storedMessages(id)).at(-1)!.text).toBe('He looks up.\n\n[Owen]: "Well?"');
+});
+
+const meeting = (...names: string[]) => [
+  delta(JSON.stringify({ check: null, narration: "Someone.", state_operations: [], people: names.map((name) => ({ name, appearance: "tall" })) })),
+  "data: [DONE]\n\n",
+];
+const knownPeople = async (id: string) => ((await app.get(`/saves/${id}/journal`).then((r) => r.json())) as { npcs: string[] }).npcs;
+
+test("someone new given a first name the PC or someone in the story has is written again, kept on the last attempt", async () => {
+  play([
+    meeting("Ash Tate"),
+    meeting("Mara Kade"),
+    meeting("Owen Kade", "Man in grey coat"),
+    meeting("Man in red coat", "Mrs. Owen"),
+    meeting("Mrs. Owen"),
+    meeting("Mrs. Owen"),
+  ]);
+  const id = await app.createSave();
+
+  for (const input of ["I look.", "I look.", "I look."]) expect((await app.post(`/saves/${id}/turns`, { input })).status).toBe(201);
+
+  expect(provider.requests).toHaveLength(6);
+  expect(await knownPeople(id)).toEqual(["Mara Kade", "Owen Kade", "Man in grey coat", "Mrs. Owen"]);
+});
+
+test("a line for someone who only shares the PC's title isn't the PC's", () => {
+  expect(spokenLineFault('[Captain]: "Hold."', "Captain Elena Reyes")).toBeUndefined();
+  expect(spokenLineFault('[Elena]: "Hold."', "Captain Elena Reyes")).toBe("a spoken line for the PC");
+});
+
+test("a given name is the first word after any article or title, and only clashes then", () => {
+  const state = (...names: string[]) => ({ npcs: names.map((name) => ({ name, appearance: "tall" })), pcKnown: { npcs: [] } }) as never;
+  const adds = (...names: string[]) => names.map((name) => ({ op: "add_npc" as const, name, appearance: "tall" }));
+  const refused = (names: string[], operations: Parameters<typeof introduce>[3]) => introduce(state(...names), [], "Ash", operations).refused.length;
+
+  expect(refused(["The Bartender", "Old Man"], adds("The Guard", "Young Man", "Man in grey coat"))).toBe(0);
+  expect(refused(["Sarah"], [...adds("Sarah Connor"), { op: "merge_npc", name: "Sarah", into: "Sarah Connor" }])).toBe(0);
+  expect(refused([], adds("Tom Hardy", "Tom Jones"))).toBe(1);
+  expect(refused([], adds("Dr. Ash Vale"))).toBe(1);
+});
+
+test("someone a reply names by part of their name is the person already in the story", async () => {
+  play([meeting("Owen Kade"), meeting("Owen")]);
+  const id = await app.createSave();
+
+  for (const input of ["I look.", "I wait."]) expect((await app.post(`/saves/${id}/turns`, { input })).status).toBe(201);
+
+  expect(provider.requests).toHaveLength(2);
+  expect(await knownPeople(id)).toEqual(["Owen Kade"]);
+});
+
+test("a reply whose narration is a JSON object, such as its Check request, is written again", async () => {
+  const request = JSON.stringify({ action: "Ask him what he knows", stakes: "He could walk away", difficulty: "Moderate" });
+  play([narrated(request), narrated("He shrugs.")]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I ask." })).status).toBe(201);
+
+  expect(provider.requests).toHaveLength(2);
+  expect((await storedMessages(id)).at(-1)!.text).toBe("He shrugs.");
+});
 
 test("a reply that marks its paragraphs as Markdown quotes is saved without the marks, and shows without them", async () => {
   play([narrated('>The tide rises.\n\n> [Nadia]: "Run."')]);

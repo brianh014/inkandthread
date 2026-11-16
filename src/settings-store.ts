@@ -41,6 +41,11 @@ export const SettingsUpdate = z
     textMaxTokens: z.number().int().min(1000).max(200_000),
     // Counted from the first byte, as loading a model can take minutes.
     textReplyMinutes: z.number().positive().max(60),
+    // OpenRouter's reasoning effort, which it passes to models that take one. Default sends none, leaving the model's own.
+    textThinking: z.enum(["default", "low", "medium", "high"]),
+    // Streamed thinking past these stops the reply, as a stuck model can think until the token limit and write nothing. Picture prompts think longer.
+    textThinkingTokens: z.number().int().min(1000).max(200_000),
+    pictureThinkingTokens: z.number().int().min(1000).max(200_000),
     // Recent Messages sent in full each Turn. Older ones reach the Narrator as Scene Memories, written in batches of 20, so it can't go below two batches.
     textRecentMessages: z.number().int().min(40).max(400),
     // A Question's answer over this many words is retried. Not below the 80 the prompt asks for.
@@ -108,6 +113,9 @@ const TextProfile = SettingsUpdate.pick({
   textHostFallback: true,
   textMaxTokens: true,
   textReplyMinutes: true,
+  textThinking: true,
+  textThinkingTokens: true,
+  pictureThinkingTokens: true,
   textRecentMessages: true,
 });
 const ImageProfile = SettingsUpdate.pick({ imageApiKey: true, imageModel: true, imageResolution: true });
@@ -143,6 +151,10 @@ const defaults = {
   textMaxTokens: 16_000,
   // The slowest real reply so far took five.
   textReplyMinutes: 8,
+  textThinking: "default",
+  // Above the longest thinking of a kept reply in play: about 7,000 on a Turn and 13,000 on a picture prompt.
+  textThinkingTokens: 10_000,
+  pictureThinkingTokens: 14_000,
   textRecentMessages: 80,
   answerRejectWords: 120,
   imageProvider: "openrouter",

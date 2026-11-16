@@ -21,8 +21,8 @@ import {
 import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } from "./save-store";
 import type { SettingsStore } from "./settings-store";
 import type { NarratorTurn, UsageStore } from "./usage-store";
-import { applyOperations, introduce, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
-import { readable } from "./web/chat-style";
+import { applyOperations, givenName, introduce, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
+import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 
 /** The token counts and cost a server reports for one reply, in the OpenAI shape. OpenRouter adds `cost`. */
@@ -36,7 +36,15 @@ export type TextProvider = (
    * `onUsage` hears what the server reported the reply used, if it did: once the call ends, or later for a reply that
    * ended before its usage came.
    */
-  request: { schema?: object; onText: (text: string) => void; onGeneration?: (id: string) => void; onUsage?: (usage: TextUsage) => void; signal: AbortSignal },
+  request: {
+    schema?: object;
+    /** An Image Prompt's call, which has its own thinking limit. */
+    picture?: boolean;
+    onText: (text: string) => void;
+    onGeneration?: (id: string) => void;
+    onUsage?: (usage: TextUsage) => void;
+    signal: AbortSignal;
+  },
 ) => Promise<string>;
 
 export type TurnEvents = (event: "narration" | "restart", data: object) => void;
@@ -46,6 +54,10 @@ export class ContentRefused extends Error {}
 export class TextProviderFailed extends Error {}
 /** The reply reached the token limit and was cut off. */
 export class ReplyCutOff extends TextProviderFailed {}
+/** A model stuck thinking, which a fresh try mostly isn't, so every call retries it. */
+export class ThoughtTooLong extends ReplyCutOff {
+  override name = "ThoughtTooLong";
+}
 class InvalidResponse extends Error {}
 
 /** An abort reason for a reply stopped on purpose, as it has given all that's needed: logged by its words, and never a failure. */
@@ -54,6 +66,7 @@ export class StoppedOnPurpose {
 }
 
 const RAN_ON = "ran on far too long";
+const OVERTHOUGHT = "thought far too long";
 const RATED = "rated for a Check, so the rest isn't needed";
 const DECLINED_MESSAGE =
   "The AI wouldn't write how this turned out, which usually means its content rules block it. Nothing was saved: try another move, or another AI.";
@@ -138,7 +151,7 @@ const ResponseShape = z.object({
   people: z
     .array(Person)
     .describe(
-      "everyone the narration names or gives a spoken line to, other than the PC, even someone only mentioned, each with their name and appearance. Someone new never gets a name the state already has for someone else, as people are matched by name",
+      "everyone the narration names or gives a spoken line to, other than the PC, even someone only mentioned, each with their name and appearance. Someone new never gets a name, or a first name, that the PC or anyone in the state already has, as people are matched by name",
     ),
   summary: z.string(),
   recent_summary: z.string(),
@@ -185,6 +198,17 @@ const declined = (narration: string) => (narration.match(/\p{L}+/gu)?.length ?? 
 // Words, not just punctuation, as a reply once came back as a lone comma.
 const NO_WORDS = "a story with no words";
 const hasWords = (narration: string) => /\p{L}{2}/u.test(narration);
+// A model once put its Check request in narration, which was saved as the story.
+const JSON_NARRATION = "JSON for narration";
+const isJsonObject = (narration: string) => {
+  const text = narration.trim();
+  if (!text.startsWith("{")) return false;
+  try {
+    return typeof JSON.parse(text) === "object";
+  } catch {
+    return false;
+  }
+};
 
 // The check a reply opens with: null, or the rating's flat object of strings. One pattern, so streaming and the early stop agree.
 // shortcut: a reply in another key order or after prose shows no narration until the Turn is done, loosen this only if real models do that often.
@@ -528,15 +552,16 @@ async function narrate(
         continue;
       }
       const { state_operations, people, summary, recent_summary, scene_changed, visual_description, chapter_ends } = response;
-      // Some models mark every paragraph as a Markdown quote, which the page shows as stray ">" and later replies copy.
-      const narration = edited ?? (response.narration as string).replace(/^[ \t]*>[ \t]*/gm, "");
+      // Later replies copy marks like these, so they never reach a Save.
+      const narration = edited ?? withoutStrayMarks(response.narration as string);
       // The last attempt keeps such a reply, as losing the Turn costs more than a long speech.
       // A picture without set_scene would be drawn from the last scene's place and people, which may have moved on, so it's dropped.
       // Never kept, even on the last attempt, as what isn't a story is no Turn.
       if (edited === undefined && check && declined(narration)) throw new InvalidResponse(undefined, { cause: DECLINED });
       if (edited === undefined && !hasWords(narration)) throw new InvalidResponse(undefined, { cause: NO_WORDS });
+      if (edited === undefined && isJsonObject(narration)) throw new InvalidResponse(undefined, { cause: JSON_NARRATION });
       const unplaced = scene_changed && !state_operations.some(({ op }) => op === "set_scene") ? "a picture without set_scene" : undefined;
-      const spoken = edited === undefined ? spokenLineFault(narration) : undefined;
+      const spoken = edited === undefined ? spokenLineFault(narration, pcName) : undefined;
       const choices = playMode === "choices" ? usableChoices(response.choices) : undefined;
       const unchosen = playMode === "choices" && !choices ? NO_CHOICES : undefined;
       // A long speech is only logged, as rewriting it restarted too many Turns the player could see.
@@ -563,7 +588,9 @@ async function narrate(
           const introduced = introduce(state, people, pcName, state_operations);
           const { next, refused, ignored: harmless, repeats } = applyOperations(introduced.state, introduced.operations);
           // Dropping one would leave narration that disagrees with the state, so the whole Turn is invalid.
-          if (refused.length > 0) throw new InvalidResponse(undefined, { cause: refused });
+          // A shared name is kept on the last attempt, as losing the Turn costs more.
+          const clashes = attempt < MAX_ATTEMPTS ? introduced.refused : [];
+          if (clashes.length > 0 || refused.length > 0) throw new InvalidResponse(undefined, { cause: [...clashes, ...refused] });
           repeated = repeats;
           ignored = harmless;
           if (summary.trim()) next.summary = summary.trim();
@@ -620,17 +647,20 @@ async function narrate(
   }
 }
 
-/** Why the spoken lines break the reply's shape, if they do: a tag missing its "[", or someone speaking more than twice. */
-export function spokenLineFault(narration: string) {
+/** Why the spoken lines break the reply's shape, if they do: a tag missing its "[", a line for the PC, or someone speaking more than twice. */
+export function spokenLineFault(narration: string, pcName: string) {
   const lines = new Map<string, number>();
   for (const line of narration.split("\n").map((text) => text.trim())) {
     if (/^[^[\]\s][^[\]]*\]:/.test(line)) return "a speaker tag without its [";
     const speaker = line.match(/^\[([^[\]]+)\]:/)?.[1]?.trim();
+    // The player alone writes what the PC says, and the prompt saying so was ignored.
+    if (speaker && pcName && (speaker.toLowerCase() === pcName.toLowerCase() || (givenName(speaker) ?? "") === givenName(pcName))) return PC_LINE;
     if (speaker) lines.set(speaker, (lines.get(speaker) ?? 0) + 1);
   }
   return [...lines.values()].some((count) => count > 2) ? LONG_SPEECH : undefined;
 }
 const LONG_SPEECH = "someone speaks more than twice";
+const PC_LINE = "a spoken line for the PC";
 
 type Refusal = { op: string; reason: string };
 const refusalText = (refusals: Refusal[]) => refusals.map(({ op, reason }) => `${op}: ${reason}`).join(", ");
@@ -648,10 +678,12 @@ function whyInvalid({ cause }: InvalidResponse) {
 /** What a player is told of an invalid reply, never quoting it, as a reply may hold secrets. */
 function playerReason({ cause }: InvalidResponse) {
   if (cause === "a speaker tag without its [") return "A spoken line in the last reply was missing its speaker";
+  if (cause === PC_LINE) return "The last reply spoke for your character";
   if (cause === "a picture without set_scene") return "The last reply moved to a new scene without saying where";
   if (cause === NO_CHOICES) return "The last reply offered no choices";
   if (cause === DECLINED) return "The last reply wasn't a story, which can mean the AI's content rules block this";
   if (cause === RAN_ON) return "The last reply ran on far too long";
+  if (cause === OVERTHOUGHT) return "The AI thought for too long before writing";
   if (Array.isArray(cause)) return "The last reply changed the story in a way that doesn't fit what's already true";
   if (cause === undefined) return "The last reply asked for a second dice roll";
   return "The last reply came back garbled";
@@ -684,6 +716,7 @@ async function askNarrator(
     // In a Turn, a runaway is a model stuck in a loop, which a fresh try mostly isn't, so it gets the retries a garbled reply does.
     // Any other call that reaches the token limit would likely reach it again, so it fails at once and says why.
     // The reason is the cause, as whyInvalid and playerReason read it: given the error, a runaway was logged as a Check request.
+    if (cause instanceof ThoughtTooLong) throw new InvalidResponse(undefined, { cause: OVERTHOUGHT });
     if (runaway && (runaway.aborted || cause instanceof ReplyCutOff)) throw new InvalidResponse(undefined, { cause: RAN_ON });
     if (cause instanceof ContentRefused) {
       throw new TurnFailed(refusal, "refused", input, { cause });
@@ -732,9 +765,16 @@ async function nextMemory(
   }
 }
 
-export async function askForJson<T>(textProvider: TextProvider, prompt: Prompt, schema: z.ZodType<T>, refusal: string, signal: AbortSignal) {
+export async function askForJson<T>(
+  textProvider: TextProvider,
+  prompt: Prompt,
+  schema: z.ZodType<T>,
+  refusal: string,
+  signal: AbortSignal,
+  { picture = false } = {},
+) {
   let generation: string | undefined;
-  const request = { schema: jsonSchemaOf(schema), onText: () => {}, onGeneration: (id: string) => (generation = id), signal };
+  const request = { schema: jsonSchemaOf(schema), picture, onText: () => {}, onGeneration: (id: string) => (generation = id), signal };
   for (let attempt = 1; ; attempt++) {
     try {
       return parseReply(await askNarrator(textProvider, prompt, request, "", refusal), schema);

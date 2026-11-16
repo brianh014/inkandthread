@@ -33,11 +33,17 @@ const CHOICES = ["I ask the stranger what they want.", "I slip away down the sta
 let count = 0;
 const next = <T>(list: T[]) => list[count++ % list.length]!;
 
-// Someone a Turn meets gets a name not used before, so the people list grows as a story goes on.
+// Someone a Turn meets gets a given name not used before, as the Narrator may not reuse one, so the people list grows as a story goes on.
 const FIRST = ["Wren", "Bram", "Isolde", "Tobin", "Maren", "Ezra", "Liesl", "Pell"];
+const ENDINGS = ["ley", "ric", "wyn", "dell", "mond"];
 const LAST = ["Garrow", "Thorne", "Quill", "Marsh", "Hollis", "Vane"];
+// Each round of FIRST adds endings counted in base five, so no two rounds make the same name.
+const endings = (round: number): string => (round === 0 ? "" : ENDINGS[(round - 1) % ENDINGS.length] + endings(Math.floor((round - 1) / ENDINGS.length)));
 let met = 0;
-const newcomer = () => `${FIRST[met % FIRST.length]} ${LAST[Math.floor(met++ / FIRST.length) % LAST.length]}`;
+const newcomer = () => {
+  const round = Math.floor(met / FIRST.length);
+  return `${FIRST[met++ % FIRST.length]}${endings(round)} ${LAST[round % LAST.length]}`;
+};
 
 /** Plain words for a field, picked by its name. No digits, as Status refuses numbers. */
 function words(key: string) {

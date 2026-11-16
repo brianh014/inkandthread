@@ -375,7 +375,7 @@ ${imageInstructions(context)}`,
       recent_story: messages.slice(-RECENT_STORY).map(plainMessage),
     }),
   ];
-  return askForJson(context.textProvider, prompt, RequestedReply, "The Narrator refused this picture. Reword it and try again.", signal);
+  return askForJson(context.textProvider, prompt, RequestedReply, "The Narrator refused this picture. Reword it and try again.", signal, { picture: true });
 }
 
 /** Where and how any picture of a story is drawn: its world, and the player's Art Style. An empty theme is a Save from before themes. */
@@ -462,7 +462,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
     playerChoices({ prompt: description }),
   ];
   try {
-    return (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal)).prompt.trim();
+    return (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal, { picture: true })).prompt.trim();
   } catch (error) {
     if (signal.aborted) throw error;
     log.warning("images", "A picture's prompt was drawn unchecked", errorType(error));
@@ -496,8 +496,8 @@ ${imageInstructions(context)}`,
     playerChoices(details),
   ];
   try {
-    if (!edit) return (await askForJson(context.textProvider, prompt, whole, REFUSAL, signal)).text;
-    const { keep, changes } = await askForJson(context.textProvider, prompt, edited, REFUSAL, signal);
+    if (!edit) return (await askForJson(context.textProvider, prompt, whole, REFUSAL, signal, { picture: true })).text;
+    const { keep, changes } = await askForJson(context.textProvider, prompt, edited, REFUSAL, signal, { picture: true });
     return `${keep.trim()} ${changes.trim()}`;
   } catch (error) {
     if (signal.aborted) throw error;

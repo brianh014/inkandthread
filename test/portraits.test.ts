@@ -112,7 +112,9 @@ test("a visible NPC the PC doesn't know yet has a portrait no route will show", 
 
 test.each(["__proto__", "constructor", "../../secret", "Mara/mara?#", "mara"])("the name %s is only ever data", async (name) => {
   // A portrait for one spelling must never answer for another, so "Mara" stays unknown and undrawn in the Journal.
-  play([turn(meet("Mara"), meet(name), know(name), inView(name))], png(1), png(2));
+  // Three times, as "mara" shares Mara's given name, so only the last attempt keeps it.
+  const reply = () => turn(meet("Mara"), meet(name), know(name), inView(name));
+  play([reply(), reply(), reply()], png(1), png(2));
   await enableImages();
   const id = await app.createSave();
   await playSettled(id);

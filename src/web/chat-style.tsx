@@ -48,29 +48,36 @@ export const ContinueRule = () => <hr className="continued" aria-label="The stor
 export type TurnInProgress = { input: string; narration: string; replaces?: Message; edit?: boolean; retry?: string };
 export type StageBeat = { beat: Beat; message?: Message; number: number; of: number };
 
-// shortcut: a bare name is any capitalized words before a colon and a quote, so "Sign: “Closed”" gets a speaker and "Jan van Dijk" doesn't, match against the state's names if that shows up.
-const SPOKEN_LINE = /^(?:\[([^[\]]+)\]|(\p{Lu}[\p{L}'’.-]*(?: \p{Lu}[\p{L}'’.-]*){0,3})(?=:\s*["“])):\s*(.*)$/u;
+const SPOKEN_LINE = /^\[([^[\]]+)\]:\s*(.*)$/;
 
 /** The story as the player reads it, without the stored Message that opened it. */
 export const readable = (messages: Message[]) =>
   messages.filter(({ id, role, text }) => !(id === messages[0]?.id && role === "player" && text === OPENING_INPUT));
 
-/** The Narrator is told to write `[Name]:`, but real models also drop the brackets. Anything else, including a tag still streaming, is narration. */
+/**
+ * Marks a model sometimes puts in narration that aren't story: a Markdown quote ">" before a paragraph, and a speaker tag
+ * written as `[Name: ""]`, `[Name:]` or a bare `Name:` before a quote, which become `[Name]:`, so later replies copy that.
+ * Taken out of a reply before it's saved, and when shown, for Messages saved before.
+ */
+// shortcut: a bare name is any capitalized words before a colon and a quote, so "Sign: “Closed”" gets a speaker and "Jan van Dijk" doesn't, match against the state's names if that shows up.
+export const withoutStrayMarks = (text: string) =>
+  text
+    .replace(/^[ \t]*>[ \t]*/gm, "")
+    .replace(/^([ \t]*)\[([^[\]:\n]+?)[ \t]*:[ \t]*(?:""|“”)?[ \t]*\][ \t]*:?[ \t]*(?=["“])/gm, "$1[$2]: ")
+    .replace(/^([ \t]*)(\p{Lu}[\p{L}'’.-]*(?: \p{Lu}[\p{L}'’.-]*){0,3}):[ \t]*(?=["“])/gmu, "$1[$2]: ");
+
+/** The Narrator is told to write `[Name]:`. Anything else, including a tag still streaming, is narration. */
 export function messageBeats({ role, text }: Pick<Message, "role" | "text">): Beat[] {
   if (isContinue({ role, text })) return [{ player: true, rule: true, text: "" }];
   if (role === "player") return [{ player: true, text }];
-  return (
-    text
-      .split(/\r?\n/)
-      // A ">" a model put before a paragraph is a Markdown quote mark, not story, as in Messages saved before it was taken out.
-      .map((line) => line.trim().replace(/^>\s*/, ""))
-      .filter(Boolean)
-      .map((line) => {
-        const [, tagged, bare, words] = line.match(SPOKEN_LINE) ?? [];
-        const speaker = tagged ?? bare;
-        return speaker?.trim() ? { speaker: speaker.trim(), text: words! } : { text: line };
-      })
-  );
+  return withoutStrayMarks(text)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [, speaker, words] = line.match(SPOKEN_LINE) ?? [];
+      return speaker?.trim() ? { speaker: speaker.trim(), text: words! } : { text: line };
+    });
 }
 
 // The Stage box shows one beat at a time, so a Continue's rule has nothing to set apart there.

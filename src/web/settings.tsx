@@ -1010,6 +1010,25 @@ function InstallSettings({
           </p>
         )}
         {addressSaved && models?.length === 0 && <p className="muted">No models listed. Make sure the server is running, or type the model's name.</p>}
+        {!local && (
+          <>
+            <Picker
+              label="Thinking"
+              value={draft.textThinking}
+              choices={[
+                { value: "default", label: "The model's own" },
+                { value: "low", label: "Low" },
+                { value: "medium", label: "Medium" },
+                { value: "high", label: "High" },
+              ]}
+              onChange={(textThinking) => set({ textThinking })}
+            />
+            <p className="muted">
+              How long a model that thinks before it writes may think. Less is quicker and cheaper. A model that doesn't take it is sent nothing. On High, raise
+              Longest thinking, as some models then think past it.
+            </p>
+          </>
+        )}
         {textChoice === "openrouter" && (
           <>
             <Picker
@@ -1069,6 +1088,31 @@ function InstallSettings({
           A reply that runs past either limit is stopped and nothing is saved, so a stuck model can't run up your bill. Reasoning counts toward the tokens, and
           the minutes start once the reply begins.
         </p>
+        <label>
+          Longest thinking, in tokens
+          <input
+            type="number"
+            required
+            min={1000}
+            max={200000}
+            step={1000}
+            value={draft.textThinkingTokens}
+            onChange={(e) => set({ textThinkingTokens: e.target.valueAsNumber })}
+          />
+        </label>
+        <label>
+          Longest thinking for a picture's prompt, in tokens
+          <input
+            type="number"
+            required
+            min={1000}
+            max={200000}
+            step={1000}
+            value={draft.pictureThinkingTokens}
+            onChange={(e) => set({ pictureThinkingTokens: e.target.valueAsNumber })}
+          />
+        </label>
+        <p className="muted">A model that thinks past this is stopped and asked again, so one stuck thinking doesn't take minutes and write nothing.</p>
         <label>
           Recent Messages sent to the Narrator
           <input

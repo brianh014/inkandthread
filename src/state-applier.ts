@@ -574,17 +574,59 @@ export const Person = z.object({ name: z.string().trim().min(1), appearance: z.s
  * use the new names. Returns the state and what's left of `operations` once anything this already did is taken out.
  */
 export function introduce(state: State, people: z.infer<typeof Person>[], pcName: string, operations: StateOperation[]) {
+  // Someone shortened to a name only one person has is that person, not someone new.
+  const known = (name: string) => findPerson(state.npcs, name)?.name;
   // A list of people is never worth a Turn, so someone with no looks waits until they're named again.
   const introductions = people
-    .filter(({ name, appearance }) => !pcName.split(" ").includes(name) && name !== pcName && (findNpc(state, name) || appearance.trim()))
-    .flatMap(({ name, appearance }): StateOperation[] => [
-      ...(findNpc(state, name) ? [] : [{ op: "add_npc" as const, name, appearance }]),
-      ...(state.pcKnown.npcs.includes(name) ? [] : [{ op: "add_known_npc" as const, name }]),
-    ]);
+    .filter(({ name, appearance }) => !named(pcName, name) && (known(name) || appearance.trim()))
+    .flatMap(({ name, appearance }): StateOperation[] => {
+      const kept = known(name) ?? name;
+      return [
+        ...(known(name) ? [] : [{ op: "add_npc" as const, name, appearance }]),
+        ...(state.pcKnown.npcs.includes(kept) ? [] : [{ op: "add_known_npc" as const, name: kept }]),
+      ];
+    });
+  // Two people with one given name can't be told apart, by the player or by the matching above.
+  const taken = new Set([pcName, ...state.npcs.map(({ name }) => name)].map(givenName));
+  // A full name learned later is added and the short one merged into it, as the prompt asks.
+  const merging = new Set(operations.flatMap((operation) => (operation.op === "merge_npc" ? [operation.into] : [])));
+  // Each name once, as a reply often lists someone in people and adds them in its operations too.
+  const added = new Set(
+    [...introductions, ...operations].flatMap((operation) =>
+      operation.op === "add_npc" && !findNpc(state, operation.name) && !merging.has(operation.name) ? [operation.name] : [],
+    ),
+  );
+  const refused = [...added].flatMap((name) => {
+    const given = givenName(name);
+    if (!given) return [];
+    if (!taken.has(given)) {
+      taken.add(given);
+      return [];
+    }
+    return [{ op: "add_npc" as const, reason: "a given name someone already has" }];
+  });
   return {
     state: applyOperations(state, introductions).next,
     operations: operations.filter(
       (operation) => !introductions.some((done) => done.op === operation.op && "name" in done && "name" in operation && done.name === operation.name),
     ),
+    refused,
   };
+}
+
+// Articles and titles only: words such as "old" describe someone rather than stand before their name.
+const TITLES = new Set(
+  "the a an mr mrs ms miss mx dr doctor sir dame lady lord madam officer detective captain father mother sister brother aunt uncle".split(" "),
+);
+const PARTICLES = new Set(["van", "von", "de", "der", "den", "del", "della", "di", "da", "du", "la", "le", "bin", "ibn", "al", "el", "y", "dos", "das"]);
+
+/**
+ * The first word of a name after any title, or none for a description such as "Man in grey windbreaker", which has
+ * lowercase words that aren't part of a name.
+ */
+// shortcut: titles and name particles are short English-leaning lists, add to them if a real name is refused or a description clashes.
+export function givenName(name: string) {
+  const words = name.trim().split(/\s+/);
+  if (words.some((word, at) => at > 0 && /^\p{Ll}/u.test(word) && !PARTICLES.has(word))) return undefined;
+  return words.map((word) => word.toLowerCase().replace(/\.$/, "")).find((word) => !TITLES.has(word));
 }

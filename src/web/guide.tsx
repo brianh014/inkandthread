@@ -418,6 +418,10 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             who serves the model. See {link("models", "Choosing your AI")}.
           </li>
           <li>
+            <b>Thinking</b> (OpenRouter, NanoGPT and Google AI Studio): how long an AI that thinks before it writes may think. Lower is quicker and cheaper,
+            though some AIs ignore it. On High, raise <b>Longest thinking</b>.
+          </li>
+          <li>
             Each provider keeps its own key, model and settings, so switching back brings them back. Where a provider lists its models, choose{" "}
             <b>Type a model name…</b> at the end of the list for one it leaves out, and {tool(ChoicesIcon, "Choose from the list")} to go back.
           </li>
@@ -426,6 +430,10 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           </li>
           <li>
             <b>Longest reply, in tokens</b> and <b>in minutes</b>: limits on one reply.
+          </li>
+          <li>
+            <b>Longest thinking, in tokens</b>, for the story and for a picture's prompt: an AI that thinks past it is stopped and asked again. Google AI Studio
+            keeps its thinking to itself, so these can't stop it there.
           </li>
           <li>
             <b>Recent Messages sent to the Narrator</b>: how many of the newest Messages it reads in full. More remembers more but costs more; older ones are
@@ -563,7 +571,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>Replies are slow, or cut off</h3>
         <p>
           An AI on your own computer can take a minute a Turn. Raise <b>Longest reply, in tokens</b> if replies end early, or <b>in minutes</b> if a slow AI
-          times out.
+          times out. If a reply sometimes takes minutes and then fails, the AI may be stuck thinking: lower <b>Thinking</b> or <b>Longest thinking</b>.
         </p>
         <h3>The Narrator forgot something</h3>
         <p>

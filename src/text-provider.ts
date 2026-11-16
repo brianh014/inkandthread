@@ -247,6 +247,8 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
         if (text) {
           reply += text;
           onText(text);
+          // A body that came in one piece is all read before fetch sees an abort, so a caller's stop must end it here.
+          signal.throwIfAborted();
         }
       }
       return reply;

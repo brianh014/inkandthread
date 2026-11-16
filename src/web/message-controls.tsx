@@ -24,83 +24,78 @@ export function MessageControls(props: {
   open: { rewrite: boolean; edit: boolean; chapterEnd: boolean };
   rewriteButton: Ref<HTMLButtonElement>;
   actions: MessageActions;
-  /** Its Check, with Show Checks on. */
-  check?: MessageCheck;
 }) {
-  const { message, latest, replaceable, replayable, open, rewriteButton, actions, check } = props;
+  const { message, latest, replaceable, replayable, open, rewriteButton, actions } = props;
   // A Continue's text is only its marker, so it is named instead.
   const words = isContinue(message) ? "Continue" : message.text.slice(0, 40);
   return (
-    <>
-      {check && <CheckResult check={check} />}
-      <div className="row actions">
-        {message.role === "player" && replayable && (
-          <button
-            type="button"
-            className="icon"
-            title="Edit and replay from here"
-            aria-label={`Edit and replay from your words: ${words}`}
-            onClick={() => actions.replay(message)}
-          >
-            {EditIcon}
-          </button>
-        )}
-        {!latest && (
-          <button
-            type="button"
-            className="icon revert"
-            title="Revert to here"
-            aria-label={`Revert to this Message: ${words}`}
-            onClick={() => actions.revert(message)}
-          >
-            {RevertIcon}
-          </button>
-        )}
+    <div className="row actions">
+      {message.role === "player" && replayable && (
+        <button
+          type="button"
+          className="icon"
+          title="Edit and replay from here"
+          aria-label={`Edit and replay from your words: ${words}`}
+          onClick={() => actions.replay(message)}
+        >
+          {EditIcon}
+        </button>
+      )}
+      {!latest && (
         <button
           type="button"
           className="icon revert"
-          title="Duplicate from here"
-          aria-label={`Duplicate from this Message: ${words}`}
-          aria-haspopup="dialog"
-          onClick={() => actions.duplicate(message)}
+          title="Revert to here"
+          aria-label={`Revert to this Message: ${words}`}
+          onClick={() => actions.revert(message)}
         >
-          {DuplicateIcon}
+          {RevertIcon}
         </button>
-        {latest && (
+      )}
+      <button
+        type="button"
+        className="icon revert"
+        title="Duplicate from here"
+        aria-label={`Duplicate from this Message: ${words}`}
+        aria-haspopup="dialog"
+        onClick={() => actions.duplicate(message)}
+      >
+        {DuplicateIcon}
+      </button>
+      {latest && (
+        <button
+          type="button"
+          className="icon"
+          title="End the chapter here"
+          aria-label="End the chapter here"
+          aria-expanded={open.chapterEnd}
+          onClick={actions.toggleChapterEnd}
+        >
+          {ChapterIcon}
+        </button>
+      )}
+      {replaceable && (
+        <>
           <button
             type="button"
+            ref={rewriteButton}
             className="icon"
-            title="End the chapter here"
-            aria-label="End the chapter here"
-            aria-expanded={open.chapterEnd}
-            onClick={actions.toggleChapterEnd}
+            title="Rewrite"
+            aria-label="Rewrite"
+            aria-expanded={open.rewrite}
+            onClick={() => actions.rewrite(message)}
           >
-            {ChapterIcon}
+            {RewriteIcon}
           </button>
-        )}
-        {replaceable && (
-          <>
-            <button
-              type="button"
-              ref={rewriteButton}
-              className="icon"
-              title="Rewrite"
-              aria-label="Rewrite"
-              aria-expanded={open.rewrite}
-              onClick={() => actions.rewrite(message)}
-            >
-              {RewriteIcon}
-            </button>
-            <button type="button" className="icon" title="Edit" aria-label="Edit" aria-expanded={open.edit} onClick={() => actions.edit(message)}>
-              {EditIcon}
-            </button>
-            <button type="button" className="icon" title="Regenerate" aria-label="Regenerate" aria-haspopup="dialog" onClick={actions.regenerate}>
-              {RegenerateIcon}
-            </button>
-          </>
-        )}
-      </div>
-    </>
+          <button type="button" className="icon" title="Edit" aria-label="Edit" aria-expanded={open.edit} onClick={() => actions.edit(message)}>
+            {EditIcon}
+          </button>
+          <button type="button" className="icon" title="Regenerate" aria-label="Regenerate" aria-haspopup="dialog" onClick={actions.regenerate}>
+            {RegenerateIcon}
+          </button>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -112,8 +107,8 @@ const RESULTS: Record<string, string> = {
   bad: "failed badly",
 };
 
-/** The Check on a Message, in words beside a die, on its own line under the reply. */
-function CheckResult({ check }: { check: MessageCheck }) {
+/** The Check on a Message, in words beside a die, on its own line under the reply. Shown while a Turn runs too, so the story holds still. */
+export function CheckResult({ check }: { check: MessageCheck }) {
   return (
     <p className="check-result">
       {DieIcon}

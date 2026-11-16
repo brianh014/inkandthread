@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { type Check, CheckRequest, type Dice, RATED, resolveCheck } from "./check-resolver";
+import { type Check, CheckRequest, type Dice, resolveCheck } from "./check-resolver";
 import { type ImagePipeline, movedScene, portraitsDue, restyledBy, type Scene } from "./image-pipeline";
 import { promptStyle } from "./graph-builder";
 import { withArtStyleFor } from "./web/art-styles";
@@ -48,7 +48,15 @@ export class TextProviderFailed extends Error {}
 export class ReplyCutOff extends TextProviderFailed {}
 class InvalidResponse extends Error {}
 
+/** An abort reason for a reply stopped on purpose, as it has given all that's needed: logged by its words, and never a failure. */
+export class StoppedOnPurpose {
+  constructor(readonly why: string) {}
+}
+
 const RAN_ON = "ran on far too long";
+const RATED = "rated for a Check, so the rest isn't needed";
+const DECLINED_MESSAGE =
+  "The AI wouldn't write how this turned out, which usually means its content rules block it. Nothing was saved: try another move, or another AI.";
 // Twice the longest real reply in players' logs, so only a model stuck in a loop reaches it, long before the token limit. An
 // opening introduces the world's people and places, so it gets twice as much. Thinking a local model streams isn't counted.
 // shortcut: one fixed size for every model, measured on one player's DeepSeek logs; make it a Setting if real replies reach it.
@@ -172,14 +180,17 @@ export function usableChoices(choices: unknown) {
   return distinct.length >= 3 ? distinct.slice(0, 3) : undefined;
 }
 const NO_CHOICES = "no usable choices";
-// A model that won't write a Check's result can't refuse in words when the provider holds it to the schema, so it cuts the
-// story short instead: replies came back as a lone comma and a single name.
-const CUT_SHORT = "a story cut short";
-const ENDS_SENTENCE = /[.!?…—-]["'”’)*_]*$/u;
+// A model that won't write a Check's result can't refuse in words when the provider holds it to the schema, so it sends
+// something that isn't a story: replies came back as a lone comma, a single name and the rating written out.
+const DECLINED = "a story the AI declined to write";
+const RATING_TALK = /\b(?:difficulty|stakes?|outcome|degree)\s*:/i;
+const declined = (narration: string) => (narration.match(/\p{L}+/gu)?.length ?? 0) < 2 || RATING_TALK.test(narration);
 
+// The check a reply opens with: null, or the rating's flat object of strings. One pattern, so streaming and the early stop agree.
 // shortcut: a reply in another key order or after prose shows no narration until the Turn is done, loosen this only if real models do that often.
-const NARRATION_START =
-  /^\s*(?:```(?:json)?\s*)?\{\s*"check"\s*:\s*(?:null|\{(?:\s*"[a-z_]+"\s*:\s*"(?:[^"\\]|\\.)*"\s*,)*\s*"difficulty"\s*:\s*"None"\s*\})\s*,\s*"narration"\s*:\s*"/;
+const OPENING_CHECK = String.raw`^\s*(?:\x60\x60\x60(?:json)?\s*)?\{\s*"check"\s*:\s*(null|\{(?:\s*"[a-z_]+"\s*:\s*"(?:[^"\\]|\\.)*"\s*,?)*\s*\})`;
+const CHECK_START = new RegExp(OPENING_CHECK);
+const NARRATION_START = new RegExp(String.raw`${OPENING_CHECK}\s*,\s*"narration"\s*:\s*"`);
 // biome-ignore lint/suspicious/noControlCharactersInRegex: JSON strings may not hold raw control characters, so this matches what they can.
 const COMPLETE_JSON_CHARACTERS = /^(?:[^"\\\x00-\x1f]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*/;
 
@@ -187,24 +198,23 @@ const COMPLETE_JSON_CHARACTERS = /^(?:[^"\\\x00-\x1f]|\\["\\/bfnrt]|\\u[0-9a-fA-
 // opening tag, and a reply can be cut off before the closing one.
 const withoutThinking = (reply: string) => reply.replace(/^[\s\S]*<\/think>/, "").replace(/<think>[\s\S]*$/, "");
 
-const RATED_CHECK = /^\s*(?:```(?:json)?\s*)?\{\s*"check"\s*:\s*(\{(?:\s*"[a-z_]+"\s*:\s*"(?:[^"\\]|\\.)*"\s*,?)*\s*\})/;
-
-/** A Check request complete in a partial reply, rated above None, so the reply can stop there and the roll go ahead. */
-function ratedCheck(partial: string) {
-  const found = withoutThinking(partial).match(RATED_CHECK)?.[1];
+/** The check a visible reply opens with, once it's complete: null, or the rating as sent. Undefined until then. */
+function openingCheck(reply: string): unknown {
+  const found = reply.match(CHECK_START)?.[1];
   if (!found) return undefined;
   try {
-    return CheckRequest.safeParse(JSON.parse(found)).data;
+    return JSON.parse(found);
   } catch {
     return undefined;
   }
 }
 
-/** The narration in a partial reply, empty until the reply has shown it is not a Check request. */
-function narrationSoFar(partial: string) {
-  const reply = withoutThinking(partial);
+const isNone = (opened: unknown) => opened === null || (opened as { difficulty?: unknown }).difficulty === NONE;
+
+/** The narration in a visible reply, empty until the reply has shown it is not a Check request. */
+function narrationSoFar(reply: string) {
   const start = reply.match(NARRATION_START);
-  if (!start) return "";
+  if (!start || !isNone(JSON.parse(start[1]!))) return "";
   return JSON.parse(`"${reply.slice(start[0].length).match(COMPLETE_JSON_CHARACTERS)![0]}"`) as string;
 }
 
@@ -471,15 +481,20 @@ async function narrate(
     // A model asked to hold its narration for the roll mostly writes it anyway, which is thrown away, so the reply stops at the rating.
     const early = new AbortController();
     let rated: z.infer<typeof CheckRequest> | undefined;
+    // Once the reply's check is complete, it's never looked at again.
+    let checkSeen = !!check || !rollCheck;
     const onText = (text: string) => {
       partial += text;
-      if (withoutThinking(partial).length > RUNAWAY_CHARS * (kind === "opening" ? 2 : 1)) runaway.abort(RAN_ON);
-      if (!check && rollCheck && !rated) {
-        rated = ratedCheck(partial);
-        if (rated) early.abort(RATED);
+      const visible = withoutThinking(partial);
+      if (visible.length > RUNAWAY_CHARS * (kind === "opening" ? 2 : 1)) runaway.abort(RAN_ON);
+      if (!checkSeen) {
+        const opened = openingCheck(visible);
+        checkSeen = opened !== undefined;
+        rated = opened === undefined || isNone(opened) ? undefined : CheckRequest.safeParse(opened).data;
+        if (rated) early.abort(new StoppedOnPurpose(RATED));
       }
       if (edited !== undefined) return;
-      const narration = narrationSoFar(partial);
+      const narration = narrationSoFar(visible);
       if (narration.length <= narrationSent) return;
       emit("narration", { text: narration.slice(narrationSent) });
       narrationSent = narration.length;
@@ -512,8 +527,8 @@ async function narrate(
       const narration = edited ?? (response.narration as string);
       // The last attempt keeps such a reply, as losing the Turn costs more than a long speech.
       // A picture without set_scene would be drawn from the last scene's place and people, which may have moved on, so it's dropped.
-      // Never kept, even on the last attempt, as a scrap of a story is no Turn.
-      if (check && edited === undefined && !ENDS_SENTENCE.test(narration.trim())) throw new InvalidResponse(undefined, { cause: CUT_SHORT });
+      // Never kept, even on the last attempt, as what isn't a story is no Turn.
+      if (check && edited === undefined && declined(narration)) throw new InvalidResponse(undefined, { cause: DECLINED });
       const unplaced = scene_changed && !state_operations.some(({ op }) => op === "set_scene") ? "a picture without set_scene" : undefined;
       const spoken = edited === undefined ? spokenLineFault(narration) : undefined;
       const choices = playMode === "choices" ? usableChoices(response.choices) : undefined;
@@ -629,7 +644,7 @@ function playerReason({ cause }: InvalidResponse) {
   if (cause === "a speaker tag without its [") return "A spoken line in the last reply was missing its speaker";
   if (cause === "a picture without set_scene") return "The last reply moved to a new scene without saying where";
   if (cause === NO_CHOICES) return "The last reply offered no choices";
-  if (cause === CUT_SHORT) return "The last reply stopped short, which can mean the AI won't write this";
+  if (cause === DECLINED) return "The last reply wasn't a story, which can mean the AI's content rules block this";
   if (cause === RAN_ON) return "The last reply ran on far too long";
   if (Array.isArray(cause)) return "The last reply changed the story in a way that doesn't fit what's already true";
   if (cause === undefined) return "The last reply asked for a second dice roll";
@@ -642,11 +657,9 @@ function retryIfInvalid(cause: unknown, attempt: number, input: string, generati
   const reason = whyInvalid(cause);
   log.warning("turn", "Unusable Narrator reply", { attempt, of: MAX_ATTEMPTS, reason, generation });
   if (attempt === MAX_ATTEMPTS) {
-    const message =
-      reason === CUT_SHORT
-        ? "The AI kept stopping short, which usually means it won't write this. Try another move, or another AI."
-        : "The Narrator gave no usable response";
-    throw new TurnFailed(message, "retryable", input, { cause: new Error(reason) });
+    // Told plainly as a block, with the move kept to change, as a provider's own refusal is.
+    if (reason === DECLINED) throw new TurnFailed(DECLINED_MESSAGE, "refused", input, { cause: new Error(reason) });
+    throw new TurnFailed("The Narrator gave no usable response", "retryable", input, { cause: new Error(reason) });
   }
   return playerReason(cause);
 }

@@ -44,7 +44,7 @@ import { CONTINUE } from "../prompt-assembler";
 import { AskIcon, StopIcon, ChoicesIcon, ContinueIcon, DecideIcon, DownIcon, DrawIcon, UpIcon, Painting, Quilling, RewriteIcon, SendIcon } from "./icons";
 import { TellTheNarrator } from "./journal";
 import { ChoiceButtons, useNarrow } from "./play-choices";
-import { type MessageActions, MessageControls } from "./message-controls";
+import { CheckResult, type MessageActions, MessageControls } from "./message-controls";
 import { Book, BookTabs, ConfirmDialog, Fold, leftFolded, MoreBelow, rememberLeftFolded } from "./menu";
 import { ChapterEnd, FeedbackForm, PictureForm, QuestionForm, sendOnEnter } from "./play-asks";
 import { InlineImages, RequestedRows, SceneImage, useStoryPictures } from "./story-pictures";
@@ -238,13 +238,17 @@ export function Play({ id }: { id: string }) {
   const drawing = useRef(false);
 
   const newest = messages.at(-1)?.id;
-  // Asked again as the newest Message changes, as a Turn may have rolled one.
+  // Asked again as the newest Message changes, as a Turn may have rolled one. Only the latest answer counts.
   useEffect(() => {
-    if (!showChecks || newest === undefined) return;
+    if (!showChecks || newest === undefined) return setChecks(new Map());
+    let stale = false;
     getChecks(id).then(
-      (list) => setChecks(new Map(list.map((check) => [check.messageId, check]))),
+      (list) => stale || setChecks(new Map(list.map((check) => [check.messageId, check]))),
       () => {},
     );
+    return () => {
+      stale = true;
+    };
   }, [id, showChecks, newest]);
 
   useEffect(() => {
@@ -578,21 +582,27 @@ export function Play({ id }: { id: string }) {
     regenerate: () => setRegenerating(true),
   };
   // An empty row while a Turn runs keeps the tools' room, so the story doesn't shift when they come back.
-  const controls = (message: Message) =>
-    turn ? (
-      <div className="row actions" />
-    ) : (
-      <MessageControls
-        message={message}
-        latest={message === latest}
-        replaceable={message === replaceable}
-        replayable={!!before(message)}
-        open={{ rewrite: rewriting === message.id, edit: rewriting === message.id && editing, chapterEnd: endingChapter }}
-        rewriteButton={rewriteButton}
-        actions={actions}
-        check={checks.get(message.id)}
-      />
+  const controls = (message: Message) => {
+    const check = checks.get(message.id);
+    return (
+      <>
+        {check && <CheckResult check={check} />}
+        {turn ? (
+          <div className="row actions" />
+        ) : (
+          <MessageControls
+            message={message}
+            latest={message === latest}
+            replaceable={message === replaceable}
+            replayable={!!before(message)}
+            open={{ rewrite: rewriting === message.id, edit: rewriting === message.id && editing, chapterEnd: endingChapter }}
+            rewriteButton={rewriteButton}
+            actions={actions}
+          />
+        )}
+      </>
     );
+  };
 
   return (
     <Book

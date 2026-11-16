@@ -557,7 +557,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>A Turn failed</h3>
         <p>
           The error says why, and your move stays in the box to send again. Check your key and credit with the provider, and press Test text in Settings. An AI
-          that refuses some content says so: Rewrite or change your move, or choose a different AI.
+          that refuses some content says so: Rewrite or change your move, or choose a different AI. Some AIs won't write how a roll turned out, and send back
+          something that isn't a story; after three tries NovelForge tells you its content rules blocked it and saves nothing.
         </p>
         <h3>Replies are slow, or cut off</h3>
         <p>

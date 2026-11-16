@@ -1,8 +1,5 @@
 import { z } from "zod";
 
-/** Why a reply is stopped once it has rated a Check: on purpose, as the rest isn't needed, so not a failure. */
-export const RATED = "rated for a Check, so the rest isn't needed";
-
 /** Returns a d20 result, from 1 to 20. */
 export type Dice = () => number;
 

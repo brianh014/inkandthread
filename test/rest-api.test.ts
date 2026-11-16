@@ -745,6 +745,21 @@ test("a Message's Check reaches the page only with Show Checks on", async () => 
   ]);
 });
 
+test("a stored Check that won't read is left out, and the rest still reach the page", async () => {
+  const { app } = playWithDice([19, 4], requestCheck("Very Hard"), narration("She goes along."), requestCheck("Easy"), narration("You land."));
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I ask her." });
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+  await app.patch("/settings", { showChecks: true });
+  {
+    using db = new Database(join(savesDir, `${id}.sqlite`));
+    db.run(`UPDATE messages SET hidden_check = '{"action":""}' WHERE id = 2`);
+  }
+
+  const { checks } = (await (await app.get(`/saves/${id}/checks`)).json()) as { checks: { messageId: number; difficulty: string }[] };
+  expect(checks.map(({ messageId, difficulty }) => [messageId, difficulty])).toEqual([[4, "Easy"]]);
+});
+
 test("once the Check is rolled, the schema sent for the result allows no second Check request", async () => {
   const { app, schemas } = playWithDice([12], requestCheck("Moderate"), narration("You land."));
   const id = await app.createSave();
@@ -1194,8 +1209,8 @@ test("world_rules come after the story so far, with the instruction to fail viol
   const rules = prompts[0]!.at(-2)!;
   expect(rules.role).toBe("system");
   expect(rules.content).toContain("no-magic-rule");
-  expect(rules.content).toContain("do not request a check");
-  expect(rules.content).toContain("Describe the failure in character");
+  expect(rules.content).toContain("rate it None, as no roll can make it work");
+  expect(rules.content).toContain("describe the failure in character");
   const prompt = contents(prompts[0]).join("\n");
   expect(prompt.match(/no-magic-rule/g)).toHaveLength(1);
   expect(prompt.indexOf("Rain falls.")).toBeLessThan(prompt.indexOf("no-magic-rule"));
@@ -2182,17 +2197,19 @@ test("a reply stops as soon as it rates a Check, and the roll and result call go
   expect(messages.at(-1)!.text).toBe("You land, just.");
 });
 
-test("a Check's result cut short is retried, and if it keeps stopping short the player is told the AI may not write it", async () => {
+test("a Check's result that isn't a story is retried, and if it never is the player is told the AI's rules blocked it", async () => {
   const { app, prompts } = playWithDice([12], requestCheck("Hard"), narration("Nadia"), narration("You land, shaken."));
   const id = await app.createSave();
   await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
   expect(prompts).toHaveLength(3);
 
-  const again = playWithDice([12], requestCheck("Hard"), narration("Nadia"), narration("Nadia"), narration("Nadia"));
+  const rating = narration("The leap across the gap. What's at stake: a long fall. Difficulty: Hard.");
+  const again = playWithDice([12], requestCheck("Hard"), narration("Nadia"), rating, narration("Nadia"));
   const other = await again.app.createSave();
   const response = await again.app.post(`/saves/${other}/turns`, { input: "I leap the gap." });
-  expect(response.status).toBe(502);
-  expect(JSON.stringify(await response.json())).toContain("usually means it won't write this");
+  expect(response.status).toBe(422);
+  expect(await response.json()).toMatchObject({ failure: "refused", input: "I leap the gap." });
+  expect(await messageTexts(again.app, other)).toEqual([]);
 });
 
 test("a reply whose narration has no words is retried", async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { settingsStore } from "../src/settings-store";
-import { RATED } from "../src/check-resolver";
+import { StoppedOnPurpose } from "../src/turn-engine";
 import { countedImages, countedText, usageStore } from "../src/usage-store";
 import { CONTINUE } from "../src/prompt-assembler";
 import { niceCeiling, QUIET_TURNS, quietNotes, recentPeriods, stacks } from "../src/web/usage";
@@ -33,7 +33,7 @@ describe("Usage", () => {
     expect(usage.summary("month").images).toEqual([{ period: "2026-12", provider: "wiro", model: "x", requests: 1, failed: 0, cost: null, priced: 0 }]);
   });
 
-  test("counts a text call that throws as failed, but not one the player stopped or one stopped once a Check is rated", async () => {
+  test("counts a text call that throws as failed, but not one the player stopped or one stopped on purpose", async () => {
     const folder = tempFolder().path;
     const settings = settingsStore(join(folder, "settings.json"));
     settings.update({ textBaseUrl: "https://openrouter.ai/api/v1", textModel: "m" });
@@ -56,7 +56,7 @@ describe("Usage", () => {
     await counted([], { onText: () => {}, signal: runaway.signal }).catch(() => {});
     // Stopped on purpose once a Check is rated, so counted but not failed.
     const rated = new AbortController();
-    rated.abort(RATED);
+    rated.abort(new StoppedOnPurpose("rated for a Check"));
     await counted([], { onText: () => {}, signal: rated.signal }).catch(() => {});
 
     const [row] = usage.summary("day").text;

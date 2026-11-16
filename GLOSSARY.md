@@ -51,7 +51,7 @@ A titled run of consecutive Messages, read as one piece in the Journal. One Chap
 _Avoid_: Act, part, Scene (that is a place and situation, and a Chapter may hold many)
 
 **Scene Image**:
-A generated image showing the current moment of a Scene.
+A generated image showing the current moment of a Scene, drawn when the Scene changes, or also when enough happens within it if the player asks for more.
 
 **Requested Image**:
 An extra picture drawn on the spot from the player's own words and the recent story, which joins the latest Message beside any Scene Image. It is not a Turn, so the Narrator never hears about it.

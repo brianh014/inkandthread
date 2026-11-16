@@ -198,6 +198,17 @@ const declined = (narration: string) => (narration.match(/\p{L}+/gu)?.length ?? 
 // Words, not just punctuation, as a reply once came back as a lone comma.
 const NO_WORDS = "a story with no words";
 const hasWords = (narration: string) => /\p{L}{2}/u.test(narration);
+// A model once put its Check request in narration, which was saved as the story.
+const JSON_NARRATION = "JSON for narration";
+const isJsonObject = (narration: string) => {
+  const text = narration.trim();
+  if (!text.startsWith("{")) return false;
+  try {
+    return typeof JSON.parse(text) === "object";
+  } catch {
+    return false;
+  }
+};
 
 // The check a reply opens with: null, or the rating's flat object of strings. One pattern, so streaming and the early stop agree.
 // shortcut: a reply in another key order or after prose shows no narration until the Turn is done, loosen this only if real models do that often.
@@ -548,6 +559,7 @@ async function narrate(
       // Never kept, even on the last attempt, as what isn't a story is no Turn.
       if (edited === undefined && check && declined(narration)) throw new InvalidResponse(undefined, { cause: DECLINED });
       if (edited === undefined && !hasWords(narration)) throw new InvalidResponse(undefined, { cause: NO_WORDS });
+      if (edited === undefined && isJsonObject(narration)) throw new InvalidResponse(undefined, { cause: JSON_NARRATION });
       const unplaced = scene_changed && !state_operations.some(({ op }) => op === "set_scene") ? "a picture without set_scene" : undefined;
       const spoken = edited === undefined ? spokenLineFault(narration) : undefined;
       const choices = playMode === "choices" ? usableChoices(response.choices) : undefined;

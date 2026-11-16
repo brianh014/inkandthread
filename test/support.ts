@@ -164,6 +164,7 @@ type FakeReply = Response | string[] | (() => AsyncIterable<string>);
  */
 const OPENROUTER_PATH = "/openrouter.ai/api/v1";
 const GOOGLE_PATH = "/generativelanguage.googleapis.com/v1beta";
+const NANOGPT_PATH = "/api.nano-gpt.com/api/v1";
 
 export function fakeOpenAi(replies: FakeReply[], initialModels: unknown = { data: [] }) {
   let models = initialModels;
@@ -178,7 +179,7 @@ export function fakeOpenAi(replies: FakeReply[], initialModels: unknown = { data
         `${GOOGLE_PATH}/models/:model`,
         (req: Bun.BunRequest<`${typeof GOOGLE_PATH}/models/:model`>) => Response.json({ thinking: req.params.model.includes("thinking") }),
       ],
-      ...["/v1", OPENROUTER_PATH, `${GOOGLE_PATH}/openai`].flatMap((base) => [
+      ...["/v1", OPENROUTER_PATH, NANOGPT_PATH, `${GOOGLE_PATH}/openai`].flatMap((base) => [
         [`${base}/models`, () => (models ? Response.json(models) : new Response("Not found", { status: 404 }))],
         [
           `${base}/chat/completions`,
@@ -203,6 +204,7 @@ export function fakeOpenAi(replies: FakeReply[], initialModels: unknown = { data
     baseUrl: new URL("/v1", server.url).href,
     openRouterUrl: new URL(OPENROUTER_PATH, server.url).href,
     googleUrl: new URL(`${GOOGLE_PATH}/openai`, server.url).href,
+    nanoGptUrl: new URL(NANOGPT_PATH, server.url).href,
     setModels: (next: unknown) => {
       models = next;
     },

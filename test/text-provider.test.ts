@@ -526,7 +526,7 @@ test("OpenRouter is sent the Thinking level only once the player picks one, and 
   expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([undefined, { effort: "low" }]);
 });
 
-test("off OpenRouter, the Thinking level goes only to a model whose detailed listing says it thinks, as NanoGPT's does", async () => {
+test("NanoGPT is sent the Thinking level only for a model its detailed listing says thinks", async () => {
   const listing = {
     data: [
       { id: "fake/model", capabilities: { reasoning: true } },
@@ -534,7 +534,12 @@ test("off OpenRouter, the Thinking level goes only to a model whose detailed lis
     ],
   };
   play([narrated("Rain."), narrated("Sleet.")], listing);
-  settingsStore(join(folder.path, "settings.json")).update({ textThinking: "high" });
+  settingsStore(join(folder.path, "settings.json")).update({
+    textBaseUrl: provider.nanoGptUrl,
+    textApiKey: "test-key",
+    textModel: "fake/model",
+    textThinking: "high",
+  });
   const id = await app.createSave();
   await app.post(`/saves/${id}/turns`, { input: "I wait." });
   settingsStore(join(folder.path, "settings.json")).update({ textModel: "plain/model" });
@@ -558,8 +563,41 @@ test("Google is sent the Thinking level as reasoning_effort, only for a model it
   ]);
 });
 
-test("a local server with no detailed listing is never sent reasoning", async () => {
-  play([narrated("Rain.")], { data: [{ id: "fake/model" }] });
+test("a Thinking level a host refuses is dropped for that model, and the schema is kept", async () => {
+  const thinking = { data: [{ id: "fake/model", supported_parameters: ["structured_outputs", "reasoning"] }] };
+  const noHost = new Response(JSON.stringify({ error: { message: "No endpoints found" } }), { status: 404 });
+  play([noHost, narrated("Rain."), narrated("Sleet.")], thinking, scriptedDice(), true);
+  settingsStore(join(folder.path, "settings.json")).update({ textThinking: "low" });
+  const id = await app.createSave();
+
+  const log = await logOf(async () => {
+    await app.post(`/saves/${id}/turns`, { input: "I wait." });
+    await app.post(`/saves/${id}/turns`, { input: "I wait." });
+  });
+
+  expect(provider.requests.map(({ body }) => [!!body.reasoning, !!body.response_format])).toEqual([
+    [true, true],
+    [false, true],
+    [false, true],
+  ]);
+  expect(log).toContain("Thinking level refused");
+  expect(log).toContain('"thinkingSent":false');
+});
+
+test("the Settings test is sent the Thinking level too, though it has no schema", async () => {
+  const thinking = { data: [{ id: "fake/model", supported_parameters: ["reasoning"] }] };
+  play([[delta("Hello."), "data: [DONE]\n\n"]], thinking, scriptedDice(), true);
+  settingsStore(join(folder.path, "settings.json")).update({ textThinking: "medium" });
+  await textProvider(settingsStore(join(folder.path, "settings.json")))([{ role: "user", content: "Hi" }], {
+    onText: () => {},
+    signal: new AbortController().signal,
+  });
+
+  expect(provider.requests[0]!.body.reasoning).toEqual({ effort: "medium" });
+});
+
+test("a local server is never sent reasoning, even with a level kept from another provider", async () => {
+  play([narrated("Rain.")], { data: [{ id: "fake/model", capabilities: { reasoning: true } }] });
   settingsStore(join(folder.path, "settings.json")).update({ textThinking: "high" });
   const id = await app.createSave();
   await app.post(`/saves/${id}/turns`, { input: "I wait." });
@@ -607,6 +645,17 @@ test('a speaker tag written as [Name: ""] is saved as [Name]:, and shows as one'
   expect((await storedMessages(id)).at(-1)!.text).toBe('She sits.\n\n[Lena]: "I want to see it."\n\n[Mara]: "Fine."');
   expect(messageBeats({ role: "narrator", text: '[Lena: ""] "Here."' })).toEqual([{ speaker: "Lena", text: '"Here."' }]);
   expect(messageBeats({ role: "narrator", text: "[Note:] The door is shut." })).toEqual([{ text: "[Note:] The door is shut." }]);
+});
+
+test("a reply whose narration is a JSON object, such as its Check request, is written again", async () => {
+  const request = JSON.stringify({ action: "Ask him what he knows", stakes: "He could walk away", difficulty: "Moderate" });
+  play([narrated(request), narrated("He shrugs.")]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I ask." })).status).toBe(201);
+
+  expect(provider.requests).toHaveLength(2);
+  expect((await storedMessages(id)).at(-1)!.text).toBe("He shrugs.");
 });
 
 test("a reply that marks its paragraphs as Markdown quotes is saved without the marks, and shows without them", async () => {

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { errorFields, log } from "./logger";
 import type { SettingsStore } from "./settings-store";
 import { ContentRefused, ReplyCutOff, StoppedOnPurpose, type TextProvider, TextProviderFailed, type TextUsage, ThoughtTooLong } from "./turn-engine";
+import { GOOGLE_URL, NANOGPT_URL } from "./web/api";
 
 // The player sees these with a retry hint after them, so none ends in a full stop.
 const UNREACHABLE = "The Text Provider can't be reached, so make sure it's running and that its address in Settings is right";
@@ -76,7 +77,10 @@ const CapabilityList = z.object({
 });
 
 const GoogleModel = z.object({ thinking: z.boolean().catch(false) });
-const isGoogle = (url: string) => url.includes("generativelanguage.googleapis.com");
+// By host, as each provider's own address names it, so a fake server can stand in by its path.
+const onHost = (provider: string) => (url: string) => url.includes(new URL(provider).host);
+const isGoogle = onHost(GOOGLE_URL);
+const isNanoGpt = onHost(NANOGPT_URL);
 
 /** The answer at `url`, or undefined without a usable one. */
 async function list<T>(url: string, shape: z.ZodType<T>, headers: Record<string, string>, signal: AbortSignal, listMs: number) {
@@ -123,10 +127,9 @@ const routing = ({ textRouting, textHost, textHostFallback }: Routing) =>
 /** The one Text Provider: any OpenAI-compatible server, using the Settings at the time of each call. */
 export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LIMITS): TextProvider {
   const schemaSupport = new Map<string, boolean>();
-  // Models whose listing says they take `reasoning`. Sent to any other on OpenRouter, it would leave a schema call, which requires every parameter, no host.
-  const thinks = new Set<string>();
-  // Other servers' models already looked up in a detailed listing, such as NanoGPT's.
-  const capabilitiesListed = new Set<string>();
+  // Whether a model takes `reasoning`, by its provider's listing, or false after it refused one. Sent to a model that doesn't, on
+  // OpenRouter it would leave a schema call, which requires every parameter, no host.
+  const thinks = new Map<string, boolean>();
   // Servers that refused `stream_options`, so they aren't asked again until the app restarts.
   const usageRefused = new Set<string>();
 
@@ -141,15 +144,24 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
     const params = models.find(({ id }) => id === model)?.supported_parameters ?? [];
     const supported = params.includes("structured_outputs");
     schemaSupport.set(`${url} ${model}`, supported);
-    if (params.includes("reasoning")) thinks.add(`${url} ${model}`);
+    if (!thinks.has(`${url} ${model}`)) thinks.set(`${url} ${model}`, params.includes("reasoning"));
     return supported;
   }
 
-  /** Off OpenRouter, a model thinks if a detailed listing says so. A server without one, such as a local one, is never sent `reasoning`. */
-  async function listCapabilities(url: string, model: string, apiKey: string, headers: Record<string, string>, signal: AbortSignal) {
+  /**
+   * Whether a model's provider says it thinks, from OpenRouter's, NanoGPT's or Google's listing. Any other server, such as a
+   * local one, is never sent a Thinking level, as the setting isn't shown for it. Asked once, as a failed lookup would
+   * otherwise delay every call: without an answer, no level is sent until the app restarts.
+   */
+  async function takesReasoning(url: string, model: string, apiKey: string, headers: Record<string, string>, signal: AbortSignal) {
     const key = `${url} ${model}`;
-    if (capabilitiesListed.has(key)) return;
-    if (isGoogle(url)) {
+    const known = thinks.get(key);
+    if (known !== undefined) return known;
+    let takes: boolean | undefined;
+    if (url.includes("openrouter.ai")) {
+      await supportsSchema(url, model, headers, signal);
+      takes = thinks.get(key);
+    } else if (isGoogle(url)) {
       // Google's OpenAI-compatible list says nothing of thinking, but its own API does, and takes the key in its own header.
       const found = await list(
         `${url.replace(/\/openai$/, "")}/models/${encodeURIComponent(model)}`,
@@ -158,16 +170,14 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
         signal,
         listMs,
       );
-      if (!found) return;
-      capabilitiesListed.add(key);
-      if (found.thinking) thinks.add(key);
-      return;
-    }
-    const models = (await list(`${url}/models?detailed=true`, CapabilityList, headers, signal, listMs))?.data;
-    // Without an answer, ask again on the next call.
-    if (!models) return;
-    capabilitiesListed.add(key);
-    if (models.find(({ id }) => id === model)?.capabilities.reasoning) thinks.add(key);
+      takes = found?.thinking;
+    } else if (isNanoGpt(url)) {
+      const models = (await list(`${url}/models?detailed=true`, CapabilityList, headers, signal, listMs))?.data;
+      takes = models && !!models.find(({ id }) => id === model)?.capabilities.reasoning;
+    } else return false;
+    if (takes === undefined) log.warning("text", "Thinking level not sent", { model, reason: "the provider's model list didn't answer" });
+    thinks.set(key, takes ?? false);
+    return takes ?? false;
   }
 
   return async (prompt, { schema, picture, onText, onGeneration, onUsage, signal }) => {
@@ -210,6 +220,7 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
       timer = setTimeout(() => silence.abort(), silenceMs);
     };
 
+    let withThinking = false;
     const send = async (useSchema: boolean, askUsage: boolean) => {
       heardFrom();
       log.verbose("text", "Prompt sent", () => ({ model: textModel, messages: prompt.length, chars: sent.length, schema: useSchema }));
@@ -227,9 +238,7 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
           ...(askUsage && { stream_options: { include_usage: true } }),
           max_tokens: textMaxTokens,
           // Changes nothing in the prompt, so the provider's cache still holds. Google takes only OpenAI's own field.
-          ...(textThinking !== "default" &&
-            thinks.has(`${url} ${textModel}`) &&
-            (isGoogle(url) ? { reasoning_effort: textThinking } : { reasoning: { effort: textThinking } })),
+          ...(withThinking && (isGoogle(url) ? { reasoning_effort: textThinking } : { reasoning: { effort: textThinking } })),
           ...(useSchema && { response_format: { type: "json_schema", json_schema: { name: "narrator_response", strict: true, schema } } }),
           // OpenRouter only: a strict server such as OpenAI refuses a field it does not know.
           ...(openRouter && { provider: { ...(useSchema && { require_parameters: true }), ...routing(chosen) } }),
@@ -241,10 +250,22 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
 
     try {
       const useSchema = schema !== undefined && (await supportsSchema(url, textModel, headers, signal));
-      if (!openRouter && textThinking !== "default") await listCapabilities(url, textModel, textApiKey, headers, signal);
+      withThinking = textThinking !== "default" && (await takesReasoning(url, textModel, textApiKey, headers, signal));
       seen.schema = useSchema;
       const askUsage = !openRouter && !usageRefused.has(url);
       let response = await send(useSchema, askUsage);
+      // Tried first, as a host or model that won't take the level would otherwise be read below as refusing the schema, which then goes for good.
+      if (withThinking && (response.status === 400 || response.status === 404)) {
+        await response.body?.cancel();
+        withThinking = false;
+        const status = response.status;
+        response = await send(useSchema, askUsage);
+        if (response.ok) {
+          log.warning("text", "Thinking level refused", { model: textModel, thinking: textThinking, status });
+          thinks.set(`${url} ${textModel}`, false);
+        }
+      }
+      seen.thinkingSent = withThinking;
       // A tally must never fail a Turn, so a server that won't take the ask for usage is sent the prompt without it.
       if (askUsage && (response.status === 400 || response.status === 422)) {
         await response.body?.cancel();

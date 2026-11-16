@@ -150,17 +150,18 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
 
   /**
    * Whether a model's provider says it thinks, from OpenRouter's, NanoGPT's or Google's listing. Any other server, such as a
-   * local one, is never sent a Thinking level, as the setting isn't shown for it. Asked once, as a failed lookup would
-   * otherwise delay every call: without an answer, no level is sent until the app restarts.
+   * local one, is never sent a Thinking level, as the setting isn't shown for it. NanoGPT and Google are asked once, as a
+   * failed lookup would otherwise delay every call: without an answer, no level is sent until the app restarts. OpenRouter's
+   * comes with the schema lookup, which asks again on the next call, and `listed` says this call already asked.
    */
-  async function takesReasoning(url: string, model: string, apiKey: string, headers: Record<string, string>, signal: AbortSignal) {
+  async function takesReasoning(url: string, model: string, apiKey: string, headers: Record<string, string>, signal: AbortSignal, listed: boolean) {
     const key = `${url} ${model}`;
     const known = thinks.get(key);
     if (known !== undefined) return known;
     let takes: boolean | undefined;
     if (url.includes("openrouter.ai")) {
-      await supportsSchema(url, model, headers, signal);
-      takes = thinks.get(key);
+      if (!listed) await supportsSchema(url, model, headers, signal);
+      return thinks.get(key) ?? false;
     } else if (isGoogle(url)) {
       // Google's OpenAI-compatible list says nothing of thinking, but its own API does, and takes the key in its own header.
       const found = await list(
@@ -250,7 +251,7 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
 
     try {
       const useSchema = schema !== undefined && (await supportsSchema(url, textModel, headers, signal));
-      withThinking = textThinking !== "default" && (await takesReasoning(url, textModel, textApiKey, headers, signal));
+      withThinking = textThinking !== "default" && (await takesReasoning(url, textModel, textApiKey, headers, signal, schema !== undefined));
       seen.schema = useSchema;
       const askUsage = !openRouter && !usageRefused.has(url);
       let response = await send(useSchema, askUsage);

@@ -2,7 +2,9 @@ import { messageBeats } from "../src/web/chat-style";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { settingsStore } from "../src/settings-store";
+import { introduce } from "../src/state-applier";
 import { textProvider } from "../src/text-provider";
+import { spokenLineFault } from "../src/turn-engine";
 import { delta, fakeOpenAi, logOf, scriptedDice, startApp, tempFolder, turnEvents } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -526,6 +528,17 @@ test("OpenRouter is sent the Thinking level only once the player picks one, and 
   expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([undefined, { effort: "low" }]);
 });
 
+test("an OpenRouter model list that doesn't answer is asked again, so the Thinking level isn't lost until a restart", async () => {
+  play([narrated("Rain."), narrated("Sleet.")], {}, scriptedDice(), true);
+  settingsStore(join(folder.path, "settings.json")).update({ textThinking: "low" });
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+  provider.setModels({ data: [{ id: "fake/model", supported_parameters: ["structured_outputs", "reasoning"] }] });
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([undefined, { effort: "low" }]);
+});
+
 test("NanoGPT is sent the Thinking level only for a model its detailed listing says thinks", async () => {
   const listing = {
     data: [
@@ -687,6 +700,22 @@ test("someone new given a first name the PC or someone in the story has is writt
 
   expect(provider.requests).toHaveLength(6);
   expect(await knownPeople(id)).toEqual(["Mara Kade", "Owen Kade", "Man in grey coat", "Mrs. Owen"]);
+});
+
+test("a line for someone who only shares the PC's title isn't the PC's", () => {
+  expect(spokenLineFault('[Captain]: "Hold."', "Captain Elena Reyes")).toBeUndefined();
+  expect(spokenLineFault('[Elena]: "Hold."', "Captain Elena Reyes")).toBe("a spoken line for the PC");
+});
+
+test("a given name is the first word after any article or title, and only clashes then", () => {
+  const state = (...names: string[]) => ({ npcs: names.map((name) => ({ name, appearance: "tall" })), pcKnown: { npcs: [] } }) as never;
+  const adds = (...names: string[]) => names.map((name) => ({ op: "add_npc" as const, name, appearance: "tall" }));
+  const refused = (names: string[], operations: Parameters<typeof introduce>[3]) => introduce(state(...names), [], "Ash", operations).refused.length;
+
+  expect(refused(["The Bartender", "Old Man"], adds("The Guard", "Young Man", "Man in grey coat"))).toBe(0);
+  expect(refused(["Sarah"], [...adds("Sarah Connor"), { op: "merge_npc", name: "Sarah", into: "Sarah Connor" }])).toBe(0);
+  expect(refused([], adds("Tom Hardy", "Tom Jones"))).toBe(1);
+  expect(refused([], adds("Dr. Ash Vale"))).toBe(1);
 });
 
 test("someone a reply names by part of their name is the person already in the story", async () => {

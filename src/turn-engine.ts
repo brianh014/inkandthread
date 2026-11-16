@@ -21,7 +21,7 @@ import {
 import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } from "./save-store";
 import type { SettingsStore } from "./settings-store";
 import type { NarratorTurn, UsageStore } from "./usage-store";
-import { applyOperations, introduce, named, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
+import { applyOperations, givenName, introduce, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 
@@ -654,7 +654,7 @@ export function spokenLineFault(narration: string, pcName: string) {
     if (/^[^[\]\s][^[\]]*\]:/.test(line)) return "a speaker tag without its [";
     const speaker = line.match(/^\[([^[\]]+)\]:/)?.[1]?.trim();
     // The player alone writes what the PC says, and the prompt saying so was ignored.
-    if (speaker && pcName && named(pcName, speaker)) return PC_LINE;
+    if (speaker && pcName && (speaker.toLowerCase() === pcName.toLowerCase() || (givenName(speaker) ?? "") === givenName(pcName))) return PC_LINE;
     if (speaker) lines.set(speaker, (lines.get(speaker) ?? 0) + 1);
   }
   return [...lines.values()].some((count) => count > 2) ? LONG_SPEECH : undefined;

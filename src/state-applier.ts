@@ -588,10 +588,22 @@ export function introduce(state: State, people: z.infer<typeof Person>[], pcName
     });
   // Two people with one given name can't be told apart, by the player or by the matching above.
   const taken = new Set([pcName, ...state.npcs.map(({ name }) => name)].map(givenName));
-  const refused = [...introductions, ...operations].flatMap((operation) => {
-    if (operation.op !== "add_npc" || findNpc(state, operation.name)) return [];
-    const given = givenName(operation.name);
-    return given && taken.has(given) ? [{ op: operation.op, reason: "a given name someone already has" }] : [];
+  // A full name learned later is added and the short one merged into it, as the prompt asks.
+  const merging = new Set(operations.flatMap((operation) => (operation.op === "merge_npc" ? [operation.into] : [])));
+  // Each name once, as a reply often lists someone in people and adds them in its operations too.
+  const added = new Set(
+    [...introductions, ...operations].flatMap((operation) =>
+      operation.op === "add_npc" && !findNpc(state, operation.name) && !merging.has(operation.name) ? [operation.name] : [],
+    ),
+  );
+  const refused = [...added].flatMap((name) => {
+    const given = givenName(name);
+    if (!given) return [];
+    if (!taken.has(given)) {
+      taken.add(given);
+      return [];
+    }
+    return [{ op: "add_npc" as const, reason: "a given name someone already has" }];
   });
   return {
     state: applyOperations(state, introductions).next,
@@ -602,32 +614,10 @@ export function introduce(state: State, people: z.infer<typeof Person>[], pcName
   };
 }
 
-const TITLES = new Set([
-  "mr",
-  "mrs",
-  "ms",
-  "miss",
-  "mx",
-  "dr",
-  "doctor",
-  "sir",
-  "dame",
-  "lady",
-  "lord",
-  "madam",
-  "officer",
-  "detective",
-  "captain",
-  "father",
-  "mother",
-  "sister",
-  "brother",
-  "aunt",
-  "uncle",
-  "old",
-  "young",
-  "little",
-]);
+// Articles and titles only: words such as "old" describe someone rather than stand before their name.
+const TITLES = new Set(
+  "the a an mr mrs ms miss mx dr doctor sir dame lady lord madam officer detective captain father mother sister brother aunt uncle".split(" "),
+);
 const PARTICLES = new Set(["van", "von", "de", "der", "den", "del", "della", "di", "da", "du", "la", "le", "bin", "ibn", "al", "el", "y", "dos", "das"]);
 
 /**
@@ -635,7 +625,7 @@ const PARTICLES = new Set(["van", "von", "de", "der", "den", "del", "della", "di
  * lowercase words that aren't part of a name.
  */
 // shortcut: titles and name particles are short English-leaning lists, add to them if a real name is refused or a description clashes.
-function givenName(name: string) {
+export function givenName(name: string) {
   const words = name.trim().split(/\s+/);
   if (words.some((word, at) => at > 0 && /^\p{Ll}/u.test(word) && !PARTICLES.has(word))) return undefined;
   return words.map((word) => word.toLowerCase().replace(/\.$/, "")).find((word) => !TITLES.has(word));

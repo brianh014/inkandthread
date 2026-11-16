@@ -101,13 +101,12 @@ const WORD_LIMITS: Partial<Record<EnhanceField, number>> = {
   startingHook: 150,
   characterDescription: 150,
 };
-// A long box is asked for its target but only refused well over it, as a few words over shouldn't fail a whole Enhance.
-const ROOMY: EnhanceField[] = ["worldBrief", "background", "startingHook", "characterDescription"];
 const countWords = (words: string) => words.split(/\s+/).filter(Boolean).length;
-const atMost = (limit: number) => text.refine((words) => countWords(words) <= limit, "longer than its word limit");
+// A model is asked for a word limit but refused only a quarter over it, as a few words over shouldn't fail a whole call.
+const withinLimit = (words: string, limit: number) => countWords(words) <= Math.ceil(limit * 1.25);
+const atMost = (limit: number) => text.refine((words) => withinLimit(words, limit), "longer than its word limit");
 // An item list never has a second sentence, so prose is retried.
-const limited = (field: EnhanceField, limit: number) =>
-  field === "inventory" ? atMost(limit).refine((list) => !/[.!?]\s+\S/.test(list)) : atMost(ROOMY.includes(field) ? Math.ceil(limit * 1.5) : limit);
+const limited = (field: EnhanceField, limit: number) => (field === "inventory" ? atMost(limit).refine((list) => !/[.!?]\s+\S/.test(list)) : atMost(limit));
 
 type OpeningStatus = { health: string; injuries: string[]; conditions: string[] };
 
@@ -148,7 +147,7 @@ const PC_IS_CANON =
 
 /** What makes a world one a story grows from, for the Narrator that builds it and the review that strengthens it. */
 const SHORT_LINES = "Keep each world rule and plot thread to a sentence or two, because they sit in every prompt.";
-/** A world rule or plot thread past this many words is refused from the World review, however rich. */
+/** A guard against bloat: the World review never sees this number, only "a sentence or two", and a rewrite no longer than what it replaces always fits. */
 const LINE_WORDS = 80;
 
 const STORY_CRAFT =
@@ -360,7 +359,7 @@ const ANSWER_WORDS = 80;
 // Asked for well under the limit, as "at most 80" ran over it on most broad questions.
 const ANSWER_TARGET = 60;
 // The prompt asks for at most ANSWER_WORDS, but only a reply over the player's answerRejectWords is thrown out, as a few words over failed whole Questions.
-const answerReply = (rejectOver: number) => z.object({ text: atMost(rejectOver) });
+const answerReply = (rejectOver: number) => z.object({ text: text.refine((words) => countWords(words) <= rejectOver, "longer than its word limit") });
 
 /**
  * The Narrator's answer to a Question, like a DM answering a player. It sees what the PC knows plus the Lore a Turn
@@ -849,7 +848,9 @@ function reviewWorld(context: Context, choices: WorldChoices, pc: WorldPc, world
     (review) =>
       quotes(world.world_rules, review.world_rules) &&
       quotes(world.plot_threads, review.plot_threads) &&
-      [...review.world_rules, ...review.plot_threads].every((change) => change.new === null || countWords(change.new) <= LINE_WORDS) &&
+      [...review.world_rules, ...review.plot_threads].every(
+        (change) => change.new === null || withinLimit(change.new, Math.max(LINE_WORDS, countWords(change.old ?? ""))),
+      ) &&
       WorldReply.safeParse(withReview(world, review)).success,
     "an edit names nothing in the world, runs long, or leaves it unfit",
   );

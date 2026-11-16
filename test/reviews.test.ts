@@ -74,13 +74,22 @@ test("an edit that misquotes the world is asked again, and a failed review keeps
   expect(log).toContain("World kept unreviewed");
 });
 
-test("a plot thread rewritten past its length is asked again, as the review is told to keep it to a sentence or two", async () => {
+test("a plot thread rewritten well past a sentence or two is asked again, as the review is told to keep it to a sentence or two", async () => {
   const thread = (words: number) => ({ ...NO_EDITS, plot_threads: [{ fault: "thin_story", old: "The bees are spies.", new: "bee ".repeat(words).trim() }] });
-  const { made, reviewer } = build(JSON.stringify(WORLD), JSON.stringify(thread(81)), JSON.stringify(thread(80)));
+  const { made, reviewer } = build(JSON.stringify(WORLD), JSON.stringify(thread(101)), JSON.stringify(thread(100)));
   const { world } = await made;
   expect(reviewer.prompts).toHaveLength(2);
-  expect(world.plotThreads[0]!.split(" ")).toHaveLength(80);
+  expect(world.plotThreads[0]!.split(" ")).toHaveLength(100);
   expect(reviewer.prompts[0]![0]!.content).toContain("Keep each world rule and plot thread to a sentence or two");
+});
+
+test("a rewrite of a long thread may run as long as it, with the same leeway", async () => {
+  const long = "bee ".repeat(120).trim();
+  const fix = { ...NO_EDITS, plot_threads: [{ fault: "contradiction", old: long, new: "wasp ".repeat(150).trim() }] };
+  const { made, reviewer } = build(JSON.stringify({ ...WORLD, plot_threads: [long, "The tide is rising."] }), JSON.stringify(fix));
+  const { world } = await made;
+  expect(reviewer.prompts).toHaveLength(1);
+  expect(world.plotThreads[0]!.split(" ")).toHaveLength(150);
 });
 
 test("without a reviewer, the world isn't reviewed", async () => {

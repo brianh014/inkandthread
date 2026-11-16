@@ -51,6 +51,8 @@ export const SettingsUpdate = z
     imagesEnabled: z.boolean(),
     // Only pictures drawn this session open; a load or refresh shows every picture folded.
     openNewImages: z.boolean(),
+    // On, a Narrator Message that had a Check shows a die with its difficulty, roll and result.
+    showChecks: z.boolean(),
     // Off, a Turn draws no Scene Image of its own. Pictures the player asks for, and portraits, still come.
     drawScenes: z.boolean(),
     // On, a portrait is drawn again, keeping its face, whenever a Turn changes how that person looks.
@@ -148,6 +150,7 @@ const defaults = {
   imageApiKey: "",
   imagesEnabled: true,
   openNewImages: true,
+  showChecks: false,
   drawScenes: true,
   updatePortraits: false,
   comfyUrl: "http://127.0.0.1:8188",

@@ -140,7 +140,7 @@ const ChoicesShape = ResponseShape.extend({
       "exactly three things the PC might say or do next, each one first-person sentence of at most 25 words, built only from what the PC knows, and each taking a clearly different approach. Never hint at risk, difficulty, dice or a Check",
     ),
 });
-// Once a Check is rolled, or none can be, the schema itself forbids one, as the prompt's "do not request another check" was ignored three times running.
+// Once a Check is rolled, or none can be, the schema itself forbids one, as the prompt's "Do not request another check" was ignored three times running.
 const SCHEMAS = {
   free: { any: jsonSchemaOf(ResponseShape), noCheck: jsonSchemaOf(ResponseShape.extend({ check: z.null() })) },
   choices: { any: jsonSchemaOf(ChoicesShape), noCheck: jsonSchemaOf(ChoicesShape.extend({ check: z.null() })) },

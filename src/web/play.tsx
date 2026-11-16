@@ -4,6 +4,7 @@ import {
   decideForMe,
   duplicateFrom,
   failureMessage,
+  getChecks,
   getMessages,
   getTurn,
   resumeTurn,
@@ -13,6 +14,7 @@ import {
   type OpenSave,
   getSettings,
   type Message,
+  type MessageCheck,
   type PlayMode,
   playOpening,
   playTurn,
@@ -176,6 +178,8 @@ export function Play({ id }: { id: string }) {
   const [setupNotice, setSetupNotice] = useState<string>();
   const [chatStyle, setChatStyle] = useState<ChatStyle>("prose");
   const [openNewImages, setOpenNewImages] = useState(true);
+  const [showChecks, setShowChecks] = useState(false);
+  const [checks, setChecks] = useState(new Map<number, MessageCheck>());
   // Unset until the player moves, so that each new response opens on its first beat.
   const [chosenBeat, setChosenBeat] = useState<number>();
   const narrow = useNarrow();
@@ -233,6 +237,16 @@ export function Play({ id }: { id: string }) {
   const duplicating = useRef(false);
   const drawing = useRef(false);
 
+  const newest = messages.at(-1)?.id;
+  // Asked again as the newest Message changes, as a Turn may have rolled one.
+  useEffect(() => {
+    if (!showChecks || newest === undefined) return;
+    getChecks(id).then(
+      (list) => setChecks(new Map(list.map((check) => [check.messageId, check]))),
+      () => {},
+    );
+  }, [id, showChecks, newest]);
+
   useEffect(() => {
     // Taken now, as it may finish while the page loads, and its Messages must not be missed.
     const inProgress = runningTurn(id);
@@ -247,6 +261,7 @@ export function Play({ id }: { id: string }) {
           setChatStyle(settings.chatStyle);
           setImagesReady(settings.imagesReady);
           setOpenNewImages(settings.openNewImages);
+          setShowChecks(settings.showChecks);
         }
         setSave(save);
         setPlayMode(save.playMode);
@@ -575,6 +590,7 @@ export function Play({ id }: { id: string }) {
         open={{ rewrite: rewriting === message.id, edit: rewriting === message.id && editing, chapterEnd: endingChapter }}
         rewriteButton={rewriteButton}
         actions={actions}
+        check={checks.get(message.id)}
       />
     );
 

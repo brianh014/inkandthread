@@ -797,6 +797,15 @@ export function saveStore(savesDir: string) {
       return db.query<Message, []>("SELECT id, role, text FROM messages ORDER BY id").all();
     },
 
+    /** Each Narrator Message's hidden Check, for Show Checks. */
+    checks(id: string) {
+      using db = open(id);
+      return db
+        .query<{ id: number; hidden_check: string }, []>("SELECT id, hidden_check FROM messages WHERE hidden_check IS NOT NULL ORDER BY id")
+        .all()
+        .map(({ id, hidden_check }) => ({ messageId: id, ...StoredCheck.parse(JSON.parse(hidden_check)) }));
+    },
+
     latestMessageId(id: string) {
       using db = open(id);
       return latestMessage(db);

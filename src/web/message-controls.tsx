@@ -1,7 +1,7 @@
-import type { Ref } from "react";
-import type { Message } from "./api";
+import { type Ref, useState } from "react";
+import type { Message, MessageCheck } from "./api";
 import { isContinue } from "./chat-style";
-import { ChapterIcon, DuplicateIcon, EditIcon, RegenerateIcon, RevertIcon, RewriteIcon } from "./icons";
+import { ChapterIcon, DieIcon, DuplicateIcon, EditIcon, RegenerateIcon, RevertIcon, RewriteIcon } from "./icons";
 
 /** What a Message's row of tools does. Only the latest response is replaceable, and only once no Turn is running. */
 export type MessageActions = {
@@ -24,12 +24,15 @@ export function MessageControls(props: {
   open: { rewrite: boolean; edit: boolean; chapterEnd: boolean };
   rewriteButton: Ref<HTMLButtonElement>;
   actions: MessageActions;
+  /** Its Check, with Show Checks on. */
+  check?: MessageCheck;
 }) {
-  const { message, latest, replaceable, replayable, open, rewriteButton, actions } = props;
+  const { message, latest, replaceable, replayable, open, rewriteButton, actions, check } = props;
   // A Continue's text is only its marker, so it is named instead.
   const words = isContinue(message) ? "Continue" : message.text.slice(0, 40);
   return (
     <div className="row actions">
+      {check && <CheckDie check={check} />}
       {message.role === "player" && replayable && (
         <button
           type="button"
@@ -96,5 +99,27 @@ export function MessageControls(props: {
         </>
       )}
     </div>
+  );
+}
+
+const RESULTS: Record<string, string> = {
+  strong: "a great success",
+  clean: "succeeded",
+  mixed: "succeeded at a cost",
+  plain: "failed",
+  bad: "failed badly",
+};
+
+/** The die on a Message that had a Check: its difficulty, roll and result on hover, or on a tap, as a phone has no hover. */
+function CheckDie({ check }: { check: MessageCheck }) {
+  const [shown, setShown] = useState(false);
+  const words = `${check.difficulty}, rolled ${check.roll}: ${RESULTS[check.degree] ?? check.outcome}. ${check.action}`;
+  return (
+    <>
+      <button type="button" className="icon" title={words} aria-label={`Check: ${words}`} aria-expanded={shown} onClick={() => setShown(!shown)}>
+        {DieIcon}
+      </button>
+      {shown && <span className="muted">{words}</span>}
+    </>
   );
 }

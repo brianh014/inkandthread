@@ -183,6 +183,10 @@ export function setupProblem({ textBaseUrl, textModel, hasTextApiKey }: Pick<Set
   if (!hasTextApiKey && textBaseUrl.includes("openrouter.ai")) return "No API key is set.";
 }
 
+/** A Narrator Message's Check, only with Show Checks on. */
+export type MessageCheck = ReturnType<SaveStore["checks"]>[number];
+export const getChecks = (id: string) => request<{ checks: MessageCheck[] }>(`/saves/${id}/checks`).then(({ checks }) => checks);
+
 export const getMessages = (id: string) =>
   request<{ messages: Message[]; choices?: string[] }>(`/saves/${id}/messages`).then(({ messages, choices }) =>
     choices ? messages.with(-1, { ...messages.at(-1)!, choices }) : messages,

@@ -7,6 +7,7 @@ import {
   DecideIcon,
   DeleteIcon,
   DrawIcon,
+  DieIcon,
   DuplicateIcon,
   StartOverIcon,
   EditIcon,
@@ -289,6 +290,10 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             {tool(DuplicateIcon, "Duplicate from here")}: keep this story as it is, and carry on from that Message in a new Save. This is how you try another
             path.
           </li>
+          <li>
+            {tool(DieIcon, "Check")} (with <b>Show Checks</b> on): when what your PC tried could go either way, a hidden roll of a twenty-sided die decided it.
+            Point at or tap the die for how hard it was, the roll and the result.
+          </li>
         </ul>
         <h3>Changing the world</h3>
         <p>
@@ -462,6 +467,9 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           </li>
           <li>
             <b>Font size</b>: small, medium or large.
+          </li>
+          <li>
+            <b>Show Checks</b>: a die on each reply where a roll decided how something went. Off by default, so the story reads without them.
           </li>
         </ul>
         <h3>Usage</h3>

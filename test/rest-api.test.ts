@@ -724,6 +724,27 @@ const playWithDice = (rolls: number[], ...replies: (string | Error)[]) => {
   return { app, prompts: script.prompts, schemas: script.schemas };
 };
 
+test("a Message's Check reaches the page only with Show Checks on", async () => {
+  const { app } = playWithDice([19], requestCheck("Very Hard"), narration("She goes along, shaken."));
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+  const checks = async () => ((await (await app.get(`/saves/${id}/checks`)).json()) as { checks: unknown[] }).checks;
+
+  expect(await checks()).toEqual([]);
+  await app.patch("/settings", { showChecks: true });
+  const { messages } = (await (await app.get(`/saves/${id}/messages`)).json()) as { messages: { id: number; role: string }[] };
+  expect(await checks()).toEqual([
+    {
+      messageId: messages.find(({ role }) => role === "narrator")!.id,
+      action: "Leap the flooded gap",
+      difficulty: "Very Hard",
+      roll: 19,
+      outcome: "success",
+      degree: "mixed",
+    },
+  ]);
+});
+
 test("once the Check is rolled, the schema sent for the result allows no second Check request", async () => {
   const { app, schemas } = playWithDice([12], requestCheck("Moderate"), narration("You land."));
   const id = await app.createSave();

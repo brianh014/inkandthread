@@ -1229,6 +1229,13 @@ function InstallSettings({
           ]}
           onChange={(fontSize) => set({ fontSize })}
         />
+        <label className="toggle">
+          <input type="checkbox" checked={draft.showChecks} onChange={(e) => set({ showChecks: e.target.checked })} />
+          Show Checks
+        </label>
+        <p className="muted">
+          A die under a reply where the Narrator rolled to decide how something went, with how hard it was, the roll and the result. Off, the dice stay hidden.
+        </p>
       </div>
 
       <div data-section="Advanced" className="fields usage" hidden={section !== "Advanced"}>

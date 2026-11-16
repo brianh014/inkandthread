@@ -271,6 +271,18 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
       GET: (req) => Response.json({ messages: saves.messages(req.params.id), choices: saves.latestChoices(req.params.id) }),
     },
 
+    "/saves/:id/checks": {
+      // None unless the player turned Show Checks on, so the page never learns the dice otherwise.
+      GET: (req) =>
+        Response.json({
+          checks: options.settings.read().showChecks
+            ? saves
+                .checks(req.params.id)
+                .map(({ messageId, action, difficulty, roll, outcome, degree }) => ({ messageId, action, difficulty, roll, outcome, degree }))
+            : [],
+        }),
+    },
+
     "/saves/:id/messages/:messageId/snapshot": {
       GET: (req) => {
         // An allowlist, so a new secret section can never reach the player by default.

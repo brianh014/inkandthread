@@ -217,7 +217,7 @@ export function usageStore(path = ":memory:") {
 }
 export type UsageStore = ReturnType<typeof usageStore>;
 
-/** The player's Stop and a page that left abort with no reason of the app's; one the app gives, such as a runaway, is a failure. */
+/** The player's Stop, a page that left and a stop on purpose aren't failures; a reason the app gives, such as a runaway, is. */
 const failedFor = (signal: AbortSignal) => !signal.aborted || typeof signal.reason === "string";
 
 /** Counts every text call, whatever it's for. */

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { errorFields, log } from "./logger";
 import type { SettingsStore } from "./settings-store";
-import { ContentRefused, ReplyCutOff, type TextProvider, TextProviderFailed, type TextUsage } from "./turn-engine";
+import { ContentRefused, ReplyCutOff, StoppedOnPurpose, type TextProvider, TextProviderFailed, type TextUsage } from "./turn-engine";
 
 // The player sees these with a retry hint after them, so none ends in a full stop.
 const UNREACHABLE = "The Text Provider can't be reached, so make sure it's running and that its address in Settings is right";
@@ -251,8 +251,9 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
       }
       return reply;
     } catch (cause) {
-      // A caller that stops a reply for its own reason gives it as a string, which is the app's own words.
-      seen.failed = signal.aborted ? (typeof signal.reason === "string" ? signal.reason : "the client left") : (cause as Error).name;
+      // A caller that stops a reply for its own reason gives it in the app's own words: as a string, or as a stop on purpose.
+      const reason = signal.reason instanceof StoppedOnPurpose ? signal.reason.why : signal.reason;
+      seen.failed = signal.aborted ? (typeof reason === "string" ? reason : "the client left") : (cause as Error).name;
       const known = cause instanceof ContentRefused || cause instanceof TextProviderFailed;
       if (known || signal.aborted || cause instanceof SyntaxError) throw cause;
       throw new TextProviderFailed(overrun.signal.aborted ? TOO_LONG : silence.signal.aborted ? STOPPED : UNREACHABLE, { cause });

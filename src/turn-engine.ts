@@ -48,7 +48,15 @@ export class TextProviderFailed extends Error {}
 export class ReplyCutOff extends TextProviderFailed {}
 class InvalidResponse extends Error {}
 
+/** An abort reason for a reply stopped on purpose, as it has given all that's needed: logged by its words, and never a failure. */
+export class StoppedOnPurpose {
+  constructor(readonly why: string) {}
+}
+
 const RAN_ON = "ran on far too long";
+const RATED = "rated for a Check, so the rest isn't needed";
+const DECLINED_MESSAGE =
+  "The AI wouldn't write how this turned out, which usually means its content rules block it. Nothing was saved: try another move, or another AI.";
 // Twice the longest real reply in players' logs, so only a model stuck in a loop reaches it, long before the token limit. An
 // opening introduces the world's people and places, so it gets twice as much. Thinking a local model streams isn't counted.
 // shortcut: one fixed size for every model, measured on one player's DeepSeek logs; make it a Setting if real replies reach it.
@@ -71,6 +79,7 @@ const withoutRetired = (operations: unknown) =>
   Array.isArray(operations) ? operations.filter((operation) => (operation as { op?: unknown })?.op !== "set_summary") : operations;
 
 const FinishedTurn = z.object({
+  // Whether it has words is checked once it's parsed, so a Check's result without any is told as declined.
   narration: z.string().trim().min(1),
   state_operations: z.preprocess(withoutRetired, z.array(StateOperation).default([])),
   people: z.array(Person).catch([]),
@@ -84,7 +93,11 @@ const FinishedTurn = z.object({
   // Checked by usableChoices, as a reply with bad Choices still holds a Turn worth keeping.
   choices: z.unknown().optional(),
 });
-const NarratorResponse = z.union([z.object({ check: CheckRequest }), FinishedTurn]);
+const NONE = "None";
+// An action rated None needs no roll, so it reads as a finished Turn.
+const unrated = (reply: unknown) =>
+  (reply as { check?: { difficulty?: unknown } })?.check?.difficulty === NONE ? { ...(reply as object), check: null } : reply;
+const NarratorResponse = z.preprocess(unrated, z.union([z.object({ check: CheckRequest }), FinishedTurn]));
 /** The player wrote the narration of an Edit, so the reply holds only what follows from it. */
 const EditedTurn = FinishedTurn.extend({ narration: z.string().nullish() });
 
@@ -106,8 +119,19 @@ export function jsonSchemaOf(schema: z.ZodType) {
 
 // What the Narrator is asked for. It is flat because strict schema modes refuse a union at the root, and check
 // comes first so that a streamed reply shows it is not a Check request before any narration arrives.
+// Every action is rated, as a check the Narrator could leave null was left null even for a move that plainly needed one.
 const ResponseShape = z.object({
-  check: CheckRequest.nullable(),
+  // Stakes before difficulty, as a model that went straight to a difficulty rated even a move it called unwarned Easy.
+  check: z.object({
+    action: CheckRequest.shape.action,
+    stakes: z.string().describe("in a few words, what could go wrong, and how anyone it touches would truly take it"),
+    // The odds beside the names, as a model that wrote stakes of real harm still chose Moderate, not knowing what it meant.
+    difficulty: z
+      .enum([NONE, ...CheckRequest.shape.difficulty.options])
+      .describe(
+        "from the stakes: None when it can't fail and nothing rides on it, Easy when it almost always works, Moderate when it's about even, Hard when it usually fails or would rarely be welcomed, Very Hard when only rare luck makes it work or welcome",
+      ),
+  }),
   narration: z.string().nullable(),
   state_operations: z.array(StateOperation),
   // Described here for the same reason as chapter_ends: speakers kept going missing from it.
@@ -140,10 +164,10 @@ const ChoicesShape = ResponseShape.extend({
       "exactly three things the PC might say or do next, each one first-person sentence of at most 25 words, built only from what the PC knows, and each taking a clearly different approach. Never hint at risk, difficulty, dice or a Check",
     ),
 });
-// Once a Check is rolled, or none can be, the schema itself forbids one, as the prompt's "do not request another check" was ignored three times running.
+// Once a Check is rolled, or none can be, the schema itself forbids one and asks for the story, as the prompt's "Do not request another check" was ignored three times running.
 const SCHEMAS = {
-  free: { any: jsonSchemaOf(ResponseShape), noCheck: jsonSchemaOf(ResponseShape.extend({ check: z.null() })) },
-  choices: { any: jsonSchemaOf(ChoicesShape), noCheck: jsonSchemaOf(ChoicesShape.extend({ check: z.null() })) },
+  free: { any: jsonSchemaOf(ResponseShape), noCheck: jsonSchemaOf(ResponseShape.extend({ check: z.null(), narration: z.string() })) },
+  choices: { any: jsonSchemaOf(ChoicesShape), noCheck: jsonSchemaOf(ChoicesShape.extend({ check: z.null(), narration: z.string() })) },
 };
 
 /** Three different Choices, or none if the reply hasn't that many. */
@@ -153,9 +177,20 @@ export function usableChoices(choices: unknown) {
   return distinct.length >= 3 ? distinct.slice(0, 3) : undefined;
 }
 const NO_CHOICES = "no usable choices";
+// A model that won't write a Check's result can't refuse in words when the provider holds it to the schema, so it sends
+// something that isn't a story: replies came back as a lone comma, a single name and the rating written out.
+const DECLINED = "a story the AI declined to write";
+const RATING_TALK = /\bdifficulty\s*:\s*(?:none|easy|moderate|hard|very hard)\b|\bwhat['’]?s at stake\s*:/i;
+const declined = (narration: string) => (narration.match(/\p{L}+/gu)?.length ?? 0) < 2 || RATING_TALK.test(narration);
+// Words, not just punctuation, as a reply once came back as a lone comma.
+const NO_WORDS = "a story with no words";
+const hasWords = (narration: string) => /\p{L}{2}/u.test(narration);
 
+// The check a reply opens with: null, or the rating's flat object of strings. One pattern, so streaming and the early stop agree.
 // shortcut: a reply in another key order or after prose shows no narration until the Turn is done, loosen this only if real models do that often.
-const NARRATION_START = /^\s*(?:```(?:json)?\s*)?\{\s*"check"\s*:\s*null\s*,\s*"narration"\s*:\s*"/;
+const OPENING_CHECK = String.raw`^\s*(?:\x60\x60\x60(?:json)?\s*)?\{\s*"check"\s*:\s*(null|\{(?:\s*"[a-z_]+"\s*:\s*"(?:[^"\\]|\\.)*"\s*,?)*\s*\})`;
+const CHECK_START = new RegExp(OPENING_CHECK);
+const NARRATION_START = new RegExp(String.raw`${OPENING_CHECK}\s*,\s*"narration"\s*:\s*"`);
 // biome-ignore lint/suspicious/noControlCharactersInRegex: JSON strings may not hold raw control characters, so this matches what they can.
 const COMPLETE_JSON_CHARACTERS = /^(?:[^"\\\x00-\x1f]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*/;
 
@@ -163,9 +198,21 @@ const COMPLETE_JSON_CHARACTERS = /^(?:[^"\\\x00-\x1f]|\\["\\/bfnrt]|\\u[0-9a-fA-
 // opening tag, and a reply can be cut off before the closing one.
 const withoutThinking = (reply: string) => reply.replace(/^[\s\S]*<\/think>/, "").replace(/<think>[\s\S]*$/, "");
 
-/** The narration in a partial reply, empty until the reply has shown it is not a Check request. */
-function narrationSoFar(partial: string) {
-  const reply = withoutThinking(partial);
+/** The check a visible reply opens with, once it's complete: null, or the rating as sent. Undefined until then. */
+function openingCheck(reply: string): unknown {
+  const found = reply.match(CHECK_START)?.[1];
+  if (!found) return undefined;
+  try {
+    return JSON.parse(found);
+  } catch {
+    return undefined;
+  }
+}
+
+const isNone = (opened: unknown) => opened === null || (opened as { difficulty?: unknown }).difficulty === NONE;
+
+/** The narration in a visible reply whose check is known to be None or null. */
+function narrationSoFar(reply: string) {
   const start = reply.match(NARRATION_START);
   if (!start) return "";
   return JSON.parse(`"${reply.slice(start[0].length).match(COMPLETE_JSON_CHARACTERS)![0]}"`) as string;
@@ -431,29 +478,48 @@ async function narrate(
     let generation: string | undefined;
     let partial = "";
     const runaway = new AbortController();
+    // A model asked to hold its narration for the roll mostly writes it anyway, which is thrown away, so the reply stops at the rating.
+    const early = new AbortController();
+    let rated: z.infer<typeof CheckRequest> | undefined;
+    // Worked out once the reply's check is complete, and never looked at again: only a None or null check lets narration stream.
+    let opened: unknown;
+    let none = false;
     const onText = (text: string) => {
       partial += text;
-      if (withoutThinking(partial).length > RUNAWAY_CHARS * (kind === "opening" ? 2 : 1)) runaway.abort(RAN_ON);
-      if (edited !== undefined) return;
-      const narration = narrationSoFar(partial);
+      const visible = withoutThinking(partial);
+      if (visible.length > RUNAWAY_CHARS * (kind === "opening" ? 2 : 1)) runaway.abort(RAN_ON);
+      if (opened === undefined) {
+        opened = openingCheck(visible);
+        none = opened !== undefined && isNone(opened);
+        if (opened !== undefined && !none && !check && rollCheck) {
+          // shortcut: OpenRouter's record gives a stopped call's usage; other providers' stopped rating calls go uncounted in Usage, add a lookup if one offers it.
+          rated = CheckRequest.safeParse(opened).data;
+          if (rated) early.abort(new StoppedOnPurpose(RATED));
+        }
+      }
+      if (edited !== undefined || !none) return;
+      const narration = narrationSoFar(visible);
       if (narration.length <= narrationSent) return;
       emit("narration", { text: narration.slice(narrationSent) });
       narrationSent = narration.length;
     };
     try {
-      const reply = await askNarrator(
+      const reply: string = await askNarrator(
         textProvider,
         [...prompt, ...(check ? [resultInstruction(check)] : []), ...(unplacedBefore ? [SET_SCENE_NOTE] : [])],
         {
           schema: check || !rollCheck ? schemas.noCheck : schemas.any,
           onText,
           onGeneration: (id) => (generation = id),
-          signal: AbortSignal.any([signal, runaway.signal]),
+          signal: AbortSignal.any([signal, runaway.signal, early.signal]),
         },
         input,
         refusal,
         runaway.signal,
-      );
+      ).catch((cause: unknown): string => {
+        if (rated && !signal.aborted) return JSON.stringify({ check: rated });
+        throw cause;
+      });
       const response = parseReply<z.infer<typeof NarratorResponse | typeof EditedTurn>>(reply, edited === undefined ? NarratorResponse : EditedTurn);
       if (response.check) {
         if (check || !rollCheck) throw new InvalidResponse();
@@ -465,6 +531,9 @@ async function narrate(
       const narration = edited ?? (response.narration as string);
       // The last attempt keeps such a reply, as losing the Turn costs more than a long speech.
       // A picture without set_scene would be drawn from the last scene's place and people, which may have moved on, so it's dropped.
+      // Never kept, even on the last attempt, as what isn't a story is no Turn.
+      if (edited === undefined && check && declined(narration)) throw new InvalidResponse(undefined, { cause: DECLINED });
+      if (edited === undefined && !hasWords(narration)) throw new InvalidResponse(undefined, { cause: NO_WORDS });
       const unplaced = scene_changed && !state_operations.some(({ op }) => op === "set_scene") ? "a picture without set_scene" : undefined;
       const spoken = edited === undefined ? spokenLineFault(narration) : undefined;
       const choices = playMode === "choices" ? usableChoices(response.choices) : undefined;
@@ -580,6 +649,7 @@ function playerReason({ cause }: InvalidResponse) {
   if (cause === "a speaker tag without its [") return "A spoken line in the last reply was missing its speaker";
   if (cause === "a picture without set_scene") return "The last reply moved to a new scene without saying where";
   if (cause === NO_CHOICES) return "The last reply offered no choices";
+  if (cause === DECLINED) return "The last reply wasn't a story, which can mean the AI's content rules block this";
   if (cause === RAN_ON) return "The last reply ran on far too long";
   if (Array.isArray(cause)) return "The last reply changed the story in a way that doesn't fit what's already true";
   if (cause === undefined) return "The last reply asked for a second dice roll";
@@ -592,6 +662,8 @@ function retryIfInvalid(cause: unknown, attempt: number, input: string, generati
   const reason = whyInvalid(cause);
   log.warning("turn", "Unusable Narrator reply", { attempt, of: MAX_ATTEMPTS, reason, generation });
   if (attempt === MAX_ATTEMPTS) {
+    // Told plainly as a block, with the move kept to change, as a provider's own refusal is.
+    if (reason === DECLINED) throw new TurnFailed(DECLINED_MESSAGE, "refused", input, { cause: new Error(reason) });
     throw new TurnFailed("The Narrator gave no usable response", "retryable", input, { cause: new Error(reason) });
   }
   return playerReason(cause);
@@ -610,7 +682,8 @@ async function askNarrator(
   } catch (cause) {
     // In a Turn, a runaway is a model stuck in a loop, which a fresh try mostly isn't, so it gets the retries a garbled reply does.
     // Any other call that reaches the token limit would likely reach it again, so it fails at once and says why.
-    if (runaway && (runaway.aborted || cause instanceof ReplyCutOff)) throw new InvalidResponse(RAN_ON, { cause });
+    // The reason is the cause, as whyInvalid and playerReason read it: given the error, a runaway was logged as a Check request.
+    if (runaway && (runaway.aborted || cause instanceof ReplyCutOff)) throw new InvalidResponse(undefined, { cause: RAN_ON });
     if (cause instanceof ContentRefused) {
       throw new TurnFailed(refusal, "refused", input, { cause });
     }

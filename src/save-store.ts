@@ -797,6 +797,24 @@ export function saveStore(savesDir: string) {
       return db.query<Message, []>("SELECT id, role, text FROM messages ORDER BY id").all();
     },
 
+    /** Each Narrator Message's hidden Check, for Show Checks. One that won't read is left out and logged, so the rest still show. */
+    checks(id: string) {
+      using db = open(id);
+      return db
+        .query<{ id: number; hidden_check: string }, []>("SELECT id, hidden_check FROM messages WHERE hidden_check IS NOT NULL ORDER BY id")
+        .all()
+        .flatMap(({ id: messageId, hidden_check }) => {
+          let stored: unknown;
+          try {
+            stored = JSON.parse(hidden_check);
+          } catch {}
+          const check = StoredCheck.safeParse(stored).data;
+          // Verbose, as the page asks again after every Turn and the row stays as it is.
+          if (!check) log.verbose("saves", "Check unreadable", { save: id, message: messageId });
+          return check ? [{ messageId, ...check }] : [];
+        });
+    },
+
     latestMessageId(id: string) {
       using db = open(id);
       return latestMessage(db);

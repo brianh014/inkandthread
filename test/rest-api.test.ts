@@ -724,6 +724,42 @@ const playWithDice = (rolls: number[], ...replies: (string | Error)[]) => {
   return { app, prompts: script.prompts, schemas: script.schemas };
 };
 
+test("a Message's Check reaches the page only with Show Checks on", async () => {
+  const { app } = playWithDice([19], requestCheck("Very Hard"), narration("She goes along, shaken."));
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+  const checks = async () => ((await (await app.get(`/saves/${id}/checks`)).json()) as { checks: unknown[] }).checks;
+
+  expect(await checks()).toEqual([]);
+  await app.patch("/settings", { showChecks: true });
+  const { messages } = (await (await app.get(`/saves/${id}/messages`)).json()) as { messages: { id: number; role: string }[] };
+  expect(await checks()).toEqual([
+    {
+      messageId: messages.find(({ role }) => role === "narrator")!.id,
+      action: "Leap the flooded gap",
+      difficulty: "Very Hard",
+      roll: 19,
+      outcome: "success",
+      degree: "mixed",
+    },
+  ]);
+});
+
+test("a stored Check that won't read is left out, and the rest still reach the page", async () => {
+  const { app } = playWithDice([19, 4], requestCheck("Very Hard"), narration("She goes along."), requestCheck("Easy"), narration("You land."));
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I ask her." });
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+  await app.patch("/settings", { showChecks: true });
+  {
+    using db = new Database(join(savesDir, `${id}.sqlite`));
+    db.run(`UPDATE messages SET hidden_check = '{"action":""}' WHERE id = 2`);
+  }
+
+  const { checks } = (await (await app.get(`/saves/${id}/checks`)).json()) as { checks: { messageId: number; difficulty: string }[] };
+  expect(checks.map(({ messageId, difficulty }) => [messageId, difficulty])).toEqual([[4, "Easy"]]);
+});
+
 test("once the Check is rolled, the schema sent for the result allows no second Check request", async () => {
   const { app, schemas } = playWithDice([12], requestCheck("Moderate"), narration("You land."));
   const id = await app.createSave();
@@ -764,7 +800,11 @@ const resultOf = (prompt: unknown) =>
 
 test.each([
   ["Very Hard", 20, 2, "success", "strong"],
-  ["Hard", 15, 2, "success", "clean"],
+  ["Hard", 16, 2, "success", "clean"],
+  ["Hard", 15, 2, "success", "mixed"],
+  ["Hard", 15, 0, "success", "clean"],
+  ["Hard", 12, 3, "success", "mixed"],
+  ["Hard", 11, 3, "failure", "plain"],
   ["Hard", 14, 2, "success", "mixed"],
   ["Hard", 13, 2, "success", "mixed"],
   ["Hard", 12, 2, "failure", "plain"],
@@ -772,8 +812,10 @@ test.each([
   ["Hard", 10, 5, "success", "mixed"],
   ["Easy", 1, 2, "failure", "bad"],
   ["Easy", 1, 10, "failure", "bad"],
-  ["Easy", 5, 2, "success", "clean"],
-  ["Moderate", 10, 2, "success", "clean"],
+  ["Easy", 5, 2, "success", "mixed"],
+  ["Easy", 6, 2, "success", "clean"],
+  ["Moderate", 10, 2, "success", "mixed"],
+  ["Moderate", 11, 2, "success", "clean"],
   ["Very Hard", 19, 2, "success", "mixed"],
 ])("%s with a %i and a near-miss margin of %i is a %s, degree %s", async (difficulty, roll, margin, outcome, degree) => {
   const script = scriptedTextProvider(requestCheck(difficulty), narration("It is decided."));
@@ -1167,8 +1209,8 @@ test("world_rules come after the story so far, with the instruction to fail viol
   const rules = prompts[0]!.at(-2)!;
   expect(rules.role).toBe("system");
   expect(rules.content).toContain("no-magic-rule");
-  expect(rules.content).toContain("do not request a check");
-  expect(rules.content).toContain("Describe the failure in character");
+  expect(rules.content).toContain("rate it None, as no roll can make it work");
+  expect(rules.content).toContain("describe the failure in character");
   const prompt = contents(prompts[0]).join("\n");
   expect(prompt.match(/no-magic-rule/g)).toHaveLength(1);
   expect(prompt.indexOf("Rain falls.")).toBeLessThan(prompt.indexOf("no-magic-rule"));
@@ -2124,6 +2166,121 @@ test("a stream of a replacement follows the Turn's contract, restarting after an
   // The player is told why the text went, without any of the reply.
   expect(events[1]!.data).toEqual({ reason: "The last reply came back garbled, so the Narrator is writing it again (try 2 of 3)." });
   expect(events.at(-1)!.data).toEqual({ messages: [{ id: 3, role: "narrator", text: "Snow." }] });
+});
+
+test("a reply stops as soon as it rates a Check, and the roll and result call go ahead", async () => {
+  let stoppedEarly = false;
+  const prompts: unknown[] = [];
+  app = startApp(
+    savesDir,
+    async (prompt, { onText, signal }) => {
+      prompts.push(prompt);
+      if (prompts.length === 2) return narration("You land, just.");
+      onText(`{"check":{"action":"Leap the gap","stakes":"a long fall","difficulty":"Hard"},`);
+      // The narration a model writes anyway, which never arrives once the rating is in.
+      if (signal?.aborted) {
+        stoppedEarly = true;
+        throw new DOMException("stopped", "AbortError");
+      }
+      onText(`"narration":"You leap and land cleanly."}`);
+      return `{"check":{"action":"Leap the gap","stakes":"a long fall","difficulty":"Hard"},"narration":"You leap and land cleanly."}`;
+    },
+    scriptedDice(14),
+  );
+  const id = await app.createSave();
+
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+
+  expect(stoppedEarly).toBe(true);
+  expect(prompts).toHaveLength(2);
+  const { messages } = (await (await app.get(`/saves/${id}/messages`)).json()) as { messages: { text: string }[] };
+  expect(messages.at(-1)!.text).toBe("You land, just.");
+});
+
+test("a Check's result that isn't a story is retried, and if it never is the player is told the AI's rules blocked it", async () => {
+  const { app, prompts } = playWithDice([12], requestCheck("Hard"), narration("Nadia"), narration("You land, shaken."));
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+  expect(prompts).toHaveLength(3);
+
+  const rating = narration("The leap across the gap. What's at stake: a long fall. Difficulty: Hard.");
+  const again = playWithDice([12], requestCheck("Hard"), narration("Nadia"), rating, narration("Nadia"));
+  const other = await again.app.createSave();
+  const response = await again.app.post(`/saves/${other}/turns`, { input: "I leap the gap." });
+  expect(response.status).toBe(422);
+  expect(await response.json()).toMatchObject({ failure: "refused", input: "I leap the gap." });
+  expect(await messageTexts(again.app, other)).toEqual([]);
+});
+
+test("a Check's result that's only punctuation is told as declined too", async () => {
+  const { app } = playWithDice([12], requestCheck("Hard"), narration(","), narration(","), narration(","));
+  const id = await app.createSave();
+
+  const response = await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+
+  expect(response.status).toBe(422);
+  expect(await response.json()).toMatchObject({ failure: "refused" });
+});
+
+test("a Check's result whose prose speaks of stakes is a story, and kept", async () => {
+  const story = 'Mara steadies you at the edge.\n\n[Mara]: "Here are the stakes: your life or his."\n\nYou jump, and land.';
+  const { app, prompts } = playWithDice([16], requestCheck("Hard"), narration(story));
+  const id = await app.createSave();
+
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+
+  expect(prompts).toHaveLength(2);
+  expect((await messageTexts(app, id)).at(-1)).toBe(story);
+});
+
+test("a rating with a difficulty the app doesn't know is retried, never narrated without a roll", async () => {
+  const unknown = JSON.stringify({ check: { action: "Leap", stakes: "a fall", difficulty: "Trivial" }, narration: "You simply land." });
+  const { app, prompts } = playWithDice([], unknown, narration("You wait instead."));
+  const id = await app.createSave();
+
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+
+  expect(prompts).toHaveLength(2);
+  expect((await messageTexts(app, id)).at(-1)).toBe("You wait instead.");
+});
+
+test("a reply whose narration has no words is retried", async () => {
+  const { app, prompts } = playWithDice([], narration(","), narration("The rain keeps on."));
+  const id = await app.createSave();
+
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect(prompts).toHaveLength(2);
+  const { messages } = (await (await app.get(`/saves/${id}/messages`)).json()) as { messages: { text: string }[] };
+  expect(messages.at(-1)!.text).toBe("The rain keeps on.");
+});
+
+test("an action rated None streams and finishes the Turn with no roll, while a rated one rolls", async () => {
+  const none = `{"check":{"action":"Wave to \\"Sam\\"","stakes":"nothing, a friendly wave","difficulty":"None"},"narration":"Sam waves back.","state_operations":[]}`;
+  const replies = [none, requestCheck("Hard"), narration("It holds.")];
+  app = startApp(
+    savesDir,
+    async (_prompt, { onText }) => {
+      const reply = replies.shift()!;
+      onText(reply);
+      return reply;
+    },
+    scriptedDice(15),
+  );
+  const id = await app.createSave();
+
+  const response = await fetch(app.url(`/saves/${id}/turns`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    body: JSON.stringify({ input: "I wave." }),
+  });
+  const events = await turnEvents(response);
+  expect(events.map(({ event }) => event)).toEqual(["narration", "done"]);
+  expect(events[0]!.data).toEqual({ text: "Sam waves back." });
+
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+  const saved = ((await (await app.get(`/saves/${id}/messages`)).json()) as { messages: { text: string }[] }).messages.map(({ text }) => text);
+  expect(saved).toEqual(["I wave.", "Sam waves back.", "I leap the gap.", "It holds."]);
 });
 
 test("a stream of a replacement ends in an error event when it fails", async () => {

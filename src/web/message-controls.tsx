@@ -1,7 +1,7 @@
 import type { Ref } from "react";
-import type { Message } from "./api";
+import type { Message, MessageCheck } from "./api";
 import { isContinue } from "./chat-style";
-import { ChapterIcon, DuplicateIcon, EditIcon, RegenerateIcon, RevertIcon, RewriteIcon } from "./icons";
+import { ChapterIcon, DieIcon, DuplicateIcon, EditIcon, RegenerateIcon, RevertIcon, RewriteIcon } from "./icons";
 
 /** What a Message's row of tools does. Only the latest response is replaceable, and only once no Turn is running. */
 export type MessageActions = {
@@ -96,5 +96,23 @@ export function MessageControls(props: {
         </>
       )}
     </div>
+  );
+}
+
+const RESULTS: Record<string, string> = {
+  strong: "a great success",
+  clean: "succeeded",
+  mixed: "succeeded at a cost",
+  plain: "failed",
+  bad: "failed badly",
+};
+
+/** The Check on a Message, in words beside a die, on its own line under the reply. Shown while a Turn runs too, so the story holds still. */
+export function CheckResult({ check }: { check: MessageCheck }) {
+  return (
+    <p className="check-result">
+      {DieIcon}
+      {check.difficulty}, rolled {check.roll}: {RESULTS[check.degree] ?? check.outcome}. {check.action}
+    </p>
   );
 }

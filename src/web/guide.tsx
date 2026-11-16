@@ -7,6 +7,7 @@ import {
   DecideIcon,
   DeleteIcon,
   DrawIcon,
+  DieIcon,
   DuplicateIcon,
   StartOverIcon,
   EditIcon,
@@ -289,6 +290,10 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             {tool(DuplicateIcon, "Duplicate from here")}: keep this story as it is, and carry on from that Message in a new Save. This is how you try another
             path.
           </li>
+          <li>
+            {tool(DieIcon, "Check")} (with <b>Show Checks</b> on): when what your PC tried could go either way, a hidden roll of a twenty-sided die decided it.
+            A line under the reply says how hard it was, the roll and the result.
+          </li>
         </ul>
         <h3>Changing the world</h3>
         <p>
@@ -463,6 +468,9 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           <li>
             <b>Font size</b>: small, medium or large.
           </li>
+          <li>
+            <b>Show Checks</b>: a line under each reply where a roll decided how something went. Off by default, so the story reads without them.
+          </li>
         </ul>
         <h3>Usage</h3>
         <p>
@@ -549,7 +557,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>A Turn failed</h3>
         <p>
           The error says why, and your move stays in the box to send again. Check your key and credit with the provider, and press Test text in Settings. An AI
-          that refuses some content says so: Rewrite or change your move, or choose a different AI.
+          that refuses some content says so: Rewrite or change your move, or choose a different AI. Some AIs won't write how a roll turned out, and send back
+          something that isn't a story; after three tries NovelForge tells you its content rules blocked it and saves nothing.
         </p>
         <h3>Replies are slow, or cut off</h3>
         <p>

@@ -540,11 +540,16 @@ test("a reply that runs on far past any real one is stopped early and written ag
   play([loop, loop, loop]);
   const id = await app.createSave();
 
-  const failed = await app.post(`/saves/${id}/turns`, { input: "I wait." });
+  let status = 0;
+  const log = await logOf(async () => {
+    status = (await app.post(`/saves/${id}/turns`, { input: "I wait." })).status;
+  });
 
-  expect(failed.status).toBe(502);
+  expect(status).toBe(502);
   expect(provider.requests).toHaveLength(3);
   expect(await storedMessages(id)).toEqual([]);
+  // Logged as a runaway, not as the Check request it once was mistaken for.
+  expect(log).toContain('"reason":"ran on far too long"');
 });
 
 test("thinking a model streams in its reply doesn't count toward a runaway", async () => {

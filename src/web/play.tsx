@@ -4,6 +4,7 @@ import {
   decideForMe,
   duplicateFrom,
   failureMessage,
+  getChecks,
   getMessages,
   getTurn,
   resumeTurn,
@@ -13,6 +14,7 @@ import {
   type OpenSave,
   getSettings,
   type Message,
+  type MessageCheck,
   type PlayMode,
   playOpening,
   playTurn,
@@ -42,7 +44,7 @@ import { CONTINUE } from "../prompt-assembler";
 import { AskIcon, StopIcon, ChoicesIcon, ContinueIcon, DecideIcon, DownIcon, DrawIcon, UpIcon, Painting, Quilling, RewriteIcon, SendIcon } from "./icons";
 import { TellTheNarrator } from "./journal";
 import { ChoiceButtons, useNarrow } from "./play-choices";
-import { type MessageActions, MessageControls } from "./message-controls";
+import { CheckResult, type MessageActions, MessageControls } from "./message-controls";
 import { Book, BookTabs, ConfirmDialog, Fold, leftFolded, MoreBelow, rememberLeftFolded } from "./menu";
 import { ChapterEnd, FeedbackForm, PictureForm, QuestionForm, sendOnEnter } from "./play-asks";
 import { InlineImages, RequestedRows, SceneImage, useStoryPictures } from "./story-pictures";
@@ -176,6 +178,8 @@ export function Play({ id }: { id: string }) {
   const [setupNotice, setSetupNotice] = useState<string>();
   const [chatStyle, setChatStyle] = useState<ChatStyle>("prose");
   const [openNewImages, setOpenNewImages] = useState(true);
+  const [showChecks, setShowChecks] = useState(false);
+  const [checks, setChecks] = useState(new Map<number, MessageCheck>());
   // Unset until the player moves, so that each new response opens on its first beat.
   const [chosenBeat, setChosenBeat] = useState<number>();
   const narrow = useNarrow();
@@ -233,6 +237,20 @@ export function Play({ id }: { id: string }) {
   const duplicating = useRef(false);
   const drawing = useRef(false);
 
+  const newest = messages.at(-1)?.id;
+  // Asked again as the newest Message changes, as a Turn may have rolled one. Only the latest answer counts.
+  useEffect(() => {
+    if (!showChecks || newest === undefined) return setChecks(new Map());
+    let stale = false;
+    getChecks(id).then(
+      (list) => stale || setChecks(new Map(list.map((check) => [check.messageId, check]))),
+      () => {},
+    );
+    return () => {
+      stale = true;
+    };
+  }, [id, showChecks, newest]);
+
   useEffect(() => {
     // Taken now, as it may finish while the page loads, and its Messages must not be missed.
     const inProgress = runningTurn(id);
@@ -247,6 +265,7 @@ export function Play({ id }: { id: string }) {
           setChatStyle(settings.chatStyle);
           setImagesReady(settings.imagesReady);
           setOpenNewImages(settings.openNewImages);
+          setShowChecks(settings.showChecks);
         }
         setSave(save);
         setPlayMode(save.playMode);
@@ -563,20 +582,27 @@ export function Play({ id }: { id: string }) {
     regenerate: () => setRegenerating(true),
   };
   // An empty row while a Turn runs keeps the tools' room, so the story doesn't shift when they come back.
-  const controls = (message: Message) =>
-    turn ? (
-      <div className="row actions" />
-    ) : (
-      <MessageControls
-        message={message}
-        latest={message === latest}
-        replaceable={message === replaceable}
-        replayable={!!before(message)}
-        open={{ rewrite: rewriting === message.id, edit: rewriting === message.id && editing, chapterEnd: endingChapter }}
-        rewriteButton={rewriteButton}
-        actions={actions}
-      />
+  const controls = (message: Message) => {
+    const check = checks.get(message.id);
+    return (
+      <>
+        {check && <CheckResult check={check} />}
+        {turn ? (
+          <div className="row actions" />
+        ) : (
+          <MessageControls
+            message={message}
+            latest={message === latest}
+            replaceable={message === replaceable}
+            replayable={!!before(message)}
+            open={{ rewrite: rewriting === message.id, edit: rewriting === message.id && editing, chapterEnd: endingChapter }}
+            rewriteButton={rewriteButton}
+            actions={actions}
+          />
+        )}
+      </>
     );
+  };
 
   return (
     <Book

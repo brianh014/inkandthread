@@ -515,6 +515,31 @@ test("every reply is sent with the token limit from Settings", async () => {
   expect(provider.requests.map(({ body }) => body.max_tokens)).toEqual([16_000, 4000]);
 });
 
+test("OpenRouter is sent the Thinking level only once the player picks one", async () => {
+  play([narrated("Rain."), narrated("Sleet.")], {}, scriptedDice(), true);
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+  settingsStore(join(folder.path, "settings.json")).update({ textThinking: "low" });
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([undefined, { effort: "low" }]);
+});
+
+test("a model stuck thinking is stopped at the thinking limit and asked again", async () => {
+  const thinking = async function* () {
+    for (let at = 0; at < 1000; at++) yield `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "Hmm, let me think again. " } }] })}\n\n`;
+  };
+  play([thinking, narrated("The tide rises.")]);
+  settingsStore(join(folder.path, "settings.json")).update({ textThinkingTokens: 1000 });
+  const id = await app.createSave();
+
+  const log = await logOf(async () => expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201));
+
+  expect(provider.requests).toHaveLength(2);
+  expect(log).toContain("thought far too long");
+  expect((await storedMessages(id)).at(-1)).toMatchObject({ text: "The tide rises." });
+});
+
 const cutOff = [
   delta('{"check":null,"narration":"On and on'),
   `data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "length" }] })}

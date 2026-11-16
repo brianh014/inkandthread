@@ -36,7 +36,15 @@ export type TextProvider = (
    * `onUsage` hears what the server reported the reply used, if it did: once the call ends, or later for a reply that
    * ended before its usage came.
    */
-  request: { schema?: object; onText: (text: string) => void; onGeneration?: (id: string) => void; onUsage?: (usage: TextUsage) => void; signal: AbortSignal },
+  request: {
+    schema?: object;
+    /** An Image Prompt's call, which has its own thinking limit. */
+    picture?: boolean;
+    onText: (text: string) => void;
+    onGeneration?: (id: string) => void;
+    onUsage?: (usage: TextUsage) => void;
+    signal: AbortSignal;
+  },
 ) => Promise<string>;
 
 export type TurnEvents = (event: "narration" | "restart", data: object) => void;
@@ -46,6 +54,8 @@ export class ContentRefused extends Error {}
 export class TextProviderFailed extends Error {}
 /** The reply reached the token limit and was cut off. */
 export class ReplyCutOff extends TextProviderFailed {}
+/** A model stuck thinking, which a fresh try mostly isn't, so every call retries it. */
+export class ThoughtTooLong extends ReplyCutOff {}
 class InvalidResponse extends Error {}
 
 /** An abort reason for a reply stopped on purpose, as it has given all that's needed: logged by its words, and never a failure. */
@@ -54,6 +64,7 @@ export class StoppedOnPurpose {
 }
 
 const RAN_ON = "ran on far too long";
+const OVERTHOUGHT = "thought far too long";
 const RATED = "rated for a Check, so the rest isn't needed";
 const DECLINED_MESSAGE =
   "The AI wouldn't write how this turned out, which usually means its content rules block it. Nothing was saved: try another move, or another AI.";
@@ -652,6 +663,7 @@ function playerReason({ cause }: InvalidResponse) {
   if (cause === NO_CHOICES) return "The last reply offered no choices";
   if (cause === DECLINED) return "The last reply wasn't a story, which can mean the AI's content rules block this";
   if (cause === RAN_ON) return "The last reply ran on far too long";
+  if (cause === OVERTHOUGHT) return "The AI thought for too long before writing";
   if (Array.isArray(cause)) return "The last reply changed the story in a way that doesn't fit what's already true";
   if (cause === undefined) return "The last reply asked for a second dice roll";
   return "The last reply came back garbled";
@@ -684,6 +696,7 @@ async function askNarrator(
     // In a Turn, a runaway is a model stuck in a loop, which a fresh try mostly isn't, so it gets the retries a garbled reply does.
     // Any other call that reaches the token limit would likely reach it again, so it fails at once and says why.
     // The reason is the cause, as whyInvalid and playerReason read it: given the error, a runaway was logged as a Check request.
+    if (cause instanceof ThoughtTooLong) throw new InvalidResponse(undefined, { cause: OVERTHOUGHT });
     if (runaway && (runaway.aborted || cause instanceof ReplyCutOff)) throw new InvalidResponse(undefined, { cause: RAN_ON });
     if (cause instanceof ContentRefused) {
       throw new TurnFailed(refusal, "refused", input, { cause });
@@ -732,9 +745,9 @@ async function nextMemory(
   }
 }
 
-export async function askForJson<T>(textProvider: TextProvider, prompt: Prompt, schema: z.ZodType<T>, refusal: string, signal: AbortSignal) {
+export async function askForJson<T>(textProvider: TextProvider, prompt: Prompt, schema: z.ZodType<T>, refusal: string, signal: AbortSignal, picture = false) {
   let generation: string | undefined;
-  const request = { schema: jsonSchemaOf(schema), onText: () => {}, onGeneration: (id: string) => (generation = id), signal };
+  const request = { schema: jsonSchemaOf(schema), picture, onText: () => {}, onGeneration: (id: string) => (generation = id), signal };
   for (let attempt = 1; ; attempt++) {
     try {
       return parseReply(await askNarrator(textProvider, prompt, request, "", refusal), schema);

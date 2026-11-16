@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { errorFields, log } from "./logger";
 import type { SettingsStore } from "./settings-store";
-import { ContentRefused, ReplyCutOff, StoppedOnPurpose, type TextProvider, TextProviderFailed, type TextUsage } from "./turn-engine";
+import { ContentRefused, ReplyCutOff, StoppedOnPurpose, type TextProvider, TextProviderFailed, type TextUsage, ThoughtTooLong } from "./turn-engine";
 
 // The player sees these with a retry hint after them, so none ends in a full stop.
 const UNREACHABLE = "The Text Provider can't be reached, so make sure it's running and that its address in Settings is right";
 const STOPPED = "The Text Provider stopped responding, so make sure it isn't stuck or still loading a model";
 const TOO_LONG = "The Narrator's reply ran far too long and was stopped, so nothing was saved";
+const THOUGHT_TOO_LONG = "The AI thought for too long without writing and was stopped, so nothing was saved";
 const REJECTED = "The Text Provider returned an error, so look over its address, the text model and any API key in Settings";
 
 const LIMITS = {
@@ -27,7 +28,8 @@ type Chunk = {
   usage?: TextUsage;
   error?: ProviderError;
   choices?: {
-    delta?: { content?: string | null; refusal?: string | null };
+    // OpenRouter streams thinking as `reasoning`; llama.cpp and others as `reasoning_content`.
+    delta?: { content?: string | null; refusal?: string | null; reasoning?: string | null; reasoning_content?: string | null };
     message?: { content?: string | null };
     finish_reason?: string | null;
     native_finish_reason?: string | null;
@@ -129,8 +131,10 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
     return supported;
   }
 
-  return async (prompt, { schema, onText, onGeneration, onUsage, signal }) => {
-    const { textBaseUrl, textApiKey, textModel, textMaxTokens, textReplyMinutes, ...chosen } = settings.read();
+  return async (prompt, { schema, picture, onText, onGeneration, onUsage, signal }) => {
+    const { textBaseUrl, textApiKey, textModel, textMaxTokens, textReplyMinutes, textThinking, textThinkingTokens, pictureThinkingTokens, ...chosen } =
+      settings.read();
+    const thinkingTokens = picture ? pictureThinkingTokens : textThinkingTokens;
     if (!textModel) throw new TextProviderFailed("No text model is set, so choose one in Settings");
     const url = textBaseUrl.replace(/\/$/, "");
     const openRouter = url.includes("openrouter.ai");
@@ -153,8 +157,9 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
 
     // For the Server Log, so it holds how the reply went and none of its text.
     const started = Date.now();
-    const seen: Record<string, unknown> = { model: textModel };
+    const seen: Record<string, unknown> = { model: textModel, thinking: textThinking, thinkingLimit: thinkingTokens };
     let reply = "";
+    let thought = 0;
 
     const silence = new AbortController();
     let timer: Timer | undefined;
@@ -182,6 +187,8 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
           // OpenRouter reports usage anyway; other servers, Google's and local ones among them, only when asked.
           ...(askUsage && { stream_options: { include_usage: true } }),
           max_tokens: textMaxTokens,
+          // Changes nothing in the prompt, so the provider's cache still holds.
+          ...(openRouter && textThinking !== "default" && { reasoning: { effort: textThinking } }),
           ...(useSchema && { response_format: { type: "json_schema", json_schema: { name: "narrator_response", strict: true, schema } } }),
           // OpenRouter only: a strict server such as OpenAI refuses a field it does not know.
           ...(openRouter && { provider: { ...(useSchema && { require_parameters: true }), ...routing(chosen) } }),
@@ -245,6 +252,10 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
         if (delta?.refusal || finish_reason === "content_filter") throw new ContentRefused();
         // A Turn retries this, as there it's mostly a model stuck in a loop. Elsewhere it fails as too long.
         if (finish_reason === "length") throw new ReplyCutOff(TOO_LONG);
+        // shortcut: thinking inside <think> tags in the reply itself isn't counted, as only local servers send it that way; count it if one gets stuck.
+        thought += (delta?.reasoning ?? delta?.reasoning_content ?? "").length;
+        // About four characters a token, as estimateTokens counts.
+        if (thought / 4 > thinkingTokens) throw new ThoughtTooLong(THOUGHT_TOO_LONG);
         const text = delta?.content ?? message?.content;
         if (text) {
           reply += text;
@@ -264,7 +275,7 @@ export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LI
       clearTimeout(timer);
       clearTimeout(deadline);
       const logAs = seen.failed && !signal.aborted ? log.warning : log.info;
-      logAs("text", "Text reply", () => ({ ...seen, chars: reply.length, ms: Date.now() - started }));
+      logAs("text", "Text reply", () => ({ ...seen, chars: reply.length, thoughtChars: thought, ms: Date.now() - started }));
       // Usage comes in the last chunk, so a reply cut off, refused or stopped part-way has none, though it's billed. OpenRouter keeps it by the reply's id.
       if (seen.usage) onUsage?.(seen.usage as TextUsage);
       else if (openRouter && onUsage && typeof seen.generation === "string")

@@ -428,6 +428,12 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             <b>Longest reply, in tokens</b> and <b>in minutes</b>: limits on one reply.
           </li>
           <li>
+            <b>Thinking</b> (OpenRouter): how long an AI that thinks before it writes may think. Lower is quicker and cheaper, though some AIs ignore it.
+          </li>
+          <li>
+            <b>Longest thinking, in tokens</b>, for the story and for a picture's prompt: an AI that thinks past it is stopped and asked again.
+          </li>
+          <li>
             <b>Recent Messages sent to the Narrator</b>: how many of the newest Messages it reads in full. More remembers more but costs more; older ones are
             remembered through Old Memories.
           </li>
@@ -563,7 +569,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>Replies are slow, or cut off</h3>
         <p>
           An AI on your own computer can take a minute a Turn. Raise <b>Longest reply, in tokens</b> if replies end early, or <b>in minutes</b> if a slow AI
-          times out.
+          times out. If a reply sometimes takes minutes and then fails, the AI may be stuck thinking: lower <b>Thinking</b> or <b>Longest thinking</b>.
         </p>
         <h3>The Narrator forgot something</h3>
         <p>

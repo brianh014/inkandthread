@@ -298,10 +298,29 @@ test("a Nudge comes back as edits, so the rest of the box stays word for word, a
   expect(log).toContain('"how":"nudge"');
   expect(log).not.toContain("different power");
   const [system, user] = prompts[0]!;
-  expect(system!.content).toContain("Reply with edits that make that change and touch nothing else");
+  expect(system!.content).toContain("edit every passage the change affects, so that nothing left contradicts it");
   // The box is past its word target, so the edits are told there's no room to grow.
   expect(system!.content).toContain("room for only about 0 more words");
   expect(JSON.parse(user!.content)).toMatchObject({ idea: background, change: "a different power" });
+});
+
+test("a Nudge that runs through a whole box can rewrite all of it in one edit, and several edits apply in turn", async () => {
+  const background = "Ash is super strong. He lifts ships. Strength runs in his family.";
+  const rewritten = "Ash bends light. He hides ships in shimmer. Light runs in his family.";
+  play(
+    JSON.stringify({ edits: [{ old: background, new: rewritten }] }),
+    JSON.stringify({
+      edits: [
+        { old: "super strong", new: "able to bend light" },
+        { old: "lifts ships", new: "hides ships" },
+      ],
+    }),
+  );
+  const pc = { name: "Ash", background, physicalTraits: "", inventory: "" };
+  const nudge = () => app.post("/enhance", { ...setup, pc, field: "background", text: background, nudge: "a different power" });
+
+  expect(await (await nudge()).json()).toEqual({ text: rewritten });
+  expect(await (await nudge()).json()).toEqual({ text: "Ash is able to bend light. He hides ships. Strength runs in his family." });
 });
 
 test("a Nudge to a name rewrites it whole, and an empty box or an overlong Nudge isn't a Nudge", async () => {

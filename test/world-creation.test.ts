@@ -299,8 +299,8 @@ test("a Nudge comes back as edits, so the rest of the box stays word for word, a
   expect(log).not.toContain("different power");
   const [system, user] = prompts[0]!;
   expect(system!.content).toContain("Reply with edits that make that change and touch nothing else");
-  // The box is nearly full, so the edits are told how little room is left.
-  expect(system!.content).toContain(`room for only about ${Math.floor((4000 - background.length) / 6)} more words`);
+  // The box is past its word target, so the edits are told there's no room to grow.
+  expect(system!.content).toContain("room for only about 0 more words");
   expect(JSON.parse(user!.content)).toMatchObject({ idea: background, change: "a different power" });
 });
 
@@ -343,6 +343,22 @@ test("Enhance writes an Important Character's description from their row and the
   expect(JSON.parse(user!.content)).toMatchObject({ character: { name: "Mara", description: "" }, characters });
 });
 
+test("a long box is asked for its word target but refused only well over it, leaving room to change it later", async () => {
+  play(JSON.stringify({ text: "word ".repeat(460) }), JSON.stringify({ text: "word ".repeat(350).trim() }));
+
+  const response = await app.post("/enhance", {
+    ...setup,
+    pc: { name: "Ash", background: "", physicalTraits: "", inventory: "" },
+    field: "background",
+    text: "",
+  });
+
+  expect(await response.json()).toEqual({ text: "word ".repeat(350).trim() });
+  expect(prompts).toHaveLength(2);
+  expect(prompts[0]![0]!.content).toContain("at most 300 words");
+  expect(prompts[0]![0]!.content).not.toContain("4000 characters");
+});
+
 test("Enhance retries an Important Character's description too long for its box", async () => {
   play(JSON.stringify({ text: "x".repeat(4001) }), JSON.stringify({ text: "A smuggler." }));
   const characters = [{ name: "Mara", description: "A smuggler" }];
@@ -351,7 +367,8 @@ test("Enhance retries an Important Character's description too long for its box"
 
   expect(await response.json()).toEqual({ text: "A smuggler." });
   expect(prompts).toHaveLength(2);
-  expect(prompts[0]![0]!.content).toContain("at most 4000 characters");
+  // Within its word target, so the box can only overflow in characters by a single long word, which is still refused.
+  expect(prompts[0]![0]!.content).toContain("at most 150 words");
 });
 
 test("a world takes at most ten Important Characters, each with a name", async () => {

@@ -91,11 +91,23 @@ const NAME_FIELDS: EnhanceField[] = ["name", "characterName"];
 // The form's box and the server stop at LONG_TEXT, so a longer reply would leave the player unable to type in it.
 const fits = (words: z.ZodType<string>) => words.refine((written) => written.length <= LONG_TEXT);
 // Plain numbers again, as unlimited replies ran to hundreds of words. Looks are about what a portrait can show.
-const WORD_LIMITS: Partial<Record<EnhanceField, number>> = { physicalTraits: 30, inventory: 40 };
+// The long boxes have room for a rich idea, but Enhance had filled a Background to the box's limit, leaving no room to
+// change it, and every Turn's prompt carries the PC and the World Brief.
+const WORD_LIMITS: Partial<Record<EnhanceField, number>> = {
+  physicalTraits: 30,
+  inventory: 40,
+  worldBrief: 300,
+  background: 300,
+  startingHook: 150,
+  characterDescription: 150,
+};
+// A long box is asked for its target but only refused well over it, as a few words over shouldn't fail a whole Enhance.
+const ROOMY: EnhanceField[] = ["worldBrief", "background", "startingHook", "characterDescription"];
 const countWords = (words: string) => words.split(/\s+/).filter(Boolean).length;
 const atMost = (limit: number) => text.refine((words) => countWords(words) <= limit, "longer than its word limit");
 // An item list never has a second sentence, so prose is retried.
-const limited = (field: EnhanceField, limit: number) => (field === "inventory" ? atMost(limit).refine((list) => !/[.!?]\s+\S/.test(list)) : atMost(limit));
+const limited = (field: EnhanceField, limit: number) =>
+  field === "inventory" ? atMost(limit).refine((list) => !/[.!?]\s+\S/.test(list)) : atMost(ROOMY.includes(field) ? Math.ceil(limit * 1.5) : limit);
 
 type OpeningStatus = { health: string; injuries: string[]; conditions: string[] };
 
@@ -284,7 +296,9 @@ export async function enhance(
         ? ` text is at most ${words} words.`
         : "";
   // In words as well, as models count words far better than characters. Six characters a word leaves room for long words.
-  const most = field === "title" || isName || byEdits ? "" : ` text is at most ${LONG_TEXT} characters, about ${Math.round(LONG_TEXT / 6)} words.`;
+  // Not where the word count already keeps the box well inside its characters.
+  const within = words && words * 6 <= LONG_TEXT;
+  const most = field === "title" || isName || byEdits || within ? "" : ` text is at most ${LONG_TEXT} characters, about ${Math.round(LONG_TEXT / 6)} words.`;
   const prompt: Prompt = [
     {
       role: "system",

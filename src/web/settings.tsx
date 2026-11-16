@@ -968,6 +968,7 @@ function ReviewSettings({
         ]}
         onChange={(reviewThinking) => set({ reviewThinking })}
       />
+      <p className="muted">On High, some models think past Longest thinking, and the world is then kept unreviewed.</p>
     </fieldset>
   );
 }

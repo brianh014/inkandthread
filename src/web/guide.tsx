@@ -448,7 +448,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             <b>Review</b>: after your world is built, and before any change to it is made, the AI takes a second look for contradictions, plot holes and thin
             storylines, and quietly fixes them, keeping its secrets from you. Tick <b>Review with another model</b> to have a different AI do it, as one can
             catch what another misses. It uses the Narrator's provider unless you untick <b>Same provider as the Narrator</b> and give it its own. Its calls
-            show in Usage under its own model. <b>Review thinking</b> lets reviews think harder, or less, than the story.
+            show in Usage under its own model. <b>Review thinking</b> lets reviews think harder, or less, than the story. On High, some AIs think past <b>Longest thinking</b>, and the world is then kept unreviewed.
           </li>
           <li>
             <b>Test text</b>: sends a short prompt to check the AI works. A paid provider may charge for it.

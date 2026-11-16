@@ -74,6 +74,15 @@ test("an edit that misquotes the world is asked again, and a failed review keeps
   expect(log).toContain("World kept unreviewed");
 });
 
+test("a plot thread rewritten past its length is asked again, as the review is told to keep it to a sentence or two", async () => {
+  const thread = (words: number) => ({ ...NO_EDITS, plot_threads: [{ fault: "thin_story", old: "The bees are spies.", new: "bee ".repeat(words).trim() }] });
+  const { made, reviewer } = build(JSON.stringify(WORLD), JSON.stringify(thread(81)), JSON.stringify(thread(80)));
+  const { world } = await made;
+  expect(reviewer.prompts).toHaveLength(2);
+  expect(world.plotThreads[0]!.split(" ")).toHaveLength(80);
+  expect(reviewer.prompts[0]![0]!.content).toContain("Keep each world rule and plot thread to a sentence or two");
+});
+
 test("without a reviewer, the world isn't reviewed", async () => {
   const narrator = scriptedTextProvider(JSON.stringify(WORLD));
   await generateWorld({ textProvider: narrator.textProvider, settings: settings() }, CHOICES, PC, signal());

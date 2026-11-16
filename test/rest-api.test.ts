@@ -2147,6 +2147,35 @@ test("a stream of a replacement follows the Turn's contract, restarting after an
   expect(events.at(-1)!.data).toEqual({ messages: [{ id: 3, role: "narrator", text: "Snow." }] });
 });
 
+test("a reply stops as soon as it rates a Check, and the roll and result call go ahead", async () => {
+  let stoppedEarly = false;
+  const prompts: unknown[] = [];
+  app = startApp(
+    savesDir,
+    async (prompt, { onText, signal }) => {
+      prompts.push(prompt);
+      if (prompts.length === 2) return narration("You land, just.");
+      onText(`{"check":{"action":"Leap the gap","stakes":"a long fall","difficulty":"Hard"},`);
+      // The narration a model writes anyway, which never arrives once the rating is in.
+      if (signal?.aborted) {
+        stoppedEarly = true;
+        throw new DOMException("stopped", "AbortError");
+      }
+      onText(`"narration":"You leap and land cleanly."}`);
+      return `{"check":{"action":"Leap the gap","stakes":"a long fall","difficulty":"Hard"},"narration":"You leap and land cleanly."}`;
+    },
+    scriptedDice(14),
+  );
+  const id = await app.createSave();
+
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+
+  expect(stoppedEarly).toBe(true);
+  expect(prompts).toHaveLength(2);
+  const { messages } = (await (await app.get(`/saves/${id}/messages`)).json()) as { messages: { text: string }[] };
+  expect(messages.at(-1)!.text).toBe("You land, just.");
+});
+
 test("a reply whose narration has no words is retried", async () => {
   const { app, prompts } = playWithDice([], narration(","), narration("The rain keeps on."));
   const id = await app.createSave();

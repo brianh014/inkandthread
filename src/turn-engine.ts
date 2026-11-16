@@ -49,6 +49,7 @@ export class ReplyCutOff extends TextProviderFailed {}
 class InvalidResponse extends Error {}
 
 const RAN_ON = "ran on far too long";
+const RATED = "rated for a Check, so the rest isn't needed";
 // Twice the longest real reply in players' logs, so only a model stuck in a loop reaches it, long before the token limit. An
 // opening introduces the world's people and places, so it gets twice as much. Thinking a local model streams isn't counted.
 // shortcut: one fixed size for every model, measured on one player's DeepSeek logs; make it a Setting if real replies reach it.
@@ -182,6 +183,19 @@ const COMPLETE_JSON_CHARACTERS = /^(?:[^"\\\x00-\x1f]|\\["\\/bfnrt]|\\u[0-9a-fA-
 // A model's thoughts can hold stray JSON, or a draft that differs from its reply. A chat template may supply the
 // opening tag, and a reply can be cut off before the closing one.
 const withoutThinking = (reply: string) => reply.replace(/^[\s\S]*<\/think>/, "").replace(/<think>[\s\S]*$/, "");
+
+const RATED_CHECK = /^\s*(?:```(?:json)?\s*)?\{\s*"check"\s*:\s*(\{(?:\s*"[a-z_]+"\s*:\s*"(?:[^"\\]|\\.)*"\s*,?)*\s*\})/;
+
+/** A Check request complete in a partial reply, rated above None, so the reply can stop there and the roll go ahead. */
+function ratedCheck(partial: string) {
+  const found = withoutThinking(partial).match(RATED_CHECK)?.[1];
+  if (!found) return undefined;
+  try {
+    return CheckRequest.safeParse(JSON.parse(found)).data;
+  } catch {
+    return undefined;
+  }
+}
 
 /** The narration in a partial reply, empty until the reply has shown it is not a Check request. */
 function narrationSoFar(partial: string) {
@@ -451,9 +465,16 @@ async function narrate(
     let generation: string | undefined;
     let partial = "";
     const runaway = new AbortController();
+    // A model asked to hold its narration for the roll mostly writes it anyway, which is thrown away, so the reply stops at the rating.
+    const early = new AbortController();
+    let rated: z.infer<typeof CheckRequest> | undefined;
     const onText = (text: string) => {
       partial += text;
       if (withoutThinking(partial).length > RUNAWAY_CHARS * (kind === "opening" ? 2 : 1)) runaway.abort(RAN_ON);
+      if (!check && rollCheck && !rated) {
+        rated = ratedCheck(partial);
+        if (rated) early.abort(RATED);
+      }
       if (edited !== undefined) return;
       const narration = narrationSoFar(partial);
       if (narration.length <= narrationSent) return;
@@ -461,19 +482,22 @@ async function narrate(
       narrationSent = narration.length;
     };
     try {
-      const reply = await askNarrator(
+      const reply: string = await askNarrator(
         textProvider,
         [...prompt, ...(check ? [resultInstruction(check)] : []), ...(unplacedBefore ? [SET_SCENE_NOTE] : [])],
         {
           schema: check || !rollCheck ? schemas.noCheck : schemas.any,
           onText,
           onGeneration: (id) => (generation = id),
-          signal: AbortSignal.any([signal, runaway.signal]),
+          signal: AbortSignal.any([signal, runaway.signal, early.signal]),
         },
         input,
         refusal,
         runaway.signal,
-      );
+      ).catch((cause: unknown): string => {
+        if (rated && !signal.aborted) return JSON.stringify({ check: rated });
+        throw cause;
+      });
       const response = parseReply<z.infer<typeof NarratorResponse | typeof EditedTurn>>(reply, edited === undefined ? NarratorResponse : EditedTurn);
       if (response.check) {
         if (check || !rollCheck) throw new InvalidResponse();

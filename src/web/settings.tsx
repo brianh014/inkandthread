@@ -851,6 +851,127 @@ function ComfySettings({ draft, saved, set }: { draft: Settings; saved: Settings
   );
 }
 
+type TextChoice = keyof typeof TEXT_PROVIDERS | "local";
+// An address that is one of the named providers picks it, and any other is a local or OpenAI-compatible server.
+const textChoiceOf = (url: string) => (Object.entries(TEXT_PROVIDERS).find(([, at]) => at === url)?.[0] ?? "local") as TextChoice;
+const TEXT_CHOICES = [
+  { value: "openrouter", label: "OpenRouter" },
+  { value: "google", label: "Google AI Studio" },
+  { value: "nanogpt", label: "NanoGPT" },
+  { value: "local", label: "Local / OpenAI server" },
+] as const;
+
+/** The reviewer that takes a second look at a new world and at World Changes: the Narrator's model, or another one, on any provider. */
+function ReviewSettings({
+  draft,
+  saved,
+  set,
+  narratorModels,
+  reviewKey,
+  setReviewKey,
+}: {
+  draft: Settings;
+  saved: Settings;
+  set: (change: Partial<Settings>) => void;
+  narratorModels?: string[];
+  reviewKey: string;
+  setReviewKey: (key: string) => void;
+}) {
+  const own = draft.reviewOtherModel && !draft.reviewSameProvider;
+  const choice = textChoiceOf(draft.reviewBaseUrl);
+  // A list is only ever the saved server's, so only while the form shows the server that was saved.
+  const ownSaved = saved.reviewOtherModel && !saved.reviewSameProvider && saved.reviewBaseUrl === draft.reviewBaseUrl;
+  const [ownModels, setOwnModels] = useState<string[]>();
+
+  useEffect(() => {
+    setOwnModels(undefined);
+    if (!ownSaved) return;
+    let current = true;
+    const show = (list: string[]) => current && setOwnModels(list);
+    getTextModels(true).then(show, () => show([]));
+    return () => {
+      current = false;
+    };
+  }, [ownSaved, saved]);
+
+  const models = own ? (ownSaved ? ownModels : undefined) : draft.textBaseUrl === saved.textBaseUrl ? narratorModels : undefined;
+  return (
+    <fieldset>
+      <legend>Review</legend>
+      <p className="muted">
+        After the world is built, and before a change to it is made, the AI takes a second look for contradictions, plot holes and thin storylines, and quietly
+        fixes them.
+      </p>
+      <label className="toggle">
+        <input type="checkbox" checked={draft.reviewOtherModel} onChange={(e) => set({ reviewOtherModel: e.target.checked })} />
+        Review with another model
+      </label>
+      <p className="muted">A different model can catch what the Narrator's misses. Off, the Narrator's model reviews.</p>
+      {draft.reviewOtherModel && (
+        <>
+          <label className="toggle">
+            <input type="checkbox" checked={draft.reviewSameProvider} onChange={(e) => set({ reviewSameProvider: e.target.checked })} />
+            Same provider as the Narrator
+          </label>
+          {own && (
+            <>
+              <Picker
+                label="Review provider"
+                value={choice}
+                choices={[...TEXT_CHOICES]}
+                onChange={(provider) => set({ reviewBaseUrl: provider === "local" ? "http://localhost:1234/v1" : TEXT_PROVIDERS[provider], reviewModel: "" })}
+              />
+              {choice === "local" && (
+                <label>
+                  Review server address
+                  <input
+                    type="url"
+                    required
+                    placeholder="http://localhost:1234/v1"
+                    value={draft.reviewBaseUrl}
+                    onChange={(e) => set({ reviewBaseUrl: e.target.value })}
+                  />
+                </label>
+              )}
+              <label>
+                Review API key
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder={saved.hasReviewApiKey && ownSaved ? "Saved. Type a new key to replace it." : "None saved"}
+                  value={reviewKey}
+                  onChange={(e) => setReviewKey(e.target.value)}
+                />
+              </label>
+            </>
+          )}
+          <ModelField
+            key={own ? draft.reviewBaseUrl : draft.textBaseUrl}
+            label="Review model"
+            value={draft.reviewModel}
+            list={models}
+            onChange={(reviewModel) => set({ reviewModel })}
+          />
+          {own && !ownSaved && <p className="muted">Save to choose from this provider's models.</p>}
+          {!draft.reviewModel.trim() && <p className="notice">Choose a model, or the world goes unreviewed.</p>}
+        </>
+      )}
+      <Picker
+        label="Review thinking"
+        value={draft.reviewThinking}
+        choices={[
+          { value: "same", label: "Same as the Narrator" },
+          { value: "default", label: "The model's own" },
+          { value: "low", label: "Low" },
+          { value: "medium", label: "Medium" },
+          { value: "high", label: "High" },
+        ]}
+        onChange={(reviewThinking) => set({ reviewThinking })}
+      />
+    </fieldset>
+  );
+}
+
 function InstallSettings({
   initial,
   section,
@@ -867,10 +988,10 @@ function InstallSettings({
   // Only ever what the player types now, because the server never sends a stored key.
   const [textKey, setTextKey] = useState("");
   const [imageKey, setImageKey] = useState("");
+  const [reviewKey, setReviewKey] = useState("");
   const set = (change: Partial<Settings>) => setDraft({ ...draft, ...change });
 
-  // An address that is one of the named providers picks it, and any other is a local or OpenAI-compatible server.
-  const textChoice = (Object.entries(TEXT_PROVIDERS).find(([, url]) => url === draft.textBaseUrl)?.[0] ?? "local") as keyof typeof TEXT_PROVIDERS | "local";
+  const textChoice = textChoiceOf(draft.textBaseUrl);
   const local = textChoice === "local";
   const addressSaved = draft.textBaseUrl === saved.textBaseUrl;
   // Not all servers list their models, so those keep the text box.
@@ -930,10 +1051,12 @@ function InstallSettings({
   const keyHint = (stored: boolean) => (stored ? "Saved. Type a new key to replace it." : "None saved");
 
   const { busy, submit, feedback } = useSubmit(async () => {
-    const { hasTextApiKey, hasImageApiKey, textKeysFor, imageKeysFor, textProfiles, imageProfiles, workflowProblem, ...change } = draft;
+    const { hasTextApiKey, hasImageApiKey, hasReviewApiKey, textKeysFor, imageKeysFor, textProfiles, imageProfiles, workflowProblem, ...change } = draft;
     const next = await saveSettings({
       ...change,
       ...(textKey.trim() && { textApiKey: textKey.trim() }),
+      // Likewise hidden unless the reviewer has its own provider.
+      ...(draft.reviewOtherModel && !draft.reviewSameProvider && reviewKey.trim() && { reviewApiKey: reviewKey.trim() }),
       // Its field is hidden for Local, and a key the player can't see must not be stored.
       ...(draft.imageProvider !== "local" && imageKey.trim() && { imageApiKey: imageKey.trim() }),
     });
@@ -941,6 +1064,7 @@ function InstallSettings({
     setDraft(next);
     setTextKey("");
     setImageKey("");
+    setReviewKey("");
     applyLook(next);
     // Most local servers need no key, so only an online provider is asked for one.
     const online = Object.values(TEXT_PROVIDERS).includes(next.textBaseUrl);
@@ -961,17 +1085,7 @@ function InstallSettings({
     >
       <div data-section="Text" className="fields" hidden={section !== "Text"}>
         <h2>Text</h2>
-        <Picker
-          label="Text provider"
-          value={textChoice}
-          choices={[
-            { value: "openrouter", label: "OpenRouter" },
-            { value: "google", label: "Google AI Studio" },
-            { value: "nanogpt", label: "NanoGPT" },
-            { value: "local", label: "Local / OpenAI server" },
-          ]}
-          onChange={switchText}
-        />
+        <Picker label="Text provider" value={textChoice} choices={[...TEXT_CHOICES]} onChange={switchText} />
         {local && (
           <label>
             Server address
@@ -1144,6 +1258,7 @@ function InstallSettings({
         <p className="muted">
           The Narrator is asked for about 60 words and at most 80. An answer over this limit is thrown out and asked for again, up to three tries.
         </p>
+        <ReviewSettings draft={draft} saved={saved} set={set} narratorModels={models} reviewKey={reviewKey} setReviewKey={setReviewKey} />
         <TestBox
           title="Test text"
           hint="Sends this prompt to your saved model, with the saved Extra Narrator Instructions above. A paid provider may charge for each test."

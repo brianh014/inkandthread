@@ -319,7 +319,7 @@ function turnPrompt(
  */
 async function settleJournal(
   saves: SaveStore,
-  context: { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline },
+  context: { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline; reviewProvider?: TextProvider },
   id: string,
   signal: AbortSignal,
   stateOf: () => State,
@@ -344,14 +344,23 @@ export async function playTurn(
     settings,
     images,
     usage,
-  }: { textProvider: TextProvider; dice: Dice; nearMissMargin: number; settings: SettingsStore; images: ImagePipeline; usage?: UsageStore },
+    reviewProvider,
+  }: {
+    textProvider: TextProvider;
+    dice: Dice;
+    nearMissMargin: number;
+    settings: SettingsStore;
+    images: ImagePipeline;
+    usage?: UsageStore;
+    reviewProvider?: TextProvider;
+  },
   id: string,
   input: string,
   signal: AbortSignal,
   emit: TurnEvents = () => {},
   mayCheck = true,
 ) {
-  await settleJournal(saves, { textProvider, settings, images }, id, signal, () => saves.latestState(id));
+  await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.latestState(id));
   const basedOn = saves.latestMessageId(id);
   const state = saves.latestState(id);
   const messages = saves.messages(id);
@@ -392,14 +401,19 @@ export function playOpening(saves: SaveStore, engine: Parameters<typeof playTurn
 /** Rewrite, when there is `feedback`, or Regenerate. Takes no Dice: the Turn's stored Check stands, and a Turn without one stays without. */
 export async function replaceResponse(
   saves: SaveStore,
-  { textProvider, settings, images }: { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline },
+  {
+    textProvider,
+    settings,
+    images,
+    reviewProvider,
+  }: { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline; reviewProvider?: TextProvider },
   id: string,
   messageId: number,
   feedback: string | undefined,
   signal: AbortSignal,
   emit: TurnEvents = () => {},
 ) {
-  await settleJournal(saves, { textProvider, settings, images }, id, signal, () => saves.turnToReplace(id, messageId).state);
+  await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.turnToReplace(id, messageId).state);
   const { input, narration, check, state, messages, sceneImage, journalEdits } = saves.turnToReplace(id, messageId);
   // The old picture goes with its response, so the new one always gets its own, whatever the Narrator decides.
   const hadPicture = !!sceneImage || images.sceneDrawing(id, messageId);
@@ -437,14 +451,19 @@ export async function replaceResponse(
 /** An Edit: the player's words replace the latest response's, and the Narrator brings the state in line with them. The picture and any Check stay. */
 export async function editResponse(
   saves: SaveStore,
-  { textProvider, settings, images }: { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline },
+  {
+    textProvider,
+    settings,
+    images,
+    reviewProvider,
+  }: { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline; reviewProvider?: TextProvider },
   id: string,
   messageId: number,
   text: string,
   signal: AbortSignal,
   emit: TurnEvents = () => {},
 ) {
-  await settleJournal(saves, { textProvider, settings, images }, id, signal, () => saves.turnToReplace(id, messageId).state);
+  await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.turnToReplace(id, messageId).state);
   const { input, state, messages, journalEdits } = saves.turnToReplace(id, messageId);
   const { prompt, memory, playMode } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,

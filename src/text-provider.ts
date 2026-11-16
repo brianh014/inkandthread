@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { errorFields, log } from "./logger";
-import type { SettingsStore } from "./settings-store";
+import type { SettingsStore, TextSettings } from "./settings-store";
 import { ContentRefused, ReplyCutOff, StoppedOnPurpose, type TextProvider, TextProviderFailed, type TextUsage, ThoughtTooLong } from "./turn-engine";
 import { GOOGLE_URL, NANOGPT_URL } from "./web/api";
 
@@ -97,7 +97,7 @@ const listModels = async (url: string, headers: Record<string, string>, signal: 
   (await list(`${url}/models`, ModelList, headers, signal, listMs))?.data;
 
 /** The ids of the models on the saved server, empty if it doesn't list any. */
-export async function textModels(settings: SettingsStore, signal: AbortSignal) {
+export async function textModels(settings: TextSettings, signal: AbortSignal) {
   const { textBaseUrl, textApiKey } = settings.read();
   const models = await listModels(textBaseUrl.replace(/\/$/, ""), keyHeader(textApiKey), signal, LIMITS.listMs);
   // Google's OpenAI-compatible list names each model `models/…`, and its chat takes the bare id.
@@ -125,7 +125,7 @@ const routing = ({ textRouting, textHost, textHostFallback }: Routing) =>
   textHost ? { order: [textHost], allow_fallbacks: textHostFallback } : textRouting === "default" ? {} : { sort: textRouting };
 
 /** The one Text Provider: any OpenAI-compatible server, using the Settings at the time of each call. */
-export function textProvider(settings: SettingsStore, { silenceMs, listMs } = LIMITS): TextProvider {
+export function textProvider(settings: TextSettings, { silenceMs, listMs } = LIMITS): TextProvider {
   const schemaSupport = new Map<string, boolean>();
   // Whether a model takes `reasoning`, by its provider's listing, or false after it refused one. Sent to a model that doesn't, on
   // OpenRouter it would leave a schema call, which requires every parameter, no host.

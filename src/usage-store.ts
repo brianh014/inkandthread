@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { chosenModels } from "./graph-builder";
 import type { ImageAdapter } from "./image-adapter";
 import { errorFields, log } from "./logger";
-import type { SettingsStore } from "./settings-store";
+import type { SettingsStore, TextSettings } from "./settings-store";
 import type { TextProvider, TextUsage } from "./turn-engine";
 
 export type UsagePeriod = "day" | "week" | "month";
@@ -221,7 +221,7 @@ export type UsageStore = ReturnType<typeof usageStore>;
 const failedFor = (signal: AbortSignal) => !signal.aborted || typeof signal.reason === "string";
 
 /** Counts every text call, whatever it's for. */
-export function countedText(provider: TextProvider, usage: UsageStore, settings: SettingsStore): TextProvider {
+export function countedText(provider: TextProvider, usage: UsageStore, settings: TextSettings): TextProvider {
   return async (prompt, request) => {
     let host = "";
     let textModel = "";

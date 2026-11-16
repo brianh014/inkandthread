@@ -7,7 +7,7 @@ import { fakeImages, fakeTextProvider } from "./fake-services";
 import { googleImages, imageModelLists, nanoGptImages, openRouterImages, wiroImages } from "./image-adapter";
 import { defaultLevelFor, log, startLog } from "./logger";
 import { startServer } from "./rest-api";
-import { settingsStore } from "./settings-store";
+import { reviewerSettings, settingsStore } from "./settings-store";
 import { textProvider } from "./text-provider";
 import { isCompiled, removeReplacedPrograms } from "./updater";
 import { usageStore } from "./usage-store";
@@ -69,6 +69,7 @@ const server = startServer({
   settings,
   usage: usageStore(join(dataDir, "usage.sqlite")),
   textProvider: fake ? fakeTextProvider : textProvider(settings),
+  reviewProvider: fake ? fakeTextProvider : textProvider(reviewerSettings(settings)),
   imageAdapter: fake
     ? fakeImages
     : {

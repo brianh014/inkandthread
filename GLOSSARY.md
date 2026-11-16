@@ -73,6 +73,10 @@ _Avoid_: Regenerate (that redoes a Turn or a whole world)
 Drawing a Cover or portrait again from a new Image Prompt written from the story as it stands. A portrait's Update keeps the face of the portrait it replaces; a Redraw draws a new one.
 _Avoid_: Redo
 
+**Review**:
+A second AI call that checks a new world, or a World Change before it is applied, for faults such as contradictions and plot holes, and quietly fixes them. It runs on the Narrator's model, or on a reviewer model the player chooses.
+_Avoid_: Critic, judge, validator
+
 **Check**:
 A hidden test of a risky PC action against a difficulty the Narrator sets before the outcome is known. The player never sees a Check.
 _Avoid_: Roll, skill check, saving throw

@@ -9,7 +9,7 @@ import { errorFields, log, setLogLevel } from "./logger";
 import { saveRoutes } from "./save-routes";
 import { MAX_IMPORT_BYTES, saveStore } from "./save-store";
 import { settingsRoutes } from "./settings-routes";
-import { OnlineImageProvider } from "./settings-store";
+import { OnlineImageProvider, reviewerSettings } from "./settings-store";
 import { turnRoutes } from "./turn-routes";
 import { relaunch, updater } from "./updater";
 import { countedImages, countedText, usageStore } from "./usage-store";
@@ -68,7 +68,12 @@ export function startServer(given: ServerOptions) {
   const { settings } = given;
   const usage = given.usage ?? usageStore();
   // Counted here, before anything holds the Text Provider, so every call for every route and picture prompt is counted.
-  const options = { ...given, usage, textProvider: countedText(given.textProvider, usage, settings) };
+  const options = {
+    ...given,
+    usage,
+    textProvider: countedText(given.textProvider, usage, settings),
+    reviewProvider: given.reviewProvider && countedText(given.reviewProvider, usage, reviewerSettings(settings)),
+  };
   const saves = saveStore(options.savesDir);
   const turns = liveTurns();
   try {

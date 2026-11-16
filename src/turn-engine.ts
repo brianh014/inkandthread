@@ -112,7 +112,12 @@ export function jsonSchemaOf(schema: z.ZodType) {
 // comes first so that a streamed reply shows it is not a Check request before any narration arrives.
 // Every action is rated, as a check the Narrator could leave null was left null even for a move that plainly needed one.
 const ResponseShape = z.object({
-  check: CheckRequest.extend({ difficulty: z.enum([NONE, ...CheckRequest.shape.difficulty.options]) }),
+  // Stakes before difficulty, as a model that went straight to a difficulty rated even a move it called unwarned Easy.
+  check: z.object({
+    action: CheckRequest.shape.action,
+    stakes: z.string().describe("in a few words, what could go wrong, and how anyone it touches would truly take it"),
+    difficulty: z.enum([NONE, ...CheckRequest.shape.difficulty.options]),
+  }),
   narration: z.string().nullable(),
   state_operations: z.array(StateOperation),
   // Described here for the same reason as chapter_ends: speakers kept going missing from it.
@@ -145,10 +150,10 @@ const ChoicesShape = ResponseShape.extend({
       "exactly three things the PC might say or do next, each one first-person sentence of at most 25 words, built only from what the PC knows, and each taking a clearly different approach. Never hint at risk, difficulty, dice or a Check",
     ),
 });
-// Once a Check is rolled, or none can be, the schema itself forbids one, as the prompt's "Do not request another check" was ignored three times running.
+// Once a Check is rolled, or none can be, the schema itself forbids one and asks for the story, as the prompt's "Do not request another check" was ignored three times running.
 const SCHEMAS = {
-  free: { any: jsonSchemaOf(ResponseShape), noCheck: jsonSchemaOf(ResponseShape.extend({ check: z.null() })) },
-  choices: { any: jsonSchemaOf(ChoicesShape), noCheck: jsonSchemaOf(ChoicesShape.extend({ check: z.null() })) },
+  free: { any: jsonSchemaOf(ResponseShape), noCheck: jsonSchemaOf(ResponseShape.extend({ check: z.null(), narration: z.string() })) },
+  choices: { any: jsonSchemaOf(ChoicesShape), noCheck: jsonSchemaOf(ChoicesShape.extend({ check: z.null(), narration: z.string() })) },
 };
 
 /** Three different Choices, or none if the reply hasn't that many. */
@@ -161,7 +166,7 @@ const NO_CHOICES = "no usable choices";
 
 // shortcut: a reply in another key order or after prose shows no narration until the Turn is done, loosen this only if real models do that often.
 const NARRATION_START =
-  /^\s*(?:```(?:json)?\s*)?\{\s*"check"\s*:\s*(?:null|\{\s*"action"\s*:\s*"(?:[^"\\]|\\.)*"\s*,\s*"difficulty"\s*:\s*"None"\s*\})\s*,\s*"narration"\s*:\s*"/;
+  /^\s*(?:```(?:json)?\s*)?\{\s*"check"\s*:\s*(?:null|\{(?:\s*"[a-z_]+"\s*:\s*"(?:[^"\\]|\\.)*"\s*,)*\s*"difficulty"\s*:\s*"None"\s*\})\s*,\s*"narration"\s*:\s*"/;
 // biome-ignore lint/suspicious/noControlCharactersInRegex: JSON strings may not hold raw control characters, so this matches what they can.
 const COMPLETE_JSON_CHARACTERS = /^(?:[^"\\\x00-\x1f]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*/;
 

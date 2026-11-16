@@ -2148,7 +2148,7 @@ test("a stream of a replacement follows the Turn's contract, restarting after an
 });
 
 test("an action rated None streams and finishes the Turn with no roll, while a rated one rolls", async () => {
-  const none = `{"check":{"action":"Wave to \\"Sam\\"","difficulty":"None"},"narration":"Sam waves back.","state_operations":[]}`;
+  const none = `{"check":{"action":"Wave to \\"Sam\\"","stakes":"nothing, a friendly wave","difficulty":"None"},"narration":"Sam waves back.","state_operations":[]}`;
   const replies = [none, requestCheck("Hard"), narration("It holds.")];
   app = startApp(
     savesDir,

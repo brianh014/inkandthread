@@ -261,8 +261,10 @@ export async function enhance(
     .object({ edits: z.array(z.object({ old: z.string().min(1), new: z.string() })).min(1) })
     .refine(({ edits }) => boxText.safeParse(edited(edits)).success, "an edit misquotes the box, or the result doesn't fit it");
   const nameOnly = ` text is only the name, in at most ${NAME_WORDS} words, never who they are or anything else about them.`;
+  // In words, for the same reason as `most` below.
+  const room = Math.max(0, Math.min(Math.floor((LONG_TEXT - idea.length) / 6), words ? words - countWords(idea) : Infinity));
   const task = byEdits
-    ? `idea is what the box holds now: ${ABOUT[field]}. change is what the player wants different about it. Reply with edits that make that change and touch nothing else: each old is a passage copied exactly from idea, as short as will do, and new is what replaces it, or empty to remove it.`
+    ? `idea is what the box holds now: ${ABOUT[field]}. change is what the player wants different about it. Reply with edits that make that change and touch nothing else: each old is a passage copied exactly from idea, as short as will do, and new is what replaces it, or empty to remove it. The box has room for only about ${room} more words, so keep each new about as long as its old.`
     : change
       ? `idea is what the box holds now: ${ABOUT[field]}. change is what the player wants different about it. Make that change, keep everything else in idea as it is, and keep about the same length.${isName ? nameOnly : ""}`
       : isName

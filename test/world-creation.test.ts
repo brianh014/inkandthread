@@ -299,6 +299,8 @@ test("a Nudge comes back as edits, so the rest of the box stays word for word, a
   expect(log).not.toContain("different power");
   const [system, user] = prompts[0]!;
   expect(system!.content).toContain("Reply with edits that make that change and touch nothing else");
+  // The box is nearly full, so the edits are told how little room is left.
+  expect(system!.content).toContain(`room for only about ${Math.floor((4000 - background.length) / 6)} more words`);
   expect(JSON.parse(user!.content)).toMatchObject({ idea: background, change: "a different power" });
 });
 

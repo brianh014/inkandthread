@@ -379,31 +379,40 @@ async function play(
   async function send(round: number, action: string, path: string, body: object, input = "") {
     const before = saves.latestState(id);
     const started = performance.now();
-    const response = await fetch(new URL(path, server.url), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-      body: JSON.stringify(body),
-    });
     let firstText: number | undefined;
-    let ok = response.ok;
-    let status = response.status;
-    if (response.headers.get("content-type")?.includes("event-stream") && response.body) {
-      const decoder = new TextDecoder();
-      let buffer = "";
-      for await (const chunk of response.body) {
-        buffer += decoder.decode(chunk, { stream: true });
-        const blocks = buffer.split("\n\n");
-        buffer = blocks.pop() ?? "";
-        for (const block of blocks) {
-          const event = block.match(/^event: (.+)$/m)?.[1];
-          if (event === "narration") firstText ??= performance.now() - started;
-          if (event === "error") {
-            ok = false;
-            status = (JSON.parse(block.match(/^data: (.+)$/m)?.[1] ?? "{}") as { status?: number }).status ?? 0;
+    let ok = false;
+    let status = 0;
+    // A request that dies, such as a provider that never answers past fetch's own time limit, is a failed step, not the end of the play.
+    try {
+      const response = await fetch(new URL(path, server.url), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        body: JSON.stringify(body),
+      });
+      ok = response.ok;
+      status = response.status;
+      if (response.headers.get("content-type")?.includes("event-stream") && response.body) {
+        const decoder = new TextDecoder();
+        let buffer = "";
+        for await (const chunk of response.body) {
+          buffer += decoder.decode(chunk, { stream: true });
+          const blocks = buffer.split("\n\n");
+          buffer = blocks.pop() ?? "";
+          for (const block of blocks) {
+            const event = block.match(/^event: (.+)$/m)?.[1];
+            if (event === "narration") firstText ??= performance.now() - started;
+            if (event === "error") {
+              ok = false;
+              status = (JSON.parse(block.match(/^data: (.+)$/m)?.[1] ?? "{}") as { status?: number }).status ?? 0;
+            }
           }
         }
-      }
-    } else await response.body?.cancel();
+      } else await response.body?.cancel();
+    } catch {
+      // Status 0 marks it, as the stream may have answered 200 before it died.
+      ok = false;
+      status = 0;
+    }
     const step: Step = { round, action, input, ok, status, ms: performance.now() - started, firstText, hidden: hiddenChanges(before, saves.latestState(id)) };
     steps.push(step);
     process.stdout.write(`  play ${index} round ${round} ${action}: ${ok ? "ok" : `failed (${status})`} in ${(step.ms / 1000).toFixed(1)} s\n`);

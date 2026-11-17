@@ -1,0 +1,132 @@
+{
+  "about": "The bench's fixed world, grown from scripts/consistency-cases/salt-road.json and shaped like one the New Story wizard builds. Invented, with no adult text. It is made to bring about everything the Narrator does: Checks on risky Choices, Plot Threads that move on and resolve (the first within a few days of story time), secrets for NPCs to learn, Loose Ends, lore to grow, a deadly crossing, and people who may die. actions holds the fixed words of the Rewrite, Edit and World Change the bench sends.",
+  "save": {
+    "title": "The Salt Road",
+    "theme": "",
+    "worldBrief": "A desert frontier where salt is carted by camel caravan from the coast to the inland city of Kesh, and water is worth more than coin. The Governor's water tax is choking the well-keepers, and the road between is long, hot and lawless.",
+    "startingHook": "Wren has joined Tamsin's salt caravan at Port Lell to carry a satchel of sealed letters inland to Governor Hale at Kesh. At the border post, Captain Vane of the Border Guard searched the wagons, took Wren's pistol and chose to ride along. The caravan sets out for the Well of Ashar.",
+    "pc": {
+      "name": "Wren",
+      "background": "A courier for the Lell merchants' guild for ten years, paid well to carry what others won't. She owes the guild for a lost cargo and needs this delivery to clear the debt.",
+      "physicalTraits": "Lean, sun-browned woman in her thirties, short black hair, a pale scar through her left eyebrow, grey eyes.",
+      "skills": "Riding, reading people, a quick knife, finding water by the plants around it, keeping her mouth shut.",
+      "personality": "Wary and dry-humoured, slow to trust and quick to notice. Keeps her word once she gives it.",
+      "other": ""
+    },
+    "importantCharacters": [
+      {
+        "name": "Tamsin",
+        "description": "Stocky woman in her sixties, white hair in a single long braid, deeply weathered face, missing the two smallest fingers of her right hand, indigo head-wrap, long leather vest over a faded red robe. The caravan's owner and master, gruff and shrewd.",
+        "onCover": true
+      },
+      {
+        "name": "Jory",
+        "description": "Gangly boy of about fourteen, red curly hair, freckles, a too-large green tunic belted with rope, barefoot. Tamsin's camel boy, eager to please.",
+        "onCover": true
+      },
+      {
+        "name": "Captain Vane",
+        "description": "Tall man in his forties, shaved head, close-trimmed black beard, a burn scar down the left side of his neck, dusty blue officer's coat with brass buttons, a sabre at his hip. A Border Guard officer, cold and watchful.",
+        "onCover": true
+      }
+    ]
+  },
+  "opening": {
+    "storyTime": { "day": 1, "date": "6th of Dry Month", "timeOfDay": "early morning" },
+    "inventory": {
+      "wearing": ["sand-coloured linen shirt", "brown canvas trousers", "knee-high riding boots", "wide-brimmed straw hat"],
+      "carrying": ["satchel of sealed letters", "waterskin", "folding knife", "wool cloak"]
+    },
+    "status": { "health": "unhurt", "injuries": [], "conditions": [] },
+    "worldRules": [
+      "Water is wealth: a day on the Glass Flats without water can kill, and every caravan counts its skins.",
+      "There is no magic; the desert's dangers are heat, storms, thirst and people.",
+      "Pistols are rare and licensed by the Border Guard; most people carry blades.",
+      "Breaking a Governor's seal is a hanging crime."
+    ],
+    "plotThreads": [
+      "Ossery, the well-keeper at the Well of Ashar, slits caravans' waterskins in the night so they must buy his water at ruinous prices, and Jory cut the first one for him for a coin. Captain Vane is hunting this saboteur, suspects Tamsin, and means to arrest her at the Well within two days unless someone shows him the truth.",
+      "The sealed letter to Governor Hale names his own steward, Marrick, as the man selling salt-tax receipts to the Free Wells; Marrick has paid dust-riders to take Wren's satchel before the caravan reaches Kesh.",
+      "The Free Wells, a league of well-keepers crushed by the water tax, are gathering to seize the Well of Ashar and close the salt road; Tamsin secretly carries their demand to the Governor, hidden in her saddle, and would sooner die than let it be found."
+    ],
+    "worldBible": [
+      {
+        "title": "The salt road and the water tax",
+        "keywords": ["salt road", "water tax", "salt", "caravan", "Kesh"],
+        "content": "Salt is carted from the pans at Port Lell to the city of Kesh, twelve days by camel. Governor Hale taxes every skin of water drawn on the road, and the well-keepers who pay it are going hungry. Caravans resent the tax; the Border Guard enforces it.",
+        "alwaysOn": true
+      },
+      {
+        "title": "Tamsin",
+        "keywords": ["Tamsin", "caravan master", "Pell", "braid"],
+        "content": "Owner of the caravan, thirty years on the road. She lost two fingers to a rope on a camel's girth. Her son Pell drowned in the spring flood two years ago, and she has not laughed since. Governor Hale owes her a large debt for salt he never paid for. Secretly she sympathises with the Free Wells and carries their demand to the Governor, sewn into her saddle. She trusts Jory like a grandson.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Jory",
+        "keywords": ["Jory", "camel boy", "boy", "orphan"],
+        "content": "An orphan from Port Lell who cannot read. At the Well of Ashar last season, Ossery paid him a silver coin to cut one waterskin, telling him it was a joke on a rival; he did, and has been sick with guilt since, sure that Tamsin would turn him out if she knew. He would confess to someone who was kind to him.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Captain Vane",
+        "keywords": ["Vane", "Captain", "Border Guard", "officer", "sabre"],
+        "content": "A Border Guard captain sent by the Governor to find who is sabotaging caravans. His burn scar is from a well fire he pulled two children out of. Honest, ruthless and proud; he will use his sabre if crossed, and he will hang whoever he decides is guilty. He suspects Tamsin because her caravans are never hit. He keeps Wren's pistol in his saddlebag.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Ossery",
+        "keywords": ["Ossery", "well-keeper", "keeper", "Well of Ashar"],
+        "content": "Keeper of the Well of Ashar: a thin, smiling man in his fifties with a long grey moustache, wearing an old Border Guard coat with brass buttons he bought from a deserter. He slits caravans' waterskins at night, then sells them water at ten times its worth. He fears Vane, and would kill to keep his secret. One brass button is missing from his coat.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Marrick",
+        "keywords": ["Marrick", "steward", "receipts"],
+        "content": "Governor Hale's steward, soft-spoken and patient. He sells forged salt-tax receipts to the Free Wells and has grown rich on it. He has paid a band of dust-riders to take every letter bound for the Governor this season.",
+        "alwaysOn": false
+      },
+      {
+        "title": "The dust-riders",
+        "keywords": ["dust-riders", "riders", "raiders", "bandits"],
+        "content": "Five hired riders on fast horses, faces wrapped in grey cloth, led by a woman called Sefa with a crossbow. They strike at dusk from the dunes, want only the letters, and kill anyone who fights back.",
+        "alwaysOn": false
+      },
+      {
+        "title": "The Free Wells",
+        "keywords": ["Free Wells", "league", "well-keepers", "rebels"],
+        "content": "A league of desert well-keepers sworn to end the water tax. They mean to seize the Well of Ashar by the next new moon and close the salt road until the Governor gives way. Ossery is not one of them; they despise him.",
+        "alwaysOn": false
+      },
+      {
+        "title": "The Well of Ashar",
+        "keywords": ["Well of Ashar", "Ashar", "well"],
+        "content": "The last good well before the Glass Flats: a stone ring under three palms, a keeper's hut of mud brick, and a walled yard for camels. Every caravan must water here.",
+        "alwaysOn": false
+      },
+      {
+        "title": "The Glass Flats",
+        "keywords": ["Glass Flats", "flats", "salt flat", "crossing"],
+        "content": "Two days of white salt crust between Ashar and Kesh, flat as a table and blinding at noon. Mirages lead travellers astray, the crust breaks over sinkholes of brine, and a caravan that runs out of water there dies.",
+        "alwaysOn": false
+      },
+      {
+        "title": "The Red Teeth",
+        "keywords": ["Red Teeth", "rocks", "sandstorm"],
+        "content": "A ridge of red sandstone spires a day out from the border post, the only shelter from sandstorms on the road, and a favourite ambush ground.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Governor Hale and Kesh",
+        "keywords": ["Governor", "Hale", "Kesh", "city"],
+        "content": "Kesh is a walled city of white domes on the far side of the Glass Flats. Governor Hale is vain and short of money, and trusts Marrick completely.",
+        "alwaysOn": false
+      }
+    ]
+  },
+  "actions": {
+    "rewrite": "Slow down, and let the people present react to what just happened before anything new happens.",
+    "edit": "Far to the east, a thin brown haze stood along the horizon.",
+    "worldChange": "A great sandstorm is building in the east and will reach the salt road within two days."
+  }
+}

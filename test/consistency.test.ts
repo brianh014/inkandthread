@@ -128,6 +128,19 @@ test("a question over its cut-off has the reviewer fix the reply and its picture
   expect(review.prompts[2]!.at(-1)!.content).toContain("Five men stand");
 });
 
+test("a reviewer that gives no edits leaves the reply as it was, logged as not a slip rather than fixed", async () => {
+  CUT_OFFS.continuity = 0.9;
+  const none = JSON.stringify({ narration_edits: [], visual_description_edits: [] });
+  play(ON, [FIRST, SECOND], [NOTHING, none, NOTHING], decisions({ continuity: 0.99 }).decide);
+  const id = createSave();
+  await turn(id);
+
+  const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
+
+  expect(lastNarration(id)).toContain("Six men");
+  expect(log).toContain('"outcome":"not a slip"');
+});
+
 test("a fix that can't be placed keeps the reply as the Narrator wrote it", async () => {
   CUT_OFFS.continuity = 0.9;
   const fix = JSON.stringify({ narration_edits: [{ old: "Seven men", new: "Five men" }], visual_description_edits: [] });

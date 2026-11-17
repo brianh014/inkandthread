@@ -52,7 +52,7 @@ export type ReplyToCheck = {
 };
 
 /** What the questions found: each one's score, and whether the reply was fixed, for the Turn's log line. Numbers and names only. */
-export type Checked = { model: string; scores: Partial<Record<Name, number | null>>; outcome: "passed" | "fixed" | "fix failed" | "logged" };
+export type Checked = { model: string; scores: Partial<Record<Name, number | null>>; outcome: "passed" | "fixed" | "not a slip" | "fix failed" | "logged" };
 
 const when = (time: StoryTime | null) => (time ? `${time.date}, ${time.timeOfDay}` : null);
 
@@ -93,7 +93,9 @@ export async function checkConsistency(
   try {
     const fixed = await fixReply(reviewer, reply, Object.fromEntries(asked.filter(([name]) => flagged.includes(name))), signal);
     if (!usable(fixed.narration)) throw new Error("unusable fix");
-    return { ...fixed, checked: { model, scores, outcome: "fixed" } };
+    // No edits is the reviewer judging the flag a false alarm, which the log tells apart from a fix.
+    const same = fixed.narration === reply.narration && fixed.visualDescription === reply.visualDescription;
+    return { ...fixed, checked: { model, scores, outcome: same ? "not a slip" : "fixed" } };
   } catch (error) {
     if (signal.aborted) throw error;
     log.warning("consistency", "Reply kept unfixed", { flagged, ...errorType(error) });

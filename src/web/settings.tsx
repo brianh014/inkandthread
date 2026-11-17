@@ -902,7 +902,7 @@ function ReviewSettings({
       <p className="muted">
         After the world is built, and before a change to it is made, the AI takes a second look for contradictions, plot holes and thin storylines, and quietly
         fixes them. Another model catches what the Narrator's own misses: pick a capable one from a different family, which needn't be the most expensive, such
-        as GPT-6.1 Luna, on Medium thinking. After each reply, it also keeps the scene, inventory and time in step with the story, on Low thinking.
+        as GPT-6.1 Luna, on Medium thinking. After each reply, it also keeps the scene, inventory and time in step with the story.
       </p>
       <label className="toggle">
         <input type="checkbox" checked={draft.reviewOtherModel} onChange={(e) => set({ reviewOtherModel: e.target.checked })} />

@@ -451,8 +451,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             capable but cheaper one like GPT-6.1 Luna, as one can catch what another misses. It uses the Narrator's provider unless you untick{" "}
             <b>Same provider as the Narrator</b> and give it its own. Its calls show in Usage under its own model. <b>Review thinking</b> lets reviews think
             harder, or less, than the story. On High, some AIs think past <b>Longest thinking</b>, and the world is then kept unreviewed. After each reply, the
-            same AI also brings where you are, who's there, what you wear and carry, and the time in line with what just happened, always on Low thinking, so
-            the next reply starts from what's true. The choices and picture wait a moment for it.
+            same AI also brings where you are, who's there, what you wear and carry, and the time in line with what just happened, so the next reply starts from
+            what's true. The choices and picture wait a moment for it.
           </li>
           <li>
             <b>Consistency</b>: off unless you tick <b>Check replies with a Consistency model</b>. A quick-answering AI then asks narrow questions of each

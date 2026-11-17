@@ -36,7 +36,7 @@ export type Upkeep = {
 };
 
 /**
- * State Upkeep: a second call after each reply, on the reviewer's model with Low thinking, that brings the scene, inventory,
+ * State Upkeep: a second call after each reply, on the reviewer's model and Review thinking, that brings the scene, inventory,
  * Story Time, known facts and looks in line with what the reply shows happening. Any failure gives no operations, as the
  * Turn keeps the Narrator's own state then, and the log gets the failure's type only.
  */
@@ -72,8 +72,8 @@ export async function upkeepOperations(
   ];
   const started = Date.now();
   try {
-    // Low whatever Review thinking says, as this is bookkeeping, and the player waits on it for the choices and picture.
-    const { state_operations } = await askForJson(provider, prompt, UpkeepReply, "The reviewer refused to keep the state.", signal, { lessThinking: 2 });
+    // Review thinking, as a fast model on Low wrote a slip into the state as canon; askForJson drops a level only past the thinking limit.
+    const { state_operations } = await askForJson(provider, prompt, UpkeepReply, "The reviewer refused to keep the state.", signal);
     log.info("turn", "State Upkeep", () => ({ model, operations: state_operations.map(({ op }) => op), ms: Date.now() - started }));
     return state_operations;
   } catch (error) {

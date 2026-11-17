@@ -209,6 +209,11 @@ const declined = (narration: string) => (narration.match(/\p{L}+/gu)?.length ?? 
 // Words, not just punctuation, as a reply once came back as a lone comma.
 const NO_WORDS = "a story with no words";
 const hasWords = (narration: string) => /\p{L}{2}/u.test(narration);
+// A result reply once came back as one line about the Turn awaiting its roll, shown as the story.
+// Prose speaks of dice and turns too, so only a short reply naming two of these is taken for such a note.
+const NOTE_ABOUT_TURN = "a note about the Turn instead of story";
+const isNoteAboutTurn = (narration: string) =>
+  countWords(narration) < 30 && new Set(narration.toLowerCase().match(/\b(?:turn|reply|check|dice|roll|rolled|result)\b/g)).size >= 2;
 // A model once put its Check request in narration, which was saved as the story.
 const JSON_NARRATION = "JSON for narration";
 const isJsonObject = (narration: string) => {
@@ -626,7 +631,8 @@ async function narrate(
       const choices = playMode === "choices" ? usableChoices(response.choices) : undefined;
       const unchosen = playMode === "choices" && !choices ? NO_CHOICES : undefined;
       // A long speech is only logged, as rewriting it restarted too many Turns the player could see.
-      const fault = attempt < MAX_ATTEMPTS ? (unplaced ?? (spoken === LONG_SPEECH ? undefined : spoken) ?? unchosen) : undefined;
+      const noted = edited === undefined && isNoteAboutTurn(narration) ? NOTE_ABOUT_TURN : undefined;
+      const fault = attempt < MAX_ATTEMPTS ? (noted ?? unplaced ?? (spoken === LONG_SPEECH ? undefined : spoken) ?? unchosen) : undefined;
       unplacedBefore = fault === unplaced && !!unplaced;
       if (fault) throw new InvalidResponse(undefined, { cause: fault });
       if (spoken === LONG_SPEECH) log.warning("turn", "Long speech kept", { attempt, generation });
@@ -789,6 +795,7 @@ function playerReason({ cause }: InvalidResponse) {
   if (cause === "a picture without set_scene") return "The last reply moved to a new scene without saying where";
   if (cause === NO_CHOICES) return "The last reply offered no choices";
   if (cause === DECLINED) return "The last reply wasn't a story, which can mean the AI's content rules block this";
+  if (cause === NOTE_ABOUT_TURN) return "The last reply was a note about the story instead of the story";
   if (cause === RAN_ON) return "The last reply ran on far too long";
   if (cause === OVERTHOUGHT) return "The AI thought for too long before writing";
   if (Array.isArray(cause)) return "The last reply changed the story in a way that doesn't fit what's already true";

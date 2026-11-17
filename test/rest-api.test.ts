@@ -2244,6 +2244,22 @@ test("a rating with a difficulty the app doesn't know is retried, never narrated
   expect((await messageTexts(app, id)).at(-1)).toBe("You wait instead.");
 });
 
+test("a reply that's a note about the Turn rather than story is retried, while a short story of dice is kept", async () => {
+  const note = narration("> This turn's reply awaits the result of a risky attempt: the check was raised but no dice have been rolled yet.");
+  const { app, prompts } = playWithDice([12], requestCheck("Hard"), note, narration("You land, shaken."));
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+  expect(prompts).toHaveLength(3);
+  expect((await messageTexts(app, id)).at(-1)).toBe("You land, shaken.");
+
+  const story =
+    "The dice roll across the table and come up sixes. Kel laughs, sweeps the coins to his side, and calls for another round before anyone can check his sleeves for the loaded pair.";
+  const kept = playWithDice([], narration(story));
+  const other = await kept.app.createSave();
+  await kept.app.post(`/saves/${other}/turns`, { input: "I watch the game." });
+  expect(kept.prompts).toHaveLength(1);
+});
+
 test("a reply whose narration has no words is retried", async () => {
   const { app, prompts } = playWithDice([], narration(","), narration("The rain keeps on."));
   const id = await app.createSave();

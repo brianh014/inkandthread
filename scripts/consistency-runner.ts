@@ -37,6 +37,8 @@ function replyToCheck({ save, reply }: Marked) {
     input: input.text,
     timeBefore: before.storyTime,
     timeAfter: after.storyTime,
+    pc: (saves.read(save).pc as { name: string }).name,
+    wearing: before.inventory.wearing,
     narration: messages[at]!.text,
     visualDescription: "",
   };

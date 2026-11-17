@@ -19,13 +19,19 @@ export const QUESTIONS = {
     "The reply gets a concrete detail from previous_reply wrong: how many people are there, who is where, who holds what, what someone wears, or what just happened.",
     "The reply carries on consistently from previous_reply, changing only what it shows changing.",
   ),
+  // What the PC has on, not what they have, as an item carried in a bag passed the trial's wording.
+  pc_wearing: noul(
+    "Does the reply show the PC wearing clothing they don't have on?",
+    "The reply has the PC wear a garment, or be touched, held or seen through or by one, that isn't in pc_wearing, without the reply showing them put it on.",
+    "Every garment the reply shows on the PC is in pc_wearing, or the reply shows them put it on, or it shows none.",
+  ),
 } as const;
 export type Name = keyof typeof QUESTIONS;
 
 // shortcut: no question is tuned on a marked set yet, so each cut-off is above 1 and a question only logs. Set each from the
 // marked set for GPT-6 Luna Decisions, which other models then share, as each model's probabilities differ.
 // Exported only so a test can set one as if tuned.
-export const CUT_OFFS: Record<Name, number> = { time: 1.01, continuity: 1.01 };
+export const CUT_OFFS: Record<Name, number> = { time: 1.01, continuity: 1.01, pc_wearing: 1.01 };
 
 /** The Consistency model, and the reviewer that fixes a reply it flags. `enabled` is read for each reply, so Settings apply at once. */
 export type Consistency = { decide: DecisionProvider; enabled: () => boolean; logOnly: boolean };
@@ -37,6 +43,9 @@ export type ReplyToCheck = {
   input: string;
   timeBefore: StoryTime | null;
   timeAfter: StoryTime | null;
+  pc: string;
+  /** What the PC has on as the reply starts. */
+  wearing: string[];
   narration: string;
   visualDescription: string;
 };
@@ -46,10 +55,11 @@ export type Checked = { scores: Partial<Record<Name, number | null>>; outcome: "
 
 const when = (time: StoryTime | null) => (time ? `${time.date}, ${time.timeOfDay}` : null);
 
-export function slices({ previous, input, timeBefore, timeAfter, narration }: ReplyToCheck): Partial<Record<Name, Record<string, unknown>>> {
+export function slices({ previous, input, timeBefore, timeAfter, pc, wearing, narration }: ReplyToCheck): Partial<Record<Name, Record<string, unknown>>> {
   return {
     ...((timeBefore || timeAfter) && { time: { story_time_before: when(timeBefore), story_time_after: when(timeAfter), reply: narration } }),
     ...(previous && { continuity: { previous_reply: previous, player_input: input, reply: narration } }),
+    pc_wearing: { pc, pc_wearing: wearing, reply: narration },
   };
 }
 

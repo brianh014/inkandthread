@@ -630,6 +630,8 @@ async function narrate(
           input: upkeep?.input ?? input,
           timeBefore: before.storyTime,
           timeAfter: narrated.next.storyTime,
+          pc: pcName,
+          wearing: before.inventory.wearing,
           narration,
           visualDescription: description,
         };

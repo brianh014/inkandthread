@@ -103,7 +103,9 @@ test("each question is asked on its own with only its slice, and its score is lo
     player_input: "I count them.",
     reply: expect.stringContaining("Six men"),
   });
-  expect(log).toContain('"consistency":{"scores":{"time":0.4,"continuity":0.02},"outcome":"passed"}');
+  // What the PC has on as the reply starts, not what they carry.
+  expect(byName.pc_wearing).toEqual({ pc: "Ash", pc_wearing: [], reply: expect.stringContaining("Six men") });
+  expect(log).toContain('"consistency":{"scores":{"time":0.4,"continuity":0.02,"pc_wearing":0.02},"outcome":"passed"}');
   expect(log).not.toContain("Six men");
 });
 
@@ -160,7 +162,7 @@ test("with --consistency-log-only, every question scores and logs and nothing is
   const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
 
   expect(lastNarration(id)).toContain("Six men");
-  expect(log).toContain('"continuity":0.99},"outcome":"logged"');
+  expect(log).toContain('"continuity":0.99,"pc_wearing":0.02},"outcome":"logged"');
 });
 
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });

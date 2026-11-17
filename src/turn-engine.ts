@@ -642,7 +642,7 @@ async function narrate(
         // Nothing tells the player, but the fixed reply takes the streamed one's place.
         if (narration !== told) emit("revise", { text: narration });
       }
-      const upkept = upkeep ? await upkeepOperations(upkeep, pcName, narrated.next, check, narration, signal) : [];
+      const upkept = upkeep ? await upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal) : [];
       let upkeepRefused = 0;
       const memory = await pendingMemory;
       let moved = false;

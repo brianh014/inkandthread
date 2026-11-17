@@ -64,7 +64,8 @@ test("State Upkeep records what the reply showed and the Narrator missed, after 
   expect(state.inventory).toEqual({ wearing: [], carrying: ["a key"] });
   // It sees the state after the Narrator's operations, with the move and the reply, and none of the hidden world.
   const sent = JSON.parse(upkeep.prompts[0]!.at(-1)!.content);
-  expect(sent).toMatchObject({ state: { inventory: { carrying: ["a key"] } }, player_move: "I walk home and hang up my coat." });
+  // No reply came before the first, so there is no previous one to agree with.
+  expect(sent).toMatchObject({ state: { inventory: { carrying: ["a key"] } }, previous_reply: "", player_move: "I walk home and hang up my coat." });
   expect(sent.reply).toContain("hangs the coat");
   expect(Object.keys(sent.state)).not.toContain("plotThreads");
   expect(log).toContain('"operations":["set_scene","remove_item"]');
@@ -125,4 +126,14 @@ test("State Upkeep never adds to what the PC wears, so a garment a reply wrongly
   expect((await turn(id)).ok).toBe(true);
 
   expect(store().latestState(id).inventory.wearing).toEqual(["a coat"]);
+});
+
+test("State Upkeep is sent the reply before, so a description two replies agree is out of date can be brought up to date", async () => {
+  const { upkeep } = play([narration("Ash walks home in the rain."), narration("Ash shakes the rain off.")], [upkept(), upkept()]);
+  const id = createSave();
+  await turn(id);
+
+  await turn(id, "I shake off the rain.");
+
+  expect(JSON.parse(upkeep.prompts[1]!.at(-1)!.content).previous_reply).toBe("Ash walks home in the rain.");
 });

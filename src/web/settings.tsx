@@ -1171,7 +1171,9 @@ function InstallSettings({
       ...(textKey.trim() && { textApiKey: textKey.trim() }),
       // Likewise hidden unless the reviewer has its own provider.
       ...(draft.reviewOtherModel && !draft.reviewSameProvider && reviewKey.trim() && { reviewApiKey: reviewKey.trim() }),
-      ...((!draft.consistencySameProvider || !offersDecisions(draft.textBaseUrl)) && consistencyKey.trim() && { consistencyApiKey: consistencyKey.trim() }),
+      ...(draft.consistencyEnabled &&
+        (!draft.consistencySameProvider || !offersDecisions(draft.textBaseUrl)) &&
+        consistencyKey.trim() && { consistencyApiKey: consistencyKey.trim() }),
       // Its field is hidden for Local, and a key the player can't see must not be stored.
       ...(draft.imageProvider !== "local" && imageKey.trim() && { imageApiKey: imageKey.trim() }),
     });

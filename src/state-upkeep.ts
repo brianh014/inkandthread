@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Check } from "./check-resolver";
 import { errorType, log } from "./logger";
-import { CONTINUE_INPUT, isContinueInput, type Prompt } from "./prompt-assembler";
+import { plainMessage, type Prompt } from "./prompt-assembler";
 import { reviewerSettings, type TextSettings } from "./settings-store";
 import { type State, StateOperation } from "./state-applier";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
@@ -70,7 +70,8 @@ export async function upkeepOperations(
           known_facts: state.pcKnown.facts,
         },
         previous_reply: previous,
-        player_move: isContinueInput(input) ? CONTINUE_INPUT : input,
+        // In plain words, as the Narrator's instruction for a Continue would tell this call not to move time on.
+        player_move: plainMessage({ role: "player", text: input }).text,
         ...(check && { check_result: { action: check.action, outcome: check.outcome, degree: check.degree } }),
         reply,
       }),

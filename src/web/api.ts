@@ -124,7 +124,7 @@ export const GOOGLE_URL = "https://generativelanguage.googleapis.com/v1beta/open
 // NanoGPT's direct API host, which allows longer requests than its website's.
 export const NANOGPT_URL = "https://api.nano-gpt.com/api/v1";
 
-const hostOf = (url: string) => {
+export const hostOf = (url: string) => {
   try {
     return new URL(url).host;
   } catch {

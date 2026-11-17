@@ -2,7 +2,7 @@ import { z } from "zod";
 import { errorType, log } from "./logger";
 import { estimateTokens } from "./lore-activation";
 import type { TextSettings } from "./settings-store";
-import { offersDecisions } from "./web/api";
+import { hostOf, offersDecisions } from "./web/api";
 
 /** A yes-or-no question a decision model answers with the probability that it's true. */
 export type Question = { type: "noul"; instructions: string; criteria: { true: string; false: string } };
@@ -17,17 +17,10 @@ export type DecisionProvider = (
 /** What a request is reported to have cost, for Usage. */
 export type DecisionUsage = { provider: string; model: string; failed: boolean; tokensIn?: number; cost?: number };
 
-const hostOf = (url: string) => {
-  try {
-    return new URL(url).host;
-  } catch {
-    return "";
-  }
-};
-
 // A decision is meant to be quick, and a miss only lets the reply through, so there's no retry.
 const ANSWER_MS = 3_000;
 const LIST_MS = 15_000;
+const RELIST_MS = 5 * 60_000;
 // Below this a model can't hold a reply and its question, as Clef's 1,800 tokens can't.
 export const MIN_CONTEXT = 8_000;
 // When a listing gives no size, as the smallest of the models the trial found useful.
@@ -74,14 +67,17 @@ const Answers = z.object({
 
 /** The one Decision Provider, using the Settings at the time of each request. `onUsage` hears each request's cost. */
 export function decisionProvider(settings: TextSettings, onUsage: (usage: DecisionUsage) => void = () => {}): DecisionProvider {
-  // The size each model's listing gives, looked up once per model, so a slice can be trimmed to fit.
-  const sizes = new Map<string, number>();
-  const sizeOf = async (model: string, signal: AbortSignal) => {
+  // The size each model's listing gives, looked up once per model and shared by a Turn's questions, which ask at once, so a
+  // slice can be trimmed to fit. Not one Turn's signal, as a Stop would fail the lookup for the rest.
+  const sizes = new Map<string, Promise<number>>();
+  const sizeOf = (model: string) => {
     if (!sizes.has(model)) {
-      const listed = await decisionModels(settings, signal);
-      // Not kept when the list didn't answer, so the next request asks again.
-      if (listed.length === 0) return ASSUMED_CONTEXT;
-      sizes.set(model, listed.find(({ id }) => id === model)?.context ?? ASSUMED_CONTEXT);
+      const looked = decisionModels(settings, new AbortController().signal).then((listed) => {
+        // A list that didn't answer is asked again later, not on every Turn, as each try can take LIST_MS.
+        if (listed.length === 0) setTimeout(() => sizes.delete(model), RELIST_MS).unref();
+        return listed.find(({ id }) => id === model)?.context ?? ASSUMED_CONTEXT;
+      });
+      sizes.set(model, looked);
     }
     return sizes.get(model)!;
   };
@@ -90,7 +86,7 @@ export function decisionProvider(settings: TextSettings, onUsage: (usage: Decisi
     const none = { answers: {}, model };
     if (!model || !offersDecisions(url)) return none;
     // shortcut: a slice too big is skipped, as the first questions hold no older context to drop; trim oldest first once a slice holds some.
-    const limit = await sizeOf(model, signal);
+    const limit = await sizeOf(model);
     if (estimateTokens(JSON.stringify({ state, questions })) > limit) {
       log.warning("consistency", "Decision skipped as too big for the model", { model, limit });
       return none;
@@ -130,7 +126,8 @@ export function decisionProvider(settings: TextSettings, onUsage: (usage: Decisi
       log.warning("consistency", "Decision request failed", { model, ...errorType(error) });
       return none;
     } finally {
-      onUsage({ provider: hostOf(url), model, failed, tokensIn, cost });
+      // A Stop is the player's, not a failure, as the Narrator's and reviewer's counts treat it.
+      onUsage({ provider: hostOf(url), model, failed: failed && !signal.aborted, tokensIn, cost });
     }
   };
 }

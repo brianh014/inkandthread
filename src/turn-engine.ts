@@ -13,6 +13,8 @@ import {
   memoryDue,
   memoryPrompt,
   OPENING_INPUT,
+  REPLY_WORDS,
+  plainMessage,
   type Prompt,
   replacementInstruction,
   resultInstruction,
@@ -627,7 +629,8 @@ async function narrate(
         const told = narration;
         const reply = replyToCheck(before, {
           previous,
-          input: upkeep?.input ?? input,
+          // A Continue in plain words, not its marker.
+          input: plainMessage({ role: "player", text: upkeep?.input ?? input }).text,
           timeAfter: narrated.next.storyTime,
           pc: pcName,
           pcTraits,
@@ -724,7 +727,6 @@ async function narrate(
   }
 }
 
-/** Why the spoken lines break the reply's shape, if they do: a tag missing its "[", a line for the PC, or someone speaking more than twice. */
 /** Whether a fix passes what a Narrator reply must. It may run a little longer than the reply it fixes. */
 export function usableFix(text: string, pcName: string, told: string, check?: Check) {
   return (
@@ -736,6 +738,7 @@ export function usableFix(text: string, pcName: string, told: string, check?: Ch
   );
 }
 
+/** Why the spoken lines break the reply's shape, if they do: a tag missing its "[", a line for the PC, or someone speaking more than twice. */
 export function spokenLineFault(narration: string, pcName: string) {
   const lines = new Map<string, number>();
   for (const line of narration.split("\n").map((text) => text.trim())) {
@@ -749,8 +752,6 @@ export function spokenLineFault(narration: string, pcName: string) {
 }
 const LONG_SPEECH = "someone speaks more than twice";
 const TAG_WITHOUT_BRACKET = "a speaker tag without its [";
-// The most the prompt allows a reply, apart from the opening.
-const REPLY_WORDS = 350;
 const PC_LINE = "a spoken line for the PC";
 
 type Refusal = { op: string; reason: string };

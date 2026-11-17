@@ -191,6 +191,33 @@ test("a fix that runs past its time limit keeps the reply as the Narrator wrote 
   }
 });
 
+test("a reply no question answered is logged as unanswered, not passed", async () => {
+  const unanswered: DecisionProvider = async () => ({ answers: {}, model: "liquid/d1.2" });
+  const reply = {
+    previous: "Five men.",
+    input: "I count them.",
+    timeBefore: null,
+    timeAfter: null,
+    pc: "Ash",
+    pcLooks: "",
+    wearing: [],
+    cast: [],
+    facts: [],
+    summary: "",
+    memories: [],
+    narration: "Six men.",
+    visualDescription: "",
+  };
+  const { checked } = await checkConsistency(
+    { decide: unanswered, enabled: () => true, logOnly: false },
+    undefined,
+    reply,
+    () => true,
+    new AbortController().signal,
+  );
+  expect(checked.outcome).toBe("unanswered");
+});
+
 test("a fix that can't be placed keeps the reply as the Narrator wrote it", async () => {
   CUT_OFFS["liquid/d1.2"]!.continuity = 0.9;
   const fix = JSON.stringify({ narration_edits: [{ old: "Seven men", new: "Five men" }], visual_description_edits: [] });

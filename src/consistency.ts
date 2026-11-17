@@ -69,7 +69,11 @@ export type ReplyToCheck = {
 };
 
 /** What the questions found: each one's score, and whether the reply was fixed, for the Turn's log line. Numbers and names only. */
-export type Checked = { model: string; scores: Partial<Record<Name, number | null>>; outcome: "passed" | "fixed" | "not a slip" | "fix failed" | "logged" };
+export type Checked = {
+  model: string;
+  scores: Partial<Record<Name, number | null>>;
+  outcome: "passed" | "unanswered" | "fixed" | "not a slip" | "fix failed" | "logged";
+};
 
 /** The reply to check, with what it follows from in the state before the Narrator's operations, so a slip they recorded still shows. */
 export function replyToCheck(
@@ -130,8 +134,10 @@ export async function checkConsistency(
   const scores = Object.fromEntries(scored.map(([name, score]) => [name, score ?? null]));
   const flagged = scored.filter(([name, score]) => score !== undefined && score >= cutOffs(model)[name]).map(([name]) => name);
   const kept = { narration: reply.narration, visualDescription: reply.visualDescription };
+  // Nothing answered, as with no model, a refusal or a time-out, isn't a reply found fine.
+  const answered = scored.some(([, score]) => score !== undefined);
   if (logOnly || flagged.length === 0 || !reviewer)
-    return { ...kept, checked: { model, scores, outcome: logOnly ? "logged" : flagged.length > 0 ? "fix failed" : "passed" } };
+    return { ...kept, checked: { model, scores, outcome: logOnly ? "logged" : flagged.length > 0 ? "fix failed" : answered ? "passed" : "unanswered" } };
   try {
     const limited = AbortSignal.any([signal, AbortSignal.timeout(FIX_LIMIT.ms)]);
     const fixed = await fixReply(reviewer, reply, Object.fromEntries(asked.filter(([name]) => flagged.includes(name))), limited);

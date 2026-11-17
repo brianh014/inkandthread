@@ -35,6 +35,8 @@ function toCheck({ save, reply }: Marked) {
   return replyToCheck(saves.snapshot(save, messages[at - 2]?.id ?? input.id), {
     previous: messages.slice(0, at - 1).findLast(({ role }) => role === "narrator")?.text ?? "",
     input: input.text,
+    // shortcut: the saved Snapshot holds State Upkeep's time too, where play sends the time after the Narrator's own operations
+    // only, so the Time question scores a little differently here; keep the Narrator's time with the Turn if Time's cut-off is retuned.
     timeAfter: saves.snapshot(save, reply).storyTime,
     pc: pc.name,
     pcTraits: pc.physicalTraits ?? "",

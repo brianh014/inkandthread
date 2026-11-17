@@ -2,6 +2,7 @@ import { z } from "zod";
 import { errorResponse, NoFields, parseBody, routes, type ServerContext } from "./http";
 import { type BegunTurn, STOPPED_STATUS } from "./live-turns";
 import { errorFields, log } from "./logger";
+import { isContinueInput } from "./prompt-assembler";
 import type { Message } from "./save-store";
 import { editResponse, playOpening, playTurn, replaceResponse, TurnFailed, type TurnEvents } from "./turn-engine";
 import { answerQuestion, decideForPc } from "./world-creation";
@@ -98,11 +99,11 @@ export function turnRoutes({ options, saves, turns, images }: ServerContext) {
         const { input } = await parseBody(req, NewTurnRequest);
         const { id } = req.params;
         const choices = saves.latestChoices(id);
+        // Begun first, so a move refused as a Turn is running isn't logged as picked.
+        const turn = turns.begin(id, saves.latestMessageId(id), input);
         // Which one by number, so the log shows the pick without the story.
-        if (choices) log.info("turn", "Choice picked", { choice: choices.indexOf(input) + 1 || "own words" });
-        return turnResponse(req, turns.begin(id, saves.latestMessageId(id), input), (emit, signal) =>
-          playTurn(saves, engine, id, input, signal, emit).then(offered(id)),
-        );
+        if (choices) log.info("turn", "Choice picked", { choice: choices.indexOf(input) + 1 || (isContinueInput(input) ? "continue" : "own words") });
+        return turnResponse(req, turn, (emit, signal) => playTurn(saves, engine, id, input, signal, emit).then(offered(id)));
       },
     },
     "/saves/:id/opening": {

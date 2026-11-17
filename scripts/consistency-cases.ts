@@ -66,12 +66,16 @@ let fineKept = 0;
 let fineCases = 0;
 let upkeepMet = 0;
 let upkeepAsked = 0;
+// How long the questions and any fix hold back the choices and picture, per case.
+const waits: number[] = [];
 for (const entry of cases.filter(({ id }) => !only || id.startsWith(only))) {
   const at = { ...base, ...entry };
   const narration = (entry.reply ?? base.reply).replace("{reply}", base.reply);
   const visualDescription = entry.visualDescription ?? "";
   const reply: ReplyToCheck = { ...at, timeAfter: entry.timeAfter ?? at.timeBefore, narration, visualDescription };
+  const started = Date.now();
   const result = await checkConsistency(consistency, counted, reply, usable(at.pc, narration), signal);
+  waits.push(Date.now() - started);
   for (const [name, score] of Object.entries(result.checked.scores) as [Name, number | null][]) {
     if (score === null) continue;
     scores[name] ??= { slip: [], fine: [] };
@@ -131,4 +135,9 @@ for (const [name, { slip, fine }] of Object.entries(scores)) {
   console.log(`  ${name.padEnd(12)} slips ${slip.map((score) => score.toFixed(2)).join(" ") || "-"}  | lowest slip ${low}, highest fine ${high}`);
 }
 console.log(`Slips fixed ${slipsFixed}/${slipCases}, fine replies unchanged ${fineKept}/${fineCases}, State Upkeep right ${upkeepMet}/${upkeepAsked}`);
+const sorted = waits.toSorted((a, b) => a - b);
+const seconds = (ms = 0) => (ms / 1000).toFixed(1);
+console.log(
+  `Questions and fix: median ${seconds(sorted[Math.floor(sorted.length / 2)])} s, mean ${seconds(waits.reduce((a, b) => a + b, 0) / waits.length)} s, slowest ${seconds(sorted.at(-1))} s`,
+);
 console.log(`Cost: decisions $${decisionCost.toFixed(4)}, reviewer $${reviewCost.toFixed(4)}`);

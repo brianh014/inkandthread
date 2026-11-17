@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { dirname, join } from "node:path";
-import { CUT_OFFS } from "../src/consistency";
+import { CUT_OFFS, checkConsistency, FIX_LIMIT } from "../src/consistency";
 import { type DecisionProvider, decisionModels, decisionProvider } from "../src/decisions";
 import { startServer } from "../src/rest-api";
 import { saveStore } from "../src/save-store";
@@ -153,6 +153,42 @@ test("a model with its own cut-offs is judged by them, not Liquid D1.2's", async
 
   expect(log).toContain('"outcome":"passed"');
   delete CUT_OFFS.luna;
+});
+
+test("a fix that runs past its time limit keeps the reply as the Narrator wrote it", async () => {
+  const limit = FIX_LIMIT.ms;
+  FIX_LIMIT.ms = 20;
+  // A reviewer that answers only when stopped, as one asked again and again would keep the choices waiting.
+  const stalled = (_prompt: unknown, { signal }: { signal: AbortSignal }) =>
+    new Promise<string>((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason)));
+  const reply = {
+    previous: "Five men.",
+    input: "I count them.",
+    timeBefore: null,
+    timeAfter: null,
+    pc: "Ash",
+    pcLooks: "",
+    wearing: [],
+    cast: [],
+    facts: [],
+    summary: "",
+    memories: [],
+    narration: "Six men.",
+    visualDescription: "",
+  };
+  try {
+    const checked = await checkConsistency(
+      { decide: decisions({ continuity: 0.99 }).decide, enabled: () => true, logOnly: false },
+      stalled,
+      reply,
+      () => true,
+      new AbortController().signal,
+    );
+    expect(checked.narration).toBe("Six men.");
+    expect(checked.checked.outcome).toBe("fix failed");
+  } finally {
+    FIX_LIMIT.ms = limit;
+  }
 });
 
 test("a fix that can't be placed keeps the reply as the Narrator wrote it", async () => {

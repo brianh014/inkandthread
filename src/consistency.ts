@@ -36,7 +36,11 @@ export type Name = keyof typeof QUESTIONS;
 // Low, as the reviewer judges a flagged reply again and changes nothing that isn't a slip. Above 1, a question only logs.
 // Per model, as each scores differently. shortcut: a model not listed shares Liquid D1.2's; add its row from a run of
 // scripts/consistency-cases when players use it. Exported only so a test can set one as if tuned.
-export const CUT_OFFS: Record<string, Record<Name, number>> = { "liquid/d1.2": { time: 0.6, continuity: 0.3, description: 0.3, past: 0.5 } };
+export const CUT_OFFS: Record<string, Record<Name, number>> = { "liquid/d1.2": { time: 0.6, continuity: 0.2, description: 0.3, past: 0.2 } };
+// A fix that asks again can take 45 s, holding back the choices; past this the reply is kept as the Narrator wrote it.
+// 12 s, as 8 s cut off fixes that were still working.
+// Exported only so a test can shorten it.
+export const FIX_LIMIT = { ms: 12_000 };
 export const cutOffs = (model: string) => CUT_OFFS[model] ?? CUT_OFFS["liquid/d1.2"]!;
 
 /** The Consistency model, and the reviewer that fixes a reply it flags. `enabled` is read for each reply, so Settings apply at once. */
@@ -109,7 +113,8 @@ export async function checkConsistency(
   const kept = { narration: reply.narration, visualDescription: reply.visualDescription };
   if (logOnly || flagged.length === 0 || !reviewer) return { ...kept, checked: { model, scores, outcome: logOnly ? "logged" : "passed" } };
   try {
-    const fixed = await fixReply(reviewer, reply, Object.fromEntries(asked.filter(([name]) => flagged.includes(name))), signal);
+    const limited = AbortSignal.any([signal, AbortSignal.timeout(FIX_LIMIT.ms)]);
+    const fixed = await fixReply(reviewer, reply, Object.fromEntries(asked.filter(([name]) => flagged.includes(name))), limited);
     if (!usable(fixed.narration)) throw new Error("unusable fix");
     // No edits is the reviewer judging the flag a false alarm, which the log tells apart from a fix.
     const same = fixed.narration === reply.narration && fixed.visualDescription === reply.visualDescription;

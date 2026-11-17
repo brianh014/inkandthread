@@ -33,6 +33,7 @@ const World = z.object({
   save: z.object({
     title: z.string(),
     theme: z.string(),
+    artStyle: z.string(),
     worldBrief: z.string(),
     startingHook: z.string(),
     pc: z.object({ name: z.string() }).catchall(z.string()),

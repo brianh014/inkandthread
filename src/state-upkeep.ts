@@ -31,6 +31,10 @@ Give the state operations that record what the reply shows happening and the sta
 Each change needs the reply to show it happening, or both the reply and previous_reply to show the state is out of date. Where only the reply disagrees with the state, as in a passing mention, the reply is wrong, not the state: change nothing for it, and leave alone whatever the state already has right. Name things exactly as the state does. If nothing needs recording, give an empty list.
 Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(UpkeepReply))}`;
 
+// The Choices and the Turn's save wait for State Upkeep, which took 1 to 5 s on the bench; past this, as a slow or retrying
+// reviewer could hold them for 30 s or more, the Turn keeps the Narrator's own state. Exported only so a test can shorten it.
+export const UPKEEP_LIMIT = { ms: 15_000 };
+
 export type Upkeep = {
   provider: TextProvider;
   settings: TextSettings;
@@ -80,7 +84,8 @@ export async function upkeepOperations(
   const started = Date.now();
   try {
     // Review thinking, as a fast model on Low wrote a slip into the state as canon; askForJson drops a level only past the thinking limit.
-    const { state_operations: given } = await askForJson(provider, prompt, UpkeepReply, "The reviewer refused to keep the state.", signal);
+    const limited = AbortSignal.any([signal, AbortSignal.timeout(UPKEEP_LIMIT.ms)]);
+    const { state_operations: given } = await askForJson(provider, prompt, UpkeepReply, "The reviewer refused to keep the state.", limited);
     const kept = given.filter((operation) => operation !== null);
     log.info("turn", "State Upkeep", () => ({ model, operations: kept.map(({ op }) => op), dropped: given.length - kept.length, ms: Date.now() - started }));
     return kept as StateOperation[];

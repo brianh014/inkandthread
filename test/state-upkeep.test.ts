@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { dirname, join } from "node:path";
 import { startServer } from "../src/rest-api";
+import { UPKEEP_LIMIT } from "../src/state-upkeep";
 import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
@@ -19,7 +20,7 @@ afterEach(async () => {
 });
 
 /** A server whose Narrator and reviewer each follow a script. The reviewer is the Narrator's model, as by default. */
-function play(narrator: (string | Error)[], reviewer: (string | Error)[]) {
+function play(narrator: (string | Error)[], reviewer: (string | Error)[], stalled = false) {
   const settings = settingsStore(join(dirname(savesDir), "settings.json"));
   settings.update({ textModel: "narrator/model" });
   const told = scriptedTextProvider(...narrator);
@@ -28,7 +29,10 @@ function play(narrator: (string | Error)[], reviewer: (string | Error)[]) {
     savesDir,
     settings,
     textProvider: told.textProvider,
-    reviewProvider: upkeep.textProvider,
+    // One that answers only when stopped, like a reviewer stuck retrying.
+    reviewProvider: stalled
+      ? (_prompt, { signal }) => new Promise<string>((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason)))
+      : upkeep.textProvider,
     imageAdapter: scriptedImages().imageAdapter,
     dice: scriptedDice(),
     nearMissMargin: 2,
@@ -82,6 +86,22 @@ test("a failed State Upkeep keeps the Narrator's state, and the Turn is saved", 
   expect(store().latestState(id).inventory.carrying).toEqual(["a key"]);
   expect(store().latestState(id).scene.location).toBe("The library");
   expect(log).toContain("State Upkeep skipped");
+});
+
+test("State Upkeep that runs past its time limit keeps the Narrator's state, and the Turn is saved", async () => {
+  const limit = UPKEEP_LIMIT.ms;
+  UPKEEP_LIMIT.ms = 20;
+  try {
+    play([narration("Ash walks home.", { op: "add_item", slot: "carrying", item: "a key" })], [], true);
+    const id = createSave();
+
+    const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
+
+    expect(store().latestState(id).inventory.carrying).toEqual(["a key"]);
+    expect(log).toContain("State Upkeep skipped");
+  } finally {
+    UPKEEP_LIMIT.ms = limit;
+  }
 });
 
 test("an operation of State Upkeep's that the state refuses is dropped, and the rest still apply", async () => {

@@ -93,25 +93,36 @@ test("an operation of State Upkeep's that the state refuses is dropped, and the 
   expect(log).toContain('"upkeepRefused":1');
 });
 
-test("State Upkeep can't give an operation that touches the hidden world", async () => {
-  const { upkeep } = play([narration("Ash walks home.")], [upkept({ op: "add_plot_thread", thread: "The tide rises." }), upkept(), upkept(), upkept()]);
-  const id = createSave();
-
-  expect((await turn(id)).ok).toBe(true);
-
-  expect(store().latestState(id).plotThreads).toEqual([]);
-  expect(upkeep.prompts.length).toBe(2);
-});
-
-test("a place name with no word in it is refused and asked again, so the Journal never shows one", async () => {
+test("an operation State Upkeep may not give, or a broken one, is dropped and the rest kept, with no second call", async () => {
   const { upkeep } = play(
     [narration("Ash walks home.")],
-    [upkept({ op: "set_scene", location: "x", visible_cast: [] }), upkept({ op: "set_scene", location: "Ash's flat", visible_cast: [] })],
+    [
+      upkept(
+        { op: "add_plot_thread", thread: "The tide rises." },
+        { op: "set_scene", location: "x", visible_cast: [] },
+        { op: "remove_item", item: "" },
+        { op: "add_item", slot: "carrying", item: "a key" },
+      ),
+    ],
   );
   const id = createSave();
 
+  const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
+
+  const state = store().latestState(id);
+  expect(state.plotThreads).toEqual([]);
+  // A place name with no word in it would show as the Journal's location.
+  expect(state.scene.location).toBe("The library");
+  expect(state.inventory.carrying).toEqual(["a key"]);
+  expect(upkeep.prompts.length).toBe(1);
+  expect(log).toContain('"operations":["add_item"],"dropped":3');
+});
+
+test("State Upkeep never adds to what the PC wears, so a garment a reply wrongly gave the PC can't become canon", async () => {
+  play([narration("The denim held him.")], [upkept({ op: "add_item", slot: "wearing", item: "denim pants" })]);
+  const id = createSave();
+
   expect((await turn(id)).ok).toBe(true);
 
-  expect(store().latestState(id).scene.location).toBe("Ash's flat");
-  expect(upkeep.prompts.length).toBe(2);
+  expect(store().latestState(id).inventory.wearing).toEqual(["a coat"]);
 });

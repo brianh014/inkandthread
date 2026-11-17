@@ -2,6 +2,7 @@
   "about": "The bench's fixed world, grown from scripts/consistency-cases/salt-road.json and shaped like one the New Story wizard builds. Invented, with no adult text. It is made to bring about everything the Narrator does: Checks on risky Choices, Plot Threads that move on and resolve (the first within a few days of story time), secrets for NPCs to learn, Loose Ends, lore to grow, a deadly crossing, and people who may die. actions holds the fixed words of the Rewrite, Edit and World Change the bench sends.",
   "save": {
     "title": "The Salt Road",
+    "artStyle": "Cinematic Photorealism: Ultra-detailed photorealistic style capturing hyper-accurate physics, micro-surface textures, natural volumetric light dispersion, realistic lens depth of field, and true-to-life subsurface scattering, indistinguishable from high-resolution digital cinema footage.",
     "theme": "",
     "worldBrief": "A desert frontier where salt is carted by camel caravan from the coast to the inland city of Kesh, and water is worth more than coin. The Governor's water tax is choking the well-keepers, and the road between is long, hot and lawless.",
     "startingHook": "Wren has joined Tamsin's salt caravan at Port Lell to carry a satchel of sealed letters inland to Governor Hale at Kesh. At the border post, Captain Vane of the Border Guard searched the wagons, took Wren's pistol and chose to ride along. The caravan sets out for the Well of Ashar.",

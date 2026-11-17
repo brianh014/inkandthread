@@ -54,6 +54,13 @@ export const SettingsUpdate = z
     reviewApiKey: z.string(),
     // Its own, so reviews can think harder than Turns. Same follows the Narrator's Thinking.
     reviewThinking: z.enum(["same", "default", "low", "medium", "high"]),
+    // Narrow questions of each reply on a decision model, and the reviewer fixes a reply that clashes with the story.
+    consistencyEnabled: z.boolean(),
+    consistencyModel: z.string(),
+    // The Narrator's provider and key, when it has decision models, or its own.
+    consistencySameProvider: z.boolean(),
+    consistencyBaseUrl: z.url({ protocol: /^https?$/ }),
+    consistencyApiKey: z.string(),
     // Recent Messages sent in full each Turn. Older ones reach the Narrator as Scene Memories, written in batches of 20, so it can't go below two batches.
     textRecentMessages: z.number().int().min(40).max(400),
     // A Question's answer over this many words is retried. Not below the 80 the prompt asks for.
@@ -169,6 +176,11 @@ const defaults = {
   reviewBaseUrl: "https://openrouter.ai/api/v1",
   reviewApiKey: "",
   reviewThinking: "same",
+  consistencyEnabled: false,
+  consistencyModel: "",
+  consistencySameProvider: true,
+  consistencyBaseUrl: "https://openrouter.ai/api/v1",
+  consistencyApiKey: "",
   textRecentMessages: 80,
   answerRejectWords: 120,
   imageProvider: "openrouter",
@@ -245,6 +257,7 @@ export function settingsStore(path: string) {
     // A key must only ever reach the server it was entered for, and that server is no longer known.
     if ("textBaseUrl" in fields && !("textBaseUrl" in kept)) delete kept.textApiKey;
     if ("reviewBaseUrl" in fields && !("reviewBaseUrl" in kept)) delete kept.reviewApiKey;
+    if ("consistencyBaseUrl" in fields && !("consistencyBaseUrl" in kept)) delete kept.consistencyApiKey;
     // Likewise a provider this build doesn't know, from a newer one, say, which would read as OpenRouter and get the other's key.
     if ("imageProvider" in fields && !("imageProvider" in kept)) delete kept.imageApiKey;
     return { ...(kept as SettingsChange), ...PutAway.parse(fields) };
@@ -280,6 +293,7 @@ export function settingsStore(path: string) {
       }
       // shortcut: the reviewer keeps one server and key, not a profile per server, so a switch drops its key, file them by address if players switch often.
       if (next.reviewBaseUrl !== current.reviewBaseUrl && !("reviewApiKey" in change)) next.reviewApiKey = "";
+      if (next.consistencyBaseUrl !== current.consistencyBaseUrl && !("consistencyApiKey" in change)) next.consistencyApiKey = "";
       if (next.imageProvider !== current.imageProvider) {
         const own = { imageApiKey: "", imageModel: "", ...current.imageProfiles[next.imageProvider] };
         Object.assign(next, restored(change, own, IMAGE_TIED));

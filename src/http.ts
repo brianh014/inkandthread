@@ -19,6 +19,7 @@ import {
   SaveNotFound,
   StaleTurn,
 } from "./save-store";
+import type { DecisionProvider } from "./decisions";
 import type { OnlineImageProvider, SettingsStore } from "./settings-store";
 import { type TextProvider, TurnFailed } from "./turn-engine";
 import { UpdateFailed } from "./updater";
@@ -31,11 +32,19 @@ export type ServerOptions = {
   textProvider: TextProvider;
   /** Reviews the world and World Changes, sent with the reviewer's settings. Without one, as in tests with a scripted Narrator, nothing is reviewed. */
   reviewProvider?: TextProvider;
+  /** The Consistency model. By default the real one, which asks nothing until Settings turn it on. */
+  decisionProvider?: DecisionProvider;
+  /** For the Consistency model dropdown, in place of the provider's list, as --fake has no network. */
+  decisionModels?: () => Promise<string[]>;
+  /** `--consistency-log-only`: every question scores and logs, tuned or not, and nothing is fixed. */
+  consistencyLogOnly?: boolean;
   /**
    * One adapter for every online provider, as tests and --fake use, or one per provider. A list must name them all, so a provider
    * added later can't fall back to another's adapter and send it that provider's key.
    */
   imageAdapter: ImageAdapter | Record<OnlineImageProvider, ImageAdapter>;
+  /** In place of ComfyUI, for the bench, which keeps the player's image Settings, and so their prompts, but draws nothing real. */
+  localImages?: ImageAdapter;
   /** For the Image model dropdown. Without it, Settings lists none and keeps the text box. */
   imageModels?: ImageModelList;
   /** Loopback unless the caller opens the app to the network, which has no accounts to protect it. */

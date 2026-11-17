@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { PromptStyle } from "./graph-builder";
 import { type ImagePipeline, pcLooks, pcNow, restyledBy, visibleNpcs } from "./image-pipeline";
-import { LONG_TEXT } from "./limits";
+import { countWords, LONG_TEXT, withinLimit } from "./limits";
 import { errorType, log } from "./logger";
 import { activateLore } from "./lore-activation";
 import {
@@ -101,9 +101,6 @@ const WORD_LIMITS: Partial<Record<EnhanceField, number>> = {
   startingHook: 150,
   characterDescription: 150,
 };
-const countWords = (words: string) => words.split(/\s+/).filter(Boolean).length;
-// A model is asked for a word limit but refused only a quarter over it, as a few words over shouldn't fail a whole call.
-const withinLimit = (words: string, limit: number) => countWords(words) <= Math.ceil(limit * 1.25);
 const atMost = (limit: number) => text.refine((words) => withinLimit(words, limit), `over ${limit} words`);
 // An item list never has a second sentence, so prose is retried.
 const limited = (field: EnhanceField, limit: number) => (field === "inventory" ? atMost(limit).refine((list) => !/[.!?]\s+\S/.test(list)) : atMost(limit));

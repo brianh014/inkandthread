@@ -2,6 +2,7 @@ import { z } from "zod";
 import { errorResponse, NoFields, parseBody, routes, type ServerContext } from "./http";
 import { type BegunTurn, STOPPED_STATUS } from "./live-turns";
 import { errorFields, log } from "./logger";
+import { isContinueInput } from "./prompt-assembler";
 import type { Message } from "./save-store";
 import { editResponse, playOpening, playTurn, replaceResponse, TurnFailed, type TurnEvents } from "./turn-engine";
 import { answerQuestion, decideForPc } from "./world-creation";
@@ -85,20 +86,33 @@ data: ${JSON.stringify(data)}
 /** Turns and every other reply the Narrator writes into the story, and the questions it answers outside it. */
 export function turnRoutes({ options, saves, turns, images }: ServerContext) {
   const engine = { ...options, images };
+  /** The Choices a reply left the player, which are story text, so only with Story in log. */
+  const offered = (id: string) => (messages: Message[]) => {
+    const choices = saves.latestChoices(id);
+    if (choices && options.settings.read().storyInLog) log.story("turn", "Choices offered", { choices });
+    return messages;
+  };
 
   return routes({
     "/saves/:id/turns": {
       POST: async (req) => {
         const { input } = await parseBody(req, NewTurnRequest);
         const { id } = req.params;
-        return turnResponse(req, turns.begin(id, saves.latestMessageId(id), input), (emit, signal) => playTurn(saves, engine, id, input, signal, emit));
+        const choices = saves.latestChoices(id);
+        // Begun first, so a move refused as a Turn is running isn't logged as picked.
+        const turn = turns.begin(id, saves.latestMessageId(id), input);
+        // Which one by number, so the log shows the pick without the story.
+        if (choices) log.info("turn", "Choice picked", { choice: choices.indexOf(input) + 1 || (isContinueInput(input) ? "continue" : "own words") });
+        return turnResponse(req, turn, (emit, signal) => playTurn(saves, engine, id, input, signal, emit).then(offered(id)));
       },
     },
     "/saves/:id/opening": {
       POST: async (req) => {
         await parseBody(req, NoFields);
         const { id } = req.params;
-        return turnResponse(req, turns.begin(id, saves.latestMessageId(id), ""), (emit, signal) => playOpening(saves, engine, id, signal, emit));
+        return turnResponse(req, turns.begin(id, saves.latestMessageId(id), ""), (emit, signal) =>
+          playOpening(saves, engine, id, signal, emit).then(offered(id)),
+        );
       },
     },
     "/saves/:id/turn": {
@@ -127,7 +141,7 @@ export function turnRoutes({ options, saves, turns, images }: ServerContext) {
         const { feedback } = await parseBody(req, RewriteRequest);
         const { id, messageId } = req.params;
         return turnResponse(req, turns.begin(id, saves.latestMessageId(id), feedback, Number(messageId)), (emit, signal) =>
-          replaceResponse(saves, engine, id, Number(messageId), feedback, signal, emit),
+          replaceResponse(saves, engine, id, Number(messageId), feedback, signal, emit).then(offered(id)),
         );
       },
     },
@@ -136,7 +150,7 @@ export function turnRoutes({ options, saves, turns, images }: ServerContext) {
         const { text } = await parseBody(req, EditRequest);
         const { id, messageId } = req.params;
         return turnResponse(req, turns.begin(id, saves.latestMessageId(id), text, Number(messageId)), (emit, signal) =>
-          editResponse(saves, engine, id, Number(messageId), text, signal, emit),
+          editResponse(saves, engine, id, Number(messageId), text, signal, emit).then(offered(id)),
         );
       },
     },
@@ -145,7 +159,7 @@ export function turnRoutes({ options, saves, turns, images }: ServerContext) {
         await parseBody(req, NoFields);
         const { id, messageId } = req.params;
         return turnResponse(req, turns.begin(id, saves.latestMessageId(id), "", Number(messageId)), (emit, signal) =>
-          replaceResponse(saves, engine, id, Number(messageId), undefined, signal, emit),
+          replaceResponse(saves, engine, id, Number(messageId), undefined, signal, emit).then(offered(id)),
         );
       },
     },

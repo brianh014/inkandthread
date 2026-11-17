@@ -13,6 +13,8 @@ import {
   memoryDue,
   memoryPrompt,
   OPENING_INPUT,
+  REPLY_WORDS,
+  plainMessage,
   type Prompt,
   replacementInstruction,
   resultInstruction,
@@ -22,6 +24,9 @@ import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } fr
 import type { SettingsStore } from "./settings-store";
 import type { NarratorTurn, UsageStore } from "./usage-store";
 import { applyOperations, givenName, introduce, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
+import { type Checked, type Consistency, checkConsistency, replyToCheck } from "./consistency";
+import { countWords, withinLimit } from "./limits";
+import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 
@@ -49,7 +54,7 @@ export type TextProvider = (
   },
 ) => Promise<string>;
 
-export type TurnEvents = (event: "narration" | "restart", data: object) => void;
+export type TurnEvents = (event: "narration" | "restart" | "revise", data: object) => void;
 
 export class ContentRefused extends Error {}
 /** A failure whose message is fit to show the player. */
@@ -255,6 +260,16 @@ type Narrated = {
   input: string;
   refusal: string;
   pcName: string;
+  /** The PC's looks as the story began, which pcAppearance in the state replaces once set. */
+  pcTraits: string;
+  /** The state the reply starts from. */
+  before: State;
+  /** Left out when there's no reviewer to keep the state, as in a test's script. */
+  upkeep?: Upkeep;
+  /** Left out for an Edit, which is the player's own words. */
+  consistency?: Consistency;
+  /** The Narrator's last reply before this one, which the questions check this one against. */
+  previous?: string;
   /** The player's own words for an Edit, which stand in for whatever narration the reply holds. */
   narration?: string;
   check?: Check;
@@ -314,8 +329,10 @@ function turnPrompt(
   };
 }
 
+const lastNarration = (messages: Message[]) => messages.findLast(({ role }) => role === "narrator")?.text ?? "";
+
 /** What a World Change needs: the Narrator, the reviewer and the pictures a change can restyle. */
-type WorldContext = { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline; reviewProvider?: TextProvider };
+type WorldContext = { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline; reviewProvider?: TextProvider; consistency?: Consistency };
 
 /**
  * Brings the hidden world in line with the player's Journal edits in a call of its own, as a Turn busy writing the
@@ -344,6 +361,7 @@ export async function playTurn(
     images,
     usage,
     reviewProvider,
+    consistency,
   }: {
     textProvider: TextProvider;
     dice: Dice;
@@ -352,6 +370,7 @@ export async function playTurn(
     images: ImagePipeline;
     usage?: UsageStore;
     reviewProvider?: TextProvider;
+    consistency?: Consistency;
   },
   id: string,
   input: string,
@@ -380,6 +399,11 @@ export async function playTurn(
     input,
     refusal: "The Narrator refused this message. Edit it and try again.",
     pcName: saves.read(id).pc.name,
+    pcTraits: saves.read(id).pc.physicalTraits ?? "",
+    before: state,
+    upkeep: reviewProvider && { provider: reviewProvider, settings, input },
+    consistency,
+    previous: lastNarration(messages),
     memory,
     // The PC attempts nothing in a Continue, so there is nothing to roll for.
     rollCheck: mayCheck && !isContinueInput(input) ? (request) => resolveCheck(request, dice, nearMissMargin) : undefined,
@@ -400,7 +424,7 @@ export function playOpening(saves: SaveStore, engine: Parameters<typeof playTurn
 /** Rewrite, when there is `feedback`, or Regenerate. Takes no Dice: the Turn's stored Check stands, and a Turn without one stays without. */
 export async function replaceResponse(
   saves: SaveStore,
-  { textProvider, settings, images, reviewProvider }: WorldContext,
+  { textProvider, settings, images, reviewProvider, consistency }: WorldContext,
   id: string,
   messageId: number,
   feedback: string | undefined,
@@ -427,6 +451,11 @@ export async function replaceResponse(
     input: feedback ?? "",
     refusal: "The Narrator refused this, so the response stays as it was.",
     pcName: saves.read(id).pc.name,
+    pcTraits: saves.read(id).pc.physicalTraits ?? "",
+    before: state,
+    upkeep: reviewProvider && { provider: reviewProvider, settings, input },
+    consistency,
+    previous: lastNarration(messages),
     check,
     memory,
     playMode,
@@ -468,6 +497,10 @@ export async function editResponse(
     input: text,
     refusal: "The Narrator refused this edit, so the response stays as it was.",
     pcName: saves.read(id).pc.name,
+    pcTraits: saves.read(id).pc.physicalTraits ?? "",
+    before: state,
+    upkeep: reviewProvider && { provider: reviewProvider, settings, input },
+    previous: lastNarration(messages),
     narration: text,
     memory,
     playMode,
@@ -487,6 +520,11 @@ async function narrate(
     input,
     refusal,
     pcName,
+    pcTraits,
+    before,
+    upkeep,
+    consistency,
+    previous = "",
     narration: edited,
     check: storedCheck,
     memory: pendingMemory,
@@ -561,7 +599,7 @@ async function narrate(
       }
       const { state_operations, people, summary, recent_summary, scene_changed, visual_description, chapter_ends } = response;
       // Later replies copy marks like these, so they never reach a Save.
-      const narration = edited ?? withoutStrayMarks(response.narration as string);
+      let narration = edited ?? withoutStrayMarks(response.narration as string);
       // The last attempt keeps such a reply, as losing the Turn costs more than a long speech.
       // A picture without set_scene would be drawn from the last scene's place and people, which may have moved on, so it's dropped.
       // Never kept, even on the last attempt, as what isn't a story is no Turn.
@@ -580,6 +618,34 @@ async function narrate(
       // The player picks again from a Regenerate, or switches to Free Text.
       if (unchosen) log.warning("turn", "Turn kept without Choices", { attempt, generation });
       if (unplaced) log.warning("turn", "Picture dropped without set_scene", { attempt, generation });
+      // Checked before State Upkeep, so a reply that will be written again costs no call.
+      const introducedBefore = introduce(before, people, pcName, state_operations);
+      const narrated = applyOperations(introducedBefore.state, introducedBefore.operations);
+      const clashesBefore = attempt < MAX_ATTEMPTS ? introducedBefore.refused : [];
+      if (clashesBefore.length > 0 || narrated.refused.length > 0) throw new InvalidResponse(undefined, { cause: [...clashesBefore, ...narrated.refused] });
+      let description = visual_description?.trim() ?? "";
+      let checked: Checked | undefined;
+      if (consistency?.enabled()) {
+        const told = narration;
+        const reply = replyToCheck(before, {
+          previous,
+          // A Continue in plain words, not its marker.
+          input: plainMessage({ role: "player", text: upkeep?.input ?? input }).text,
+          timeAfter: narrated.next.storyTime,
+          pc: pcName,
+          pcTraits,
+          narration,
+          visualDescription: description,
+        });
+        const result = await checkConsistency(consistency, upkeep?.provider, reply, (text) => usableFix(withoutStrayMarks(text), pcName, told, check), signal);
+        checked = result.checked;
+        narration = withoutStrayMarks(result.narration);
+        description = result.visualDescription;
+        // Nothing tells the player, but the fixed reply takes the streamed one's place.
+        if (narration !== told) emit("revise", { text: narration });
+      }
+      const upkept = upkeep ? await upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal) : [];
+      let upkeepRefused = 0;
       const memory = await pendingMemory;
       let moved = false;
       let location = "";
@@ -594,11 +660,15 @@ async function narrate(
         check,
         (state) => {
           const introduced = introduce(state, people, pcName, state_operations);
-          const { next, refused, ignored: harmless, repeats } = applyOperations(introduced.state, introduced.operations);
+          const { next: told, refused, ignored: harmless, repeats } = applyOperations(introduced.state, introduced.operations);
           // Dropping one would leave narration that disagrees with the state, so the whole Turn is invalid.
           // A shared name is kept on the last attempt, as losing the Turn costs more.
           const clashes = attempt < MAX_ATTEMPTS ? introduced.refused : [];
           if (clashes.length > 0 || refused.length > 0) throw new InvalidResponse(undefined, { cause: [...clashes, ...refused] });
+          // After the Narrator's own, which it corrects. One the state code refuses is only dropped, as the reply already stands.
+          const kept = applyOperations(told, upkept);
+          upkeepRefused = kept.refused.length + kept.ignored.length;
+          const next = kept.next;
           repeated = repeats;
           ignored = harmless;
           if (summary.trim()) next.summary = summary.trim();
@@ -620,7 +690,7 @@ async function narrate(
         committed(messages.at(-1)!.id, {
           changed: moved || (!!scene_changed && !unplaced),
           moved,
-          description: unplaced ? "" : (visual_description?.trim() ?? ""),
+          description: unplaced ? "" : description,
           location,
           npcs,
           wearing,
@@ -645,6 +715,8 @@ async function narrate(
         ...(memory && { memoryFirst: memory.firstMessage, memoryLast: memory.lastMessage, memoryLength: memory.text.length }),
         people: people.length,
         operations,
+        ...(upkeep && { upkeep: upkept.map(({ op }) => op), upkeepRefused }),
+        ...(checked && { consistency: checked }),
         sceneChanged: !!scene_changed,
         chapterEnds: !!chapter_ends,
       }));
@@ -655,11 +727,22 @@ async function narrate(
   }
 }
 
+/** Whether a fix passes what a Narrator reply must. It may run a little longer than the reply it fixes. */
+export function usableFix(text: string, pcName: string, told: string, check?: Check) {
+  return (
+    hasWords(text) &&
+    !isJsonObject(text) &&
+    !(check && declined(text)) &&
+    ![PC_LINE, TAG_WITHOUT_BRACKET].includes(spokenLineFault(text, pcName) ?? "") &&
+    withinLimit(text, Math.max(REPLY_WORDS, countWords(told)))
+  );
+}
+
 /** Why the spoken lines break the reply's shape, if they do: a tag missing its "[", a line for the PC, or someone speaking more than twice. */
 export function spokenLineFault(narration: string, pcName: string) {
   const lines = new Map<string, number>();
   for (const line of narration.split("\n").map((text) => text.trim())) {
-    if (/^[^[\]\s][^[\]]*\]:/.test(line)) return "a speaker tag without its [";
+    if (/^[^[\]\s][^[\]]*\]:/.test(line)) return TAG_WITHOUT_BRACKET;
     const speaker = line.match(/^\[([^[\]]+)\]:/)?.[1]?.trim();
     // The player alone writes what the PC says, and the prompt saying so was ignored.
     if (speaker && pcName && (speaker.toLowerCase() === pcName.toLowerCase() || (givenName(speaker) ?? "") === givenName(pcName))) return PC_LINE;
@@ -668,6 +751,7 @@ export function spokenLineFault(narration: string, pcName: string) {
   return [...lines.values()].some((count) => count > 2) ? LONG_SPEECH : undefined;
 }
 const LONG_SPEECH = "someone speaks more than twice";
+const TAG_WITHOUT_BRACKET = "a speaker tag without its [";
 const PC_LINE = "a spoken line for the PC";
 
 type Refusal = { op: string; reason: string };
@@ -685,7 +769,7 @@ function whyInvalid({ cause }: InvalidResponse) {
 
 /** What a player is told of an invalid reply, never quoting it, as a reply may hold secrets. */
 function playerReason({ cause }: InvalidResponse) {
-  if (cause === "a speaker tag without its [") return "A spoken line in the last reply was missing its speaker";
+  if (cause === TAG_WITHOUT_BRACKET) return "A spoken line in the last reply was missing its speaker";
   if (cause === PC_LINE) return "The last reply spoke for your character";
   if (cause === "a picture without set_scene") return "The last reply moved to a new scene without saying where";
   if (cause === NO_CHOICES) return "The last reply offered no choices";
@@ -779,10 +863,11 @@ export async function askForJson<T>(
   schema: z.ZodType<T>,
   refusal: string,
   signal: AbortSignal,
-  { picture = false } = {},
+  /** `lessThinking` asks for that many levels below the player's Thinking from the first attempt. */
+  { picture = false, lessThinking: fewer = 0 } = {},
 ) {
   let generation: string | undefined;
-  let lessThinking = 0;
+  let lessThinking = fewer;
   let asked = prompt;
   for (let attempt = 1; ; attempt++) {
     const request = { schema: jsonSchemaOf(schema), picture, lessThinking, onText: () => {}, onGeneration: (id: string) => (generation = id), signal };

@@ -1,4 +1,5 @@
 import { deflateSync } from "node:zlib";
+import type { DecisionProvider } from "./decisions";
 import type { ImageAdapter } from "./image-adapter";
 import type { TextProvider } from "./turn-engine";
 
@@ -185,8 +186,8 @@ const parsed = (content: string) => {
 function meetImportant(prompt: Parameters<TextProvider>[0], people: { name: string }[]) {
   const asked = prompt.map(({ content }) => parsed(content)?.important_characters).find(Array.isArray) as { name: string }[] | undefined;
   if (asked) important = asked.map(({ name }) => name);
-  const state = prompt.map(({ content }) => content.split("\n").find((line) => line.startsWith("Current state: "))).find(Boolean);
-  const known = (state && (parsed(state.slice("Current state: ".length))?.pcKnown as { npcs?: string[] } | undefined)?.npcs) ?? undefined;
+  const state = prompt.map(({ content }) => content.split("\n").find((line) => line.startsWith("Current state"))).find(Boolean);
+  const known = (state && (parsed(state.slice(state.indexOf("{")))?.pcKnown as { npcs?: string[] } | undefined)?.npcs) ?? undefined;
   const stranger = known && important.find((name) => !known.includes(name));
   if (stranger && people[0]) people[0].name = stranger;
 }
@@ -200,8 +201,8 @@ export const fakeTextProvider: TextProvider = async (prompt, { schema, onText, o
   // A picture's review hands its prompt back as it was, as a sampled one would replace the scene with filler words.
   const reviewed = prompt.at(-1)?.content.match(/^\{"prompt":(".*")\}$/s)?.[1];
   if (sampled && reviewed && typeof sampled.prompt === "string") sampled.prompt = JSON.parse(reviewed);
-  // A World or World Change review finds nothing, as sampled edits would name parts the world doesn't have.
-  if (sampled && prompt[0]?.content.startsWith("You review"))
+  // A World or World Change review, or State Upkeep, finds nothing, as sampled edits would name parts the world doesn't have.
+  if (sampled && /^You (review|keep a story's state)/.test(prompt[0]?.content ?? ""))
     for (const [key, value] of Object.entries(sampled)) sampled[key] = Array.isArray(value) ? [] : null;
   if (sampled) meetImportant(prompt, Array.isArray(sampled.people) ? sampled.people : []);
   if (sampled && Array.isArray(sampled.people) && Array.isArray(sampled.state_operations)) {
@@ -276,3 +277,9 @@ export const fakeImages: ImageAdapter = async ({ aspect_ratio }, signal) => {
   const [w = 1, h = 1] = aspect_ratio.split(":").map(Number);
   return solidPng(Math.round((64 * w) / Math.max(w, h)), Math.round((64 * h) / Math.max(w, h)), next(PLATES));
 };
+
+/** Finds every reply consistent, so the fix never runs unless a test asks for a slip. */
+export const fakeDecisions: DecisionProvider = async (_state, questions) => ({
+  answers: Object.fromEntries(Object.keys(questions).map((name) => [name, 0.02])),
+  model: "fake-decisions",
+});

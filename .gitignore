@@ -14,3 +14,4 @@ e2e/.report/
 e2e/.results/
 perf/.data/
 perf/.results/
+bench/runs/

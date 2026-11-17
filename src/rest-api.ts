@@ -12,6 +12,7 @@ import { settingsRoutes } from "./settings-routes";
 import { OnlineImageProvider, reviewerSettings } from "./settings-store";
 import { turnRoutes } from "./turn-routes";
 import { relaunch, updater } from "./updater";
+import { decisionProvider } from "./decisions";
 import { countedImages, countedText, usageStore } from "./usage-store";
 import spa from "./web/index.html";
 import { reviewScenePrompt, writePicturePrompt } from "./world-creation";
@@ -73,6 +74,11 @@ export function startServer(given: ServerOptions) {
     usage,
     textProvider: countedText(given.textProvider, usage, settings),
     reviewProvider: given.reviewProvider && countedText(given.reviewProvider, usage, reviewerSettings(settings)),
+    consistency: {
+      decide: given.decisionProvider ?? decisionProvider(settings, (request) => usage.record({ kind: "text", ...request })),
+      enabled: () => settings.read().consistencyEnabled,
+      logOnly: !!given.consistencyLogOnly,
+    },
   };
   const saves = saveStore(options.savesDir);
   const turns = liveTurns();
@@ -85,7 +91,7 @@ export function startServer(given: ServerOptions) {
   // Held here, not in Settings, as it's only how the last job went. It's safe to show, unlike the log.
   // shortcut: a restart clears it and an open Settings screen doesn't update, poll or store it if players miss failures.
   const workflow = { problem: "" };
-  const local = comfyImages(settings, undefined, (problem) => (workflow.problem = problem));
+  const local = options.localImages ?? comfyImages(settings, undefined, (problem) => (workflow.problem = problem));
   // Settings' test picture goes through the counted one too, as Usage counts every request.
   const adapters = countedImages({ ...onlineAdapters(options.imageAdapter), local }, usage, settings);
   const images = imagePipeline(

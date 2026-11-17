@@ -14,10 +14,11 @@ export type { Character, EnhanceField, ImageKind, Message, PcDraft, PlayMode, Sa
 export type ListedSave = ReturnType<SaveStore["list"]>[number];
 export type OpenSave = ReturnType<SaveStore["read"]>;
 export type Status = State["status"];
-export type Settings = Omit<Required<SettingsChange>, "textApiKey" | "imageApiKey" | "reviewApiKey"> & {
+export type Settings = Omit<Required<SettingsChange>, "textApiKey" | "imageApiKey" | "reviewApiKey" | "consistencyApiKey"> & {
   defaultLogLevel: LogLevel;
   hasTextApiKey: boolean;
   hasReviewApiKey: boolean;
+  hasConsistencyApiKey: boolean;
   hasImageApiKey: boolean;
   /** Each text server's and image provider's own settings, for switching to, without their keys. */
   textProfiles: Record<string, Omit<TextProfile, "textApiKey">>;
@@ -123,6 +124,17 @@ export const GOOGLE_URL = "https://generativelanguage.googleapis.com/v1beta/open
 // NanoGPT's direct API host, which allows longer requests than its website's.
 export const NANOGPT_URL = "https://api.nano-gpt.com/api/v1";
 
+export const hostOf = (url: string) => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "";
+  }
+};
+// shortcut: OpenRouter and NanoGPT only, which take the same body. Google's Gemini Decision 1 blocked 26 of 61 adult replies in the trial and its request shape is unconfirmed; add it once tested.
+/** Whether a text server has decision models the Consistency model can use. */
+export const offersDecisions = (url: string) => [OPENROUTER_URL, NANOGPT_URL].some((server) => hostOf(server) === hostOf(url));
+
 export const getSettings = () => request<Settings>("/settings");
 
 export const quitApp = () => fetch("/quit", { method: "POST" });
@@ -174,8 +186,9 @@ export async function drawComfyTest(prompt: string, signal: AbortSignal) {
 export const getImageModels = (provider: "openrouter" | "wiro" | "google" | "nanogpt") =>
   request<{ models: string[] }>(`/settings/image-models?provider=${provider}`).then(({ models }) => models);
 /** The saved text server's models, or with `review`, the saved reviewer server's. */
-export const getTextModels = (review = false) =>
-  request<{ models: string[] }>(`/settings/text-models${review ? "?for=review" : ""}`).then(({ models }) => models);
+/** The Narrator's models, the reviewer's, or the Consistency model's decision models. */
+export const getTextModels = (whose?: "review" | "consistency") =>
+  request<{ models: string[] }>(`/settings/text-models${whose ? `?for=${whose}` : ""}`).then(({ models }) => models);
 export const getTextHosts = (model: string) =>
   request<{ hosts: TextHost[] }>(`/settings/text-hosts?model=${encodeURIComponent(model)}`).then(({ hosts }) => hosts);
 
@@ -441,6 +454,11 @@ async function streamTurn(
     for await (const { event, data } of turnEvents(response.body!)) {
       if (event === "narration") {
         narration += data.text;
+        show(narration, retry);
+      }
+      // A fixed reply, shown in place of the streamed one, with nothing said.
+      if (event === "revise") {
+        narration = data.text;
         show(narration, retry);
       }
       if (event === "restart") {

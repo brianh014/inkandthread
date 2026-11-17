@@ -21,6 +21,7 @@
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test",
     "perf": "playwright test -c perf/playwright.config.ts",
+    "bench": "bun bench/bench.ts",
     "lint": "biome lint",
     "format": "biome format --write",
     "check": "biome ci && tsc --noEmit && bun test"

@@ -77,6 +77,14 @@ _Avoid_: Redo
 A second AI call that checks a new world, or a World Change before it is applied, for faults such as contradictions and plot holes, and quietly fixes them. It runs on the Narrator's model, or on a reviewer model the player chooses.
 _Avoid_: Critic, judge, validator
 
+**State Upkeep**:
+A second AI call after each reply, on the reviewer model with Low thinking, that brings the scene, cast, inventory, Story Time and known facts in line with what the reply showed happening. It records only changes the reply shows, never a detail to fit a passing mention. The Turn is saved once it finishes; if it fails, the Narrator's own state is kept.
+_Avoid_: State sync, bookkeeping call
+
+**Consistency model**:
+An optional decision model, chosen in Settings, that answers consistency questions of each reply: narrow yes-or-no questions, each sent only the slice of the story it needs, such as whether the reply's time of day fits Story Time. A question over its cut-off has the reviewer fix the reply before it is saved.
+_Avoid_: Checker, judge, Check model (a Check is the hidden test of a risky PC action)
+
 **Check**:
 A hidden test of a risky PC action against a difficulty the Narrator sets before the outcome is known. The player never sees a Check.
 _Avoid_: Roll, skill check, saving throw

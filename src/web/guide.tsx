@@ -450,7 +450,16 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             storylines, and quietly fixes them, keeping its secrets from you. Tick <b>Review with another model</b> to have a different AI do it, such as a
             capable but cheaper one like GPT-6.1 Luna, as one can catch what another misses. It uses the Narrator's provider unless you untick{" "}
             <b>Same provider as the Narrator</b> and give it its own. Its calls show in Usage under its own model. <b>Review thinking</b> lets reviews think
-            harder, or less, than the story. On High, some AIs think past <b>Longest thinking</b>, and the world is then kept unreviewed.
+            harder, or less, than the story. On High, some AIs think past <b>Longest thinking</b>, and the world is then kept unreviewed. After each reply, the
+            same AI also brings where you are, who's there, what you wear and carry, and the time in line with what just happened, always on Low thinking, so
+            the next reply starts from what's true. The choices and picture wait a moment for it.
+          </li>
+          <li>
+            <b>Consistency</b>: off unless you tick <b>Check replies with a Consistency model</b>. A quick-answering AI then asks narrow questions of each
+            reply, such as whether its time of day fits the story's, and the reviewing AI quietly fixes a reply that slips before you read on. Each check costs
+            a fraction of a cent and shows in Usage under its own model. It uses the Narrator's provider when that's OpenRouter or NanoGPT, unless you untick{" "}
+            <b>Same provider as the Narrator</b> and give it its own. That AI is sent parts of the story, so for privacy choose one that keeps no data, such as
+            PPLX Decider on NanoGPT. Gemini Decision 1 isn't offered, as it blocks adult stories.
           </li>
           <li>
             <b>Test text</b>: sends a short prompt to check the AI works. A paid provider may charge for it.

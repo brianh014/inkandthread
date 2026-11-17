@@ -8,7 +8,7 @@ import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 const noul = (instructions: string, yes: string, no: string): Question => ({ type: "noul", instructions, criteria: { true: yes, false: no } });
 
 /** Each consistency question, asked on its own with only the slice of the story it needs. */
-const QUESTIONS = {
+export const QUESTIONS = {
   time: noul(
     "Does the reply show a time of day that clashes with the story's time?",
     "The reply shows daylight, sunlight, darkness, a meal or a part of the day that can't happen between story_time_before and story_time_after.",
@@ -20,7 +20,7 @@ const QUESTIONS = {
     "The reply carries on consistently from previous_reply, changing only what it shows changing.",
   ),
 } as const;
-type Name = keyof typeof QUESTIONS;
+export type Name = keyof typeof QUESTIONS;
 
 // shortcut: no question is tuned on a marked set yet, so each cut-off is above 1 and a question only logs. Set each from the
 // marked set for GPT-6 Luna Decisions, which other models then share, as each model's probabilities differ.
@@ -46,7 +46,7 @@ export type Checked = { scores: Partial<Record<Name, number | null>>; outcome: "
 
 const when = (time: StoryTime | null) => (time ? `${time.date}, ${time.timeOfDay}` : null);
 
-function slices({ previous, input, timeBefore, timeAfter, narration }: ReplyToCheck): Partial<Record<Name, Record<string, unknown>>> {
+export function slices({ previous, input, timeBefore, timeAfter, narration }: ReplyToCheck): Partial<Record<Name, Record<string, unknown>>> {
   return {
     ...((timeBefore || timeAfter) && { time: { story_time_before: when(timeBefore), story_time_after: when(timeAfter), reply: narration } }),
     ...(previous && { continuity: { previous_reply: previous, player_input: input, reply: narration } }),

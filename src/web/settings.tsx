@@ -1061,7 +1061,6 @@ function ConsistencySettings({
             onChange={(consistencyModel) => set({ consistencyModel })}
           />
           {!listSaved && <p className="muted">Save to choose from this provider's decision models.</p>}
-          <p className="muted">GPT-6 Luna Decisions on OpenRouter did best in testing. Gemini Decision 1 blocks adult stories.</p>
           {!draft.consistencyModel.trim() && <p className="notice">Choose a model, or replies go unchecked.</p>}
         </>
       )}

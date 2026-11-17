@@ -28,10 +28,11 @@ export const QUESTIONS = {
 } as const;
 export type Name = keyof typeof QUESTIONS;
 
-// shortcut: no question is tuned on a marked set yet, so each cut-off is above 1 and a question only logs. Set each from the
-// marked set for GPT-6 Luna Decisions, which other models then share, as each model's probabilities differ.
+// Low, as the reviewer judges a flagged reply again and changes nothing that isn't a slip. Above 1, a question only logs.
+// shortcut: tuned for Liquid D1.2 on 15 replies of one story, and other models share them though each scores differently;
+// retune from real Turns, and keep cut-offs per model if players use several. Continuity's scores overlapped too much to act on.
 // Exported only so a test can set one as if tuned.
-export const CUT_OFFS: Record<Name, number> = { time: 1.01, continuity: 1.01, pc_wearing: 1.01 };
+export const CUT_OFFS: Record<Name, number> = { time: 0.7, continuity: 1.01, pc_wearing: 0.3 };
 
 /** The Consistency model, and the reviewer that fixes a reply it flags. `enabled` is read for each reply, so Settings apply at once. */
 export type Consistency = { decide: DecisionProvider; enabled: () => boolean; logOnly: boolean };

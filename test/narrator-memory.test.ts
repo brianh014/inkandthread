@@ -415,6 +415,24 @@ test("the last instruction has the Narrator correct a wrong assumption, in play 
   expect(prompt.slice(rule)).toContain("keeping every secret");
 });
 
+test("the first Turn is sent the Lore Entries its Starting Hook names, so the opening meets people as the world made them", () => {
+  const promptWith = (messages: unknown[]) =>
+    textOfPrompt(
+      assemblePrompt({
+        save: { worldBrief: "", pc: { name: "Ash" }, startingHook: "Ash rides out with Captain Mora." } as never,
+        state: withState({ worldBible: [entry("Captain Mora", ["Mora"], { content: "A tall woman with a shaved head." })] }),
+        messages: messages as never,
+        modelInstructions: "",
+        input: "Begin the story.",
+        responseSchema: "{}",
+        promptStyle: null,
+      }),
+    );
+
+  expect(promptWith([])).toContain("A tall woman with a shaved head.");
+  expect(promptWith([{ role: "narrator", text: "The road is long." }])).not.toContain("A tall woman with a shaved head.");
+});
+
 test("a long story's World Bible fits the budget, with its Plot Threads and world_rules", () => {
   // The size of a story with 140 replies behind it: 20 entries of about 225 tokens, with 750 tokens of threads and rules.
   const worldBible = Array.from({ length: 20 }, (_, index) => entry(`Entry ${index}`, ["city"], { content: "x".repeat(900) }));

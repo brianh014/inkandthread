@@ -78,7 +78,7 @@ A second AI call that checks a new world, or a World Change before it is applied
 _Avoid_: Critic, judge, validator
 
 **State Upkeep**:
-A second AI call after each reply, on the reviewer model, that brings the scene, cast, inventory, Story Time, known facts and any Plot Thread the reply settled or contradicted in line with what the reply showed happening. It may resolve or correct a Plot Thread, never grow or add one. It records only changes the reply shows, never a detail to fit a passing mention. The Turn is saved once it finishes; if it fails, the Narrator's own state is kept.
+A second AI call after each reply, on the reviewer model, that brings the scene, cast, inventory, Story Time, known facts and any Plot Thread the reply settled in line with what the reply showed happening. It may resolve a Plot Thread, never rewrite or add one, which is World Moves On's. It records only changes the reply shows, never a detail to fit a passing mention. The Turn is saved once it finishes; if it fails, the Narrator's own state is kept.
 _Avoid_: State sync, bookkeeping call
 
 **World Moves On**:

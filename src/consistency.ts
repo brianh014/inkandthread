@@ -186,6 +186,10 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(FixRepl
       }),
     },
   ];
-  const { narration_edits, visual_description_edits } = await askForJson(reviewer, prompt, FixReply, "The reviewer refused to fix the reply.", signal);
+  // A level below Review thinking, as on Medium the fix ran past FIX_LIMIT 5 times in 8 on the bench; it only edits words of one
+  // reply, and a failure keeps the reply as written.
+  const { narration_edits, visual_description_edits } = await askForJson(reviewer, prompt, FixReply, "The reviewer refused to fix the reply.", signal, {
+    lessThinking: 1,
+  });
   return { narration: edited(reply.narration, narration_edits), visualDescription: edited(reply.visualDescription, visual_description_edits) };
 }

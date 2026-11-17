@@ -191,6 +191,39 @@ test("a fix that runs past its time limit keeps the reply as the Narrator wrote 
   }
 });
 
+test("the fix asks the reviewer to think a level below Review thinking, from its first try", async () => {
+  CUT_OFFS["liquid/d1.2"]!.continuity = 0.9;
+  const asked: (number | undefined)[] = [];
+  const reviewer = async (_prompt: unknown, { lessThinking }: { lessThinking?: number }) => {
+    asked.push(lessThinking);
+    return JSON.stringify({ narration_edits: [{ old: "Six men", new: "Five men" }], visual_description_edits: [] });
+  };
+  const reply = {
+    previous: "Five men.",
+    input: "I count them.",
+    timeBefore: null,
+    timeAfter: null,
+    pc: "Ash",
+    pcLooks: "",
+    wearing: [],
+    cast: [],
+    facts: [],
+    summary: "",
+    memories: [],
+    narration: "Six men.",
+    visualDescription: "",
+  };
+  const fixed = await checkConsistency(
+    { decide: decisions({ continuity: 0.99 }).decide, enabled: () => true, logOnly: false },
+    reviewer,
+    reply,
+    () => true,
+    new AbortController().signal,
+  );
+  expect(fixed.narration).toBe("Five men.");
+  expect(asked).toEqual([1]);
+});
+
 test("a reply no question answered is logged as unanswered, not passed", async () => {
   const unanswered: DecisionProvider = async () => ({ answers: {}, model: "liquid/d1.2" });
   const reply = {

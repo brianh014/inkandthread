@@ -863,10 +863,11 @@ export async function askForJson<T>(
   schema: z.ZodType<T>,
   refusal: string,
   signal: AbortSignal,
-  { picture = false } = {},
+  /** `lessThinking` asks for that many levels below the player's Thinking from the first attempt. */
+  { picture = false, lessThinking: fewer = 0 } = {},
 ) {
   let generation: string | undefined;
-  let lessThinking = 0;
+  let lessThinking = fewer;
   let asked = prompt;
   for (let attempt = 1; ; attempt++) {
     const request = { schema: jsonSchemaOf(schema), picture, lessThinking, onText: () => {}, onGeneration: (id: string) => (generation = id), signal };

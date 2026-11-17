@@ -51,7 +51,7 @@ export type ReplyToCheck = {
 };
 
 /** What the questions found: each one's score, and whether the reply was fixed, for the Turn's log line. Numbers and names only. */
-export type Checked = { scores: Partial<Record<Name, number | null>>; outcome: "passed" | "fixed" | "fix failed" | "logged" };
+export type Checked = { model: string; scores: Partial<Record<Name, number | null>>; outcome: "passed" | "fixed" | "fix failed" | "logged" };
 
 const when = (time: StoryTime | null) => (time ? `${time.date}, ${time.timeOfDay}` : null);
 
@@ -76,21 +76,27 @@ export async function checkConsistency(
   signal: AbortSignal,
 ): Promise<{ narration: string; visualDescription: string; checked: Checked }> {
   const asked = Object.entries(slices(reply)) as [Name, Record<string, unknown>][];
+  // Named in the log, so a switch of model shows beside the scores it gave.
+  let model = "";
   const scored = await Promise.all(
-    asked.map(async ([name, slice]) => [name, (await decide(slice, { [name]: QUESTIONS[name] }, signal)).answers[name]] as const),
+    asked.map(async ([name, slice]) => {
+      const answered = await decide(slice, { [name]: QUESTIONS[name] }, signal);
+      model = answered.model;
+      return [name, answered.answers[name]] as const;
+    }),
   );
   const scores = Object.fromEntries(scored.map(([name, score]) => [name, score ?? null]));
   const flagged = scored.filter(([name, score]) => score !== undefined && score >= CUT_OFFS[name]).map(([name]) => name);
   const kept = { narration: reply.narration, visualDescription: reply.visualDescription };
-  if (logOnly || flagged.length === 0 || !reviewer) return { ...kept, checked: { scores, outcome: logOnly ? "logged" : "passed" } };
+  if (logOnly || flagged.length === 0 || !reviewer) return { ...kept, checked: { model, scores, outcome: logOnly ? "logged" : "passed" } };
   try {
     const fixed = await fixReply(reviewer, reply, Object.fromEntries(asked.filter(([name]) => flagged.includes(name))), signal);
     if (!usable(fixed.narration)) throw new Error("unusable fix");
-    return { ...fixed, checked: { scores, outcome: "fixed" } };
+    return { ...fixed, checked: { model, scores, outcome: "fixed" } };
   } catch (error) {
     if (signal.aborted) throw error;
     log.warning("consistency", "Reply kept unfixed", { flagged, ...errorType(error) });
-    return { ...kept, checked: { scores, outcome: "fix failed" } };
+    return { ...kept, checked: { model, scores, outcome: "fix failed" } };
   }
 }
 

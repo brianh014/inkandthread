@@ -105,7 +105,7 @@ test("each question is asked on its own with only its slice, and its score is lo
   });
   // What the PC has on as the reply starts, not what they carry.
   expect(byName.pc_wearing).toEqual({ pc: "Ash", pc_wearing: [], reply: expect.stringContaining("Six men") });
-  expect(log).toContain('"consistency":{"scores":{"time":0.4,"continuity":0.02,"pc_wearing":0.02},"outcome":"passed"}');
+  expect(log).toContain('"consistency":{"model":"luna","scores":{"time":0.4,"continuity":0.02,"pc_wearing":0.02},"outcome":"passed"}');
   expect(log).not.toContain("Six men");
 });
 

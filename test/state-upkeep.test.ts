@@ -102,3 +102,16 @@ test("State Upkeep can't give an operation that touches the hidden world", async
   expect(store().latestState(id).plotThreads).toEqual([]);
   expect(upkeep.prompts.length).toBe(2);
 });
+
+test("a place name with no word in it is refused and asked again, so the Journal never shows one", async () => {
+  const { upkeep } = play(
+    [narration("Ash walks home.")],
+    [upkept({ op: "set_scene", location: "x", visible_cast: [] }), upkept({ op: "set_scene", location: "Ash's flat", visible_cast: [] })],
+  );
+  const id = createSave();
+
+  expect((await turn(id)).ok).toBe(true);
+
+  expect(store().latestState(id).scene.location).toBe("Ash's flat");
+  expect(upkeep.prompts.length).toBe(2);
+});

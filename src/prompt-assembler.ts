@@ -314,6 +314,8 @@ export function assemblePrompt({
   const mentioned = (name: string) => wholeWord(name).test(said) || parts(name).some((part) => wholeWord(part, "u").test(said));
   const present = new Set([...currentState.scene.visibleCast, ...currentState.npcs.map(({ name }) => name).filter(mentioned)]);
   const npcKnows = Object.fromEntries(Object.entries(allKnows).filter(([name]) => present.has(name)));
+  // Last before the player's words, as models attend most to the end and the slips found in play were exactly these.
+  const { inventory, scene, storyTime, ...restOfState } = currentState;
   const activeEntries = activateLore(
     worldBible,
     [...recent.map(({ text }) => text), input].join("\n"),
@@ -348,7 +350,7 @@ Scene Memories of the story so far, oldest first, each opening with the date and
       role: "system",
       // Everything that changes from Turn to Turn stays down here, as the provider's cache only covers an unchanged start.
       content: `Lore Entries: ${JSON.stringify(activeEntries.map(({ title, content }) => ({ title, content })))}
-Current state: ${JSON.stringify({ ...currentState, npcKnows })}
+Current state, apart from its inventory, scene and storyTime, which come last: ${JSON.stringify({ ...restOfState, npcKnows })}
 Summary of the story so far: ${summary}${firstTurnInstruction(startingHook, messages)}
 world_rules: ${JSON.stringify(worldRules)}
 Evaluate the player's action against world_rules. If it violates them, rate it None, as no roll can make it work, and describe the failure in character rather than fulfilling the action.
@@ -364,7 +366,8 @@ ${PACE}${
     ? `
 The player gave these out-of-character directions when rewriting recent responses, below as JSON strings. They still hold, so keep following them in this response: ${JSON.stringify(directions)}`
     : ""
-}`,
+}
+Right now, from the current state: ${JSON.stringify({ inventory, scene, storyTime })}`,
     },
     { role: "user", content: playerWords(input) },
   ];

@@ -143,13 +143,16 @@ test("the rules every story needs are built in, near the reply, so Model Instruc
   }
 });
 
-test("the pace of a reply is the last thing the Narrator reads before the player's words", async () => {
+test("the pace of a reply, then what's true right now, are the last things the Narrator reads before the player's words", async () => {
   play(summed("Ash reached the docks."));
   const id = await app.createSave();
 
   await playTurn(id);
 
-  expect(lastSystem()).toEndWith("never carry it through to its end in one reply.");
+  expect(lastSystem()).toMatch(
+    /never carry it through to its end in one reply\.\nRight now, from the current state: \{"inventory":.*"scene":.*"storyTime":.*\}$/,
+  );
+  expect(lastSystem()).not.toMatch(/Current state[^\n]*"inventory"/);
   expect(lastSystem()).toContain("never over 350");
   expect(prompts.at(-1)!.at(-1)!.role).toBe("user");
 });

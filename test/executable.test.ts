@@ -46,7 +46,8 @@ test("the compiled app plays a Turn, keeps it through a kill, and stores the Sav
   await second.app.exited;
 
   expect(messages.map((m) => m.role)).toEqual(["player", "narrator"]);
-  expect(provider.requests).toHaveLength(1);
+  // The Narrator's reply and State Upkeep's.
+  expect(provider.requests).toHaveLength(2);
   expect(readdirSync(join(folder.path, "Saves"))).toEqual([`${id}.sqlite`]);
 }, 30_000);
 

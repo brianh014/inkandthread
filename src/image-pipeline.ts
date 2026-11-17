@@ -253,13 +253,28 @@ export function imagePipeline(
   };
   const dropped = (id: string, job: Job, reason: string) => log.info("images", "Image dropped", { ...about(id, job), reason });
 
-  const adapter: ImageAdapter = (payload, signal) => {
-    const { imageProvider, storyInLog } = settings.read();
+  const adapter: ImageAdapter = async (payload, signal) => {
+    const { imageProvider, imageModel, storyInLog } = settings.read();
     if (storyInLog) {
       const { reference_images, ...asked } = payload;
       log.story("images", "Image prompt", { ...asked, references: reference_images.map(({ role }) => role) });
     }
-    return adapters[imageProvider](payload, signal);
+    const started = Date.now();
+    let outcome = "failed";
+    try {
+      const image = await adapters[imageProvider](payload, signal);
+      outcome = "drawn";
+      return image;
+    } finally {
+      if (signal.aborted) outcome = "stopped";
+      log.verbose("images", "Image request", () => ({
+        provider: imageProvider,
+        model: imageModel,
+        references: payload.reference_images.length,
+        outcome,
+        ms: Date.now() - started,
+      }));
+    }
   };
 
   function ready() {

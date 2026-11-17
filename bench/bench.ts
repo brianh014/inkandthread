@@ -335,7 +335,7 @@ async function play(
   const pick = seeded(seed * 1000 + index);
   const roll = seeded(seed * 7919 + index);
   // The log goes to the play's folder, and only warnings and up to the terminal.
-  startLog("info", folder);
+  startLog("verbose", folder);
   const { info, debug, warn } = console;
   console.info = () => {};
   console.debug = () => {};
@@ -362,7 +362,7 @@ async function play(
     nearMissMargin: 3,
     port: 0,
   });
-  setLogLevel("info");
+  setLogLevel("verbose");
   const saves = saveStore(savesDir);
   const id = saves.create({ ...world.save, playMode: moves ? "free" : "choices", opening: world.opening as Partial<State> });
   const steps: Step[] = [];

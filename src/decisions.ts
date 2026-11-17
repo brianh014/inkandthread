@@ -96,6 +96,9 @@ export function decisionProvider(settings: TextSettings, onUsage: (usage: Decisi
       return none;
     }
     const address = url.includes("openrouter.ai") ? `${url.replace(/\/v1$/, "/alpha")}/decisions` : `${url}/decisions`;
+    // The slice is story text, so only with Story in log; it shows what a score was given for.
+    if (settings.read().storyInLog) log.story("consistency", "Decision request text", { model, state, questions: Object.keys(questions) });
+    const started = Date.now();
     let failed = true;
     let tokensIn: number | undefined;
     let cost: number | undefined;
@@ -115,6 +118,8 @@ export function decisionProvider(settings: TextSettings, onUsage: (usage: Decisi
       failed = false;
       tokensIn = usage?.input_tokens;
       cost = usage?.cost ?? usage?.estimated_cost;
+      // Each answer's type and score only, as neither quotes the story.
+      log.verbose("consistency", "Decision", () => ({ model, answers, tokensIn, cost, ms: Date.now() - started }));
       // A refusal or a missing answer is "not answered", never a pass or a fail.
       return {
         answers: Object.fromEntries(Object.keys(questions).map((name) => [name, answers[name]?.type === "noul" ? answers[name].noul : undefined])),

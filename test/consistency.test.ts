@@ -254,6 +254,29 @@ test("the decision client asks OpenRouter's Decisions address, reads a refusal a
   }
 });
 
+test("a decision logs its scores at Verbose, and what it was shown only with Story in log", async () => {
+  const settings = settingsStore(join(folder.path, "settings.json"));
+  settings.update({ ...ON, textApiKey: "or-key" });
+  const fetched = spyOn(globalThis, "fetch").mockImplementation((async (url: string) =>
+    String(url).includes("/models")
+      ? reply({ data: [] })
+      : reply({ answers: { time: { type: "noul", noul: 0.97 } }, usage: { cost: 0.0002 } })) as typeof fetch);
+  const question = { type: "noul" as const, instructions: "?", criteria: { true: "yes", false: "no" } };
+  const ask = () => decisionProvider(settings)({ reply: "Rain on the dunes." }, { time: question }, new AbortController().signal);
+  try {
+    const plain = await logOf(ask);
+    expect(plain).toContain('Decision {"model":"openai/gpt-6-luna-decisions","answers":{"time":{"type":"noul","noul":0.97}}');
+    expect(plain).not.toContain("Rain on the dunes.");
+
+    settings.update({ storyInLog: true });
+    expect(await logOf(ask, "error")).toContain(
+      'Decision request text {"model":"openai/gpt-6-luna-decisions","state":{"reply":"Rain on the dunes."},"questions":["time"]}',
+    );
+  } finally {
+    fetched.mockRestore();
+  }
+});
+
 test("a decision request that fails lets the reply through unanswered, and is counted as failed", async () => {
   const settings = settingsStore(join(folder.path, "settings.json"));
   settings.update(ON);

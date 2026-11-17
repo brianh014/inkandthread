@@ -1,5 +1,5 @@
 // The Narrator bench: plays bench/world.json in Choices mode on the real models from a Settings file, through the real server,
-// and records what every Narrator feature did, how long each step took, what it cost, and a judge's scores. It costs real money,
+// (each play in a process of its own, all at once unless the Narrator is a local model) and records what every Narrator feature did, how long each step took, what it cost, and a judge's scores. It costs real money,
 // so it asks before it starts. The real AI writes every Image Prompt, to be judged, but a stand-in draws it.
 //   bun bench run --rounds N --runs M [--settings settings.json] [--judge self|narrator] [--label name] [--seed 1] [--yes]
 //   bun bench run --moves moves.txt --runs M [...]   plays in Free Text instead, one move per line (# starts a comment), to
@@ -640,8 +640,7 @@ function report(result: Result) {
 
 // ---- Commands ----
 
-async function run() {
-  const movesFile = option("--moves");
+function readMoves(movesFile: string | undefined) {
   if (movesFile && !existsSync(movesFile)) fail(`No moves file at ${movesFile}.`);
   const moves = movesFile
     ? readFileSync(movesFile, "utf8")
@@ -650,6 +649,48 @@ async function run() {
         .filter((line) => line && !line.startsWith("#"))
     : undefined;
   if (moves?.length === 0) fail(`No moves in ${movesFile}.`);
+  return moves;
+}
+const readWorld = () => World.parse(JSON.parse(readFileSync(join(BENCH, "world.json"), "utf8")));
+
+/** One play, in a process of its own, as the log is one file per process. Started only by `run`, which reads its play.json. */
+async function playOne() {
+  const folder = option("--folder")!;
+  const played = await play(
+    count("--index"),
+    Number(option("--seed")),
+    count("--rounds"),
+    readMoves(option("--moves")),
+    option("--settings")!,
+    readWorld(),
+    folder,
+  );
+  writeFileSync(join(folder, "play.json"), JSON.stringify(played));
+}
+
+/** Starts a play in a child process and gives back what it recorded. */
+async function playApart(index: number, seed: number, rounds: number, movesFile: string | undefined, settingsPath: string, folder: string) {
+  const child = Bun.spawn(
+    [
+      process.execPath,
+      import.meta.path,
+      "play",
+      ...["--index", String(index), "--seed", String(seed), "--rounds", String(rounds), "--settings", settingsPath, "--folder", folder],
+      ...(movesFile ? ["--moves", movesFile] : []),
+      ...(fake ? ["--fake"] : []),
+    ],
+    { stdout: "inherit", stderr: "inherit" },
+  );
+  if ((await child.exited) !== 0) fail(`Play ${index} failed; its log is in ${folder}.`);
+  const played = JSON.parse(readFileSync(join(folder, "play.json"), "utf8")) as Awaited<ReturnType<typeof play>>;
+  // Gone once read, as every JSON file under runs/ is taken for a run's result.
+  rmSync(join(folder, "play.json"));
+  return played;
+}
+
+async function run() {
+  const movesFile = option("--moves");
+  const moves = readMoves(movesFile);
   const rounds = moves?.length ?? count("--rounds");
   const runs = count("--runs");
   const judge = option("--judge") ?? "self";
@@ -658,7 +699,7 @@ async function run() {
   const seed = Number(option("--seed") ?? 1);
   const given = option("--settings") ?? "settings.json";
   if (!fake && !existsSync(given)) fail(`No Settings file at ${given}.`);
-  const world = World.parse(JSON.parse(readFileSync(join(BENCH, "world.json"), "utf8")));
+  readWorld();
 
   // A copy outside the repo, as it holds keys. Pictures are on, drawn by a stand-in, with the player's image Settings, which shape
   // the prompts; with none set up, as an OpenRouter model, which takes prose prompts.
@@ -712,9 +753,17 @@ async function run() {
     judge: null,
     plays: [],
   };
-  for (let index = 1; index <= runs; index++) {
-    console.log(`Play ${index} of ${runs}`);
-    result.plays.push(await play(index, seed, rounds, moves, settingsPath, world, join(folder, `play-${index}`)));
+  const playAt = (index: number) => playApart(index, seed, rounds, movesFile, settingsPath, join(folder, `play-${index}`));
+  const indexes = Array.from({ length: runs }, (_, at) => at + 1);
+  // All at once on remote models; one at a time on a local one, which would only make each play wait on the other.
+  if (provider === "local") {
+    for (const index of indexes) {
+      console.log(`Play ${index} of ${runs}`);
+      result.plays.push(await playAt(index));
+    }
+  } else {
+    console.log(`Playing all ${runs} at once`);
+    result.plays = await Promise.all(indexes.map(playAt));
   }
   summarise(result);
   writeFileSync(join(folder, "result.json"), JSON.stringify(result, null, 2));
@@ -822,6 +871,7 @@ function table() {
 
 const command = args[0];
 if (command === "run") await run();
+else if (command === "play") await playOne();
 else if (command === "judge") judgeRun();
 else if (command === "keep") keep();
 else if (command === "table") table();

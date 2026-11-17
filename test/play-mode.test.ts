@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { saveStore } from "../src/save-store";
-import { narration, scriptedTextProvider, startApp, tempFolder } from "./support";
+import { logOf, narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
 let savesDir: string;
@@ -118,4 +118,18 @@ test("a Play Mode that isn't Free Text or Choices is refused", async () => {
   const id = await app.createSave();
 
   expect((await app.patch(`/saves/${id}`, { playMode: "auto" })).status).toBe(400);
+});
+
+test("the log names which Choice was picked by number, and only Story in log shows the Choices' words", async () => {
+  const { id } = await choosing(withChoices("The wall holds."), withChoices("The rope frays."));
+
+  const quiet = await logOf(() => app!.post(`/saves/${id}/turns`, { input: CHOICES[1] }), "info");
+  expect(quiet).toContain('Choice picked {"route":"/saves/:id/turns","save":"');
+  expect(quiet).toContain('"choice":2}');
+  expect(quiet).not.toContain(CHOICES[0]!);
+
+  await app!.patch("/settings", { storyInLog: true });
+  const told = await logOf(() => app!.post(`/saves/${id}/turns`, { input: "I shout at the tide." }), "info");
+  expect(told).toContain('"choice":"own words"');
+  expect(told).toContain(`Choices offered {"route":"/saves/:id/turns","save":"${id}","choices":${JSON.stringify(CHOICES)}}`);
 });

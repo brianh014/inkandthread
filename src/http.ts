@@ -43,6 +43,8 @@ export type ServerOptions = {
    * added later can't fall back to another's adapter and send it that provider's key.
    */
   imageAdapter: ImageAdapter | Record<OnlineImageProvider, ImageAdapter>;
+  /** In place of ComfyUI, for the bench, which keeps the player's image Settings, and so their prompts, but draws nothing real. */
+  localImages?: ImageAdapter;
   /** For the Image model dropdown. Without it, Settings lists none and keeps the text box. */
   imageModels?: ImageModelList;
   /** Loopback unless the caller opens the app to the network, which has no accounts to protect it. */

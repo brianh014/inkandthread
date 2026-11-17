@@ -91,7 +91,7 @@ export function startServer(given: ServerOptions) {
   // Held here, not in Settings, as it's only how the last job went. It's safe to show, unlike the log.
   // shortcut: a restart clears it and an open Settings screen doesn't update, poll or store it if players miss failures.
   const workflow = { problem: "" };
-  const local = comfyImages(settings, undefined, (problem) => (workflow.problem = problem));
+  const local = options.localImages ?? comfyImages(settings, undefined, (problem) => (workflow.problem = problem));
   // Settings' test picture goes through the counted one too, as Usage counts every request.
   const adapters = countedImages({ ...onlineAdapters(options.imageAdapter), local }, usage, settings);
   const images = imagePipeline(

@@ -387,6 +387,8 @@ async function play(
       const response = await fetch(new URL(path, server.url), {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        // A browser waits as long as the server lets a Turn run; Bun's own 5 minutes ended the step while the Turn ran on, and left every later one busy.
+        timeout: false,
         body: JSON.stringify(body),
       });
       ok = response.ok;

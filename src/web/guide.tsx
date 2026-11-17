@@ -458,8 +458,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             <b>Consistency</b>: off unless you tick <b>Check replies with a Consistency model</b>. A quick-answering AI then asks narrow questions of each
             reply, such as whether its time of day fits the story's, and the reviewing AI quietly fixes a reply that slips before you read on. Each check costs
             a fraction of a cent and shows in Usage under its own model. It uses the Narrator's provider when that's OpenRouter or NanoGPT, unless you untick{" "}
-            <b>Same provider as the Narrator</b> and give it its own. That AI is sent parts of the story, so for privacy choose one that keeps no data, such as
-            PPLX Decider on NanoGPT.
+            <b>Same provider as the Narrator</b> and give it its own. That AI is sent parts of the story, so for privacy choose one that keeps no data.
           </li>
           <li>
             <b>Test text</b>: sends a short prompt to check the AI works. A paid provider may charge for it.

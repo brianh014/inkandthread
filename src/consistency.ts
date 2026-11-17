@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { DecisionProvider, Question } from "./decisions";
 import { errorType, log } from "./logger";
 import type { Prompt } from "./prompt-assembler";
-import type { StoryTime } from "./state-applier";
+import type { State, StoryTime } from "./state-applier";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
 const noul = (instructions: string, yes: string, no: string): Question => ({ type: "noul", instructions, criteria: { true: yes, false: no } });
@@ -71,6 +71,25 @@ export type ReplyToCheck = {
 /** What the questions found: each one's score, and whether the reply was fixed, for the Turn's log line. Numbers and names only. */
 export type Checked = { model: string; scores: Partial<Record<Name, number | null>>; outcome: "passed" | "fixed" | "not a slip" | "fix failed" | "logged" };
 
+/** The reply to check, with what it follows from in the state before the Narrator's operations, so a slip they recorded still shows. */
+export function replyToCheck(
+  before: State,
+  reply: Pick<ReplyToCheck, "previous" | "input" | "timeAfter" | "pc" | "narration" | "visualDescription"> & { pcTraits: string },
+): ReplyToCheck {
+  const { pcTraits, ...rest } = reply;
+  return {
+    ...rest,
+    timeBefore: before.storyTime,
+    pcLooks: before.pcAppearance || pcTraits,
+    wearing: before.inventory.wearing,
+    cast: before.npcs.filter(({ name }) => before.scene.visibleCast.includes(name)),
+    facts: before.pcKnown.facts,
+    summary: before.summary,
+    // The newest few, as a decision model grows unreliable on a long slice.
+    memories: before.sceneMemories.slice(-3).map(({ text }) => text),
+  };
+}
+
 const when = (time: StoryTime | null) => (time ? `${time.date}, ${time.timeOfDay}` : null);
 
 export function slices(reply: ReplyToCheck): Partial<Record<Name, Record<string, unknown>>> {
@@ -111,7 +130,8 @@ export async function checkConsistency(
   const scores = Object.fromEntries(scored.map(([name, score]) => [name, score ?? null]));
   const flagged = scored.filter(([name, score]) => score !== undefined && score >= cutOffs(model)[name]).map(([name]) => name);
   const kept = { narration: reply.narration, visualDescription: reply.visualDescription };
-  if (logOnly || flagged.length === 0 || !reviewer) return { ...kept, checked: { model, scores, outcome: logOnly ? "logged" : "passed" } };
+  if (logOnly || flagged.length === 0 || !reviewer)
+    return { ...kept, checked: { model, scores, outcome: logOnly ? "logged" : flagged.length > 0 ? "fix failed" : "passed" } };
   try {
     const limited = AbortSignal.any([signal, AbortSignal.timeout(FIX_LIMIT.ms)]);
     const fixed = await fixReply(reviewer, reply, Object.fromEntries(asked.filter(([name]) => flagged.includes(name))), limited);

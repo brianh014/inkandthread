@@ -22,7 +22,7 @@ import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } fr
 import type { SettingsStore } from "./settings-store";
 import type { NarratorTurn, UsageStore } from "./usage-store";
 import { applyOperations, givenName, introduce, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
-import { type Checked, type Consistency, checkConsistency } from "./consistency";
+import { type Checked, type Consistency, checkConsistency, replyToCheck } from "./consistency";
 import { countWords, withinLimit } from "./limits";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
@@ -498,6 +498,7 @@ export async function editResponse(
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     before: state,
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
+    previous: lastNarration(messages),
     narration: text,
     memory,
     playMode,
@@ -624,30 +625,16 @@ async function narrate(
       let checked: Checked | undefined;
       if (consistency?.enabled()) {
         const told = narration;
-        // A fix must pass what a Narrator reply must, and may run a little longer than the reply it fixes.
-        const usable = (text: string) =>
-          hasWords(text) &&
-          !isJsonObject(text) &&
-          !(check && declined(text)) &&
-          ![PC_LINE, TAG_WITHOUT_BRACKET].includes(spokenLineFault(text, pcName) ?? "") &&
-          withinLimit(text, Math.max(REPLY_WORDS, countWords(told)));
-        const reply = {
+        const reply = replyToCheck(before, {
           previous,
           input: upkeep?.input ?? input,
-          timeBefore: before.storyTime,
           timeAfter: narrated.next.storyTime,
           pc: pcName,
-          pcLooks: before.pcAppearance || pcTraits,
-          wearing: before.inventory.wearing,
-          cast: before.npcs.filter(({ name }) => before.scene.visibleCast.includes(name)),
-          facts: before.pcKnown.facts,
-          summary: before.summary,
-          // The newest few, as a decision model grows unreliable on a long slice.
-          memories: before.sceneMemories.slice(-3).map(({ text }) => text),
+          pcTraits,
           narration,
           visualDescription: description,
-        };
-        const result = await checkConsistency(consistency, upkeep?.provider, reply, (text) => usable(withoutStrayMarks(text)), signal);
+        });
+        const result = await checkConsistency(consistency, upkeep?.provider, reply, (text) => usableFix(withoutStrayMarks(text), pcName, told, check), signal);
         checked = result.checked;
         narration = withoutStrayMarks(result.narration);
         description = result.visualDescription;
@@ -738,6 +725,17 @@ async function narrate(
 }
 
 /** Why the spoken lines break the reply's shape, if they do: a tag missing its "[", a line for the PC, or someone speaking more than twice. */
+/** Whether a fix passes what a Narrator reply must. It may run a little longer than the reply it fixes. */
+export function usableFix(text: string, pcName: string, told: string, check?: Check) {
+  return (
+    hasWords(text) &&
+    !isJsonObject(text) &&
+    !(check && declined(text)) &&
+    ![PC_LINE, TAG_WITHOUT_BRACKET].includes(spokenLineFault(text, pcName) ?? "") &&
+    withinLimit(text, Math.max(REPLY_WORDS, countWords(told)))
+  );
+}
+
 export function spokenLineFault(narration: string, pcName: string) {
   const lines = new Map<string, number>();
   for (const line of narration.split("\n").map((text) => text.trim())) {
@@ -864,11 +862,10 @@ export async function askForJson<T>(
   schema: z.ZodType<T>,
   refusal: string,
   signal: AbortSignal,
-  /** `lessThinking` starts that many levels below the player's Thinking, and 2 is always Low. */
-  { picture = false, lessThinking: start = 0 } = {},
+  { picture = false } = {},
 ) {
   let generation: string | undefined;
-  let lessThinking = start;
+  let lessThinking = 0;
   let asked = prompt;
   for (let attempt = 1; ; attempt++) {
     const request = { schema: jsonSchemaOf(schema), picture, lessThinking, onText: () => {}, onGeneration: (id: string) => (generation = id), signal };

@@ -1019,7 +1019,7 @@ function ConsistencySettings({
       <p className="muted">
         A decision model asks quick questions of each reply, such as whether its time of day fits the story's, before you read on, and the reviewer quietly
         fixes a reply that slips. Each check costs a fraction of a cent. The decision model is sent parts of the story, so for privacy pick one that keeps no
-        data, such as PPLX Decider on NanoGPT.
+        data.
       </p>
       <label className="toggle">
         <input type="checkbox" checked={draft.consistencyEnabled} onChange={(e) => set({ consistencyEnabled: e.target.checked })} />

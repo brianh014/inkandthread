@@ -6,7 +6,7 @@
 // replies by id: [{ "save": "<Save id>", "reply": <Narrator Message id>, "slips": ["time"] }], with slips empty for a fine reply.
 // The Consistency model and its key come from Settings, as the app uses them. Each question is asked as play asks it, with the
 // slice play sends. --runs asks each reply more than once, to see how stable the answers are.
-import { type Name, QUESTIONS, cutOffs, slices } from "../src/consistency";
+import { cutOffs, type Name, QUESTIONS, replyToCheck, slices } from "../src/consistency";
 import { decisionProvider } from "../src/decisions";
 import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
@@ -27,27 +27,20 @@ const NAMES = Object.keys(QUESTIONS) as Name[];
 const cutOff = cutOffs(settings.read().consistencyModel);
 
 /** The reply and what it follows from, as narrate builds them: the Snapshot before its player Message, and its own. */
-function replyToCheck({ save, reply }: Marked) {
+function toCheck({ save, reply }: Marked) {
   const messages = saves.messages(save);
   const at = messages.findIndex(({ id }) => id === reply);
   const input = messages[at - 1]!;
-  const before = saves.snapshot(save, messages[at - 2]?.id ?? input.id);
-  const after = saves.snapshot(save, reply);
-  return {
+  const { pc } = saves.read(save);
+  return replyToCheck(saves.snapshot(save, messages[at - 2]?.id ?? input.id), {
     previous: messages.slice(0, at - 1).findLast(({ role }) => role === "narrator")?.text ?? "",
     input: input.text,
-    timeBefore: before.storyTime,
-    timeAfter: after.storyTime,
-    pc: saves.read(save).pc.name,
-    pcLooks: before.pcAppearance || (saves.read(save).pc.physicalTraits ?? ""),
-    wearing: before.inventory.wearing,
-    cast: before.npcs.filter(({ name }) => before.scene.visibleCast.includes(name)),
-    facts: before.pcKnown.facts,
-    summary: before.summary,
-    memories: before.sceneMemories.slice(-3).map(({ text }) => text),
+    timeAfter: saves.snapshot(save, reply).storyTime,
+    pc: pc.name,
+    pcTraits: pc.physicalTraits ?? "",
     narration: messages[at]!.text,
     visualDescription: "",
-  };
+  });
 }
 
 type Tally = { caught: number; missed: number; falseAlarms: number; unanswered: number; scores: number[][] };
@@ -58,7 +51,7 @@ const tallies = Object.fromEntries(NAMES.map((name): [Name, Tally] => [name, { c
 const started = Date.now();
 const signal = new AbortController().signal;
 for (const entry of marked) {
-  const sliced = slices(replyToCheck(entry));
+  const sliced = slices(toCheck(entry));
   for (const name of NAMES) {
     const slice = sliced[name];
     if (!slice) continue;

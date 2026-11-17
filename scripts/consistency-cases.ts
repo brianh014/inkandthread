@@ -5,12 +5,11 @@
 // --cut-offs sets cut-offs for this run, to try one before it goes into CUT_OFFS.
 import { CUT_OFFS, checkConsistency, cutOffs, type Name, type ReplyToCheck } from "../src/consistency";
 import { decisionProvider } from "../src/decisions";
-import { countWords, withinLimit } from "../src/limits";
 import { reviewerSettings, settingsStore } from "../src/settings-store";
 import { openingState, type StoryTime } from "../src/state-applier";
 import { upkeepOperations } from "../src/state-upkeep";
 import { textProvider } from "../src/text-provider";
-import { spokenLineFault } from "../src/turn-engine";
+import { usableFix } from "../src/turn-engine";
 
 const args = process.argv.slice(2);
 const option = (flag: string) => {
@@ -52,11 +51,6 @@ const consistency = { decide: decisionProvider(settings, (usage) => (decisionCos
 const reviewer = textProvider(reviewerSettings(settings));
 const counted: typeof reviewer = (prompt, request) => reviewer(prompt, { ...request, onUsage: (usage) => (reviewCost += usage.cost ?? 0) });
 const signal = new AbortController().signal;
-// As play's usable, less the checks for a Check's outcome and JSON, which a case never meets.
-const usable = (pc: string, told: string) => (text: string) =>
-  /\p{L}{2}/u.test(text) &&
-  !["a spoken line for the PC", "a speaker tag without its ["].includes(spokenLineFault(text, pc) ?? "") &&
-  withinLimit(text, Math.max(350, countWords(told)));
 const keyOf = (operation: Record<string, unknown>) => [operation.op, operation.slot ?? operation.name].filter(Boolean).join(":");
 
 const scores: Record<Name, { slip: number[]; fine: number[] }> = {} as never;
@@ -74,7 +68,7 @@ for (const entry of cases.filter(({ id }) => !only || id.startsWith(only))) {
   const visualDescription = entry.visualDescription ?? "";
   const reply: ReplyToCheck = { ...at, timeAfter: entry.timeAfter ?? at.timeBefore, narration, visualDescription };
   const started = Date.now();
-  const result = await checkConsistency(consistency, counted, reply, usable(at.pc, narration), signal);
+  const result = await checkConsistency(consistency, counted, reply, (text) => usableFix(text, at.pc, narration), signal);
   waits.push(Date.now() - started);
   for (const [name, score] of Object.entries(result.checked.scores) as [Name, number | null][]) {
     if (score === null) continue;

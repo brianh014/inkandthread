@@ -10,14 +10,14 @@ import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, t
 let folder: ReturnType<typeof tempFolder>;
 let savesDir: string;
 let server: ReturnType<typeof startServer> | undefined;
-const tuned = { ...CUT_OFFS };
+const tuned = structuredClone(CUT_OFFS);
 
 beforeEach(() => {
   folder = tempFolder();
   savesDir = join(folder.path, "Saves");
 });
 afterEach(async () => {
-  Object.assign(CUT_OFFS, tuned);
+  Object.assign(CUT_OFFS, structuredClone(tuned));
   await server?.stop(true);
   server = undefined;
   folder.remove();
@@ -103,14 +103,15 @@ test("each question is asked on its own with only its slice, and its score is lo
     player_input: "I count them.",
     reply: expect.stringContaining("Six men"),
   });
-  // What the PC has on as the reply starts, not what they carry.
-  expect(byName.pc_wearing).toEqual({ pc: "Ash", pc_wearing: [], reply: expect.stringContaining("Six men") });
-  expect(log).toContain('"consistency":{"model":"luna","scores":{"time":0.4,"continuity":0.02,"pc_wearing":0.02},"outcome":"passed"}');
+  // Who is present as the reply starts: the PC with what they have on, not what they carry.
+  expect(byName.description).toEqual({ people: [{ name: "Ash", is_pc: true, looks: "", wearing: [] }], reply: expect.stringContaining("Six men") });
+  expect(byName.past).toMatchObject({ known_facts: [], scene_memories: [], reply: expect.stringContaining("Six men") });
+  expect(log).toContain('"consistency":{"model":"luna","scores":{"time":0.4,"continuity":0.02,"description":0.02,"past":0.02},"outcome":"passed"}');
   expect(log).not.toContain("Six men");
 });
 
 test("a question over its cut-off has the reviewer fix the reply and its picture, which takes the streamed reply's place", async () => {
-  CUT_OFFS.continuity = 0.9;
+  CUT_OFFS["liquid/d1.2"]!.continuity = 0.9;
   const fix = JSON.stringify({ narration_edits: [{ old: "Six men", new: "Five men" }], visual_description_edits: [] });
   const { decide } = decisions({ continuity: 0.99 });
   const review = play(ON, [FIRST, SECOND], [NOTHING, fix, NOTHING], decide);
@@ -129,7 +130,7 @@ test("a question over its cut-off has the reviewer fix the reply and its picture
 });
 
 test("a reviewer that gives no edits leaves the reply as it was, logged as not a slip rather than fixed", async () => {
-  CUT_OFFS.continuity = 0.9;
+  CUT_OFFS["liquid/d1.2"]!.continuity = 0.9;
   const none = JSON.stringify({ narration_edits: [], visual_description_edits: [] });
   play(ON, [FIRST, SECOND], [NOTHING, none, NOTHING], decisions({ continuity: 0.99 }).decide);
   const id = createSave();
@@ -141,8 +142,21 @@ test("a reviewer that gives no edits leaves the reply as it was, logged as not a
   expect(log).toContain('"outcome":"not a slip"');
 });
 
+test("a model with its own cut-offs is judged by them, not Liquid D1.2's", async () => {
+  CUT_OFFS["liquid/d1.2"]!.continuity = 0.9;
+  CUT_OFFS.luna = { ...CUT_OFFS["liquid/d1.2"]!, continuity: 1.01 };
+  play(ON, [FIRST, SECOND], [NOTHING, NOTHING], decisions({ continuity: 0.99 }).decide);
+  const id = createSave();
+  await turn(id);
+
+  const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
+
+  expect(log).toContain('"outcome":"passed"');
+  delete CUT_OFFS.luna;
+});
+
 test("a fix that can't be placed keeps the reply as the Narrator wrote it", async () => {
-  CUT_OFFS.continuity = 0.9;
+  CUT_OFFS["liquid/d1.2"]!.continuity = 0.9;
   const fix = JSON.stringify({ narration_edits: [{ old: "Seven men", new: "Five men" }], visual_description_edits: [] });
   play(ON, [FIRST, SECOND], [NOTHING, fix, NOTHING], decisions({ continuity: 0.99 }).decide);
   const id = createSave();
@@ -156,7 +170,7 @@ test("a fix that can't be placed keeps the reply as the Narrator wrote it", asyn
 });
 
 test("a fix that speaks for the PC is refused, as a Narrator reply would be", async () => {
-  CUT_OFFS.continuity = 0.9;
+  CUT_OFFS["liquid/d1.2"]!.continuity = 0.9;
   const fix = JSON.stringify({ narration_edits: [{ old: "Six men", new: "[Ash]: “Five.”\nFive men" }], visual_description_edits: [] });
   play(ON, [FIRST, SECOND], [NOTHING, fix, NOTHING], decisions({ continuity: 0.99 }).decide);
   const id = createSave();
@@ -167,7 +181,7 @@ test("a fix that speaks for the PC is refused, as a Narrator reply would be", as
 });
 
 test("with --consistency-log-only, every question scores and logs and nothing is fixed", async () => {
-  CUT_OFFS.continuity = 0.9;
+  CUT_OFFS["liquid/d1.2"]!.continuity = 0.9;
   play(ON, [FIRST, SECOND], [NOTHING, NOTHING], decisions({ continuity: 0.99 }).decide, true);
   const id = createSave();
   await turn(id);
@@ -175,7 +189,7 @@ test("with --consistency-log-only, every question scores and logs and nothing is
   const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
 
   expect(lastNarration(id)).toContain("Six men");
-  expect(log).toContain('"continuity":0.99,"pc_wearing":0.02},"outcome":"logged"');
+  expect(log).toContain('"continuity":0.99,"description":0.02,"past":0.02},"outcome":"logged"');
 });
 
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });

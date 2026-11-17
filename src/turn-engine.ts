@@ -258,6 +258,8 @@ type Narrated = {
   input: string;
   refusal: string;
   pcName: string;
+  /** The PC's looks as the story began, which pcAppearance in the state replaces once set. */
+  pcTraits: string;
   /** The state the reply starts from. */
   before: State;
   /** Left out when there's no reviewer to keep the state, as in a test's script. */
@@ -395,6 +397,7 @@ export async function playTurn(
     input,
     refusal: "The Narrator refused this message. Edit it and try again.",
     pcName: saves.read(id).pc.name,
+    pcTraits: saves.read(id).pc.physicalTraits ?? "",
     before: state,
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
     consistency,
@@ -446,6 +449,7 @@ export async function replaceResponse(
     input: feedback ?? "",
     refusal: "The Narrator refused this, so the response stays as it was.",
     pcName: saves.read(id).pc.name,
+    pcTraits: saves.read(id).pc.physicalTraits ?? "",
     before: state,
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
     consistency,
@@ -491,6 +495,7 @@ export async function editResponse(
     input: text,
     refusal: "The Narrator refused this edit, so the response stays as it was.",
     pcName: saves.read(id).pc.name,
+    pcTraits: saves.read(id).pc.physicalTraits ?? "",
     before: state,
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
     narration: text,
@@ -512,6 +517,7 @@ async function narrate(
     input,
     refusal,
     pcName,
+    pcTraits,
     before,
     upkeep,
     consistency,
@@ -631,7 +637,13 @@ async function narrate(
           timeBefore: before.storyTime,
           timeAfter: narrated.next.storyTime,
           pc: pcName,
+          pcLooks: before.pcAppearance || pcTraits,
           wearing: before.inventory.wearing,
+          cast: before.npcs.filter(({ name }) => before.scene.visibleCast.includes(name)),
+          facts: before.pcKnown.facts,
+          summary: before.summary,
+          // The newest few, as a decision model grows unreliable on a long slice.
+          memories: before.sceneMemories.slice(-3).map(({ text }) => text),
           narration,
           visualDescription: description,
         };

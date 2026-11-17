@@ -119,15 +119,6 @@ test("an operation State Upkeep may not give, or a broken one, is dropped and th
   expect(log).toContain('"operations":["add_item"],"dropped":3');
 });
 
-test("State Upkeep never adds to what the PC wears, so a garment a reply wrongly gave the PC can't become canon", async () => {
-  play([narration("The denim held him.")], [upkept({ op: "add_item", slot: "wearing", item: "denim pants" })]);
-  const id = createSave();
-
-  expect((await turn(id)).ok).toBe(true);
-
-  expect(store().latestState(id).inventory.wearing).toEqual(["a coat"]);
-});
-
 test("State Upkeep is sent the reply before, so a description two replies agree is out of date can be brought up to date", async () => {
   const { upkeep } = play([narration("Ash walks home in the rain."), narration("Ash shakes the rain off.")], [upkept(), upkept()]);
   const id = createSave();

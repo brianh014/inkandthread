@@ -6,7 +6,7 @@
 // replies by id: [{ "save": "<Save id>", "reply": <Narrator Message id>, "slips": ["time"] }], with slips empty for a fine reply.
 // The Consistency model and its key come from Settings, as the app uses them. Each question is asked as play asks it, with the
 // slice play sends. --runs asks each reply more than once, to see how stable the answers are.
-import { CUT_OFFS, type Name, QUESTIONS, slices } from "../src/consistency";
+import { type Name, QUESTIONS, cutOffs, slices } from "../src/consistency";
 import { decisionProvider } from "../src/decisions";
 import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
@@ -24,6 +24,7 @@ const settings = settingsStore(settingsPath);
 let cost = 0;
 const decide = decisionProvider(settings, (usage) => (cost += usage.cost ?? 0));
 const NAMES = Object.keys(QUESTIONS) as Name[];
+const cutOff = cutOffs(settings.read().consistencyModel);
 
 /** The reply and what it follows from, as narrate builds them: the Snapshot before its player Message, and its own. */
 function replyToCheck({ save, reply }: Marked) {
@@ -37,8 +38,13 @@ function replyToCheck({ save, reply }: Marked) {
     input: input.text,
     timeBefore: before.storyTime,
     timeAfter: after.storyTime,
-    pc: (saves.read(save).pc as { name: string }).name,
+    pc: saves.read(save).pc.name,
+    pcLooks: before.pcAppearance || (saves.read(save).pc.physicalTraits ?? ""),
     wearing: before.inventory.wearing,
+    cast: before.npcs.filter(({ name }) => before.scene.visibleCast.includes(name)),
+    facts: before.pcKnown.facts,
+    summary: before.summary,
+    memories: before.sceneMemories.slice(-3).map(({ text }) => text),
     narration: messages[at]!.text,
     visualDescription: "",
   };
@@ -67,7 +73,7 @@ for (const entry of marked) {
       continue;
     }
     tally.scores.push(scores);
-    const flagged = Math.max(...scores) >= CUT_OFFS[name];
+    const flagged = Math.max(...scores) >= cutOff[name];
     const slipped = entry.slips.includes(name);
     if (flagged && slipped) tally.caught++;
     if (!flagged && slipped) tally.missed++;
@@ -86,5 +92,5 @@ console.log(
 for (const name of NAMES) {
   const { caught, missed, falseAlarms, unanswered, scores } = tallies[name];
   const spread = runs > 1 ? `, widest spread between runs ${Math.max(0, ...scores.map((each) => Math.max(...each) - Math.min(...each))).toFixed(2)}` : "";
-  console.log(`${name} (cut-off ${CUT_OFFS[name]}): caught ${caught}, missed ${missed}, false alarms ${falseAlarms}, unanswered ${unanswered}${spread}`);
+  console.log(`${name} (cut-off ${cutOff[name]}): caught ${caught}, missed ${missed}, false alarms ${falseAlarms}, unanswered ${unanswered}${spread}`);
 }

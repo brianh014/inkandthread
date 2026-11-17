@@ -145,7 +145,7 @@ test("State Upkeep moves on or resolves a Plot Thread the reply overtook", async
     [narration("Ash finds the thief at the dock and the thief confesses.")],
     [
       upkept(
-        { op: "update_plot_thread", thread: "A thief steals from the library.", replacement: "The exposed thief means to flee the city by boat." },
+        { op: "update_plot_thread", thread: "A thief steals from the library.", replacement: "The exposed thief flees by boat." },
         { op: "resolve_plot_thread", thread: "The tide rises." },
       ),
     ],
@@ -163,9 +163,26 @@ test("State Upkeep moves on or resolves a Plot Thread the reply overtook", async
 
   const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
 
-  expect(store().latestState(id).plotThreads).toEqual(["The exposed thief means to flee the city by boat."]);
+  expect(store().latestState(id).plotThreads).toEqual(["The exposed thief flees by boat."]);
   expect(log).toContain('"operations":["update_plot_thread","resolve_plot_thread"]');
   expect(log).not.toContain("thief");
+});
+
+test("a Plot Thread rewrite longer than the thread is dropped, as it only corrects", async () => {
+  play(
+    [narration("Ash walks the dock.")],
+    [upkept({ op: "update_plot_thread", thread: "The tide rises.", replacement: "The tide rises, and Ash walks the dock in the rain." })],
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: { inventory: { wearing: [], carrying: [] }, scene: { location: "The dock", visibleCast: [] }, summary: "", plotThreads: ["The tide rises."] },
+  });
+
+  const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
+
+  expect(store().latestState(id).plotThreads).toEqual(["The tide rises."]);
+  expect(log).toContain('"operations":[],"dropped":1');
 });
 
 test("State Upkeep is sent the reply before, so a description two replies agree is out of date can be brought up to date", async () => {

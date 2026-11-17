@@ -29,6 +29,10 @@ import { countWords, withinLimit } from "./limits";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
+import { MOVE_LIMIT, moveDue, moveWorldOn } from "./world-moves-on";
+
+// Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
+const moving = new Map<string, Promise<void>>();
 
 /** The token counts and cost a server reports for one reply, in the OpenAI shape. OpenRouter adds `cost`. */
 export type TextUsage = { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number }; cost?: number };
@@ -340,6 +344,7 @@ type WorldContext = { textProvider: TextProvider; settings: SettingsStore; image
  * before any call. Any other failure only skips it, as the reply is still told of the edits.
  */
 async function settleJournal(saves: SaveStore, context: WorldContext, id: string, signal: AbortSignal, stateOf: () => State) {
+  await moving.get(id);
   const change = journalChange(saves.pendingEdits(id));
   if (!change) return;
   stateOf();
@@ -362,6 +367,7 @@ export async function playTurn(
     usage,
     reviewProvider,
     consistency,
+    moveWorld,
   }: {
     textProvider: TextProvider;
     dice: Dice;
@@ -371,6 +377,8 @@ export async function playTurn(
     usage?: UsageStore;
     reviewProvider?: TextProvider;
     consistency?: Consistency;
+    /** Whether the world moves on at natural pauses. See `moveWorldOn`. */
+    moveWorld?: boolean;
   },
   id: string,
   input: string,
@@ -393,7 +401,7 @@ export async function playTurn(
   const kind = input === OPENING_INPUT ? "opening" : "turn";
   // Read before the call, as it's the model asked. shortcut: a Rewrite, Regenerate, Edit or Revert keeps the first reply's counts (a Revert restarts the counts since), recount them if the report needs to match the story exactly.
   const model = settings.read().textModel;
-  return narrate(textProvider, signal, emit, {
+  const played = await narrate(textProvider, signal, emit, {
     kind,
     prompt,
     input,
@@ -413,6 +421,13 @@ export async function playTurn(
     // Only what the player did counts, so not the opening or a Continue, which have nothing to check.
     counted: kind === "turn" && !isContinueInput(input) ? (turn) => usage?.turn(id, model, turn) : undefined,
   });
+  const replies = messages.filter(({ role }) => role === "narrator").length + 1;
+  if (moveWorld && kind === "turn" && moveDue(state, saves.latestState(id), replies)) {
+    // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
+    const move = moveWorldOn(textProvider, settings, saves, id, AbortSignal.timeout(MOVE_LIMIT.ms)).finally(() => moving.delete(id));
+    moving.set(id, move);
+  }
+  return played;
 }
 
 /** The Narrator's first Message, which the player has done nothing to earn a Check in. A story already open is stale. */

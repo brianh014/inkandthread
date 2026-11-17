@@ -368,6 +368,7 @@ async function play(
     localImages: fakeImages,
     dice: () => Math.floor(roll() * 20) + 1,
     nearMissMargin: 3,
+    moveWorld: true,
     port: 0,
   });
   setLogLevel("verbose");

@@ -71,7 +71,7 @@ test("State Upkeep records what the reply showed and the Narrator missed, after 
   // No reply came before the first, so there is no previous one to agree with.
   expect(sent).toMatchObject({ state: { inventory: { carrying: ["a key"] } }, previous_reply: "", player_move: "I walk home and hang up my coat." });
   expect(sent.reply).toContain("hangs the coat");
-  expect(Object.keys(sent.state)).toContain("plot_threads");
+  expect(Object.keys(sent.state)).not.toContain("plot_threads");
   expect(Object.keys(sent.state)).not.toContain("worldBible");
   expect(log).toContain('"operations":["set_scene","remove_item"]');
   expect(log).toContain('"upkeepRefused":0');
@@ -140,7 +140,7 @@ test("an operation State Upkeep may not give, or a broken one, is dropped and th
   expect(log).toContain('"operations":["add_item"],"dropped":3');
 });
 
-test("State Upkeep resolves a Plot Thread the reply settled, and never rewrites one", async () => {
+test("State Upkeep never changes a Plot Thread, which is World Moves On's", async () => {
   play(
     [narration("Ash finds the thief at the dock and the thief confesses.")],
     [
@@ -163,8 +163,8 @@ test("State Upkeep resolves a Plot Thread the reply settled, and never rewrites 
 
   const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
 
-  expect(store().latestState(id).plotThreads).toEqual(["A thief steals from the library."]);
-  expect(log).toContain('"operations":["resolve_plot_thread"],"dropped":1');
+  expect(store().latestState(id).plotThreads).toEqual(["A thief steals from the library.", "The tide rises."]);
+  expect(log).toContain('"operations":[],"dropped":2');
   expect(log).not.toContain("thief");
 });
 

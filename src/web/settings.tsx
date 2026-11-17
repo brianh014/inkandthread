@@ -999,7 +999,7 @@ function ConsistencySettings({
   // A list is only ever the saved server's, so only while the form shows the server that was saved.
   const server = (settings: Settings) =>
     settings.consistencySameProvider && offersDecisions(settings.textBaseUrl) ? settings.textBaseUrl : settings.consistencyBaseUrl;
-  const listSaved = saved.consistencyEnabled && server(saved) === server(draft);
+  const listSaved = server(saved) === server(draft);
   const [models, setModels] = useState<string[]>();
 
   useEffect(() => {
@@ -1061,7 +1061,7 @@ function ConsistencySettings({
             onChange={(consistencyModel) => set({ consistencyModel })}
           />
           {!listSaved && <p className="muted">Save to choose from this provider's decision models.</p>}
-          <p className="muted">GPT-6 Luna Decisions on OpenRouter did best in testing. Gemini Decision 1 isn't offered, as it blocks adult stories.</p>
+          <p className="muted">GPT-6 Luna Decisions on OpenRouter did best in testing. Gemini Decision 1 blocks adult stories.</p>
           {!draft.consistencyModel.trim() && <p className="notice">Choose a model, or replies go unchecked.</p>}
         </>
       )}

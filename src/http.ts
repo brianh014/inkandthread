@@ -34,6 +34,8 @@ export type ServerOptions = {
   reviewProvider?: TextProvider;
   /** The Consistency model. By default the real one, which asks nothing until Settings turn it on. */
   decisionProvider?: DecisionProvider;
+  /** For the Consistency model dropdown, in place of the provider's list, as --fake has no network. */
+  decisionModels?: () => Promise<string[]>;
   /** `--consistency-log-only`: every question scores and logs, tuned or not, and nothing is fixed. */
   consistencyLogOnly?: boolean;
   /**

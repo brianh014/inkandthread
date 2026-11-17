@@ -180,7 +180,8 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
     "/settings/text-models": {
       GET: async (req) => {
         const { for: whose } = TextModelsQuery.parse(Object.fromEntries(new URL(req.url).searchParams));
-        if (whose === "consistency") return Response.json({ models: (await decisionModels(settings, req.signal)).map(({ id }) => id) });
+        if (whose === "consistency")
+          return Response.json({ models: (await options.decisionModels?.()) ?? (await decisionModels(settings, req.signal)).map(({ id }) => id) });
         return Response.json({ models: await textModels(whose === "review" ? reviewerSettings(settings) : settings, req.signal) });
       },
     },

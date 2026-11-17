@@ -71,6 +71,7 @@ const server = startServer({
   textProvider: fake ? fakeTextProvider : textProvider(settings),
   reviewProvider: fake ? fakeTextProvider : textProvider(reviewerSettings(settings)),
   decisionProvider: fake ? fakeDecisions : undefined,
+  decisionModels: fake ? async () => ["fake-decisions", "fake/other-decisions"] : undefined,
   // To watch the questions in real play against untouched replies, tuned or not.
   consistencyLogOnly: process.argv.includes("--consistency-log-only"),
   imageAdapter: fake

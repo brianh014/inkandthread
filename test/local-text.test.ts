@@ -228,6 +228,25 @@ test("a stream that stalls is reported as stopped", async () => {
   expect(events.at(-1)).toMatchObject({ event: "error", data: { error: expect.stringMatching(STOPPED) } });
 });
 
+test("a stream of keep-alives with no text is reported as stopped, as a stuck upstream sends them forever", async () => {
+  playLocal(
+    [
+      async function* () {
+        for (;;) {
+          yield ": keep-alive\n\n";
+          await Bun.sleep(20);
+        }
+      },
+    ],
+    { limits: { silenceMs: 100, listMs: 50 } },
+  );
+  const id = await app.createSave();
+
+  const events = await turnEvents(await streamTurn(id, "I wade forward."));
+
+  expect(events.at(-1)).toMatchObject({ event: "error", data: { error: expect.stringMatching(STOPPED) } });
+});
+
 test("a slow first response and gaps between chunks are fine, however long the reply takes overall", async () => {
   playLocal(
     [

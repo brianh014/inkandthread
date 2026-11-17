@@ -1,9 +1,11 @@
 // The Narrator bench: plays bench/world.json in Choices mode on the real models from a Settings file, through the real server,
 // (each play in a process of its own, all at once unless the Narrator is a local model) and records what every Narrator feature did, how long each step took, what it cost, and a judge's scores. It costs real money,
-// so it asks before it starts. The real AI writes every Image Prompt, to be judged, but a stand-in draws it.
+// so it asks before it starts. The real AI writes every Image Prompt, to be judged, but a stand-in draws it, unless --draw.
 //   bun bench run --rounds N --runs M [--settings settings.json] [--judge self|narrator] [--label name] [--seed 1] [--yes]
 //   bun bench run --moves moves.txt --runs M [...]   plays in Free Text instead, one move per line (# starts a comment), to
 //                                                    steer the story a chosen way; the rounds are the moves
+//   bun bench run --draw [...]   draws the pictures on the Settings file's local ComfyUI, never a paid API, into each play's
+//                                pictures folder, to judge the pictures themselves
 //   bun bench judge <run folder> --by <model> --scores <scores.json>   (scores for a --judge self run, one entry per play)
 //   bun bench keep <run folder>        copies the run's numbers, never its story, to bench/results to commit
 //   bun bench table [--csv]            every kept and recent run, side by side
@@ -26,6 +28,8 @@ import { askForJson, jsonSchemaOf, type TextProvider } from "../src/turn-engine"
 const BENCH = import.meta.dir;
 // --fake plays on the stand-in models, free and offline, to try the bench itself; its numbers say nothing of a real Narrator.
 const fake = process.argv.includes("--fake");
+// --draw draws on local ComfyUI, which costs nothing per picture; a paid image API is never drawn on.
+const draw = process.argv.includes("--draw");
 const narratorOf = (settings: ReturnType<typeof settingsStore>) => (fake ? fakeTextProvider : textProvider(settings));
 const RUNS = join(BENCH, "runs");
 const RESULTS = join(BENCH, "results");
@@ -364,9 +368,10 @@ async function play(
         decisions.push(performance.now() - started);
       }
     },
-    // The real AI writes and checks every Image Prompt, to be judged, but a stand-in draws it, as real pictures cost money and time.
+    // The real AI writes and checks every Image Prompt, to be judged, but a stand-in draws it, as real pictures cost money and time,
+    // unless --draw, which draws on local ComfyUI only.
     imageAdapter: fakeImages,
-    localImages: fakeImages,
+    localImages: draw && !fake ? undefined : fakeImages,
     dice: () => Math.floor(roll() * 20) + 1,
     nearMissMargin: 3,
     moveWorld: true,
@@ -557,9 +562,21 @@ async function play(
   flat["perRound.decisions.cost"] = decisionCost / rounds;
 
   writeFileSync(join(folder, "transcript.md"), transcript(world, saves, id, steps));
+  if (draw) keepPictures(saves, id, join(folder, "pictures"));
   rmSync(savesDir, { recursive: true, force: true });
   return flat;
 }
+
+/** Each drawn picture as a file named as the transcript names it, so a judge can look at it. */
+function keepPictures(saves: ReturnType<typeof saveStore>, id: string, into: string) {
+  mkdirSync(into, { recursive: true });
+  for (const { kind, ref, npc } of saves.gallery(id)) {
+    const bytes =
+      kind === "scene" ? saves.sceneImage(id, ref) : kind === "portrait" ? saves.portrait(id, ref) : kind === "original" ? saves.original(id, ref) : undefined;
+    if (bytes) writeFileSync(join(into, pictureName(kind, ref, npc)), bytes);
+  }
+}
+const pictureName = (kind: string, ref: number, npc: string | null) => `${kind}-${kind === "scene" ? ref : safe(npc ?? "pc")}.png`;
 
 function transcript(world: z.infer<typeof World>, saves: ReturnType<typeof saveStore>, id: string, steps: Step[]) {
   const checks = new Map(saves.checks(id).map((check) => [check.messageId, check]));
@@ -569,12 +586,16 @@ function transcript(world: z.infer<typeof World>, saves: ReturnType<typeof saveS
     const check = checks.get(messageId);
     const rolled = check ? `\n\n> Hidden Check: ${check.action} (difficulty ${check.difficulty}, rolled ${check.roll}): ${check.outcome}` : "";
     const scene = scenes.get(messageId);
-    const pictured = scene ? `\n\n> Picture prompt: ${scene}` : "";
+    const drawn = draw ? `\n>\n> Picture: pictures/${pictureName("scene", messageId, null)}` : "";
+    const pictured = scene ? `\n\n> Picture prompt: ${scene}${drawn}` : "";
     return role === "player" ? `**Player:** ${text}` : `${text}${rolled}${pictured}`;
   });
   const portraits = gallery
     .filter(({ kind }) => kind === "portrait" || kind === "original")
-    .map(({ kind, npc, prompt }) => `- ${npc ?? world.save.pc.name}${kind === "original" ? " (first portrait)" : ""}: ${prompt ?? "(no prompt kept)"}`);
+    .map(
+      ({ kind, ref, npc, prompt }) =>
+        `- ${npc ?? world.save.pc.name}${kind === "original" ? " (first portrait)" : ""}: ${prompt ?? "(no prompt kept)"}${draw ? ` (pictures/${pictureName(kind, ref, npc)})` : ""}`,
+    );
   const timeline = steps.map(({ round, action, input, ok, hidden, offered }) => {
     const lines = [...(offered ? [`Offered: ${offered.map((choice) => `"${choice}"`).join(", ")}`] : []), ...hidden];
     return `- Round ${round}, ${action}${input ? ` "${input}"` : ""}${ok ? "" : " (failed)"}${lines.map((line) => `\n  - ${line}`).join("")}`;
@@ -691,6 +712,7 @@ async function playApart(index: number, seed: number, rounds: number, movesFile:
       ...["--index", String(index), "--seed", String(seed), "--rounds", String(rounds), "--settings", settingsPath, "--folder", folder],
       ...(movesFile ? ["--moves", movesFile] : []),
       ...(fake ? ["--fake"] : []),
+      ...(draw ? ["--draw"] : []),
     ],
     { stdout: "inherit", stderr: "inherit" },
   );
@@ -725,6 +747,9 @@ async function run() {
   const settings = settingsStore(settingsPath);
   settings.update({ imagesEnabled: true, drawScenes: true });
   const drawing = settings.read();
+  // With --fake, the stand-in still draws, so keeping the pictures can be tried free.
+  if (draw && !fake && (drawing.imageProvider !== "local" || !localIsSetUp(drawing)))
+    fail("--draw needs local ComfyUI set up as the image provider in the Settings file.");
   if (drawing.imageProvider === "local" ? !localIsSetUp(drawing) : !(drawing.imageModel && drawing.imageApiKey))
     settings.update({ imageProvider: "openrouter", imageModel: "fake-images", imageApiKey: "fake-key" });
   if (fake) settings.update({ textBaseUrl: "http://127.0.0.1:9/v1", textModel: "fake-narrator", consistencyEnabled: true, consistencyModel: "fake-decisions" });

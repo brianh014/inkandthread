@@ -49,6 +49,10 @@ const createSave = () =>
       scene: { location: "The library", visibleCast: [] },
       summary: "",
       plotThreads: ["A thief plans to rob the library at the next high tide."],
+      worldBible: [
+        { title: "The thief", keywords: ["thief"], content: "The thief is the librarian's own son.", alwaysOn: false },
+        { title: "Gulls", keywords: ["gull"], content: "Gulls nest on the dome.", alwaysOn: false },
+      ],
     },
   });
 const turn = (id: string, input: string) =>
@@ -71,6 +75,9 @@ test("at a change of place the world moves on out of sight, and the next Turn re
   // The move was asked between the Turns, with the threads and the story so far.
   expect(told.prompts.length).toBe(3);
   expect(told.prompts[1]!.at(-1)!.content).toContain("rob the library");
+  // With the Lore Entries its threads name, so a move keeps who is behind each one true to the world.
+  expect(told.prompts[1]!.at(-1)!.content).toContain("the librarian's own son");
+  expect(told.prompts[1]!.at(-1)!.content).not.toContain("Gulls nest");
   expect(told.prompts[2]!.map(({ content }) => content).join("\n")).toContain("hides the books on a barge");
   expect(store().latestState(id).plotThreads).toEqual(["The thief has robbed the library and hides the books on a barge."]);
   expect(log).toContain('"threads":1,"added":0,"removed":0');

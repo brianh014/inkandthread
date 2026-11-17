@@ -24,7 +24,7 @@
     {
       "name": "novelforge-dev-real",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["--watch", "src/main.ts"],
+      "runtimeArgs": ["--watch", "src/main.ts", "--consistency-log-only"],
       "env": { "PORT": "4620", "HOST": "127.0.0.1" },
       "port": 4620
     }

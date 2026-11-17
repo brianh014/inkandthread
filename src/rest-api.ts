@@ -12,6 +12,7 @@ import { settingsRoutes } from "./settings-routes";
 import { OnlineImageProvider, reviewerSettings } from "./settings-store";
 import { turnRoutes } from "./turn-routes";
 import { relaunch, updater } from "./updater";
+import { decisionProvider } from "./decisions";
 import { countedImages, countedText, usageStore } from "./usage-store";
 import spa from "./web/index.html";
 import { reviewScenePrompt, writePicturePrompt } from "./world-creation";
@@ -73,6 +74,11 @@ export function startServer(given: ServerOptions) {
     usage,
     textProvider: countedText(given.textProvider, usage, settings),
     reviewProvider: given.reviewProvider && countedText(given.reviewProvider, usage, reviewerSettings(settings)),
+    consistency: {
+      decide: given.decisionProvider ?? decisionProvider(settings, (request) => usage.record({ kind: "text", ...request })),
+      enabled: () => settings.read().consistencyEnabled,
+      logOnly: !!given.consistencyLogOnly,
+    },
   };
   const saves = saveStore(options.savesDir);
   const turns = liveTurns();

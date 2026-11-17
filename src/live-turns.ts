@@ -62,7 +62,8 @@ export function liveTurns() {
           if (event === "restart") {
             turn.narration = "";
             turn.retry = (data as { reason: string }).reason;
-          } else turn.narration += (data as { text: string }).text;
+          } else if (event === "revise") turn.narration = (data as { text: string }).text;
+          else turn.narration += (data as { text: string }).text;
         },
         /** A `failure` waits for the player, who may not have been there to see it. */
         end(failure?: FailedTurn) {

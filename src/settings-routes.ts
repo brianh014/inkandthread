@@ -5,6 +5,7 @@ import { chosenModels, drawSteps, localIsSetUp } from "./graph-builder";
 import { imageResponse, parseBody, PromptRequest, routes, type ServerContext } from "./http";
 import type { ImageAdapter } from "./image-adapter";
 import { defaultLogLevel, errorFields, errorType, log, setLogLevel } from "./logger";
+import { decisionModels } from "./decisions";
 import { estimateTokens } from "./lore-activation";
 import { OnlineImageProvider, reviewerSettings, type SettingsChange, SettingsUpdate } from "./settings-store";
 import { textHosts, textModels } from "./text-provider";
@@ -13,7 +14,7 @@ import { storyName, UNREADABLE_SAVE } from "./web/api";
 
 // Only the online providers have a list. ComfyUI's models come from /settings/comfy-models.
 const ImageModelsQuery = z.object({ provider: OnlineImageProvider });
-const TextModelsQuery = z.strictObject({ for: z.enum(["review"]).optional() });
+const TextModelsQuery = z.strictObject({ for: z.enum(["review", "consistency"]).optional() });
 const UsageQuery = z.strictObject({ by: z.enum(["day", "week", "month"]) });
 
 /** `profiles` with each one's key taken out. */
@@ -45,6 +46,11 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
       reviewBaseUrl,
       reviewApiKey,
       reviewThinking,
+      consistencyEnabled,
+      consistencyModel,
+      consistencySameProvider,
+      consistencyBaseUrl,
+      consistencyApiKey,
       textRecentMessages,
       answerRejectWords,
       imageProvider,
@@ -104,6 +110,11 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
       reviewBaseUrl,
       hasReviewApiKey: reviewApiKey !== "",
       reviewThinking,
+      consistencyEnabled,
+      consistencyModel,
+      consistencySameProvider,
+      consistencyBaseUrl,
+      hasConsistencyApiKey: consistencyApiKey !== "",
       textRecentMessages,
       answerRejectWords,
       imageProvider,
@@ -164,10 +175,12 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
         return Response.json(publicSettings());
       },
     },
-    // Only ever the saved server, so a key can't reach an address that is still being typed. `for=review` lists the reviewer's.
+    // Only ever the saved server, so a key can't reach an address that is still being typed. `for=review` lists the reviewer's,
+    // and `for=consistency` the Consistency model's decision models.
     "/settings/text-models": {
       GET: async (req) => {
         const { for: whose } = TextModelsQuery.parse(Object.fromEntries(new URL(req.url).searchParams));
+        if (whose === "consistency") return Response.json({ models: (await decisionModels(settings, req.signal)).map(({ id }) => id) });
         return Response.json({ models: await textModels(whose === "review" ? reviewerSettings(settings) : settings, req.signal) });
       },
     },

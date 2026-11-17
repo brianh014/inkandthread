@@ -1,4 +1,5 @@
 import { deflateSync } from "node:zlib";
+import type { DecisionProvider } from "./decisions";
 import type { ImageAdapter } from "./image-adapter";
 import type { TextProvider } from "./turn-engine";
 
@@ -276,3 +277,9 @@ export const fakeImages: ImageAdapter = async ({ aspect_ratio }, signal) => {
   const [w = 1, h = 1] = aspect_ratio.split(":").map(Number);
   return solidPng(Math.round((64 * w) / Math.max(w, h)), Math.round((64 * h) / Math.max(w, h)), next(PLATES));
 };
+
+/** Finds every reply consistent, so the fix never runs unless a test asks for a slip. */
+export const fakeDecisions: DecisionProvider = async (_state, questions) => ({
+  answers: Object.fromEntries(Object.keys(questions).map((name) => [name, 0.02])),
+  model: "fake-decisions",
+});

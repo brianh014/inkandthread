@@ -1,12 +1,13 @@
 // The Narrator bench: plays bench/worlds/adventure.json in Choices mode on the real models from a Settings file, through the real server,
 // (each play in a process of its own, all at once unless the Narrator is a local model) and records what every Narrator feature did, how long each step took, what it cost, and a judge's scores. It costs real money,
 // so it asks before it starts. The real AI writes every Image Prompt, to be judged, but a stand-in draws it, unless --draw.
-//   bun bench run --rounds N --runs M [--settings settings.json] [--judge self|narrator] [--label name] [--seed 1] [--yes]
+//   bun bench run --rounds N --runs M [--settings bench/settings.json] [--judge self|narrator] [--label name] [--seed 1] [--yes]
 //   bun bench run --moves moves.txt --runs M [...]   plays in Free Text instead, one move per line (# starts a comment), to
 //                                                    steer the story a chosen way; the rounds are the moves
 //   bun bench run --world <file> [...]   plays another world shaped like bench/worlds/adventure.json, such as one kept out of git
 //   bun bench run --draw [...]   draws the pictures on the Settings file's local ComfyUI, never a paid API, into each play's
 //                                pictures folder, to judge the pictures themselves
+//   bun bench run --keep-save [...]   keeps each play's Saves folder in its run folder, to open or play on later
 //   bun bench judge <run folder> --by <model> --scores <scores.json>   (scores for a --judge self run, one entry per play)
 //   bun bench keep <run folder>        copies the run's numbers, never its story, to bench/results to commit
 //   bun bench table [--csv]            every kept and recent run, side by side
@@ -14,7 +15,7 @@
 //                                      version, score and story, to bench/charts/bench-chart.html
 // To bench a setup without editing the Settings copy: --narrator <model>, --narrator-only (no other reviewer, Consistency off),
 // --reviewer <model> and --decisions <model>. The copy's pinned provider stays, so a model it doesn't offer fails, never reroutes.
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { z } from "zod";
@@ -45,6 +46,8 @@ const CHART_ROUNDS = 30;
 const fake = process.argv.includes("--fake");
 // --draw draws on local ComfyUI, which costs nothing per picture; a paid image API is never drawn on.
 const draw = process.argv.includes("--draw");
+// Keeps each play's Saves in its folder, to open or play on later, as a long story to test against.
+const keepSave = process.argv.includes("--keep-save");
 const narratorOf = (settings: ReturnType<typeof settingsStore>) => (fake ? fakeTextProvider : textProvider(settings));
 const RUNS = join(BENCH, "runs");
 const RESULTS = join(BENCH, "results");
@@ -399,11 +402,40 @@ function hiddenChanges(before: State, after: State) {
   for (const [name, known] of Object.entries(after.npcKnows)) {
     for (const text of known.filter((item) => !(before.npcKnows[name] ?? []).includes(item))) lines.push(`${name} now knows: ${text}`);
   }
+  // Its words too, as a long story is judged on lore staying true, and an entry rewritten keeps its title.
   diff(
     "Lore entry",
-    before.worldBible.map(({ title }) => title),
-    after.worldBible.map(({ title }) => title),
+    before.worldBible.map(({ title, content }) => `${title}: ${content}`),
+    after.worldBible.map(({ title, content }) => `${title}: ${content}`),
   );
+  diff("World rule", before.worldRules, after.worldRules);
+  diff("Director's note", before.directorsNotes, after.directorsNotes);
+  diff("Known fact", before.pcKnown.facts, after.pcKnown.facts);
+  diff("Known NPC", before.pcKnown.npcs, after.pcKnown.npcs);
+  diff(
+    "Known NPC summary",
+    Object.entries(before.pcKnown.summaries ?? {}).map(([name, text]) => `${name}: ${text}`),
+    Object.entries(after.pcKnown.summaries ?? {}).map(([name, text]) => `${name}: ${text}`),
+  );
+  diff(
+    "Looks",
+    before.npcs.map(({ name, appearance }) => `${name}: ${appearance}`),
+    after.npcs.map(({ name, appearance }) => `${name}: ${appearance}`),
+  );
+  if (after.pcAppearance !== before.pcAppearance) lines.push(`PC looks now: ${after.pcAppearance}`);
+  diff("Wearing", before.inventory.wearing, after.inventory.wearing);
+  diff("Carrying", before.inventory.carrying, after.inventory.carrying);
+  const status = ({ health, injuries, conditions }: State["status"]) => [health, ...injuries, ...conditions].join("; ");
+  if (status(after.status) !== status(before.status)) lines.push(`PC status now: ${status(after.status)}`);
+  const time = (at: State["storyTime"]) => (at ? `day ${at.day}, ${at.date}, ${at.timeOfDay}` : "");
+  if (time(after.storyTime) !== time(before.storyTime)) lines.push(`Story time now: ${time(after.storyTime)}`);
+  if (after.scene.location !== before.scene.location) lines.push(`Scene now: ${after.scene.location}`);
+  // What the Narrator reads in place of the Messages it covers, once a long story outgrows the window.
+  for (const { firstMessage, lastMessage, text } of after.sceneMemories.filter(
+    ({ firstMessage }) => !before.sceneMemories.some((memory) => memory.firstMessage === firstMessage),
+  ))
+    lines.push(`Scene Memory of Messages ${firstMessage} to ${lastMessage}: ${text}`);
+  for (const { title } of after.chapters.slice(before.chapters.length)) lines.push(`Chapter closed: ${title}`);
   return lines;
 }
 
@@ -654,6 +686,7 @@ async function play(
 
   writeFileSync(join(folder, "transcript.md"), transcript(world, saves, id, steps));
   if (draw) keepPictures(saves, id, join(folder, "pictures"));
+  if (keepSave) cpSync(savesDir, join(folder, "Saves"), { recursive: true });
   rmSync(savesDir, { recursive: true, force: true });
   return flat;
 }
@@ -679,7 +712,8 @@ function transcript(world: z.infer<typeof World>, saves: ReturnType<typeof saveS
     const scene = scenes.get(messageId);
     const drawn = draw ? `\n>\n> Picture: pictures/${pictureName("scene", messageId, null)}` : "";
     const pictured = scene ? `\n\n> Picture prompt: ${scene}${drawn}` : "";
-    return role === "player" ? `**Player:** ${text}` : `${text}${rolled}${pictured}`;
+    // Numbered, so a Scene Memory's range of Messages can be found in the story.
+    return role === "player" ? `**Player (Message ${messageId}):** ${text}` : `${text}${rolled}${pictured}`;
   });
   const portraits = gallery
     .filter(({ kind }) => kind === "portrait" || kind === "original")
@@ -691,7 +725,14 @@ function transcript(world: z.infer<typeof World>, saves: ReturnType<typeof saveS
     const lines = [...(offered ? [`Offered: ${offered.map((choice) => `"${choice}"`).join(", ")}`] : []), ...hidden];
     return `- Round ${round}, ${action}${input ? ` "${input}"` : ""}${ok ? "" : " (failed)"}${lines.map((line) => `\n  - ${line}`).join("")}`;
   });
-  return `# ${world.save.title}\n\n## Plot Threads at the start (hidden)\n\n${(world.opening.plotThreads as string[]).map((thread) => `- ${thread}`).join("\n")}\n\n## The story\n\n${story.join("\n\n")}\n\n## Portrait prompts\n\n${portraits.join("\n") || "(none)"}\n\n## Hidden timeline\n\n${timeline.join("\n")}\n`;
+  const list = (items: string[]) => items.map((item) => `- ${item}`).join("\n") || "(none)";
+  const start = world.opening as Partial<State>;
+  const end = saves.latestState(id);
+  // The world as it began and the summary as it ended, so the transcript alone holds what the Narrator was working from.
+  const begun = `## World rules at the start\n\n${list(start.worldRules ?? [])}\n\n## Lore at the start (hidden)\n\n${list((start.worldBible ?? []).map(({ title, content }) => `${title}: ${content}`))}`;
+  const time = end.storyTime ? `day ${end.storyTime.day}, ${end.storyTime.date}, ${end.storyTime.timeOfDay}` : "(none)";
+  const ending = `## At the end\n\nStory time: ${time}\n\nSummary the Narrator reads: ${end.summary || "(none)"}\n\nPlot Threads:\n\n${list(end.plotThreads)}\n\nLoose Ends:\n\n${list(end.looseEnds)}`;
+  return `# ${world.save.title}\n\n## Plot Threads at the start (hidden)\n\n${list(world.opening.plotThreads as string[])}\n\n${begun}\n\n## The story\n\n${story.join("\n\n")}\n\n## Portrait prompts\n\n${portraits.join("\n") || "(none)"}\n\n## Hidden timeline\n\n${timeline.join("\n")}\n\n${ending}\n`;
 }
 
 // ---- Results ----
@@ -828,6 +869,7 @@ async function playApart(index: number, seed: number, rounds: number, movesFile:
       ...["--world", worldFile],
       ...(fake ? ["--fake"] : []),
       ...(draw ? ["--draw"] : []),
+      ...(keepSave ? ["--keep-save"] : []),
     ],
     { stdout: "inherit", stderr: "inherit" },
   );
@@ -851,8 +893,9 @@ async function run() {
   if (judge !== "self" && judge !== "narrator") fail("--judge is self or narrator.");
   const label = safe(option("--label") ?? (movesFile ? `moves-${basename(movesFile).replace(/\.\w+$/, "")}` : "run"));
   const seed = Number(option("--seed") ?? 1);
-  const given = option("--settings") ?? "settings.json";
-  if (!fake && !existsSync(given)) fail(`No Settings file at ${given}.`);
+  // Its own file, git-ignored like the player's, so changing the player's Settings never changes a run. Only a copy is ever changed.
+  const given = option("--settings") ?? "bench/settings.json";
+  if (!fake && !existsSync(given)) fail(`No Settings file at ${given}. Copy settings.json there, set up as the bench should play.`);
   if (!existsSync(worldFile)) fail(`No world file at ${worldFile}.`);
   readWorld();
 

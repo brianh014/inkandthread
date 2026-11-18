@@ -152,6 +152,8 @@ type Result = {
   models: { narrator: string; reviewer: string; reviewThinking: string; consistency: string };
   /** Seeded Choices, or Free Text from a moves file, which runs compare only within. */
   mode?: string;
+  /** Plays that failed and were left out, when any did; `runs` then counts only those kept. */
+  failedPlays?: number[];
   /** The world file played, by name, as runs compare only on one world. Absent on runs before --world, which played world.json. */
   world?: string;
   /** Whether the pictures were drawn (--draw), so judged as pictures, or judged from their prompts alone. Absent on older runs. */
@@ -726,7 +728,11 @@ async function playApart(index: number, seed: number, rounds: number, movesFile:
     ],
     { stdout: "inherit", stderr: "inherit" },
   );
-  if ((await child.exited) !== 0) fail(`Play ${index} failed; its log is in ${folder}.`);
+  // Not the whole run, as the other plays are paid for and still going.
+  if ((await child.exited) !== 0) {
+    console.error(`Play ${index} failed; its log is in ${folder}. The others go on.`);
+    return undefined;
+  }
   const played = JSON.parse(readFileSync(join(folder, "play.json"), "utf8")) as Awaited<ReturnType<typeof play>>;
   // Gone once read, as every JSON file under runs/ is taken for a run's result.
   rmSync(join(folder, "play.json"));
@@ -807,14 +813,23 @@ async function run() {
   const playAt = (index: number) => playApart(index, seed, rounds, movesFile, settingsPath, join(folder, `play-${index}`));
   const indexes = Array.from({ length: runs }, (_, at) => at + 1);
   // All at once on remote models; one at a time on a local one, which would only make each play wait on the other.
+  const outcomes: Awaited<ReturnType<typeof playAt>>[] = [];
   if (provider === "local") {
     for (const index of indexes) {
       console.log(`Play ${index} of ${runs}`);
-      result.plays.push(await playAt(index));
+      outcomes.push(await playAt(index));
     }
   } else {
     console.log(`Playing all ${runs} at once`);
-    result.plays = await Promise.all(indexes.map(playAt));
+    outcomes.push(...(await Promise.all(indexes.map(playAt))));
+  }
+  // The result holds the plays that finished, and names any that didn't, so a judge reads only those with a transcript.
+  const kept = indexes.filter((index) => outcomes[index - 1] !== undefined);
+  if (kept.length === 0) fail(`Every play failed; their logs are in ${relative(process.cwd(), folder)}.`);
+  result.plays = kept.map((index) => outcomes[index - 1]!);
+  if (kept.length < runs) {
+    result.failedPlays = indexes.filter((index) => !kept.includes(index));
+    result.runs = kept.length;
   }
   summarise(result);
   writeFileSync(join(folder, "result.json"), JSON.stringify(result, null, 2));
@@ -823,7 +838,7 @@ async function run() {
     const calls: Call[] = [];
     const judgeWith = counted(narratorOf(settings), "narrator", calls);
     const plays: JudgeReply[] = [];
-    for (let index = 1; index <= runs; index++) {
+    for (const index of kept) {
       const story = readFileSync(join(folder, `play-${index}`, "transcript.md"), "utf8");
       plays.push(
         await askForJson(
@@ -845,7 +860,7 @@ async function run() {
   } else {
     writeFileSync(
       join(folder, "judge.md"),
-      `# Judge this run\n\nRead each play's transcript.md, then judge it by these rules:\n\n${JUDGE_RULES}\n\nWrite a JSON array with one reply per play, in order, and save it with:\n\n    bun bench judge ${relative(process.cwd(), folder)} --by <your model> --scores <file>\n`,
+      `# Judge this run\n\nRead each play's transcript.md, then judge it by these rules:\n\n${JUDGE_RULES}\n\nWrite a JSON array with one reply per play, in order${result.failedPlays ? ` (only plays ${kept.join(", ")}, as ${result.failedPlays.join(", ")} failed)` : ""}, and save it with:\n\n    bun bench judge ${relative(process.cwd(), folder)} --by <your model> --scores <file>\n`,
     );
     console.log(`\nTo judge it yourself, follow ${relative(process.cwd(), join(folder, "judge.md"))}.`);
   }

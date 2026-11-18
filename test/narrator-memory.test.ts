@@ -392,6 +392,10 @@ test("the Narrator is told to keep its records true to play", () => {
     expect(prompt).toContain(op);
 });
 
+test("the Narrator tells what the PC says in narration, never as a line under someone else's name", () => {
+  expect(promptFor()).toContain("telling anything the PC says in the narration's own words, never as a spoken line under any name");
+});
+
 test("the summary has room to keep what still matters, most of it for the recent story", () => {
   expect(promptFor()).toContain("under 500 words");
   expect(promptFor()).toContain("give the last few scenes about two thirds of the words");

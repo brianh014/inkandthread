@@ -294,6 +294,16 @@ test("each text server keeps its own key, which comes back on a switch back and 
   expect(store().read().textApiKey).toBe("");
 });
 
+test("the Narrator's key can draw too, only on its own service, and still never reaches a response", async () => {
+  await change({ textApiKey: "openrouter-text-key" });
+  const lent = await change({ imageProvider: "openrouter", imageKeyFromText: true });
+  expect(await lent.json()).toMatchObject({ hasImageApiKey: true, imageKeysFor: ["openrouter"] });
+  expect(store().read().imageApiKey).toBe("openrouter-text-key");
+
+  expect((await change({ imageProvider: "wiro", imageKeyFromText: true })).status).toBe(422);
+  expect(store().read().imageProvider).toBe("openrouter");
+});
+
 test("each image provider keeps its own key, and the keys themselves never reach a response", async () => {
   await change({ imageApiKey: "openrouter-image-key" });
   await change({ imageProvider: "wiro", imageApiKey: "wiro-image-key" });

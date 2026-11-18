@@ -19,6 +19,8 @@ import {
   saveArtStyle,
   saveSettings,
   setupProblem,
+  GOOGLE_URL,
+  NANOGPT_URL,
 } from "../src/web/api";
 import { ContentRefused, type TextProvider } from "../src/turn-engine";
 import { logOf, narration, startApp, tempFolder } from "./support";
@@ -219,9 +221,12 @@ test("the player is told when the Narrator has no model or key, but a local serv
   const openRouter = "https://openrouter.ai/api/v1";
   const local = "http://127.0.0.1:8080/v1";
 
-  expect(setupProblem({ textBaseUrl: openRouter, textModel: "", hasTextApiKey: true })).toContain("model");
-  expect(setupProblem({ textBaseUrl: openRouter, textModel: "a/model", hasTextApiKey: false })).toContain("key");
-  expect(setupProblem({ textBaseUrl: openRouter, textModel: "a/model", hasTextApiKey: true })).toBeUndefined();
+  for (const named of [openRouter, GOOGLE_URL, NANOGPT_URL]) {
+    expect(setupProblem({ textBaseUrl: named, textModel: "", hasTextApiKey: true })).toContain("model");
+    expect(setupProblem({ textBaseUrl: named, textModel: "a/model", hasTextApiKey: false })).toContain("key");
+    expect(setupProblem({ textBaseUrl: named, textModel: "a/model", hasTextApiKey: true })).toBeUndefined();
+  }
+  expect(setupProblem({ textBaseUrl: local, textModel: "", hasTextApiKey: false })).toContain("model");
   expect(setupProblem({ textBaseUrl: local, textModel: "a/model", hasTextApiKey: false })).toBeUndefined();
 });
 

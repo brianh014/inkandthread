@@ -22,7 +22,9 @@
   font-display: swap;
 }
 
-:root {
+/* Setup's theme samples take the tokens again, so each works them out in its own colour scheme. */
+:root,
+.theme-sample {
   color-scheme: light dark;
   --desk: light-dark(#23382c, #101112);
   --page: light-dark(#eadfc5, #2b2b29);
@@ -46,6 +48,11 @@
   --display: "Libre Caslon Display", "Hoefler Text", Georgia, serif;
   --body: "Libre Caslon Text", "Hoefler Text", Georgia, serif;
   --label: "Libre Caslon Text", Georgia, serif;
+}
+
+/* The reading sizes, also on the font size samples, so each shows its own. */
+:root,
+.font-sample.medium {
   --reading-size: 16px;
 }
 
@@ -57,11 +64,13 @@
   color-scheme: dark;
 }
 
-:root[data-font-size="small"] {
+:root[data-font-size="small"],
+.font-sample.small {
   --reading-size: 14.5px;
 }
 
-:root[data-font-size="large"] {
+:root[data-font-size="large"],
+.font-sample.large {
   --reading-size: 18.5px;
 }
 
@@ -3218,4 +3227,100 @@ dialog blockquote {
 .typed-model label {
   flex: 1;
   min-width: 0;
+}
+
+/* Setup's live samples of a chat style or a theme, each a choice to pick. */
+.samples {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem;
+}
+
+.samples legend {
+  margin-bottom: 0.5rem;
+}
+
+.sample {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sample:has(:checked) {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.sample > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sample input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent);
+}
+
+/* The label's accent would colour the whole sample, where play colours only the names. */
+.sample .story {
+  color: var(--ink);
+  flex-direction: column;
+  overflow: visible;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.theme-sample {
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--page);
+  color: var(--ink);
+}
+
+/* In a stylesheet, not inline, as the bundler turns light-dark() into switches only a stylesheet's color-scheme flips. */
+.theme-sample.light {
+  color-scheme: light;
+}
+
+.theme-sample.dark {
+  color-scheme: dark;
+}
+
+.theme-sample p {
+  margin: 0 0 0.4rem;
+}
+
+.theme-sample i {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.setup-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Setup counts its pages in small numerals, as a book's prologue does. */
+.eyebrow .numeral {
+  text-transform: none;
+}
+
+/* Each size sample at its own reading size, from the same rules that size the story. */
+.font-sample {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--reading-size);
 }

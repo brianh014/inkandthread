@@ -451,9 +451,11 @@ async function play(
       const { offer } = (await (await fetch(new URL(`/saves/${id}/chapters`, server.url))).json()) as { offer: boolean };
       if (offer) await send(round, "chapter", `/saves/${id}/chapters`, {});
     }
-    // OpenRouter reports some usage a moment after the reply ends, and the last pictures may still be written.
+    // OpenRouter reports some usage a moment after the reply ends, and the last pictures may still be written, or with --draw
+    // still drawing, which the count alone can't tell as one picture takes longer than a check.
     await Bun.sleep(5000);
-    for (let waited = 0, seen = -1; waited < 120 && saves.gallery(id).length !== seen; waited += 5) {
+    const drawing = async () => ((await (await fetch(new URL(`/saves/${id}/images`, server.url))).json()) as { pending: boolean }).pending;
+    for (let waited = 0, seen = -1; waited < 600 && (saves.gallery(id).length !== seen || (await drawing())); waited += 5) {
       seen = saves.gallery(id).length;
       await Bun.sleep(5000);
     }

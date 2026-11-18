@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { dirname, join } from "node:path";
 import { startServer } from "../src/rest-api";
-import { UPKEEP_LIMIT } from "../src/state-upkeep";
+import { slowReviewer, UPKEEP_LIMIT } from "../src/state-upkeep";
 import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
@@ -11,6 +11,8 @@ let savesDir: string;
 let server: ReturnType<typeof startServer>;
 
 beforeEach(() => {
+  // Shared by every Save, so one test's time-out would lower another's thinking.
+  slowReviewer.steps = 0;
   folder = tempFolder();
   savesDir = join(folder.path, "Saves");
 });
@@ -100,6 +102,9 @@ test("State Upkeep that runs past its time limit keeps the Narrator's state, and
 
     expect(store().latestState(id).inventory.carrying).toEqual(["a key"]);
     expect(log).toContain("State Upkeep skipped");
+    // So the next review thinks a level less, rather than being cut off again.
+    expect(log).toContain("Review thinking lowered");
+    expect(slowReviewer.steps).toBe(1);
   } finally {
     UPKEEP_LIMIT.ms = limit;
   }

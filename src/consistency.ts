@@ -3,6 +3,7 @@ import type { DecisionProvider, Question } from "./decisions";
 import { errorType, log } from "./logger";
 import type { Prompt } from "./prompt-assembler";
 import type { State, StoryTime } from "./state-applier";
+import { reviewTimedOut, slowReviewer } from "./state-upkeep";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
 const noul = (instructions: string, yes: string, no: string): Question => ({ type: "noul", instructions, criteria: { true: yes, false: no } });
@@ -138,8 +139,8 @@ export async function checkConsistency(
   const answered = scored.some(([, score]) => score !== undefined);
   if (logOnly || flagged.length === 0 || !reviewer)
     return { ...kept, checked: { model, scores, outcome: logOnly ? "logged" : flagged.length > 0 ? "fix failed" : answered ? "passed" : "unanswered" } };
+  const limited = AbortSignal.any([signal, AbortSignal.timeout(FIX_LIMIT.ms)]);
   try {
-    const limited = AbortSignal.any([signal, AbortSignal.timeout(FIX_LIMIT.ms)]);
     const fixed = await fixReply(reviewer, reply, Object.fromEntries(asked.filter(([name]) => flagged.includes(name))), limited);
     if (!usable(fixed.narration)) throw new Error("unusable fix");
     // No edits is the reviewer judging the flag a false alarm, which the log tells apart from a fix.
@@ -148,6 +149,7 @@ export async function checkConsistency(
   } catch (error) {
     if (signal.aborted) throw error;
     log.warning("consistency", "Reply kept unfixed", { flagged, ...errorType(error) });
+    if (limited.aborted) reviewTimedOut("fix");
     return { ...kept, checked: { model, scores, outcome: "fix failed" } };
   }
 }
@@ -189,7 +191,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(FixRepl
   // A level below Review thinking, as on Medium the fix ran past FIX_LIMIT 5 times in 8 on the bench; it only edits words of one
   // reply, and a failure keeps the reply as written.
   const { narration_edits, visual_description_edits } = await askForJson(reviewer, prompt, FixReply, "The reviewer refused to fix the reply.", signal, {
-    lessThinking: 1,
+    lessThinking: 1 + slowReviewer.steps,
   });
   return { narration: edited(reply.narration, narration_edits), visualDescription: edited(reply.visualDescription, visual_description_edits) };
 }

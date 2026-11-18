@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { dirname, join } from "node:path";
 import { CUT_OFFS, checkConsistency, FIX_LIMIT } from "../src/consistency";
+import { slowReviewer } from "../src/state-upkeep";
 import { type DecisionProvider, decisionModels, decisionProvider } from "../src/decisions";
 import { startServer } from "../src/rest-api";
 import { saveStore } from "../src/save-store";
@@ -13,6 +14,8 @@ let server: ReturnType<typeof startServer> | undefined;
 const tuned = structuredClone(CUT_OFFS);
 
 beforeEach(() => {
+  // Shared by every Save, so one test's time-out would lower another's thinking.
+  slowReviewer.steps = 0;
   folder = tempFolder();
   savesDir = join(folder.path, "Saves");
 });

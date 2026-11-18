@@ -38,6 +38,18 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(UpkeepR
 // reviewer could hold them for 30 s or more, the Turn keeps the Narrator's own state. Exported only so a test can shorten it.
 export const UPKEEP_LIMIT = { ms: 15_000 };
 
+/**
+ * Thinking levels below Review thinking that reviews are sent at, raised each time one runs out of time, as a reviewer on a slow
+ * model or provider was cut off a third of the time on the bench, and a review cut off does nothing. Never below Low.
+ * shortcut: in memory and shared by every Save, so a restart tries Review thinking again; key it by model if that misfires.
+ */
+export const slowReviewer = { steps: 0 };
+export function reviewTimedOut(during: "State Upkeep" | "fix") {
+  if (slowReviewer.steps >= 2) return;
+  slowReviewer.steps++;
+  log.info("turn", "Review thinking lowered", { during, steps: slowReviewer.steps });
+}
+
 export type Upkeep = {
   provider: TextProvider;
   settings: TextSettings;
@@ -85,16 +97,19 @@ export async function upkeepOperations(
     },
   ];
   const started = Date.now();
+  const limited = AbortSignal.any([signal, AbortSignal.timeout(UPKEEP_LIMIT.ms)]);
   try {
-    // Review thinking, as a fast model on Low wrote a slip into the state as canon; askForJson drops a level only past the thinking limit.
-    const limited = AbortSignal.any([signal, AbortSignal.timeout(UPKEEP_LIMIT.ms)]);
-    const { state_operations: given } = await askForJson(provider, prompt, UpkeepReply, "The reviewer refused to keep the state.", limited);
+    // Review thinking, as a fast model on Low wrote a slip into the state as canon, unless it has been running out of time.
+    const { state_operations: given } = await askForJson(provider, prompt, UpkeepReply, "The reviewer refused to keep the state.", limited, {
+      lessThinking: slowReviewer.steps,
+    });
     const kept = given.filter((operation) => operation !== null);
     log.info("turn", "State Upkeep", () => ({ model, operations: kept.map(({ op }) => op), dropped: given.length - kept.length, ms: Date.now() - started }));
     return kept as StateOperation[];
   } catch (error) {
     if (signal.aborted) throw error;
     log.warning("turn", "State Upkeep skipped", { model, ...errorType(error) });
+    if (limited.aborted) reviewTimedOut("State Upkeep");
     return undefined;
   }
 }

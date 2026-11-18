@@ -300,7 +300,7 @@ function Steps({ initial }: { initial: Settings }) {
             {
               openrouter:
                 "Two good choices: MiMo V2.6 Pro (search “mimo pro”), for richer role-play and writing at a little more a Turn, or DeepSeek V4.1 Flash (search “deepseek flash”), much cheaper a Turn, with writing not quite as rich. Try both on one story and keep the one you like.",
-              google: "Choose a Gemini Flash model.",
+              google: "We recommend a Gemini Flash model.",
               nanogpt: "Look for MiMo or DeepSeek, or choose any model you like.",
               local: "Choose the model your server runs. MiMo and DeepSeek write well if you can run them.",
             }[textChoice]
@@ -349,14 +349,12 @@ function Steps({ initial }: { initial: Settings }) {
     [REVIEW]: (
       <>
         {/* The Guide and README name the same model, so change them together. */}
-        <p>Recommended: a second model makes the story better. Tick Review with another model, and search “luna” for GPT-6.1 Luna.</p>
+        <p>Recommended: a second model makes the story better. We recommend GPT-6.1 Luna (search “luna”).</p>
         <ReviewSettings draft={draft} saved={saved} set={set} narratorModels={models} reviewKey={reviewKey} setReviewKey={setReviewKey} />
       </>
     ),
     [CONSISTENCY]: (
       <>
-        {/* The Guide and README name the same model, so change them together. */}
-        <p>Tick Check replies, and search “pplx decider” for a quick decision model that suits it.</p>
         {!offersDecisions(draft.textBaseUrl) && <p className="muted">Decision models come from OpenRouter or NanoGPT, so this needs a key for one of them.</p>}
         <ConsistencySettings draft={draft} saved={saved} set={set} consistencyKey={consistencyKey} setConsistencyKey={setConsistencyKey} />
       </>
@@ -442,9 +440,9 @@ function Steps({ initial }: { initial: Settings }) {
         {pictures === "comfy" && (
           <>
             <p className="muted">
-              For a good graphics card. NovelForge draws a lot, the Cover, portraits, scenes and every redraw, and each costs money online but nothing here.
-              Choose FLUX.2 or Qwen Image 2.1 to keep faces the same from picture to picture. The Reader's Guide says how to install ComfyUI, and Advanced
-              workflows are in Settings → Images.
+              For a good graphics card. NovelForge draws a lot, the Cover, portraits, scenes and every redraw, and each costs money online but nothing here. We
+              recommend FLUX.2 or Qwen Image 2.1, which keep faces the same from picture to picture. The Reader's Guide says how to install ComfyUI, and
+              Advanced workflows are in Settings → Images.
             </p>
             <ProviderLinks provider="comfy" />
             <ComfySettings draft={draft} saved={saved} set={set} />

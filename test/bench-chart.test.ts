@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { bestOnAllThree, type ChartResult, chartPage, costFrontier, type Point, points } from "../bench/chart";
 
 const run = (narrator: string, scores: number[], cost: number, extra: Partial<ChartResult> = {}): ChartResult => ({
-  version: 1,
+  version: "0.5.0.1",
   setup: "narrator",
   rounds: 30,
   drawn: true,
@@ -19,7 +19,7 @@ test("several runs of a setup pool their plays into one point; unlike or unjudge
     [
       run("x/mimo", [6, 8], 0.01),
       run("x/mimo", [7], 0.02),
-      run("x/mimo", [9], 0.01, { version: 0 }),
+      run("x/mimo", [9], 0.01, { version: "0.5.0.0" }),
       run("x/mimo", [9], 0.01, { judge: null }),
       run("x/mimo", [9], 0.01, { rounds: 20 }),
       run("x/mimo", [9], 0.01, { mode: "free text: moves.txt" }),
@@ -27,7 +27,7 @@ test("several runs of a setup pool their plays into one point; unlike or unjudge
       run("x/mimo", [9], 0.01, { drawn: false }),
       run("x/mimo", [5], 0.05, { setup: "full", models: { narrator: "x/mimo", reviewer: "y/flash", reviewThinking: "medium", consistency: "z/d1" } }),
     ],
-    1,
+    "0.5.0.1",
     30,
   );
   expect(found).toHaveLength(2);
@@ -38,7 +38,7 @@ test("several runs of a setup pool their plays into one point; unlike or unjudge
 });
 
 test("the same short name from another vendor, or at another Thinking, is a setup of its own", () => {
-  const found = points([run("x/mimo", [6], 0.01), run("y/mimo", [7], 0.01), run("x/mimo", [8], 0.01, { thinking: "high" })], 1, 30);
+  const found = points([run("x/mimo", [6], 0.01), run("y/mimo", [7], 0.01), run("x/mimo", [8], 0.01, { thinking: "high" })], "0.5.0.1", 30);
   expect(found).toHaveLength(3);
 });
 
@@ -69,13 +69,13 @@ test("a setup beaten on score and cost still counts on all three when it is the 
 });
 
 test("the page escapes model names and says when a chart has no runs", () => {
-  const page = chartPage([point("<b>", 7, 0.01)], 1, 30);
+  const page = chartPage([point("<b>", 7, 0.01)], "0.5.0.1", 30);
   expect(page).toContain("&lt;b&gt;");
   expect(page).toContain("No judged, kept runs");
 });
 
 test("a setup with no cost recorded is named under the chart, not drawn on the log scale", () => {
-  const page = chartPage([point("priced", 7, 0.01), point("local", 6, 0)], 1, 30);
+  const page = chartPage([point("priced", 7, 0.01), point("local", 6, 0)], "0.5.0.1", 30);
   expect(page).toContain("No cost recorded, so not drawn: local.");
   expect(page).not.toContain("NaN");
 });

@@ -3,7 +3,7 @@
 
 /** The parts of a bench result the chart reads (bench.ts's `Result`). */
 export type ChartResult = {
-  version?: number;
+  version?: string | number;
   setup?: "narrator" | "full";
   rounds: number;
   mode?: string;
@@ -40,7 +40,7 @@ const short = (model: string) => model.split("/").pop() || model;
  * One point per setup, from every judged result of `version` played on `world` in seeded Choices for `rounds`, with the pictures
  * drawn, so only like runs compare; several runs of a setup pool their plays.
  */
-export function points(results: ChartResult[], version: number, rounds: number, world = "world.json"): Point[] {
+export function points(results: ChartResult[], version: string, rounds: number, world = "world.json"): Point[] {
   const groups = new Map<
     string,
     { setup: Point["setup"]; label: string; detail: string; runs: number; plays: { score: number; cost: number; turnMs: number; firstMs: number }[] }
@@ -187,7 +187,7 @@ ${dots.join("\n")}
 ${note}</section>`;
 }
 
-export function chartPage(all: Point[], version: number, rounds: number, world = "world.json", date = new Date().toISOString().slice(0, 10)) {
+export function chartPage(all: Point[], version: string, rounds: number, world = "world.json", date = new Date().toISOString().slice(0, 10)) {
   const times = all.filter((p) => p.cost > 0).map((p) => p.turnMs);
   const speed: [number, number] = times.length ? [Math.min(...times), Math.max(...times)] : [0, 0];
   const gradient = (pair: string[]) => `linear-gradient(to right, ${pair[0]}, ${pair[1]})`;

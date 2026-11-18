@@ -26,6 +26,7 @@ import type { NarratorTurn, UsageStore } from "./usage-store";
 import { applyOperations, givenName, introduce, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
 import { type Checked, type Consistency, checkConsistency, replyToCheck } from "./consistency";
 import { countWords, withinLimit } from "./limits";
+import { knownChoices } from "./known-choices";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
@@ -289,6 +290,8 @@ type Narrated = {
   consistency?: Consistency;
   /** The Narrator's last reply before this one, which the questions check this one against. */
   previous?: string;
+  /** All the player has read so far, the Starting Hook and the Messages, so a Choice is never built on what the PC hasn't. */
+  seen?: string;
   /** The player's own words for an Edit, which stand in for whatever narration the reply holds. */
   narration?: string;
   check?: Check;
@@ -431,6 +434,7 @@ export async function playTurn(
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
     consistency,
     previous: lastNarration(messages),
+    seen: [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     memory,
     // The PC attempts nothing in a Continue, so there is nothing to roll for.
     rollCheck: mayCheck && !isContinueInput(input) ? (request) => resolveCheck(request, dice, nearMissMargin) : undefined,
@@ -490,6 +494,7 @@ export async function replaceResponse(
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
     consistency,
     previous: lastNarration(messages),
+    seen: [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     check,
     memory,
     playMode,
@@ -535,6 +540,7 @@ export async function editResponse(
     before: state,
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
     previous: lastNarration(messages),
+    seen: [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     narration: text,
     memory,
     playMode,
@@ -559,6 +565,7 @@ async function narrate(
     upkeep,
     consistency,
     previous = "",
+    seen,
     narration: edited,
     check: storedCheck,
     memory: pendingMemory,
@@ -683,6 +690,7 @@ async function narrate(
         if (narration !== told) emit("revise", { text: narration });
       }
       const upkept = upkeep ? await upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal) : undefined;
+      const offered = choices && upkeep && seen !== undefined ? await knownChoices(upkeep, choices, narrated.next, seen, narration, signal) : choices;
       const dropped = !!unplaced && !upkept;
       if (dropped) log.warning("turn", "Picture dropped without set_scene", { attempt, generation });
       let upkeepRefused = 0;
@@ -723,7 +731,7 @@ async function narrate(
           restyled = restyledBy(state, next);
           return next;
         },
-        choices,
+        offered,
       );
       // The Turn is saved by now, so image trouble must not report it failed, or the player would send it again.
       try {

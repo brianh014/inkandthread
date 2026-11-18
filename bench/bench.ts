@@ -28,12 +28,15 @@ import { saveStore } from "../src/save-store";
 import { localIsSetUp } from "../src/graph-builder";
 import { reviewerSettings, settingsStore } from "../src/settings-store";
 import { textProvider } from "../src/text-provider";
+import { VERSION } from "../src/updater";
 import { askForJson, jsonSchemaOf, type TextProvider } from "../src/turn-engine";
 import { chartPage, points } from "./chart";
 
 const BENCH = import.meta.dir;
-// Bump whenever the prompts, the rubric or the world change: a chart compares only runs of one version.
-const BENCH_VERSION = 9;
+// The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
+// checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
+const BENCH_ITERATION = 10;
+const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 30;
 // --fake plays on the stand-in models, free and offline, to try the bench itself; its numbers say nothing of a real Narrator.
@@ -57,6 +60,9 @@ const World = z.object({
   actions: z.object({ rewrite: z.string(), edit: z.string(), worldChange: z.string() }),
   /** Extra judging rules for this world alone, added after the shared rubric, such as asking for spiciness. */
   judge: z.string().optional(),
+  /** The Model and Image Instructions this world plays with. The player's own are never used, so runs compare on every machine. */
+  modelInstructions: z.string().optional(),
+  imageInstructions: z.string().optional(),
 });
 
 /** The rubric, in general words, as it judges any story the bench plays. */
@@ -164,8 +170,8 @@ const HEADLINE = [
 
 type Flat = Record<string, number>;
 type Result = {
-  /** BENCH_VERSION when it ran; absent on runs before it, which no chart shows. */
-  version?: number;
+  /** BENCH_VERSION when it ran: the app's version and the iteration on it, or a plain number before that scheme. Absent on runs before either. */
+  version?: string | number;
   /** The Narrator alone (no other reviewer, Consistency off), or with a reviewer or decision model chosen. */
   setup?: "narrator" | "full";
   date: string;
@@ -794,7 +800,8 @@ async function run() {
   process.on("exit", remove);
   process.on("SIGINT", () => process.exit(130));
   const settings = settingsStore(settingsPath);
-  settings.update({ imagesEnabled: true, drawScenes: true });
+  const { modelInstructions = "", imageInstructions = "" } = readWorld();
+  settings.update({ imagesEnabled: true, drawScenes: true, modelInstructions, imageInstructions });
   const drawing = settings.read();
   // With --fake, the stand-in still draws, so keeping the pictures can be tried free.
   if (draw && !fake && (drawing.imageProvider !== "local" || !localIsSetUp(drawing)))
@@ -995,7 +1002,7 @@ function table() {
 }
 
 function chart() {
-  const version = option("--version") ? count("--version") : BENCH_VERSION;
+  const version = option("--version") ?? BENCH_VERSION;
   const kept = allResults().filter(({ path }) => path.startsWith(RESULTS));
   const rounds = option("--rounds") ? count("--rounds") : CHART_ROUNDS;
   const world = basename(worldFile);

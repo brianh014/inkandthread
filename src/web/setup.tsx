@@ -75,9 +75,11 @@ const IMAGE_CHOICES = [
 
 const SAMPLE_PC = "Wren";
 const SAMPLE = [
-  { text: "Rain needles the harbour lanterns as the ferry noses in." },
-  { speaker: "Mara", text: "You're late. The tide won't wait for you." },
-  { player: true, text: "I tip my hat and step aboard." },
+  {
+    role: "narrator",
+    beats: [{ text: "Rain needles the harbour lanterns as the ferry noses in." }, { speaker: "Mara", text: "You're late. The tide won't wait for you." }],
+  },
+  { role: "player", beats: [{ player: true, text: "I tip my hat and step aboard." }] },
 ];
 const CHAT_STYLES: { value: ChatStyle; label: string }[] = [
   { value: "prose", label: "Prose" },
@@ -463,10 +465,17 @@ function Steps({ initial }: { initial: Settings }) {
               <span>
                 <input type="radio" name="chat-style" checked={draft.chatStyle === value} onChange={() => set({ chatStyle: value })} /> {label}
               </span>
+              {/* Wrapped as the story wraps each Message, so its styles apply as in play. */}
               <div className={`story chat-${value}`} aria-hidden="true">
-                {SAMPLE.map((beat) => (
-                  <BeatLine key={beat.text} beat={beat} style={value} pc={SAMPLE_PC} />
-                ))}
+                <div>
+                  {SAMPLE.map(({ role, beats }) => (
+                    <div key={role} className={`message ${role}`}>
+                      {beats.map((beat) => (
+                        <BeatLine key={beat.text} beat={beat} style={value} pc={SAMPLE_PC} />
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
             </label>
           ))}

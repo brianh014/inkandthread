@@ -59,7 +59,8 @@ const World = z.object({
 
 /** The rubric, in general words, as it judges any story the bench plays. */
 const RUBRIC = {
-  choices: "Choices matter: each Choice offered is a real, different option, and the one picked visibly changes what happens next.",
+  choices:
+    "Choices matter: every round's three Choices, picked or not, are real and different from each other, fit the moment and what the PC knows, and each is one a reader could want to pick; and the one picked visibly changes what happens next.",
   surprise: "Surprise from hidden Plot Threads: the world moves on its own, and turns come from what was set up out of sight, not from nowhere.",
   threads: "Plot Threads build toward natural endings, and new ones follow on from what came before.",
   characters: "Characters stay true to what they said, know and want, and act on their own motives.",

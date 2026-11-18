@@ -355,6 +355,8 @@ function Steps({ initial }: { initial: Settings }) {
     ),
     [CONSISTENCY]: (
       <>
+        {/* The Guide and README name the same model, so change them together. */}
+        <p>Recommended: checks catch slips before you read them. We recommend pplx-decider (search “pplx decider”).</p>
         {!offersDecisions(draft.textBaseUrl) && <p className="muted">Decision models come from OpenRouter or NanoGPT, so this needs a key for one of them.</p>}
         <ConsistencySettings draft={draft} saved={saved} set={set} consistencyKey={consistencyKey} setConsistencyKey={setConsistencyKey} />
       </>

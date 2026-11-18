@@ -33,7 +33,7 @@ import { chartPage, points } from "./chart";
 
 const BENCH = import.meta.dir;
 // Bump whenever the prompts, the rubric or the world change: a chart compares only runs of one version.
-const BENCH_VERSION = 6;
+const BENCH_VERSION = 7;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 30;
 // --fake plays on the stand-in models, free and offline, to try the bench itself; its numbers say nothing of a real Narrator.
@@ -725,7 +725,10 @@ function readMoves(movesFile: string | undefined) {
 // Absolute, as each play runs in a process of its own.
 const worldFile = resolve(option("--world") ?? join(BENCH, "world.json"));
 const readWorld = () => World.parse(JSON.parse(readFileSync(worldFile, "utf8")));
-const judgeRules = () => `${JUDGE_RULES}${readWorld().judge ? `\n${readWorld().judge}` : ""}`;
+const judgeRules = () => {
+  const extra = readWorld().judge;
+  return extra ? `${JUDGE_RULES}\n${extra}` : JUDGE_RULES;
+};
 
 /** One play, in a process of its own, as the log is one file per process. Started only by `run`, which reads its play.json. */
 async function playOne() {

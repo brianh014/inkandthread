@@ -49,6 +49,15 @@ test("a person named without a mark is marked, so their portrait goes in and the
     "the person from image 1, a short man, waves at the person from image 2. Hesper's boat bobs. Keep each face. Ashore, an old man naps by the same person.",
   );
   expect(markNames("Vane nods", npcs, pc)).toBe("[Vane] nods");
+  // An article, a title or a place in someone's name is no name of its own.
+  const titled = [
+    { name: "The Ferryman", appearance: "" },
+    { name: "Mira of Westhold", appearance: "" },
+    { name: "Captain Rook", appearance: "" },
+  ];
+  expect(markNames("The harbour of Westhold, where the Captain waits for Rook and Mira", titled, pc)).toBe(
+    "The harbour of Westhold, where the Captain waits for [Rook] and [Mira]",
+  );
 });
 
 test("no stored looks are ever added, as the Narrator writes the whole prompt to its length", () => {

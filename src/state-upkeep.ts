@@ -40,14 +40,20 @@ export const UPKEEP_LIMIT = { ms: 15_000 };
 
 /**
  * Thinking levels below Review thinking that reviews are sent at, raised each time one runs out of time, as a reviewer on a slow
- * model or provider was cut off a third of the time on the bench, and a review cut off does nothing. Never below Low.
- * shortcut: in memory and shared by every Save, so a restart tries Review thinking again; key it by model if that misfires.
+ * model or provider was cut off a third of the time on the bench, and a review cut off does nothing. Never below Low, and a State
+ * Upkeep done in under half its time raises it a step again, so one stall doesn't lower reviews for good.
+ * shortcut: in memory and shared by every Save; key it by model if that misfires.
  */
 export const slowReviewer = { steps: 0 };
 export function reviewTimedOut(during: "State Upkeep" | "fix") {
   if (slowReviewer.steps >= 2) return;
   slowReviewer.steps++;
   log.info("turn", "Review thinking lowered", { during, steps: slowReviewer.steps });
+}
+function reviewWasQuick(ms: number) {
+  if (slowReviewer.steps === 0 || ms >= UPKEEP_LIMIT.ms / 2) return;
+  slowReviewer.steps--;
+  log.info("turn", "Review thinking raised", { steps: slowReviewer.steps });
 }
 
 export type Upkeep = {
@@ -105,6 +111,7 @@ export async function upkeepOperations(
     });
     const kept = given.filter((operation) => operation !== null);
     log.info("turn", "State Upkeep", () => ({ model, operations: kept.map(({ op }) => op), dropped: given.length - kept.length, ms: Date.now() - started }));
+    reviewWasQuick(Date.now() - started);
     return kept as StateOperation[];
   } catch (error) {
     if (signal.aborted) throw error;

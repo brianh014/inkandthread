@@ -340,6 +340,9 @@ const toVersion25 = (db: Database) =>
 /** What each NPC knows, which starts empty, as nothing could record it yet. */
 const toVersion26 = addMissingSections;
 
+/** The era every picture keeps to, which starts empty, as nothing could set it yet. */
+const toVersion27 = addMissingSections;
+
 /** One step per schema version, where step N takes a Save from version N to N + 1. New Saves take them too, so they can't drift from old ones. */
 const MIGRATIONS = [
   toVersion1,
@@ -368,6 +371,7 @@ const MIGRATIONS = [
   toVersion24,
   toVersion25,
   toVersion26,
+  toVersion27,
 ];
 
 function schemaVersion(db: Database) {

@@ -130,6 +130,32 @@ export function expandMarks(text: string, npcs: Npc[], pcName: string, reference
   return { prompt, pictured };
 }
 
+const NOT_A_NAME = new Set([
+  "The",
+  "A",
+  "An",
+  "Old",
+  "Young",
+  "Captain",
+  "Lady",
+  "Lord",
+  "Sir",
+  "Mr",
+  "Mrs",
+  "Miss",
+  "Doctor",
+  "Dr",
+  "Father",
+  "Mother",
+  "Sister",
+  "Brother",
+  "King",
+  "Queen",
+  "Prince",
+  "Princess",
+  "Master",
+]);
+
 /**
  * Marks each person the prompt names without a [Name: phrase] mark, as a model sometimes writes "Ash, a short man," instead:
  * unmarked, their name would reach the image model and their portrait wouldn't. Text already in a mark or the likeness
@@ -137,8 +163,14 @@ export function expandMarks(text: string, npcs: Npc[], pcName: string, reference
  */
 export function markNames(text: string, npcs: Npc[], pcName: string) {
   const names = [pcName, ...npcs.map(({ name }) => name)].filter(Boolean);
-  // shortcut: a capitalised title in a name, such as Captain, counts as that person when no one else has it; list titles to skip if it misfires.
-  const parts = names.flatMap((name) => name.split(" ")).filter((part) => /^\p{Lu}/u.test(part) && names.filter((name) => named(name, part)).length === 1);
+  // A first or last name alone, as Narrators shorten names: the last only when no lowercase word, such as "of", joins it to a place.
+  // shortcut: titles and articles are listed, so a capitalised word starting a sentence isn't taken for a person; add any that misfire.
+  const parts = names
+    .flatMap((name) => {
+      const words = name.split(" ");
+      return words.some((word) => /^\p{Ll}/u.test(word)) ? words.slice(0, 1) : [words[0]!, words.at(-1)!];
+    })
+    .filter((part) => /^\p{Lu}/u.test(part) && !NOT_A_NAME.has(part) && names.filter((name) => named(name, part)).length === 1);
   const candidates = [...new Set([...names, ...parts])].toSorted((a, b) => b.length - a.length);
   if (candidates.length === 0) return text;
   const pattern = new RegExp(`(?<![\\p{L}'’])(?:${candidates.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\p{L}'’])`, "gu");

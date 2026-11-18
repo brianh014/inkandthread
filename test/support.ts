@@ -130,9 +130,12 @@ export function startApp(
   writePicture: PictureWriter = async (_ask, _style, fallback) => fallback,
   // Kept as written, for the same reason.
   reviewPicture: PictureReviewer = async (description) => description,
+  // Off unless given, so a scripted Narrator isn't also asked for State Upkeep.
+  reviewProvider?: TextProvider,
 ) {
   const settings = settingsStore(join(dirname(savesDir), "settings.json"));
-  const start = () => startServer({ savesDir, settings, textProvider, imageAdapter, dice, nearMissMargin, port: 0, writePicture, reviewPicture });
+  const start = () =>
+    startServer({ savesDir, settings, textProvider, imageAdapter, dice, nearMissMargin, port: 0, writePicture, reviewPicture, reviewProvider });
   let server = start();
   const post = (path: string, body: unknown) => postJson(new URL(path, server.url), body);
   return {

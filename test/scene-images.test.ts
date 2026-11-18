@@ -127,6 +127,24 @@ test("a picture without set_scene is retried, so it never takes the last place's
   expect(images.payloads[1]!.reference_images).toEqual([]);
 });
 
+test("with State Upkeep, a picture without set_scene is placed by it, without writing the reply again", async () => {
+  const unplaced = turn({ scene_changed: true, visual_description: "A ridge at dusk" });
+  const upkeep = scriptedTextProvider(JSON.stringify({ state_operations: [] }), JSON.stringify({ state_operations: moveTo("The ridge") }));
+  images = scriptedImages(png(1), png(2));
+  script = scriptedTextProvider(newScene(), unplaced);
+  app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter, undefined, undefined, upkeep.textProvider);
+  await app.patch("/settings", { textModel: "narrator/model" });
+  await enableImages();
+  const id = await app.createSave();
+  await playTurn(id);
+  await settled(id);
+
+  await playTurn(id);
+
+  expect(script.prompts).toHaveLength(2);
+  expect((await settled(id)).images.map(({ caption }) => caption)).toEqual(["The drowned street", "The ridge"]);
+});
+
 test("a picture still without set_scene on the last try keeps the Turn but isn't drawn, as the last scene's people may have gone", async () => {
   const unplaced = turn({ scene_changed: true, visual_description: "A ridge at dusk" });
   play([newScene(), unplaced, unplaced, unplaced], png(1), png(2));

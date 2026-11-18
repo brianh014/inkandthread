@@ -100,7 +100,7 @@ for (const entry of cases.filter(({ id }) => !only || id.startsWith(only))) {
     storyTime: reply.timeAfter,
   };
   const operations = (
-    await upkeepOperations({ provider: counted, settings, input: at.input }, at.pc, state, undefined, at.previous, result.narration, signal)
+    (await upkeepOperations({ provider: counted, settings, input: at.input }, at.pc, state, undefined, at.previous, result.narration, signal)) ?? []
   ).map((operation) => keyOf(operation));
   const missing = (entry.upkeep?.has ?? []).filter((key) => !operations.some((given) => given.startsWith(key)));
   const unwanted = (entry.upkeep?.not ?? []).filter((key) => operations.some((given) => given.startsWith(key)));

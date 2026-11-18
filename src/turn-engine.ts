@@ -635,7 +635,8 @@ async function narrate(
       // Later replies copy marks like these, so they never reach a Save.
       let narration = edited ?? withoutStrayMarks(response.narration as string);
       // The last attempt keeps such a reply, as losing the Turn costs more than a long speech.
-      // A picture without set_scene would be drawn from the last scene's place and people, which may have moved on, so it's dropped.
+      // A picture without set_scene would be drawn from the last scene's place and people, which may have moved on. State Upkeep
+      // brings the scene up to date, so with it the picture is kept; without it the reply is written again, then the picture dropped.
       // Never kept, even on the last attempt, as what isn't a story is no Turn.
       if (edited === undefined && check && declined(narration)) throw new InvalidResponse(undefined, { cause: DECLINED });
       if (edited === undefined && !hasWords(narration)) throw new InvalidResponse(undefined, { cause: NO_WORDS });
@@ -646,13 +647,13 @@ async function narrate(
       const unchosen = playMode === "choices" && !choices ? NO_CHOICES : undefined;
       // A long speech is only logged, as rewriting it restarted too many Turns the player could see.
       const noted = edited === undefined && isNoteAboutTurn(narration) ? NOTE_ABOUT_TURN : undefined;
-      const fault = attempt < MAX_ATTEMPTS ? (noted ?? unplaced ?? (spoken === LONG_SPEECH ? undefined : spoken) ?? unchosen) : undefined;
+      const fault =
+        attempt < MAX_ATTEMPTS ? (noted ?? (upkeep ? undefined : unplaced) ?? (spoken === LONG_SPEECH ? undefined : spoken) ?? unchosen) : undefined;
       unplacedBefore = fault === unplaced && !!unplaced;
       if (fault) throw new InvalidResponse(undefined, { cause: fault });
       if (spoken === LONG_SPEECH) log.warning("turn", "Long speech kept", { attempt, generation });
       // The player picks again from a Regenerate, or switches to Free Text.
       if (unchosen) log.warning("turn", "Turn kept without Choices", { attempt, generation });
-      if (unplaced) log.warning("turn", "Picture dropped without set_scene", { attempt, generation });
       // Checked before State Upkeep, so a reply that will be written again costs no call.
       const introducedBefore = introduce(before, people, pcName, state_operations);
       const narrated = applyOperations(introducedBefore.state, introducedBefore.operations);
@@ -679,7 +680,9 @@ async function narrate(
         // Nothing tells the player, but the fixed reply takes the streamed one's place.
         if (narration !== told) emit("revise", { text: narration });
       }
-      const upkept = upkeep ? await upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal) : [];
+      const upkept = upkeep ? await upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal) : undefined;
+      const dropped = !!unplaced && !upkept;
+      if (dropped) log.warning("turn", "Picture dropped without set_scene", { attempt, generation });
       let upkeepRefused = 0;
       const memory = await pendingMemory;
       let moved = false;
@@ -701,7 +704,7 @@ async function narrate(
           const clashes = attempt < MAX_ATTEMPTS ? introduced.refused : [];
           if (clashes.length > 0 || refused.length > 0) throw new InvalidResponse(undefined, { cause: [...clashes, ...refused] });
           // After the Narrator's own, which it corrects. One the state code refuses is only dropped, as the reply already stands.
-          const kept = applyOperations(told, upkept);
+          const kept = applyOperations(told, upkept ?? []);
           upkeepRefused = kept.refused.length + kept.ignored.length;
           const next = kept.next;
           repeated = repeats;
@@ -723,9 +726,9 @@ async function narrate(
       // The Turn is saved by now, so image trouble must not report it failed, or the player would send it again.
       try {
         committed(messages.at(-1)!.id, {
-          changed: moved || (!!scene_changed && !unplaced),
+          changed: moved || (!!scene_changed && !dropped),
           moved,
-          description: unplaced ? "" : description,
+          description: dropped ? "" : description,
           location,
           npcs,
           wearing,
@@ -750,7 +753,7 @@ async function narrate(
         ...(memory && { memoryFirst: memory.firstMessage, memoryLast: memory.lastMessage, memoryLength: memory.text.length }),
         people: people.length,
         operations,
-        ...(upkeep && { upkeep: upkept.map(({ op }) => op), upkeepRefused }),
+        ...(upkeep && { upkeep: (upkept ?? []).map(({ op }) => op), upkeepRefused }),
         ...(checked && { consistency: checked }),
         sceneChanged: !!scene_changed,
         chapterEnds: !!chapter_ends,

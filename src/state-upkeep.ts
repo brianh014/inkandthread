@@ -47,7 +47,7 @@ export type Upkeep = {
 
 /**
  * State Upkeep: a second call after each reply, on the reviewer's model and Review thinking, that brings the scene, inventory,
- * Story Time, known facts and looks in line with what the reply shows happening. Any failure gives no operations, as the
+ * Story Time, known facts and looks in line with what the reply shows happening. Any failure gives undefined, as the
  * Turn keeps the Narrator's own state then, and the log gets the failure's type only.
  */
 export async function upkeepOperations(
@@ -61,7 +61,7 @@ export async function upkeepOperations(
   signal: AbortSignal,
 ) {
   const model = reviewerSettings(settings).read().textModel;
-  if (!model) return [];
+  if (!model) return undefined;
   const prompt: Prompt = [
     { role: "system", content: RULES },
     {
@@ -95,6 +95,6 @@ export async function upkeepOperations(
   } catch (error) {
     if (signal.aborted) throw error;
     log.warning("turn", "State Upkeep skipped", { model, ...errorType(error) });
-    return [];
+    return undefined;
   }
 }

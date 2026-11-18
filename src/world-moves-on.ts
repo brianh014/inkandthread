@@ -39,12 +39,18 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const { plotThreads } = state;
   // Names a rewrite must keep, as moves kept a thread's surface and dropped who was behind it and what it hid, in every bench run
   // despite the rule. One the PC has learned may go, as play has revealed it. shortcut: names only; a secret with no name in it isn't checked.
-  const names = [...state.npcs.map(({ name }) => name), ...state.worldBible.flatMap(({ keywords }) => keywords).filter((word) => /^\p{Lu}/u.test(word))];
+  // Each person or place is all the names it goes by, so a rewrite that keeps "Thorne" keeps "Reverend Amos Thorne".
+  const people = [
+    ...state.npcs.map(({ name }) => [name]),
+    ...state.worldBible.map(({ keywords }) => keywords.filter((word) => /^\p{Lu}/u.test(word))).filter((names) => names.length > 0),
+  ];
   const mentions = (text: string, name: string, flags = "iu") =>
     new RegExp(`(?<!\\p{L})${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\p{L})`, flags).test(text);
   // Capitalised in the old thread, so a keyword that is also a common word, such as "harbour", binds no rewrite.
   const keepsNames = ({ old, new: text }: z.infer<typeof ListChange>) =>
-    old === null || text === null || names.every((name) => !mentions(old, name, "u") || mentions(text, name) || mentions(state.summary, name));
+    old === null ||
+    text === null ||
+    people.every((names) => !names.some((name) => mentions(old, name, "u")) || names.some((name) => mentions(text, name) || mentions(state.summary, name)));
   const Reply = z.object({ plot_threads: z.array(ListChange) }).refine(
     ({ plot_threads }) =>
       plot_threads.every((change) => change.old === null || plotThreads.includes(change.old)) &&

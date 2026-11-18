@@ -185,3 +185,24 @@ test("a move that drops someone its thread named is written again, as a rewrite 
 
   expect(store().latestState(id).plotThreads).toEqual(["Maren has robbed the library and hides the books on a barge."]);
 });
+
+test("a move keeps someone when it keeps any one of their names, so a surname alone will do", async () => {
+  play(
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),
+    moved({ old: "Reverend Amos Thorne plans to land brandy at the next high tide.", new: "Thorne has landed the brandy in the crypt." }),
+    narration("Ash watches the barges."),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      plotThreads: ["Reverend Amos Thorne plans to land brandy at the next high tide."],
+      worldBible: [{ title: "Thorne", keywords: ["Thorne", "Reverend", "Amos", "vicar"], content: "The vicar.", alwaysOn: false }],
+    },
+  });
+
+  expect((await turn(id, "I walk to the dock.")).ok).toBe(true);
+  expect((await turn(id, "I watch the barges.")).ok).toBe(true);
+
+  expect(store().latestState(id).plotThreads).toEqual(["Thorne has landed the brandy in the crypt."]);
+});

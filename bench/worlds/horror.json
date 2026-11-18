@@ -4,7 +4,7 @@
     "title": "Whiteout at Station Nine",
     "artStyle": "Graphic Novel & Comic Illustration: Bold graphic aesthetic defined by clean ink linework, stylized cell-shading, dynamic speed lines, sharp silhouettes, and saturated flat tones with optional Ben-Day halftone dot patterns.",
     "theme": "",
-    "worldBrief": "Station Nine, a small polar research station on an ice shelf in 1978, in the four months of winter dark. Six people overwinter there, a day's flight from anywhere, with a radio, a generator and a dog team. A storm has closed in, and last night something killed two of the dogs.",
+    "worldBrief": "Station Nine, a small polar research station on an ice shelf in 1978, in the four months of winter dark. Five people overwintered there, four since one was lost in a crevasse last month, a day's flight from anywhere, with a radio, a generator and a dog team. A storm has closed in, and last night something killed two of the dogs.",
     "startingHook": "Dr Ingrid Sol, the station's glaciologist, is woken by the station chief, Brandt Okafor, to look at what is left of the two dogs in the kennel hut. Pavel Duda, the mechanic, found them, and swears the kennel door was bolted from outside. Lise Moen, the radio operator, says the storm has cut the radio off, and the relief flight cannot come until it clears.",
     "pc": {
       "name": "Ingrid Sol",
@@ -47,8 +47,8 @@
     ],
     "plotThreads": [
       "Arne Vik, the station geologist, did not die in the crevasse last month as Okafor reported: Okafor cut the rope when Vik's weight was dragging them both in, and Vik climbed out alive and crawled to the old abandoned hut two miles off. Half mad with cold and carbon monoxide from its stove, he is stealing food from the station by night, killed the dogs to stop them giving him away, and means to kill Okafor.",
-      "The generator's fuel will run out on Wednesday night, as Okafor knows and has hidden from everyone: he let the autumn tanker leave half-unloaded to save a day. The storm will not clear until Thursday, so unless someone finds the reserve drums buried at the old hut, the station freezes.",
-      "Lise Moen has had the radio working since yesterday and has kept it quiet, because the relief pilot told her the flight is cancelled until the storm clears, and she is afraid of what Pavel will do when he hears; Pavel has been drinking the medical alcohol and has a flare pistol."
+      "The generator's fuel will run out on Wednesday night, as Okafor knows and has hidden from everyone: he let the autumn tanker leave half-unloaded to save a day, and keeps the fuel log himself. The storm will not clear until Thursday, so unless someone finds the reserve drums buried at the old hut, the station freezes.",
+      "Lise Moen has had the radio working since yesterday and has kept it quiet, because the base told her the relief plane crashed on its last run and no flight can come for three weeks, storm or no storm, and she is afraid of what Pavel will do when he hears; Pavel has been drinking the medical alcohol and has a flare pistol."
     ],
     "worldBible": [
       {
@@ -66,13 +66,13 @@
       {
         "title": "Pavel Duda",
         "keywords": ["Pavel", "Duda", "mechanic"],
-        "content": "A wiry man in his thirties with a long pale face, a drooping brown moustache, grease on his hands and an orange boiler suit under a sheepskin vest. The mechanic, who keeps the generator going. He found the dogs and believes something not human is out there. He is drinking the medical alcohol in secret and keeps a flare pistol under his bunk.",
+        "content": "A wiry man in his thirties with a long pale face, a drooping brown moustache, grease on his hands and an orange boiler suit under a sheepskin vest. The mechanic, who keeps the generator going. He found the dogs and believes something not human is out there. He is drinking the medical alcohol in secret, hasn't dipped the fuel tanks since, and keeps a flare pistol under his bunk.",
         "alwaysOn": false
       },
       {
         "title": "Lise Moen",
         "keywords": ["Lise", "Moen", "radio", "radio operator"],
-        "content": "A small woman in her twenties with a round freckled face, a long brown braid, heavy black-framed glasses and a green wool sweater with elbow patches. The radio operator, on her first winter. The radio works; she has hidden it, and that the relief flight is cancelled, out of fear of Pavel. She has noticed that someone has been in the galley stores at night.",
+        "content": "A small woman in her twenties with a round freckled face, a long brown braid, heavy black-framed glasses and a green wool sweater with elbow patches. The radio operator, on her first winter. The radio works; she has hidden it, and that no flight can come for three weeks, out of fear of Pavel. She has noticed that someone has been in the galley stores at night.",
         "alwaysOn": false
       },
       {
@@ -103,7 +103,7 @@
   },
   "actions": {
     "rewrite": "Slow down, and let the people present react to what just happened before anything new happens.",
-    "edit": "Somewhere out in the dark, a light flickered once on the ice and went out.",
+    "edit": "Out past the kennel hut, a dog began to howl and would not stop.",
     "worldChange": "The generator has started to cough and stall, and Pavel says it will fail within hours unless someone goes out to the generator hut."
   }
 }

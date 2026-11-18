@@ -78,7 +78,7 @@
       {
         "title": "Tobias Crane",
         "keywords": ["Crane", "Tobias", "harbourmaster", "body", "drowned"],
-        "content": "The harbourmaster, a lean man of sixty with a white beard. His body has bruises on the back of the neck from a hand holding him down, sea water in his lungs, and a torn fingernail with a scrap of black wool under it, from the sexton's coat. He wrote to the Revenue a week before he died.",
+        "content": "The harbourmaster, a lean man of seventy with a white beard. His body has bruises on the back of the neck from a hand holding him down, sea water in his lungs, and a torn fingernail with a scrap of black wool under it, from the sexton's coat. He wrote to the Revenue a week before he died.",
         "alwaysOn": false
       },
       {
@@ -115,7 +115,7 @@
   },
   "actions": {
     "rewrite": "Slow down, and let the people present react to what just happened before anything new happens.",
-    "edit": "Out on the water, a lugger with no lights was creeping in toward the cliffs.",
+    "edit": "Up on the cliff, the chapel bell rang once, though no one was in the tower.",
     "worldChange": "A Revenue cutter has anchored off the harbour mouth, and its officer will come ashore tomorrow asking questions."
   }
 }

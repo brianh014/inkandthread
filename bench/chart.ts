@@ -5,6 +5,8 @@
 export type ChartResult = {
   version?: number;
   setup?: "narrator" | "full";
+  rounds: number;
+  mode?: string;
   provider: string;
   models: { narrator: string; reviewer: string; consistency: string };
   judge: { plays: { scores: Record<string, { score: number }> }[] } | null;
@@ -29,14 +31,17 @@ export type Point = {
 const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
 const short = (model: string) => model.split("/").pop() || model;
 
-/** One point per setup, from every judged result of `version`; several runs of a setup pool their plays. */
-export function points(results: ChartResult[], version: number): Point[] {
+/**
+ * One point per setup, from every judged result of `version` played in seeded Choices for `rounds`, as a longer story scores
+ * differently; several runs of a setup pool their plays.
+ */
+export function points(results: ChartResult[], version: number, rounds: number): Point[] {
   const groups = new Map<
     string,
     { setup: Point["setup"]; label: string; runs: number; plays: { score: number; cost: number; turnMs: number; firstMs: number }[] }
   >();
   for (const result of results) {
-    if (result.version !== version || !result.setup || !result.judge) continue;
+    if (result.version !== version || result.rounds !== rounds || (result.mode ?? "choices") !== "choices" || !result.setup || !result.judge) continue;
     const { narrator, reviewer, consistency } = result.models;
     const label = result.setup === "narrator" ? short(narrator) : [narrator, reviewer, consistency].map(short).join(" · ");
     const key = `${result.setup}|${result.provider}|${label}`;
@@ -167,7 +172,7 @@ ${dots.join("\n")}
 </section>`;
 }
 
-export function chartPage(all: Point[], version: number, date = new Date().toISOString().slice(0, 10)) {
+export function chartPage(all: Point[], version: number, rounds: number, date = new Date().toISOString().slice(0, 10)) {
   const times = all.map((p) => p.turnMs);
   const speed: [number, number] = times.length ? [Math.min(...times), Math.max(...times)] : [0, 0];
   const gradient = (pair: string[]) => `linear-gradient(to right, ${pair[0]}, ${pair[1]})`;
@@ -197,7 +202,7 @@ table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px
 summary { cursor: pointer; color: var(--ink-2); } .empty { font-style: italic; }
 </style></head><body>
 <h1>NovelForge bench</h1>
-<p>Bench version ${version}, kept and judged runs, charted ${date}. Higher is better, further left is cheaper. Hover a dot for its numbers.</p>
+<p>Bench version ${version}, kept and judged runs of ${rounds} rounds, charted ${date}. Higher is better, further left is cheaper. Hover a dot for its numbers.</p>
 <div class="key">
 <span>Turn time ${times.length ? seconds(speed[0]) : ""}<span class="ramp"></span>${times.length ? seconds(speed[1]) : ""}</span>
 <span><span class="ring"></span>No setup beats it on score, cost and speed</span>

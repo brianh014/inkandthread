@@ -10,7 +10,7 @@
 //   bun bench judge <run folder> --by <model> --scores <scores.json>   (scores for a --judge self run, one entry per play)
 //   bun bench keep <run folder>        copies the run's numbers, never its story, to bench/results to commit
 //   bun bench table [--csv]            every kept and recent run, side by side
-//   bun bench chart [--version N]      the kept, judged runs of one bench version as charts, to bench/charts/bench-chart.html
+//   bun bench chart [--version N] [--rounds N]   the kept, judged Choices runs of one bench version and length (30) as charts, to bench/charts/bench-chart.html
 // To bench a setup without editing the Settings copy: --narrator <model>, --narrator-only (no other reviewer, Consistency off),
 // --reviewer <model> and --decisions <model>. The copy's pinned provider stays, so a model it doesn't offer fails, never reroutes.
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -33,6 +33,8 @@ import { chartPage, points } from "./chart";
 const BENCH = import.meta.dir;
 // Bump whenever the prompts, the rubric or the world change: a chart compares only runs of one version.
 const BENCH_VERSION = 1;
+// The length a chart compares, as a longer story scores differently; runs of another length are left out.
+const CHART_ROUNDS = 30;
 // --fake plays on the stand-in models, free and offline, to try the bench itself; its numbers say nothing of a real Narrator.
 const fake = process.argv.includes("--fake");
 // --draw draws on local ComfyUI, which costs nothing per picture; a paid image API is never drawn on.
@@ -969,15 +971,17 @@ function table() {
 function chart() {
   const version = option("--version") ? count("--version") : BENCH_VERSION;
   const kept = allResults().filter(({ path }) => path.startsWith(RESULTS));
+  const rounds = option("--rounds") ? count("--rounds") : CHART_ROUNDS;
   const found = points(
     kept.map(({ result }) => result),
     version,
+    rounds,
   );
   const folder = join(BENCH, "charts");
   mkdirSync(folder, { recursive: true });
   const target = join(folder, "bench-chart.html");
-  writeFileSync(target, chartPage(found, version));
-  console.log(`${found.length} setup(s) of bench version ${version} charted in ${relative(process.cwd(), target)}.`);
+  writeFileSync(target, chartPage(found, version, rounds));
+  console.log(`${found.length} setup(s) of bench version ${version}, ${rounds} rounds, charted in ${relative(process.cwd(), target)}.`);
 }
 
 const command = args[0];

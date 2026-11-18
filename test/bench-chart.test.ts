@@ -4,6 +4,7 @@ import { bestOnAllThree, type ChartResult, chartPage, costFrontier, type Point, 
 const run = (narrator: string, scores: number[], cost: number, extra: Partial<ChartResult> = {}): ChartResult => ({
   version: 1,
   setup: "narrator",
+  rounds: 30,
   provider: "openrouter",
   models: { narrator, reviewer: narrator, consistency: "off" },
   judge: { plays: scores.map((score) => ({ scores: { a: { score }, b: { score } } })) },
@@ -11,16 +12,19 @@ const run = (narrator: string, scores: number[], cost: number, extra: Partial<Ch
   ...extra,
 });
 
-test("several runs of a setup pool their plays into one point; other versions, unjudged runs and setups apart", () => {
+test("several runs of a setup pool their plays into one point; other versions, lengths, Free Text and unjudged runs left out", () => {
   const found = points(
     [
       run("x/mimo", [6, 8], 0.01),
       run("x/mimo", [7], 0.02),
       run("x/mimo", [9], 0.01, { version: 0 }),
       run("x/mimo", [9], 0.01, { judge: null }),
+      run("x/mimo", [9], 0.01, { rounds: 20 }),
+      run("x/mimo", [9], 0.01, { mode: "free text: moves.txt" }),
       run("x/mimo", [5], 0.05, { setup: "full", models: { narrator: "x/mimo", reviewer: "y/flash", consistency: "z/d1" } }),
     ],
     1,
+    30,
   );
   expect(found).toHaveLength(2);
   const alone = found.find((p) => p.setup === "narrator")!;
@@ -55,7 +59,7 @@ test("a setup beaten on score and cost still counts on all three when it is the 
 });
 
 test("the page escapes model names and says when a chart has no runs", () => {
-  const page = chartPage([point("<b>", 7, 0.01)], 1);
+  const page = chartPage([point("<b>", 7, 0.01)], 1, 30);
   expect(page).toContain("&lt;b&gt;");
   expect(page).toContain("No judged, kept runs");
 });

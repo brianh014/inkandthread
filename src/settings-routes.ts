@@ -21,12 +21,12 @@ const UsageQuery = z.strictObject({ by: z.enum(["day", "week", "month"]) });
 const unkeyed = <T extends object>(profiles: Record<string, T>, key: keyof T) =>
   Object.fromEntries(Object.entries(profiles).map(([at, { [key]: _key, ...rest }]) => [at, rest])) as Record<string, Omit<T, typeof key>>;
 
-/** Settings and their tests. `local` is the ComfyUI adapter, and `workflow` how its last job went, which only the screen shows. */
 // The image providers that also serve the Narrator, by its address, whose one key does both.
 const SAME_SERVICE = { openrouter: OPENROUTER_URL, google: GOOGLE_URL, nanogpt: NANOGPT_URL };
 // Setup's save can ask for the Narrator's key to draw with too.
 const SettingsSave = SettingsUpdate.extend({ imageKeyFromText: z.boolean().optional() });
 
+/** Settings and their tests. `local` is the ComfyUI adapter, and `workflow` how its last job went, which only the screen shows. */
 export function settingsRoutes({ options, images, saves }: ServerContext, local: ImageAdapter, workflow: { problem: string }) {
   const { settings } = options;
   // An allowlist, so the API key can never reach a response.
@@ -174,6 +174,7 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
           const key = url && current.textProfiles[url]?.textApiKey;
           if (!key) return Response.json({ error: "The Narrator has no saved key for this image provider." }, { status: 422 });
           change.imageApiKey = key;
+          log.info("settings", "Image key from the Narrator", { provider: change.imageProvider ?? current.imageProvider });
         }
         const next = { ...current, ...change };
         // Only a workflow in use, as Settings hides the box otherwise, and the player couldn't see what to fix.

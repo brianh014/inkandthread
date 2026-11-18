@@ -56,7 +56,7 @@ export function ReadingSamples({ value, onChange }: { value: Look; onChange: (ch
   return (
     <>
       <fieldset className="samples">
-        <legend>How the story reads</legend>
+        <legend>Chat style</legend>
         {CHAT_STYLES.map(({ value: style, label }) => (
           <Sample key={style} {...pick("chatStyle", style, label)}>
             {/* Wrapped as the story wraps each Message, so its styles apply as in play. */}

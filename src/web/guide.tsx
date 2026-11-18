@@ -486,7 +486,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>Reading</h3>
         <ul>
           <li>
-            <b>How the story reads</b>: Prose, Script or Bubbles, each shown as a few lines of story.
+            <b>Chat style</b>: how the story reads: Prose, Script or Bubbles, each shown as a few lines of story.
           </li>
           <li>
             <b>Light or dark</b>: light, dark, or matching this device.

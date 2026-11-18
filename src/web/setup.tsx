@@ -184,19 +184,34 @@ function Steps({ initial }: { initial: Settings }) {
     setHere(step);
   };
 
-  async function next(event: FormEvent) {
-    event.preventDefault();
+  // `onward` goes to the next page once saved; without it the page stays, so its lists and tests can use what was just typed.
+  async function save(onward: boolean) {
     if (busy) return;
     setBusy(true);
     setError("");
     try {
       await saveStep();
-      setHere(here + 1);
+      if (onward) setHere(here + 1);
     } catch (failure) {
       setError((failure as Error).message);
     }
     setBusy(false);
   }
+
+  const next = (event: FormEvent) => {
+    event.preventDefault();
+    void save(true);
+  };
+
+  // The image lists and ComfyUI's Test only reach a saved address and key, as in Settings.
+  const saveHere = (
+    <>
+      <button type="button" className="quiet" aria-disabled={busy} onClick={() => void save(false)}>
+        Save to list models
+      </button>
+      <p className="muted">Saves this page and stays on it, so the model lists and Test can use the address or key you typed.</p>
+    </>
+  );
 
   const blocked = (here === PROVIDER && keyNeeded) || (here === MODEL && !draft.textModel.trim());
   const ready = !setupProblem(saved);
@@ -290,7 +305,7 @@ function Steps({ initial }: { initial: Settings }) {
               openrouter:
                 "Two good choices: MiMo V2.6 Pro (search “mimo pro”), for richer role-play and writing at a little more a Turn, or DeepSeek V4.1 Flash (search “deepseek flash”), much cheaper a Turn, with writing not quite as rich. Try both on one story and keep the one you like.",
               google: "We recommend a Gemini Flash model.",
-              nanogpt: "Look for MiMo or DeepSeek, or choose any model you like.",
+              nanogpt: "We recommend MiMo or DeepSeek, though any model you like will do.",
               local: "Choose the model your server runs. MiMo and DeepSeek write well if you can run them.",
             }[textChoice]
           }
@@ -338,7 +353,7 @@ function Steps({ initial }: { initial: Settings }) {
     [REVIEW]: (
       <>
         {/* The Guide and README name the same model, so change them together. */}
-        <p>Recommended: a second model makes the story better. We recommend GPT-6.1 Luna (search “luna”).</p>
+        <p>Recommended: a second model makes the story better. We recommend GPT-6.1 Luna (search “luna”) on Medium thinking.</p>
         <ReviewSettings draft={draft} saved={saved} set={set} narratorModels={models} reviewKey={reviewKey} setReviewKey={setReviewKey} />
       </>
     ),
@@ -421,6 +436,7 @@ function Steps({ initial }: { initial: Settings }) {
                 />
               </label>
             )}
+            {saveHere}
             <ModelField
               key={draft.imageProvider}
               label="Image model"
@@ -434,10 +450,11 @@ function Steps({ initial }: { initial: Settings }) {
           <>
             <p className="muted">
               For a good graphics card. NovelForge draws a lot, the Cover, portraits, scenes and every redraw, and each costs money online but nothing here. We
-              recommend FLUX.2 or Qwen Image 2.1, which keep faces the same from picture to picture. The Reader's Guide says how to install ComfyUI, and
-              Advanced workflows are in Settings → Images.
+              recommend FLUX.2 or Qwen Image 2.1, which keep faces the same from picture to picture. The <a href="#/guide/models">Reader's Guide</a> says how to
+              install ComfyUI, and Advanced workflows are in Settings → Images.
             </p>
             <ProviderLinks provider="comfy" />
+            {saveHere}
             <ComfySettings draft={draft} saved={saved} set={set} />
           </>
         )}

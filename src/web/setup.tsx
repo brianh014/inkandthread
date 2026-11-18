@@ -452,15 +452,15 @@ function Steps({ initial }: { initial: Settings }) {
             applyLook({ ...draft, ...change });
           }}
         />
-        <h3>Dice</h3>
-        <p>
-          When your character tries something that could fail, or someone reacts to what they do, the Narrator rolls hidden dice, and the story follows the
-          result. You can keep the rolls hidden, or see each one.
-        </p>
+        {/* As in Settings, with more said, as a new player hasn't met Checks yet. */}
         <label className="toggle">
           <input type="checkbox" checked={draft.showChecks} onChange={(e) => set({ showChecks: e.target.checked })} />
           Show Checks
         </label>
+        <p className="muted">
+          When your character tries something that could fail, or someone reacts to what they do, the Narrator rolls hidden dice, and the story follows the
+          result. On, a line under the reply shows how hard it was, the roll and the result. Off, the dice stay hidden and the story reads without them.
+        </p>
       </>
     ),
     [READY]: (

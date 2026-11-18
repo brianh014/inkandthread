@@ -37,14 +37,21 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const basedOn = saves.latestMessageId(id);
   const state = saves.latestState(id);
   const { plotThreads } = state;
+  // Names a rewrite must keep, as moves kept a thread's surface and dropped who was behind it and what it hid, in every bench run
+  // despite the rule. One the PC has learned may go, as play has revealed it. shortcut: names only; a secret with no name in it isn't checked.
+  const names = [...state.npcs.map(({ name }) => name), ...state.worldBible.flatMap(({ keywords }) => keywords).filter((word) => /^\p{Lu}/u.test(word))];
+  const mentions = (text: string, name: string) => new RegExp(`(?<!\\p{L})${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\p{L})`, "iu").test(text);
+  const keepsNames = ({ old, new: text }: z.infer<typeof ListChange>) =>
+    old === null || text === null || names.every((name) => !mentions(old, name) || mentions(text, name) || mentions(state.summary, name));
   const Reply = z.object({ plot_threads: z.array(ListChange) }).refine(
     ({ plot_threads }) =>
       plot_threads.every((change) => change.old === null || plotThreads.includes(change.old)) &&
       // A thread changed twice would come out twice, as the second change no longer finds it and adds instead.
       new Set(plot_threads.flatMap(({ old }) => (old === null ? [] : [old]))).size === plot_threads.filter(({ old }) => old !== null).length &&
       plot_threads.every((change) => change.new === null || withinLimit(change.new, THREAD_WORDS)) &&
+      plot_threads.every(keepsNames) &&
       plot_threads.reduce(changeList, plotThreads).length <= Math.max(MAX_PLOT_THREADS, plotThreads.length),
-    "a change misquotes a thread, changes one twice, runs past a sentence or two, or leaves too many threads",
+    "a change misquotes a thread, changes one twice, runs past a sentence or two, drops someone the thread named, or leaves too many threads",
   );
   const prompt: Prompt = [
     {

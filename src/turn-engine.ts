@@ -192,7 +192,7 @@ const ChoicesShape = ResponseShape.extend({
   choices: z
     .array(z.string())
     .describe(
-      "exactly three things the PC might say or do next, each one first-person sentence of at most 25 words, built only from what the PC knows, and each taking a clearly different approach. Never hint at risk, difficulty, dice or a Check",
+      "exactly three things the PC might say or do next, each one first-person sentence of at most 25 words, built only from what the PC knows, and each taking a clearly different approach, at least one of them moving the story on toward what comes next, such as setting out, acting on a plan or facing what waits. Never hint at risk, difficulty, dice or a Check",
     ),
 });
 // Once a Check is rolled, or none can be, the schema itself forbids one and asks for the story, as the prompt's "Do not request another check" was ignored three times running.

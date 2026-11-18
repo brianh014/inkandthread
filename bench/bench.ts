@@ -33,7 +33,7 @@ import { chartPage, points } from "./chart";
 
 const BENCH = import.meta.dir;
 // Bump whenever the prompts, the rubric or the world change: a chart compares only runs of one version.
-const BENCH_VERSION = 5;
+const BENCH_VERSION = 6;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 30;
 // --fake plays on the stand-in models, free and offline, to try the bench itself; its numbers say nothing of a real Narrator.
@@ -273,7 +273,8 @@ async function pricesOf(models: string[]) {
 async function estimate(provider: string, narrator: string, reviewer: string, rounds: number, runs: number) {
   if (provider === "local") return { dollars: 0, how: "a local server costs nothing" };
   if (provider !== "openrouter") return { dollars: null, how: "cost unknown: only OpenRouter's prices are looked up" };
-  const last = allResults()[0]?.result.summary;
+  // That Narrator's own, as another model's token counts gave twice the cost.
+  const last = allResults().find(({ result }) => result.provider === provider && result.models.narrator === narrator)?.result.summary;
   const perRound = last
     ? {
         narrator: { in: last["perRound.narrator.in"] ?? 0, out: last["perRound.narrator.out"] ?? 0 },
@@ -293,7 +294,7 @@ async function estimate(provider: string, narrator: string, reviewer: string, ro
     perRound.decisions;
   return {
     dollars: round * rounds * runs,
-    how: `${last ? "tokens per round from the last run" : "a rough guess of tokens per round, as no run exists yet"}, at OpenRouter's list prices; thinking, caching and retries can make it half to double`,
+    how: `${last ? "tokens per round from this Narrator's last run" : "a rough guess of tokens per round, as this Narrator has no run yet"}, at OpenRouter's list prices; thinking, caching and retries can make it half to double`,
   };
 }
 

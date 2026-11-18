@@ -163,3 +163,25 @@ test("a move that changes one thread twice is refused, as the thread would come 
   expect(store().latestState(id).plotThreads).toEqual(["A thief plans to rob the library at the next high tide."]);
   expect(log).toContain("World didn't move on");
 });
+
+test("a move that drops someone its thread named is written again, as a rewrite must keep who is behind it", async () => {
+  play(
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),
+    moved({ old: "Maren the thief plans to rob the library at the next high tide.", new: "Someone has robbed the library." }),
+    moved({ old: "Maren the thief plans to rob the library at the next high tide.", new: "Maren has robbed the library and hides the books on a barge." }),
+    narration("Ash watches the barges."),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      plotThreads: ["Maren the thief plans to rob the library at the next high tide."],
+      worldBible: [{ title: "Maren", keywords: ["Maren", "thief"], content: "The librarian's own son.", alwaysOn: false }],
+    },
+  });
+
+  expect((await turn(id, "I walk to the dock.")).ok).toBe(true);
+  expect((await turn(id, "I watch the barges.")).ok).toBe(true);
+
+  expect(store().latestState(id).plotThreads).toEqual(["Maren has robbed the library and hides the books on a barge."]);
+});

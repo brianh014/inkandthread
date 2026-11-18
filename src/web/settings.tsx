@@ -171,7 +171,7 @@ function ModelSelect({ label, value, list, onChange }: { label: string; value: s
 }
 
 // The named text providers, by the address each is reached at.
-const TEXT_PROVIDERS = { openrouter: OPENROUTER_URL, google: GOOGLE_URL, nanogpt: NANOGPT_URL };
+export const TEXT_PROVIDERS = { openrouter: OPENROUTER_URL, google: GOOGLE_URL, nanogpt: NANOGPT_URL };
 
 // Not a model id, as those always hold a letter.
 const TYPE_OWN = "\u0000type";
@@ -180,7 +180,7 @@ const TYPE_OWN = "\u0000type";
  * A provider's models to choose from, and a way to type one the list leaves out, such as a Wiro model past its first 500. With
  * no list, or one typed, it's a text box. Give it a `key` per provider, so a switch shows the new one's list.
  */
-function ModelField({ label, value, list, onChange }: { label: string; value: string; list?: string[]; onChange: (value: string) => void }) {
+export function ModelField({ label, value, list, onChange }: { label: string; value: string; list?: string[]; onChange: (value: string) => void }) {
   const [typing, setTyping] = useState(false);
   if (!list?.length || typing) {
     return (
@@ -225,7 +225,7 @@ export function matches(text: string, search: string) {
 }
 
 /** A dropdown drawn in the page rather than the browser's own, so it looks like the book and opens the same everywhere. Long lists get a search box. */
-function Picker<T extends string>({
+export function Picker<T extends string>({
   label,
   empty,
   value,
@@ -438,7 +438,7 @@ function WorkflowGuide() {
 }
 
 /** Tries the saved Settings without playing. `run` takes the prompt, and `children` shows what it returned. */
-function TestBox<T>({
+export function TestBox<T>({
   title,
   hint,
   working,
@@ -522,7 +522,7 @@ function ComfyResult({ drawn, alt }: { drawn: Awaited<ReturnType<typeof drawComf
   );
 }
 
-function TextResult({ reply, seconds, firstSeconds, tokens, model }: TextTest) {
+export function TextResult({ reply, seconds, firstSeconds, tokens, model }: TextTest) {
   // A server that sends the reply whole gives no writing time to measure.
   const writing = seconds - firstSeconds;
   return (
@@ -548,7 +548,7 @@ function TextResult({ reply, seconds, firstSeconds, tokens, model }: TextTest) {
   );
 }
 
-function ComfySettings({ draft, saved, set }: { draft: Settings; saved: Settings; set: (change: Partial<Settings>) => void }) {
+export function ComfySettings({ draft, saved, set }: { draft: Settings; saved: Settings; set: (change: Partial<Settings>) => void }) {
   const [models, setModels] = useState<ComfyModels>();
   const [refreshes, setRefreshes] = useState(0);
   const addLora = useRef<HTMLButtonElement>(null);
@@ -854,8 +854,8 @@ function ComfySettings({ draft, saved, set }: { draft: Settings; saved: Settings
 
 type TextChoice = keyof typeof TEXT_PROVIDERS | "local";
 // An address that is one of the named providers picks it, and any other is a local or OpenAI-compatible server.
-const textChoiceOf = (url: string) => (Object.entries(TEXT_PROVIDERS).find(([, at]) => at === url)?.[0] ?? "local") as TextChoice;
-const TEXT_CHOICES = [
+export const textChoiceOf = (url: string) => (Object.entries(TEXT_PROVIDERS).find(([, at]) => at === url)?.[0] ?? "local") as TextChoice;
+export const TEXT_CHOICES = [
   { value: "openrouter", label: "OpenRouter" },
   { value: "google", label: "Google AI Studio" },
   { value: "nanogpt", label: "NanoGPT" },
@@ -863,7 +863,7 @@ const TEXT_CHOICES = [
 ] as const;
 
 /** The reviewer that takes a second look at a new world and at World Changes: the Narrator's model, or another one, on any provider. */
-function ReviewSettings({
+export function ReviewSettings({
   draft,
   saved,
   set,
@@ -981,7 +981,7 @@ const DECISION_CHOICES = [
 ] as const;
 
 /** The Consistency model: a decision model that checks each reply against the story, so the reviewer can fix a slip. */
-function ConsistencySettings({
+export function ConsistencySettings({
   draft,
   saved,
   set,
@@ -1579,6 +1579,10 @@ export function SettingsScreen({ id }: { id?: string }) {
                 {name}
               </button>
             ))}
+            {/* A screen of its own, not a section, so it leaves Settings. */}
+            <button type="button" onClick={() => (location.hash = "#/setup")}>
+              Setup
+            </button>
           </nav>
           {!id && <p className="muted so-far">Open a story to change its Art Style.</p>}
         </>

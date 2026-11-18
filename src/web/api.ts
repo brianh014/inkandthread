@@ -195,8 +195,8 @@ export const getTextHosts = (model: string) =>
 /** What stops the Narrator replying, if anything. */
 export function setupProblem({ textBaseUrl, textModel, hasTextApiKey }: Pick<Settings, "textBaseUrl" | "textModel" | "hasTextApiKey">) {
   if (!textModel) return "No text model is set.";
-  // shortcut: local servers need no key, so only OpenRouter is checked, ask per server if more keyed hosts appear.
-  if (!hasTextApiKey && textBaseUrl.includes("openrouter.ai")) return "No API key is set.";
+  // Every named provider needs a key; most local or other OpenAI-compatible servers need none.
+  if (!hasTextApiKey && [OPENROUTER_URL, GOOGLE_URL, NANOGPT_URL].includes(textBaseUrl)) return "No API key is set.";
 }
 
 /** A Narrator Message's Check, only with Show Checks on. */

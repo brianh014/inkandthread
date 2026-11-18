@@ -37,7 +37,7 @@ test("until the Narrator is set up, the Menu offers Setup, which walks the setti
 
   // Settings brings Setup back, showing what was chosen.
   await page.goto("/#/settings");
-  await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: "Setup" }).click();
+  await page.getByRole("navigation", { name: "Settings sections" }).getByRole("button", { name: "Guided setup" }).click();
   await page.getByRole("navigation", { name: "Steps" }).getByRole("button", { name: "iii. Its model", exact: false }).click();
   await expect(page.getByRole("textbox", { name: "Text model" })).toHaveValue("fake-narrator");
   await page.getByRole("navigation", { name: "Steps" }).getByRole("button", { name: "Ready", exact: false }).click();

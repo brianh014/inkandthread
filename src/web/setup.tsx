@@ -235,7 +235,7 @@ function Steps({ initial }: { initial: Settings }) {
             <b>An AI that draws</b>: optional. Online it costs a little per picture; your own ComfyUI draws for free on a good graphics card.
           </li>
         </ul>
-        <p className="muted">Everything here is in Settings too, to change any time, and Settings → Setup brings these pages back.</p>
+        <p className="muted">Everything here is in Settings too, to change any time, and Settings → Guided setup brings these pages back.</p>
       </>
     ),
     [PROVIDER]: (

@@ -1581,7 +1581,7 @@ export function SettingsScreen({ id }: { id?: string }) {
             ))}
             {/* A screen of its own, not a section, so it leaves Settings. */}
             <button type="button" onClick={() => (location.hash = "#/setup")}>
-              Setup
+              Guided setup →
             </button>
           </nav>
           {!id && <p className="muted so-far">Open a story to change its Art Style.</p>}

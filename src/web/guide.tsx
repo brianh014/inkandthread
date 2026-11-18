@@ -523,7 +523,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           <b>Narrator</b>: how often the AI used its tools in each story, such as Checks and moving story time. A note names a story after {QUIET_TURNS} Turns
           without either. If it's low, try another AI and compare.
         </p>
-        <h3>Setup</h3>
+        <h3>Guided setup</h3>
         <p>
           Walks through the main settings again a page at a time, starting from what you chose, as <b>Setup NovelForge</b> did the first time. Each page's{" "}
           <b>Next</b> saves only that page, so leaving halfway loses nothing.

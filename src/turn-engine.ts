@@ -292,6 +292,8 @@ type Narrated = {
   previous?: string;
   /** All the player has read so far, the Starting Hook and the Messages, so a Choice is never built on what the PC hasn't. */
   seen?: string;
+  /** For the opening, the Important Characters its Starting Hook names, whom it must bring on, as an opening that skipped them left the plot they seed unplayed. */
+  mustMeet?: string[];
   /** The player's own words for an Edit, which stand in for whatever narration the reply holds. */
   narration?: string;
   check?: Check;
@@ -435,6 +437,10 @@ export async function playTurn(
     consistency,
     previous: lastNarration(messages),
     seen: [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
+    mustMeet:
+      kind === "opening"
+        ? (saves.read(id).importantCharacters ?? []).map(({ name }) => name).filter((name) => (saves.read(id).startingHook ?? "").includes(name))
+        : [],
     memory,
     // The PC attempts nothing in a Continue, so there is nothing to roll for.
     rollCheck: mayCheck && !isContinueInput(input) ? (request) => resolveCheck(request, dice, nearMissMargin) : undefined,
@@ -566,6 +572,7 @@ async function narrate(
     consistency,
     previous = "",
     seen,
+    mustMeet = [],
     narration: edited,
     check: storedCheck,
     memory: pendingMemory,
@@ -652,12 +659,15 @@ async function narrate(
       const spoken = edited === undefined ? spokenLineFault(narration, pcName) : undefined;
       // The opening sets the book's voice, which every reply copies, so speech it leaves in the prose is written again there alone.
       const inline = edited === undefined && kind === "opening" && speechOutsideLines(narration) ? INLINE_SPEECH : undefined;
+      const unmet = edited === undefined && kind === "opening" && peopleLeftOut(narration, mustMeet).length > 0 ? LEFT_OUT : undefined;
       const choices = playMode === "choices" ? usableChoices(response.choices) : undefined;
       const unchosen = playMode === "choices" && !choices ? NO_CHOICES : undefined;
       // A long speech is only logged, as rewriting it restarted too many Turns the player could see.
       const noted = edited === undefined && isNoteAboutTurn(narration) ? NOTE_ABOUT_TURN : undefined;
       const fault =
-        attempt < MAX_ATTEMPTS ? (noted ?? (upkeep ? undefined : unplaced) ?? (spoken === LONG_SPEECH ? undefined : spoken) ?? inline ?? unchosen) : undefined;
+        attempt < MAX_ATTEMPTS
+          ? (noted ?? (upkeep ? undefined : unplaced) ?? (spoken === LONG_SPEECH ? undefined : spoken) ?? inline ?? unmet ?? unchosen)
+          : undefined;
       unplacedBefore = fault === unplaced && !!unplaced;
       if (fault) throw new InvalidResponse(undefined, { cause: fault });
       if (spoken === LONG_SPEECH) log.warning("turn", "Long speech kept", { attempt, generation });
@@ -800,6 +810,11 @@ export function spokenLineFault(narration: string, pcName: string) {
 }
 const LONG_SPEECH = "someone speaks more than twice";
 const INLINE_SPEECH = "speech in the prose, not on a speaker line";
+const LEFT_OUT = "an opening that leaves out someone its Starting Hook names";
+
+/** Who of `people` the narration never names, by their full name or any capitalised part of it, such as a surname. */
+export const peopleLeftOut = (narration: string, people: string[]) =>
+  people.filter((name) => ![name, ...name.split(" ").filter((part) => part.length > 2 && /^\p{Lu}/u.test(part))].some((part) => narration.includes(part)));
 
 /** Whether a line of prose, not a [Name]: line, holds quoted speech, as in 'Come here,' she said. An apostrophe isn't a quote. */
 export const speechOutsideLines = (narration: string) =>
@@ -828,6 +843,7 @@ function playerReason({ cause }: InvalidResponse) {
   if (cause === TAG_WITHOUT_BRACKET) return "A spoken line in the last reply was missing its speaker";
   if (cause === PC_LINE) return "The last reply spoke for your character";
   if (cause === INLINE_SPEECH) return "The story's opening didn't set out who says what";
+  if (cause === LEFT_OUT) return "The story's opening left out someone it was set up to meet";
   if (cause === "a picture without set_scene") return "The last reply moved to a new scene without saying where";
   if (cause === NO_CHOICES) return "The last reply offered no choices";
   if (cause === DECLINED) return "The last reply wasn't a story, which can mean the AI's content rules block this";

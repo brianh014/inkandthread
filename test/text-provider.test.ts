@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { settingsStore } from "../src/settings-store";
 import { introduce } from "../src/state-applier";
 import { textProvider } from "../src/text-provider";
-import { speechOutsideLines, spokenLineFault } from "../src/turn-engine";
+import { peopleLeftOut, speechOutsideLines, spokenLineFault } from "../src/turn-engine";
 import { delta, fakeOpenAi, logOf, scriptedDice, startApp, tempFolder, turnEvents } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -1186,4 +1186,9 @@ test("speech left in the prose is found, but never a speaker line, an apostrophe
   expect(speechOutsideLines("[Tamsin]: 'Thirty years.'")).toBe(false);
   expect(speechOutsideLines("Wren's satchel was heavy. The camels' hooves rang.")).toBe(false);
   expect(speechOutsideLines("She called it 'the old road' once.")).toBe(false);
+});
+
+test("an opening must bring on each Important Character its Starting Hook names, by full name or a part of it", () => {
+  expect(peopleLeftOut("Vane watched the road while Tamsin drove.", ["Captain Vane", "Tamsin", "Jory"])).toEqual(["Jory"]);
+  expect(peopleLeftOut("The boy, Jory, ran ahead.", ["Jory"])).toEqual([]);
 });

@@ -83,3 +83,14 @@ The prompts in `src/prompt-assembler.ts` and `src/world-creation.ts` go into eve
 - Fake pictures are plain plates in the book's colours, for checking layout, not art.
 - The user's real play logs to `logs/novelforge.log` (and `.1`) in the repo root. When the player has Story in log on, it holds the prompts and replies with their story text, and reading it to diagnose a problem needs no asking, whatever the story. Never quote adult text from it back.
 - `--watch` restarts the server on every code change, and an unfinished world in the New Story wizard lives only in server memory, so it is lost then: generate it again.
+
+#### Making a bench world
+
+A bench world is a JSON file shaped like `bench/world.json`, played with `--world <file>`. Runs compare only on one world, which each result records.
+
+- `save` holds what the New Story wizard builds: `title`, `theme`, `artStyle` (a wizard style written as `Name: description`, as `src/web/art-styles.ts` has it), `worldBrief`, `startingHook`, `pc` (`name` and its text fields) and `importantCharacters` (`name`, `description`, `onCover`).
+- `opening` is the state play starts from: `storyTime`, `inventory`, `status`, `worldRules`, three `plotThreads`, each saying who is behind it and what it hides, and `worldBible`, Lore Entries with keywords, `alwaysOn` only for the setting itself. Give each Important Character a keyword Lore Entry with their looks, and name them in the Starting Hook, so the opening meets them as written.
+- `actions` holds the fixed words of the Rewrite, Edit and World Change the bench sends.
+- Build it to bring about everything the Narrator does, as `about` in `bench/world.json` lists: risky Choices for Checks, a Plot Thread that can resolve within a few days of story time, secrets for NPCs to learn, Loose Ends, lore to grow, mortal danger and people who may die.
+- Invent it, never from a player's Save. A world kept out of git, such as an adult one (ticket 89), goes in git-ignored `bench/worlds-local/` with its `--moves` file.
+- Try it free first with `bun bench run --fake --world <file> --rounds 2 --runs 1 --yes`, and read the transcript.

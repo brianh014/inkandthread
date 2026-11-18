@@ -4,6 +4,7 @@
 //   bun bench run --rounds N --runs M [--settings settings.json] [--judge self|narrator] [--label name] [--seed 1] [--yes]
 //   bun bench run --moves moves.txt --runs M [...]   plays in Free Text instead, one move per line (# starts a comment), to
 //                                                    steer the story a chosen way; the rounds are the moves
+//   bun bench run --world <file> [...]   plays another world shaped like bench/world.json, such as one kept out of git
 //   bun bench run --draw [...]   draws the pictures on the Settings file's local ComfyUI, never a paid API, into each play's
 //                                pictures folder, to judge the pictures themselves
 //   bun bench judge <run folder> --by <model> --scores <scores.json>   (scores for a --judge self run, one entry per play)
@@ -11,7 +12,7 @@
 //   bun bench table [--csv]            every kept and recent run, side by side
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { z } from "zod";
 import { decisionProvider } from "../src/decisions";
 import { fakeDecisions, fakeImages, fakeTextProvider } from "../src/fake-services";
@@ -151,6 +152,8 @@ type Result = {
   models: { narrator: string; reviewer: string; reviewThinking: string; consistency: string };
   /** Seeded Choices, or Free Text from a moves file, which runs compare only within. */
   mode?: string;
+  /** The world file played, by name, as runs compare only on one world. Absent on runs before --world, which played world.json. */
+  world?: string;
   /** Whether the pictures were drawn (--draw), so judged as pictures, or judged from their prompts alone. Absent on older runs. */
   drawn?: boolean;
   thinking: string;
@@ -689,7 +692,9 @@ function readMoves(movesFile: string | undefined) {
   if (moves?.length === 0) fail(`No moves in ${movesFile}.`);
   return moves;
 }
-const readWorld = () => World.parse(JSON.parse(readFileSync(join(BENCH, "world.json"), "utf8")));
+// Absolute, as each play runs in a process of its own.
+const worldFile = resolve(option("--world") ?? join(BENCH, "world.json"));
+const readWorld = () => World.parse(JSON.parse(readFileSync(worldFile, "utf8")));
 
 /** One play, in a process of its own, as the log is one file per process. Started only by `run`, which reads its play.json. */
 async function playOne() {
@@ -715,6 +720,7 @@ async function playApart(index: number, seed: number, rounds: number, movesFile:
       "play",
       ...["--index", String(index), "--seed", String(seed), "--rounds", String(rounds), "--settings", settingsPath, "--folder", folder],
       ...(movesFile ? ["--moves", movesFile] : []),
+      ...["--world", worldFile],
       ...(fake ? ["--fake"] : []),
       ...(draw ? ["--draw"] : []),
     ],
@@ -738,6 +744,7 @@ async function run() {
   const seed = Number(option("--seed") ?? 1);
   const given = option("--settings") ?? "settings.json";
   if (!fake && !existsSync(given)) fail(`No Settings file at ${given}.`);
+  if (!existsSync(worldFile)) fail(`No world file at ${worldFile}.`);
   readWorld();
 
   // A copy outside the repo, as it holds keys. Pictures are on, drawn by a stand-in, with the player's image Settings, which shape
@@ -784,6 +791,7 @@ async function run() {
     provider,
     models,
     mode: movesFile ? `free text: ${basename(movesFile)}` : "choices",
+    world: basename(worldFile),
     drawn: draw && !fake,
     thinking: all.textThinking,
     seed,
@@ -880,9 +888,11 @@ function table() {
   if (flag("--csv")) {
     const keys = [...new Set(found.flatMap(({ result }) => Object.keys(result.summary)))].toSorted();
     const quote = (text: string) => `"${text.replaceAll('"', '""')}"`;
-    console.log(["date", "kept", "label", "provider", "narrator", "reviewer", "consistency", "judge", "drawn", "rounds", "runs", ...keys].map(quote).join(","));
+    console.log(
+      ["date", "kept", "label", "provider", "narrator", "reviewer", "consistency", "judge", "drawn", "world", "rounds", "runs", ...keys].map(quote).join(","),
+    );
     for (const { path, result } of found) {
-      const { date, label, provider, models, judge, drawn, rounds, runs, summary } = result;
+      const { date, label, provider, models, judge, drawn, world, rounds, runs, summary } = result;
       const meta = [
         date,
         path.startsWith(RESULTS) ? "yes" : "no",
@@ -893,6 +903,7 @@ function table() {
         models.consistency,
         judge?.by ?? "",
         drawn === undefined ? "" : drawn ? "yes" : "no",
+        world ?? "world.json",
       ];
       console.log([...meta.map(quote), rounds, runs, ...keys.map((key) => summary[key] ?? "")].join(","));
     }

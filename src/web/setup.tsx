@@ -79,7 +79,7 @@ const SAMPLE = [
   { role: "player", beats: [{ player: true, text: "I tip my hat and step aboard." }] },
   {
     role: "narrator",
-    beats: [{ text: "Rain needles the harbour lanterns as the ferry noses in." }, { speaker: "Mara", text: '"You\'re late. The tide won\'t wait."' }],
+    beats: [{ text: "Rain needles the harbour lanterns as the ferry noses in." }, { speaker: "Mara", text: "\"You're late. The tide won't wait.\"" }],
   },
 ];
 const CHAT_STYLES: { value: ChatStyle; label: string }[] = [

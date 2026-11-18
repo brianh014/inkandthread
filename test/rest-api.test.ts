@@ -237,7 +237,6 @@ test.each([
   ["health given as a number", { op: "set_health", health: "72/100 HP" }],
   ["an injury given with a number", { op: "add_status", kind: "injuries", text: "2 broken ribs" }],
   ["a condition given with a number", { op: "add_status", kind: "conditions", text: "fatigue level 3" }],
-  ["adding an NPC who exists", { op: "add_npc", name: "Mara", appearance: "a stranger" }],
   ["updating an NPC who does not exist", { op: "update_npc", name: "Nobody", appearance: "towering" }],
 ])("the server refuses %s", async (_, operation) => {
   const { app, prompts } = play(
@@ -263,7 +262,7 @@ test.each([
   expect(JSON.stringify(prompts[4])).not.toContain("towering");
 });
 
-test("repeating a known fact or NPC is harmless, so the response stands with no retry", async () => {
+test("repeating a known fact or NPC, or adding an NPC who exists, is harmless, so the response stands with no retry", async () => {
   const { app, prompts } = play(
     narration(
       "Setup.",
@@ -276,7 +275,9 @@ test("repeating a known fact or NPC is harmless, so the response stands with no 
       { op: "add_known_fact", fact: "The gate is broken" },
       { op: "add_known_npc", name: "Mara" },
       { op: "add_known_fact", fact: "Bees sing" },
+      { op: "add_npc", name: "Mara", appearance: "a stranger" },
     ),
+    narration("Three."),
   );
   const id = await app.createSave();
   await app.post(`/saves/${id}/turns`, { input: "One." });
@@ -285,6 +286,10 @@ test("repeating a known fact or NPC is harmless, so the response stands with no 
 
   expect(prompts).toHaveLength(2);
   expect(await snapshotAt(app, id, 4)).toMatchObject({ pcKnown: { facts: ["The gate is broken", "Bees sing"], npcs: ["Mara"] } });
+  // Mara is left as she was, not given the second add's looks, which the next prompt would show.
+  await app.post(`/saves/${id}/turns`, { input: "Three." });
+  expect(JSON.stringify(prompts[2])).toContain("grey coat");
+  expect(JSON.stringify(prompts[2])).not.toContain("a stranger");
 });
 
 test("a Narrator can update an NPC, and the next Turn's prompt carries the state", async () => {
@@ -1085,7 +1090,7 @@ test("the rolling summary reaches later prompts, and Revert restores the right o
   expect(contents(prompts[3]).join()).not.toContain("second-summary");
 });
 
-test("the Narrator can add Lore Entries and Plot Threads during play", async () => {
+test("the Narrator can add Lore Entries during play, but a Plot Thread is World Moves On's and dropped", async () => {
   const { app, prompts } = play(
     narration(
       "A ferry horn sounds.",
@@ -1100,7 +1105,7 @@ test("the Narrator can add Lore Entries and Plot Threads during play", async () 
   await app.post(`/saves/${id}/turns`, { input: "I wait." });
 
   expect(contents(prompts[1]).join()).toContain("new-lore-content");
-  expect(contents(prompts[1]).join()).toContain("new-thread-content");
+  expect(contents(prompts[1]).join()).not.toContain("new-thread-content");
 });
 
 test("a Lore Entry added by the Narrator needs a title, keywords and content", async () => {
@@ -1259,19 +1264,14 @@ test("no player-facing response reveals the World Bible or Plot Threads", async 
   const lore = "MARKER-LORE-ENTRY";
   const thread = "MARKER-PLOT-THREAD";
   const { app, prompts } = play(
-    narration(
-      "A horn sounds.",
-      { op: "add_lore_entry", title: lore, keywords: ["MARKER-KEYWORD"], content: lore },
-      { op: "add_plot_thread", thread },
-      withSummary("MARKER-SUMMARY"),
-    ),
+    narration("A horn sounds.", { op: "add_lore_entry", title: lore, keywords: ["MARKER-KEYWORD"], content: lore }, withSummary("MARKER-SUMMARY")),
     "not json",
     "not json",
     "not json",
     new Error("offline"),
   );
   const id = await app.createSave();
-  seed(id, { worldRules: ["MARKER-WORLD-RULE"] });
+  seed(id, { worldRules: ["MARKER-WORLD-RULE"], plotThreads: [thread] });
 
   const bodies = [
     await app.post(`/saves/${id}/turns`, { input: "I listen." }).then((r) => r.text()),
@@ -1333,11 +1333,7 @@ test("a merged NPC is gone from the Journal and the next prompt, and a Revert br
 
 test("a Lore Entry and a Plot Thread the Narrator corrects go forward corrected, and a Revert undoes it", async () => {
   const { app, prompts } = play(
-    narration(
-      "A horn.",
-      { op: "add_lore_entry", title: "Ferrymen", keywords: ["ferry"], content: "old-lore" },
-      { op: "add_plot_thread", thread: "old-thread" },
-    ),
+    narration("A horn.", { op: "add_lore_entry", title: "Ferrymen", keywords: ["ferry"], content: "old-lore" }),
     narration(
       "It stops.",
       { op: "update_lore_entry", title: "Ferrymen", keywords: ["ferry"], content: "new-lore" },
@@ -1347,6 +1343,7 @@ test("a Lore Entry and a Plot Thread the Narrator corrects go forward corrected,
     narration("A horn again."),
   );
   const id = await app.createSave();
+  seed(id, { plotThreads: ["old-thread"] });
   const board = () => app.post(`/saves/${id}/turns`, { input: "I board the ferry." });
 
   await board();
@@ -1360,7 +1357,8 @@ test("a Lore Entry and a Plot Thread the Narrator corrects go forward corrected,
   expect(contents(prompts[2]).join()).not.toContain("old-thread");
 
   const { messages } = (await app.get(`/saves/${id}/messages`).then((r) => r.json())) as { messages: { id: number }[] };
-  await app.post(`/saves/${id}/messages/${messages[1]!.id}/revert`, {});
+  // After the seeded pair, the first boarding's reply.
+  await app.post(`/saves/${id}/messages/${messages[3]!.id}/revert`, {});
   await board();
   expect(contents(prompts[3]).join()).toContain("old-lore");
   expect(contents(prompts[3]).join()).toContain("old-thread");
@@ -1369,13 +1367,14 @@ test("a Lore Entry and a Plot Thread the Narrator corrects go forward corrected,
 test("a resolved Plot Thread leaves later prompts, and only one that exists can be resolved", async () => {
   const unknown = narration("Done.", { op: "resolve_plot_thread", thread: "unknown-thread" });
   const { app, prompts } = play(
-    narration("A rumour.", { op: "add_plot_thread", thread: "the-missing-heir" }),
+    narration("A rumour."),
     narration("Found.", { op: "resolve_plot_thread", thread: "the-missing-heir" }),
     unknown,
     unknown,
     unknown,
   );
   const id = await app.createSave();
+  seed(id, { plotThreads: ["the-missing-heir"] });
 
   await app.post(`/saves/${id}/turns`, { input: "I ask around." });
   await app.post(`/saves/${id}/turns`, { input: "I find them." });
@@ -1545,7 +1544,6 @@ test("the Journal never reveals secrets or Checks", async () => {
     narration(
       "A horn sounds.",
       { op: "add_lore_entry", title: "MARKER-LORE-TITLE", keywords: ["MARKER-KEYWORD"], content: "MARKER-LORE-TEXT" },
-      { op: "add_plot_thread", thread: "MARKER-PLOT-THREAD" },
       { op: "add_npc", name: "MARKER-UNKNOWN-NPC", appearance: "MARKER-UNKNOWN-APPEARANCE" },
       { op: "add_npc", name: "Mara", appearance: "MARKER-KNOWN-APPEARANCE" },
       { op: "add_known_npc", name: "Mara" },
@@ -1554,7 +1552,7 @@ test("the Journal never reveals secrets or Checks", async () => {
     ),
   );
   const id = await app.createSave();
-  seed(id, { worldRules: ["MARKER-WORLD-RULE"], directorsNotes: ["MARKER-DIRECTORS-NOTE"] });
+  seed(id, { worldRules: ["MARKER-WORLD-RULE"], directorsNotes: ["MARKER-DIRECTORS-NOTE"], plotThreads: ["MARKER-PLOT-THREAD"] });
 
   await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
 
@@ -1700,7 +1698,6 @@ test("inventory and status never reveal secrets or Checks", async () => {
     narration(
       "A horn sounds.",
       { op: "add_lore_entry", title: "MARKER-LORE-TITLE", keywords: ["MARKER-KEYWORD"], content: "MARKER-LORE-TEXT" },
-      { op: "add_plot_thread", thread: "MARKER-PLOT-THREAD" },
       { op: "add_npc", name: "MARKER-NPC", appearance: "MARKER-APPEARANCE" },
       { op: "add_known_fact", fact: "MARKER-FACT" },
       withSummary("MARKER-SUMMARY"),
@@ -1709,7 +1706,7 @@ test("inventory and status never reveal secrets or Checks", async () => {
     ),
   );
   const id = await app.createSave();
-  seed(id, { worldRules: ["MARKER-WORLD-RULE"], directorsNotes: ["MARKER-DIRECTORS-NOTE"] });
+  seed(id, { worldRules: ["MARKER-WORLD-RULE"], directorsNotes: ["MARKER-DIRECTORS-NOTE"], plotThreads: ["MARKER-PLOT-THREAD"] });
 
   await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
 

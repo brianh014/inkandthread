@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
+import { saveStore } from "../src/save-store";
 import { narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -92,12 +93,15 @@ test("the last word before the player's action keeps the PC's choices theirs and
 });
 
 test("Plot Threads come forward at the Narrator's choice of a pause, by a rule in the cached start, never by the clock", async () => {
-  play(...Array(9).fill(narration("Rain.", { op: "add_plot_thread", thread: "THREAD-ONE" })));
+  play(...Array(9).fill(narration("Rain.")));
   const id = await app.createSave();
+  const saves = saveStore(join(folder.path, "Saves"));
+  saves.commitTurn(id, saves.latestMessageId(id), "I look around.", "Rain falls.", undefined, (state) => ({ ...state, plotThreads: ["THREAD-ONE"] }));
 
   for (let turn = 0; turn < 9; turn++) await playTurn(id);
 
   expect(prompts.at(-1)![0]!.content).toContain("At a natural pause in the story");
+  expect(JSON.stringify(prompts.at(-1))).toContain("THREAD-ONE");
   expect(lastSystem()).not.toContain("THREAD-ONE");
 });
 

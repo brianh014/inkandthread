@@ -99,13 +99,20 @@ export class TurnFailed extends Error {
 }
 
 // set_summary was offered once, and a model that still sends it, such as one with no schema mode, only repeats the summary field.
+// A Turn no longer adds a Plot Thread, which is World Moves On's: Turns added threads that restated what the PC knew or were
+// the PC's own goals. A model that still sends one has it dropped, not the reply.
+const RETIRED = ["set_summary", "add_plot_thread"];
 const withoutRetired = (operations: unknown) =>
-  Array.isArray(operations) ? operations.filter((operation) => (operation as { op?: unknown })?.op !== "set_summary") : operations;
+  Array.isArray(operations) ? operations.filter((operation) => !RETIRED.includes((operation as { op?: string })?.op ?? "")) : operations;
+const TurnOperation = z.discriminatedUnion(
+  "op",
+  StateOperation.options.filter(({ shape }) => !RETIRED.includes(shape.op.value)) as unknown as typeof StateOperation.options,
+);
 
 const FinishedTurn = z.object({
   // Whether it has words is checked once it's parsed, so a Check's result without any is told as declined.
   narration: z.string().trim().min(1),
-  state_operations: z.preprocess(withoutRetired, z.array(StateOperation).default([])),
+  state_operations: z.preprocess(withoutRetired, z.array(TurnOperation).default([])),
   people: z.array(Person).catch([]),
   summary: z.string().catch(""),
   recent_summary: z.string().nullish().catch(""),
@@ -157,7 +164,7 @@ const ResponseShape = z.object({
       ),
   }),
   narration: z.string().nullable(),
-  state_operations: z.array(StateOperation),
+  state_operations: z.array(TurnOperation),
   // Described here for the same reason as chapter_ends: speakers kept going missing from it.
   people: z
     .array(Person)

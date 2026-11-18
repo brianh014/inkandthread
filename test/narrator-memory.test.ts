@@ -377,11 +377,12 @@ test("a Save holding more Plot Threads than the limit sends only the first ones"
   expect(prompt).not.toContain(`THREAD-${MAX_PLOT_THREADS}.`);
 });
 
-test("the Narrator is told beside the Plot Threads when they're full, and only then", () => {
-  const full = "Plot Threads (8 of 8 open, so resolve or rewrite one before adding another):";
+test("the Turn is never asked to add a Plot Thread, which is World Moves On's", () => {
+  const prompt = promptFor({ plotThreads: Array.from({ length: MAX_PLOT_THREADS }, (_, i) => `T${i}.`) });
 
-  expect(promptFor({ plotThreads: Array.from({ length: MAX_PLOT_THREADS }, (_, i) => `T${i}.`) })).toContain(full);
-  expect(promptFor({ plotThreads: ["T."] })).toContain('Plot Threads: ["T."]');
+  expect(prompt).not.toContain("before adding another");
+  expect(prompt).not.toContain("to start another");
+  expect(prompt).not.toContain("add_plot_thread");
 });
 
 test("the Narrator is told to keep its records true to play", () => {

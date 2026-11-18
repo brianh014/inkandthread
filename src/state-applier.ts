@@ -413,8 +413,10 @@ const isRepeat = ({ pcKnown, looseEnds }: State, operation: StateOperation) =>
 
 // None of these contradict the narration, so they aren't worth a whole response. Someone nameless is added once they're named.
 const IGNORABLE: StateOperation["op"][] = ["resolve_loose_end", "add_known_npc", "set_known_npc_summary", "set_story_time", "npc_learns"];
-// A full list of Plot Threads is the Narrator's to tidy later, not worth a whole response.
-const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }) => IGNORABLE.includes(op) || reason === "already there" || reason === "full";
+// A full list of Plot Threads is the Narrator's to tidy later, not worth a whole response. Adding someone already there leaves
+// them as they are, as the reply's people already match them by name; refusing it lost whole Turns.
+const HARMLESS = ["already there", "full", "already an NPC"];
+const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }) => IGNORABLE.includes(op) || HARMLESS.includes(reason);
 
 /** Applies operations in order, so each is judged against the ones before it, except that a Plot Thread change refused as full is tried once more at the end. */
 export function applyOperations(state: State, operations: StateOperation[]) {

@@ -10,7 +10,7 @@ import { estimateTokens } from "./lore-activation";
 import { OnlineImageProvider, reviewerSettings, type SettingsChange, SettingsUpdate } from "./settings-store";
 import { textHosts, textModels } from "./text-provider";
 import { ContentRefused, TextProviderFailed } from "./turn-engine";
-import { storyName, UNREADABLE_SAVE } from "./web/api";
+import { GOOGLE_URL, NANOGPT_URL, OPENROUTER_URL, storyName, UNREADABLE_SAVE } from "./web/api";
 
 // Only the online providers have a list. ComfyUI's models come from /settings/comfy-models.
 const ImageModelsQuery = z.object({ provider: OnlineImageProvider });
@@ -22,6 +22,11 @@ const unkeyed = <T extends object>(profiles: Record<string, T>, key: keyof T) =>
   Object.fromEntries(Object.entries(profiles).map(([at, { [key]: _key, ...rest }]) => [at, rest])) as Record<string, Omit<T, typeof key>>;
 
 /** Settings and their tests. `local` is the ComfyUI adapter, and `workflow` how its last job went, which only the screen shows. */
+// The image providers that also serve the Narrator, by its address, whose one key does both.
+const SAME_SERVICE = { openrouter: OPENROUTER_URL, google: GOOGLE_URL, nanogpt: NANOGPT_URL };
+// Setup's save can ask for the Narrator's key to draw with too.
+const SettingsSave = SettingsUpdate.extend({ imageKeyFromText: z.boolean().optional() });
+
 export function settingsRoutes({ options, images, saves }: ServerContext, local: ImageAdapter, workflow: { problem: string }) {
   const { settings } = options;
   // An allowlist, so the API key can never reach a response.
@@ -161,8 +166,15 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
     "/settings": {
       GET: () => Response.json(publicSettings()),
       PATCH: async (req) => {
-        const change = await parseBody(req, SettingsUpdate);
+        const { imageKeyFromText, ...change } = await parseBody(req, SettingsSave);
         const current = settings.read();
+        if (imageKeyFromText) {
+          // Copied here, as the page never holds a stored key, and only to the image side of the same service it was entered for.
+          const url = SAME_SERVICE[(change.imageProvider ?? current.imageProvider) as keyof typeof SAME_SERVICE];
+          const key = url && current.textProfiles[url]?.textApiKey;
+          if (!key) return Response.json({ error: "The Narrator has no saved key for this image provider." }, { status: 422 });
+          change.imageApiKey = key;
+        }
         const next = { ...current, ...change };
         // Only a workflow in use, as Settings hides the box otherwise, and the player couldn't see what to fix.
         if (next.imageProvider === "local" && next.comfyMode === "advanced") parseWorkflow(next.comfyWorkflow);

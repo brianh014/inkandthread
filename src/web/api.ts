@@ -159,7 +159,8 @@ export const stillHere = () => void fetch("/alive", { method: "POST" }).catch(()
 /** Fired with the saved Settings, so what is already on screen can follow a change, such as a new image family. */
 export const SETTINGS_SAVED = "novelforge-settings-saved";
 
-export const saveSettings = async (change: SettingsChange) => {
+/** `imageKeyFromText` draws with the Narrator's saved key, on the same service. */
+export const saveSettings = async (change: SettingsChange & { imageKeyFromText?: boolean }) => {
   const saved = await request<Settings>("/settings", { ...jsonBody(change), method: "PATCH" });
   globalThis.dispatchEvent?.(new CustomEvent(SETTINGS_SAVED, { detail: saved }));
   return saved;

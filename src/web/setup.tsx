@@ -123,8 +123,8 @@ function Steps({ initial }: { initial: Settings }) {
   const [reviewKey, setReviewKey] = useState("");
   const [consistencyKey, setConsistencyKey] = useState("");
   const [imageKey, setImageKey] = useState("");
-  // The text key typed on this run, so OpenRouter's pictures can use it too.
-  const [typedTextKey, setTypedTextKey] = useState("");
+  // Unset follows whether this provider already has its own image key.
+  const [useTextKey, setUseTextKey] = useState<boolean>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const set = (change: Partial<Settings>) => setDraft({ ...draft, ...change });
@@ -160,19 +160,20 @@ function Steps({ initial }: { initial: Settings }) {
   }, [draft.imageProvider, saved]);
 
   const keyNeeded = !local && !textKey.trim() && !saved.textKeysFor.includes(draft.textBaseUrl);
-  const copiesTextKey =
-    draft.imageProvider === "openrouter" && textChoice === "openrouter" && !!typedTextKey && !saved.imageKeysFor.includes("openrouter") && !imageKey.trim();
+  // One key does both when the pictures come from the Narrator's own service, and it has a key saved.
+  const sharesKey = textChoiceOf(saved.textBaseUrl) === draft.imageProvider && saved.textKeysFor.includes(saved.textBaseUrl);
+  const textKeyDraws = sharesKey && (useTextKey ?? !saved.imageKeysFor.includes(draft.imageProvider));
   const pictures = !draft.imagesEnabled ? "none" : draft.imageProvider === "local" ? "comfy" : "online";
 
-  const keys = (): SettingsChange => {
+  const keys = (): SettingsChange & { imageKeyFromText?: boolean } => {
     if (here === PROVIDER) return textKey.trim() ? { textApiKey: textKey.trim() } : {};
     if (here === REVIEW && draft.reviewOtherModel && !draft.reviewSameProvider && reviewKey.trim()) return { reviewApiKey: reviewKey.trim() };
     if (here === CONSISTENCY && draft.consistencyEnabled && (!draft.consistencySameProvider || !offersDecisions(draft.textBaseUrl)) && consistencyKey.trim())
       return { consistencyApiKey: consistencyKey.trim() };
     if (here === PICTURES && pictures === "online") {
-      // Still saved as the image key, so changing one later leaves the other.
-      const key = imageKey.trim() || (copiesTextKey ? typedTextKey : "");
-      if (key) return { imageApiKey: key };
+      // Copied by the server as the image key, so changing one later leaves the other.
+      if (textKeyDraws) return { imageKeyFromText: true };
+      if (imageKey.trim()) return { imageApiKey: imageKey.trim() };
     }
     return {};
   };
@@ -182,7 +183,6 @@ function Steps({ initial }: { initial: Settings }) {
     if (!fields) return;
     const change = Object.fromEntries(Object.entries(draft).filter(([name]) => fields.test(name) && !/(KeysFor|Profiles)$/.test(name)));
     const next = await saveSettings({ ...change, ...keys() });
-    if (here === PROVIDER && textKey.trim()) setTypedTextKey(textKey.trim());
     setSaved(next);
     setDraft(next);
     setTextKey("");
@@ -414,22 +414,24 @@ function Steps({ initial }: { initial: Settings }) {
               }
             </p>
             <ProviderLinks provider={draft.imageProvider} />
-            <label>
-              Image API key
-              <input
-                type="password"
-                autoComplete="new-password"
-                placeholder={
-                  saved.imageKeysFor.includes(draft.imageProvider)
-                    ? "Saved. Type a new key to replace it."
-                    : copiesTextKey
-                      ? "Your OpenRouter text key. Type another to use that instead."
-                      : "None saved"
-                }
-                value={imageKey}
-                onChange={(e) => setImageKey(e.target.value)}
-              />
-            </label>
+            {sharesKey && (
+              <label className="toggle">
+                <input type="checkbox" checked={textKeyDraws} onChange={(e) => setUseTextKey(e.target.checked)} />
+                Use the Narrator's key
+              </label>
+            )}
+            {!textKeyDraws && (
+              <label>
+                Image API key
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder={saved.imageKeysFor.includes(draft.imageProvider) ? "Saved. Type a new key to replace it." : "None saved"}
+                  value={imageKey}
+                  onChange={(e) => setImageKey(e.target.value)}
+                />
+              </label>
+            )}
             <ModelField
               key={draft.imageProvider}
               label="Image model"

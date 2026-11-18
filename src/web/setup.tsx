@@ -241,6 +241,11 @@ function Steps({ initial }: { initial: Settings }) {
     [PROVIDER]: (
       <>
         <p>Where the Narrator, the AI that writes your story, comes from.</p>
+        <p className="muted">
+          Providers come in three kinds. A gateway such as OpenRouter or NanoGPT reaches models from many makers with one key, so you can try several. A maker's
+          own service, such as Google AI Studio, offers only its own family of models. And Local / OpenAI server reaches an AI on your own computer, or any
+          other service that speaks the common OpenAI-compatible standard.
+        </p>
         <Picker
           label="Text provider"
           value={textChoice}

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { settingsStore } from "../src/settings-store";
 import { introduce } from "../src/state-applier";
 import { textProvider } from "../src/text-provider";
-import { spokenLineFault } from "../src/turn-engine";
+import { speechOutsideLines, spokenLineFault } from "../src/turn-engine";
 import { delta, fakeOpenAi, logOf, scriptedDice, startApp, tempFolder, turnEvents } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -1178,4 +1178,12 @@ test("a provider's error that repeats the prompt is held back from the log", asy
 
   expect(log).toContain("it repeats the prompt");
   expect(log).not.toContain("ZQX");
+});
+
+test("speech left in the prose is found, but never a speaker line, an apostrophe or a quoted word", () => {
+  expect(speechOutsideLines("'Guard take your iron, I heard,' she said.")).toBe(true);
+  expect(speechOutsideLines("He said “Go now” and left.")).toBe(true);
+  expect(speechOutsideLines("[Tamsin]: 'Thirty years.'")).toBe(false);
+  expect(speechOutsideLines("Wren's satchel was heavy. The camels' hooves rang.")).toBe(false);
+  expect(speechOutsideLines("She called it 'the old road' once.")).toBe(false);
 });

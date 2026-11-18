@@ -192,7 +192,7 @@ const ChoicesShape = ResponseShape.extend({
   choices: z
     .array(z.string())
     .describe(
-      "exactly three things the PC might say or do next, each one first-person sentence of at most 25 words, built only from what the PC knows, and each taking a clearly different approach, at least one of them moving the story on toward what comes next, such as setting out, acting on a plan or facing what waits. Never hint at risk, difficulty, dice or a Check",
+      "exactly three things the PC might say or do next, each one first-person sentence of at most 25 words, built only from what the PC knows, and each taking a clearly different approach, at least one of them moving the story on toward what comes next that the PC knows of, such as setting out, acting on a plan or facing what waits. Never hint at risk, difficulty, dice or a Check",
     ),
 });
 // Once a Check is rolled, or none can be, the schema itself forbids one and asks for the story, as the prompt's "Do not request another check" was ignored three times running.
@@ -643,12 +643,14 @@ async function narrate(
       if (edited === undefined && isJsonObject(narration)) throw new InvalidResponse(undefined, { cause: JSON_NARRATION });
       const unplaced = scene_changed && !state_operations.some(({ op }) => op === "set_scene") ? "a picture without set_scene" : undefined;
       const spoken = edited === undefined ? spokenLineFault(narration, pcName) : undefined;
+      // The opening sets the book's voice, which every reply copies, so speech it leaves in the prose is written again there alone.
+      const inline = edited === undefined && kind === "opening" && speechOutsideLines(narration) ? INLINE_SPEECH : undefined;
       const choices = playMode === "choices" ? usableChoices(response.choices) : undefined;
       const unchosen = playMode === "choices" && !choices ? NO_CHOICES : undefined;
       // A long speech is only logged, as rewriting it restarted too many Turns the player could see.
       const noted = edited === undefined && isNoteAboutTurn(narration) ? NOTE_ABOUT_TURN : undefined;
       const fault =
-        attempt < MAX_ATTEMPTS ? (noted ?? (upkeep ? undefined : unplaced) ?? (spoken === LONG_SPEECH ? undefined : spoken) ?? unchosen) : undefined;
+        attempt < MAX_ATTEMPTS ? (noted ?? (upkeep ? undefined : unplaced) ?? (spoken === LONG_SPEECH ? undefined : spoken) ?? inline ?? unchosen) : undefined;
       unplacedBefore = fault === unplaced && !!unplaced;
       if (fault) throw new InvalidResponse(undefined, { cause: fault });
       if (spoken === LONG_SPEECH) log.warning("turn", "Long speech kept", { attempt, generation });
@@ -789,6 +791,14 @@ export function spokenLineFault(narration: string, pcName: string) {
   return [...lines.values()].some((count) => count > 2) ? LONG_SPEECH : undefined;
 }
 const LONG_SPEECH = "someone speaks more than twice";
+const INLINE_SPEECH = "speech in the prose, not on a speaker line";
+
+/** Whether a line of prose, not a [Name]: line, holds quoted speech, as in 'Come here,' she said. An apostrophe isn't a quote. */
+export const speechOutsideLines = (narration: string) =>
+  narration
+    .split("\n")
+    .map((line) => line.trim())
+    .some((line) => !line.startsWith("[") && /(^|[\s(—-])(“[^”]{3,}”|"[^"]{3,}"|['‘]\p{Lu}[^'‘’]*[.,!?…—-]['’](?!\p{L}))/u.test(line));
 const TAG_WITHOUT_BRACKET = "a speaker tag without its [";
 const PC_LINE = "a spoken line for the PC";
 
@@ -809,6 +819,7 @@ function whyInvalid({ cause }: InvalidResponse) {
 function playerReason({ cause }: InvalidResponse) {
   if (cause === TAG_WITHOUT_BRACKET) return "A spoken line in the last reply was missing its speaker";
   if (cause === PC_LINE) return "The last reply spoke for your character";
+  if (cause === INLINE_SPEECH) return "The story's opening didn't set out who says what";
   if (cause === "a picture without set_scene") return "The last reply moved to a new scene without saying where";
   if (cause === NO_CHOICES) return "The last reply offered no choices";
   if (cause === DECLINED) return "The last reply wasn't a story, which can mean the AI's content rules block this";

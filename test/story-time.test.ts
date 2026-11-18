@@ -109,5 +109,7 @@ test("people are asked to stay true to what they said they intend, time included
   const text = prompt(DUSK, true);
 
   expect(text).toContain("People stay true to what they have said they intend, such as how long they can stay");
-  expect(text).toContain("Record an intention that will matter later with add_known_fact");
+  expect(text).toContain(
+    "Record an intention that will matter later, and what the PC is told of where someone out of sight is and what they are doing, with add_known_fact",
+  );
 });

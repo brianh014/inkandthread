@@ -39,9 +39,9 @@ export type Name = keyof typeof QUESTIONS;
 // scripts/consistency-cases when players use it. Exported only so a test can set one as if tuned.
 export const CUT_OFFS: Record<string, Record<Name, number>> = { "liquid/d1.2": { time: 0.6, continuity: 0.2, description: 0.3, past: 0.2 } };
 // A fix that asks again can take 45 s, holding back the choices; past this the reply is kept as the Narrator wrote it.
-// 12 s, as 8 s cut off fixes that were still working.
+// 15 s, as 8 s cut off fixes that were still working, and 12 s cut off a reviewer at Low a third of the time on a slow provider.
 // Exported only so a test can shorten it.
-export const FIX_LIMIT = { ms: 12_000 };
+export const FIX_LIMIT = { ms: 15_000 };
 export const cutOffs = (model: string) => CUT_OFFS[model] ?? CUT_OFFS["liquid/d1.2"]!;
 
 /** The Consistency model, and the reviewer that fixes a reply it flags. `enabled` is read for each reply, so Settings apply at once. */

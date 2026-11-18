@@ -7,8 +7,11 @@ export type ChartResult = {
   setup?: "narrator" | "full";
   rounds: number;
   mode?: string;
+  world?: string;
+  drawn?: boolean;
   provider: string;
-  models: { narrator: string; reviewer: string; consistency: string };
+  thinking: string;
+  models: { narrator: string; reviewer: string; reviewThinking: string; consistency: string };
   judge: { plays: { scores: Record<string, { score: number }> }[] } | null;
   plays: Record<string, number>[];
 };
@@ -16,6 +19,8 @@ export type ChartResult = {
 export type Point = {
   setup: "narrator" | "full";
   label: string;
+  /** The full model ids, provider and Thinking, which tell apart setups whose short labels match. */
+  detail: string;
   /** Judged overall score, the mean over every play, and its lowest and highest play. */
   score: number;
   low: number;
@@ -32,20 +37,25 @@ const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.le
 const short = (model: string) => model.split("/").pop() || model;
 
 /**
- * One point per setup, from every judged result of `version` played in seeded Choices for `rounds`, as a longer story scores
- * differently; several runs of a setup pool their plays.
+ * One point per setup, from every judged result of `version` played on `world` in seeded Choices for `rounds`, with the pictures
+ * drawn, so only like runs compare; several runs of a setup pool their plays.
  */
-export function points(results: ChartResult[], version: number, rounds: number): Point[] {
+export function points(results: ChartResult[], version: number, rounds: number, world = "world.json"): Point[] {
   const groups = new Map<
     string,
-    { setup: Point["setup"]; label: string; runs: number; plays: { score: number; cost: number; turnMs: number; firstMs: number }[] }
+    { setup: Point["setup"]; label: string; detail: string; runs: number; plays: { score: number; cost: number; turnMs: number; firstMs: number }[] }
   >();
   for (const result of results) {
-    if (result.version !== version || result.rounds !== rounds || (result.mode ?? "choices") !== "choices" || !result.setup || !result.judge) continue;
-    const { narrator, reviewer, consistency } = result.models;
+    const like = result.version === version && result.rounds === rounds && (result.mode ?? "choices") === "choices" && (result.world ?? "world.json") === world;
+    if (!like || !result.drawn || !result.setup || !result.judge) continue;
+    const { narrator, reviewer, reviewThinking, consistency } = result.models;
     const label = result.setup === "narrator" ? short(narrator) : [narrator, reviewer, consistency].map(short).join(" · ");
-    const key = `${result.setup}|${result.provider}|${label}`;
-    const group = groups.get(key) ?? { setup: result.setup, label, runs: 0, plays: [] };
+    const detail =
+      result.setup === "narrator"
+        ? `${result.provider} ${narrator}, Thinking ${result.thinking}`
+        : `${result.provider} ${narrator}, Thinking ${result.thinking}; reviewer ${reviewer}, Thinking ${reviewThinking}; decisions ${consistency}`;
+    const key = `${result.setup}|${detail}`;
+    const group = groups.get(key) ?? { setup: result.setup, label, detail, runs: 0, plays: [] };
     group.runs++;
     result.plays.forEach((flat, at) => {
       const scores = Object.values(result.judge!.plays[at]?.scores ?? {}).map(({ score }) => score);
@@ -61,9 +71,10 @@ export function points(results: ChartResult[], version: number, rounds: number):
   }
   return [...groups.values()]
     .filter(({ plays }) => plays.length)
-    .map(({ setup, label, runs, plays }) => ({
+    .map(({ setup, label, detail, runs, plays }) => ({
       setup,
       label,
+      detail,
       score: mean(plays.map((p) => p.score)),
       low: Math.min(...plays.map((p) => p.score)),
       high: Math.max(...plays.map((p) => p.score)),
@@ -119,8 +130,12 @@ function mix(pair: string[], t: number) {
     .join("")}`;
 }
 
-function chart(title: string, all: Point[], speed: [number, number]) {
-  if (!all.length) return `<section><h2>${title}</h2><p class="empty">No judged, kept runs of this setup yet.</p></section>`;
+function chart(title: string, found: Point[], speed: [number, number]) {
+  // A log scale can't place a cost of 0, as on a local model or a provider whose prices the bench can't look up.
+  const all = found.filter((p) => p.cost > 0);
+  const free = found.filter((p) => p.cost <= 0);
+  const note = free.length ? `<p>No cost recorded, so not drawn: ${free.map((p) => html(p.detail)).join("; ")}.</p>` : "";
+  if (!all.length) return `<section><h2>${title}</h2><p class="empty">No judged, kept runs of this setup yet.</p>${note}</section>`;
   const costs = all.map((p) => p.cost);
   const x0 = Math.min(...costs) / 1.6;
   const x1 = Math.max(...costs) * 1.6;
@@ -149,7 +164,7 @@ function chart(title: string, all: Point[], speed: [number, number]) {
   const dots = all.map((p) => {
     const cx = x(p.cost);
     const cy = y(p.score);
-    const tip = `${p.label}\nScore ${p.score.toFixed(2)} (plays ${p.low.toFixed(1)} to ${p.high.toFixed(1)})\n${dollars(p.cost)} a Turn\nTurn ${seconds(p.turnMs)}, first text ${seconds(p.firstMs)}\n${p.runs} run(s), ${p.plays} play(s)`;
+    const tip = `${p.detail}\nScore ${p.score.toFixed(2)} (plays ${p.low.toFixed(1)} to ${p.high.toFixed(1)})\n${dollars(p.cost)} a Turn\nTurn ${seconds(p.turnMs)}, first text ${seconds(p.firstMs)}\n${p.runs} run(s), ${p.plays} play(s)`;
     const ring = bestOnAllThree(p, all) ? `<circle class="best" cx="${cx}" cy="${cy}" r="11"/>` : "";
     const anchor = cx > W - 200 ? "end" : "start";
     return `<g><title>${html(tip)}</title><line class="range" x1="${cx}" x2="${cx}" y1="${y(p.low)}" y2="${y(p.high)}"/>${ring}<circle class="dot" style="--c:${mix(LIGHT, t(p.turnMs))};--cd:${mix(DARK, t(p.turnMs))}" cx="${cx}" cy="${cy}" r="7"/><circle class="hit" cx="${cx}" cy="${cy}" r="14"/><text class="label" x="${cx + (anchor === "end" ? -16 : 16)}" y="${cy + 4}" text-anchor="${anchor}">${html(p.label)}</text></g>`;
@@ -158,7 +173,7 @@ function chart(title: string, all: Point[], speed: [number, number]) {
     .toSorted((a, b) => b.score - a.score)
     .map(
       (p) =>
-        `<tr><td>${html(p.label)}</td><td>${p.score.toFixed(2)}</td><td>${p.low.toFixed(1)} to ${p.high.toFixed(1)}</td><td>${dollars(p.cost)}</td><td>${seconds(p.turnMs)}</td><td>${p.runs}</td><td>${bestOnAllThree(p, all) ? "yes" : ""}</td></tr>`,
+        `<tr><td>${html(p.detail)}</td><td>${p.score.toFixed(2)}</td><td>${p.low.toFixed(1)} to ${p.high.toFixed(1)}</td><td>${dollars(p.cost)}</td><td>${seconds(p.turnMs)}</td><td>${p.runs}</td><td>${bestOnAllThree(p, all) ? "yes" : ""}</td></tr>`,
     );
   return `<section><h2>${title}</h2>
 <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${html(title)}: judged score against cost per Turn">
@@ -169,11 +184,11 @@ ${line}
 ${dots.join("\n")}
 </svg>
 <details><summary>Table</summary><table><thead><tr><th>Setup</th><th>Score</th><th>Plays</th><th>Cost a Turn</th><th>Turn time</th><th>Runs</th><th>Best on all three</th></tr></thead><tbody>${rows.join("")}</tbody></table></details>
-</section>`;
+${note}</section>`;
 }
 
-export function chartPage(all: Point[], version: number, rounds: number, date = new Date().toISOString().slice(0, 10)) {
-  const times = all.map((p) => p.turnMs);
+export function chartPage(all: Point[], version: number, rounds: number, world = "world.json", date = new Date().toISOString().slice(0, 10)) {
+  const times = all.filter((p) => p.cost > 0).map((p) => p.turnMs);
   const speed: [number, number] = times.length ? [Math.min(...times), Math.max(...times)] : [0, 0];
   const gradient = (pair: string[]) => `linear-gradient(to right, ${pair[0]}, ${pair[1]})`;
   return `<!doctype html>
@@ -202,7 +217,7 @@ table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px
 summary { cursor: pointer; color: var(--ink-2); } .empty { font-style: italic; }
 </style></head><body>
 <h1>NovelForge bench</h1>
-<p>Bench version ${version}, kept and judged runs of ${rounds} rounds, charted ${date}. Higher is better, further left is cheaper. Hover a dot for its numbers.</p>
+<p>Bench version ${version}, kept and judged runs of ${rounds} rounds on ${html(world)} with pictures drawn, charted ${date}. Higher is better, further left is cheaper. Hover a dot for its numbers.</p>
 <div class="key">
 <span>Turn time ${times.length ? seconds(speed[0]) : ""}<span class="ramp"></span>${times.length ? seconds(speed[1]) : ""}</span>
 <span><span class="ring"></span>No setup beats it on score, cost and speed</span>

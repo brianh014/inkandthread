@@ -10,7 +10,8 @@
 //   bun bench judge <run folder> --by <model> --scores <scores.json>   (scores for a --judge self run, one entry per play)
 //   bun bench keep <run folder>        copies the run's numbers, never its story, to bench/results to commit
 //   bun bench table [--csv]            every kept and recent run, side by side
-//   bun bench chart [--version N] [--rounds N]   the kept, judged Choices runs of one bench version and length (30) as charts, to bench/charts/bench-chart.html
+//   bun bench chart [--version N] [--rounds N] [--world <file>]   the kept, judged, drawn Choices runs of one bench version, length
+//                                      (30) and world as charts, to bench/charts/bench-chart.html
 // To bench a setup without editing the Settings copy: --narrator <model>, --narrator-only (no other reviewer, Consistency off),
 // --reviewer <model> and --decisions <model>. The copy's pinned provider stays, so a model it doesn't offer fails, never reroutes.
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -787,7 +788,13 @@ async function run() {
   if (flag("--narrator-only")) settings.update({ reviewOtherModel: false, consistencyEnabled: false });
   if (chosen.reviewer) settings.update({ reviewOtherModel: true, reviewModel: chosen.reviewer });
   if (chosen.decisions) settings.update({ consistencyEnabled: true, consistencyModel: chosen.decisions });
-  if (fake) settings.update({ textBaseUrl: "http://127.0.0.1:9/v1", textModel: "fake-narrator", consistencyEnabled: true, consistencyModel: "fake-decisions" });
+  if (fake)
+    settings.update({
+      textBaseUrl: "http://127.0.0.1:9/v1",
+      textModel: "fake-narrator",
+      consistencyEnabled: !flag("--narrator-only"),
+      consistencyModel: "fake-decisions",
+    });
   const all = settings.read();
   const reviewer = reviewerSettings(settings).read();
   const provider = fake ? "fake" : providerOf(all.textBaseUrl);
@@ -972,16 +979,18 @@ function chart() {
   const version = option("--version") ? count("--version") : BENCH_VERSION;
   const kept = allResults().filter(({ path }) => path.startsWith(RESULTS));
   const rounds = option("--rounds") ? count("--rounds") : CHART_ROUNDS;
+  const world = basename(worldFile);
   const found = points(
     kept.map(({ result }) => result),
     version,
     rounds,
+    world,
   );
   const folder = join(BENCH, "charts");
   mkdirSync(folder, { recursive: true });
   const target = join(folder, "bench-chart.html");
-  writeFileSync(target, chartPage(found, version, rounds));
-  console.log(`${found.length} setup(s) of bench version ${version}, ${rounds} rounds, charted in ${relative(process.cwd(), target)}.`);
+  writeFileSync(target, chartPage(found, version, rounds, world));
+  console.log(`${found.length} setup(s) of bench version ${version}, ${rounds} rounds on ${world}, charted in ${relative(process.cwd(), target)}.`);
 }
 
 const command = args[0];

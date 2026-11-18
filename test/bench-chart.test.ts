@@ -5,14 +5,16 @@ const run = (narrator: string, scores: number[], cost: number, extra: Partial<Ch
   version: 1,
   setup: "narrator",
   rounds: 30,
+  drawn: true,
   provider: "openrouter",
-  models: { narrator, reviewer: narrator, consistency: "off" },
+  thinking: "medium",
+  models: { narrator, reviewer: narrator, reviewThinking: "same", consistency: "off" },
   judge: { plays: scores.map((score) => ({ scores: { a: { score }, b: { score } } })) },
   plays: scores.map(() => ({ "cost.total": cost * 10, turns: 10, "timing.turn.median": 30_000, "timing.firstText.median": 10_000 })),
   ...extra,
 });
 
-test("several runs of a setup pool their plays into one point; other versions, lengths, Free Text and unjudged runs left out", () => {
+test("several runs of a setup pool their plays into one point; unlike or unjudged runs are left out", () => {
   const found = points(
     [
       run("x/mimo", [6, 8], 0.01),
@@ -21,7 +23,9 @@ test("several runs of a setup pool their plays into one point; other versions, l
       run("x/mimo", [9], 0.01, { judge: null }),
       run("x/mimo", [9], 0.01, { rounds: 20 }),
       run("x/mimo", [9], 0.01, { mode: "free text: moves.txt" }),
-      run("x/mimo", [5], 0.05, { setup: "full", models: { narrator: "x/mimo", reviewer: "y/flash", consistency: "z/d1" } }),
+      run("x/mimo", [9], 0.01, { world: "adult.json" }),
+      run("x/mimo", [9], 0.01, { drawn: false }),
+      run("x/mimo", [5], 0.05, { setup: "full", models: { narrator: "x/mimo", reviewer: "y/flash", reviewThinking: "medium", consistency: "z/d1" } }),
     ],
     1,
     30,
@@ -33,9 +37,15 @@ test("several runs of a setup pool their plays into one point; other versions, l
   expect(found.find((p) => p.setup === "full")!.label).toBe("mimo · flash · d1");
 });
 
+test("the same short name from another vendor, or at another Thinking, is a setup of its own", () => {
+  const found = points([run("x/mimo", [6], 0.01), run("y/mimo", [7], 0.01), run("x/mimo", [8], 0.01, { thinking: "high" })], 1, 30);
+  expect(found).toHaveLength(3);
+});
+
 const point = (label: string, score: number, cost: number, turnMs = 30_000): Point => ({
   setup: "narrator",
   label,
+  detail: label,
   score,
   low: score,
   high: score,
@@ -62,4 +72,10 @@ test("the page escapes model names and says when a chart has no runs", () => {
   const page = chartPage([point("<b>", 7, 0.01)], 1, 30);
   expect(page).toContain("&lt;b&gt;");
   expect(page).toContain("No judged, kept runs");
+});
+
+test("a setup with no cost recorded is named under the chart, not drawn on the log scale", () => {
+  const page = chartPage([point("priced", 7, 0.01), point("local", 6, 0)], 1, 30);
+  expect(page).toContain("No cost recorded, so not drawn: local.");
+  expect(page).not.toContain("NaN");
 });

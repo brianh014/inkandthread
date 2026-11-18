@@ -1,0 +1,1021 @@
+{
+  "version": "0.5.0.12",
+  "setup": "full",
+  "date": "2026-11-18T07:06:30.952Z",
+  "label": "mimo-default",
+  "commit": "cdd09e5",
+  "provider": "openrouter",
+  "models": {
+    "narrator": "xiaomi/mimo-v2.6-pro",
+    "reviewer": "thinkingmachines/inkling-2-small",
+    "reviewThinking": "low",
+    "consistency": "liquid/d1.2-ultra"
+  },
+  "mode": "choices",
+  "world": "adventure.json",
+  "drawn": true,
+  "thinking": "medium",
+  "seed": 1,
+  "rounds": 30,
+  "runs": 2,
+  "estimate": 1.0081429800000001,
+  "summary": {
+    "rounds": 30,
+    "turns": 34.5,
+    "retries": 1.5,
+    "checks.asked": 9.5,
+    "upkeep.total": 18,
+    "consistency.fixed": 8,
+    "consistency.fix failed": 2.5,
+    "ops.add_item": 0.5,
+    "ops.remove_item": 0,
+    "ops.set_health": 0,
+    "ops.add_status": 0,
+    "ops.remove_status": 0,
+    "ops.add_npc": 1.5,
+    "ops.update_npc": 0,
+    "ops.merge_npc": 0,
+    "ops.npc_learns": 20,
+    "ops.set_scene": 3.5,
+    "ops.add_known_fact": 19.5,
+    "ops.update_known_fact": 1,
+    "ops.remove_known_fact": 0.5,
+    "ops.add_known_npc": 4.5,
+    "ops.set_known_npc_summary": 6.5,
+    "ops.add_loose_end": 11,
+    "ops.resolve_loose_end": 1.5,
+    "ops.add_lore_entry": 0,
+    "ops.update_lore_entry": 0,
+    "ops.remove_lore_entry": 0,
+    "ops.add_plot_thread": 0,
+    "ops.update_plot_thread": 0,
+    "ops.resolve_plot_thread": 0,
+    "ops.set_pc_appearance": 0,
+    "ops.set_era": 1,
+    "ops.set_story_time": 1,
+    "turns.opening": 1,
+    "upkeep.refused": 0,
+    "consistency.passed": 17.5,
+    "turns.turn": 30.5,
+    "consistency.not a slip": 5.5,
+    "turns.rewrite": 1,
+    "checks.failure": 2,
+    "checks.success": 7.5,
+    "turns.regenerate": 1,
+    "upkeep.set_scene": 9,
+    "upkeep.update_known_fact": 4.5,
+    "turns.edit": 1,
+    "upkeep.set_story_time": 1.5,
+    "upkeep.remove_item": 0.5,
+    "upkeep.add_item": 2,
+    "checks.difficultyMean": 0,
+    "unusable": 3.5,
+    "failed": 0.5,
+    "chapters.closed": 0,
+    "actions.rewrite": 1,
+    "actions.regenerate": 1,
+    "actions.continue": 1,
+    "actions.edit": 1,
+    "actions.worldChange": 1,
+    "end.plotThreads": 4,
+    "end.npcKnows": 16.5,
+    "end.knownFacts": 16,
+    "end.knownNpcs": 4,
+    "end.looseEnds": 8,
+    "end.sceneMemories": 0,
+    "end.worldBible": 13,
+    "end.npcs": 4,
+    "timing.firstText.median": 52792,
+    "timing.firstText.max": 383595.5,
+    "timing.turn.median": 86973,
+    "timing.turn.max": 422902.5,
+    "timing.upkeep.median": 3834.5,
+    "timing.upkeep.max": 15000.5,
+    "timing.fix.median": 7584,
+    "timing.fix.max": 15001,
+    "timing.memory.median": 0,
+    "timing.memory.max": 0,
+    "timing.decision.median": 304,
+    "timing.decision.max": 2579.5,
+    "timing.picture.median": 13036,
+    "timing.picture.max": 51160,
+    "images.scene": 2,
+    "images.portrait": 5,
+    "images.requested": 0,
+    "tokens.narrator.turn.in": 654844.5,
+    "tokens.narrator.turn.out": 116378,
+    "cost.narrator.turn": 0.2794419654,
+    "calls.narrator.turn": 46.5,
+    "tokens.reviewer.upkeep.in": 90848.5,
+    "tokens.reviewer.upkeep.out": 8757,
+    "cost.reviewer.upkeep": 0.025290048500000006,
+    "calls.reviewer.upkeep": 34.5,
+    "tokens.narrator.picture.in": 4599,
+    "tokens.narrator.picture.out": 3552.5,
+    "cost.narrator.picture": 0.00406406754,
+    "calls.narrator.picture": 7.5,
+    "tokens.reviewer.fix.in": 28276,
+    "tokens.reviewer.fix.out": 8798.5,
+    "cost.reviewer.fix": 0.014061669500000002,
+    "calls.reviewer.fix": 16,
+    "tokens.narrator.other.in": 25644,
+    "tokens.narrator.other.out": 17496,
+    "cost.narrator.other": 0.02275783344,
+    "calls.narrator.other": 10,
+    "tokens.reviewer.other.in": 6364.5,
+    "tokens.reviewer.other.out": 231.5,
+    "cost.reviewer.other": 0.0020338075,
+    "calls.reviewer.other": 1,
+    "cost.decisions": 0.003457733999999999,
+    "calls.decisions": 132,
+    "cost.total": 0.35110712588000004,
+    "cost.perRound": 0.011703570862666667,
+    "perRound.narrator.in": 22836,
+    "perRound.narrator.out": 4581,
+    "perRound.reviewer.in": 4183,
+    "perRound.reviewer.out": 593,
+    "perRound.decisions.cost": 0.00011525779999999997,
+    "judged.npcDied": 0,
+    "judged.pcInMortalDanger": 0,
+    "upkeep.remove_known_fact": 0.5,
+    "coverage.fired": 21,
+    "judge.choices": 7,
+    "judge.surprise": 5,
+    "judge.threads": 5,
+    "judge.characters": 7,
+    "judge.continuity": 6,
+    "judge.pacing": 3.5,
+    "judge.prose": 6,
+    "judge.pictures": 4.5,
+    "judge.secrets": 7,
+    "judge.agency": 6.5,
+    "judge.stakes": 5.5,
+    "judge.overall": 5.7272727272727275,
+    "judge.mystery": 5
+  },
+  "range": {
+    "rounds": [
+      30,
+      30
+    ],
+    "turns": [
+      34,
+      35
+    ],
+    "retries": [
+      1,
+      2
+    ],
+    "checks.asked": [
+      6,
+      13
+    ],
+    "upkeep.total": [
+      17,
+      19
+    ],
+    "consistency.fixed": [
+      4,
+      12
+    ],
+    "consistency.fix failed": [
+      1,
+      4
+    ],
+    "ops.add_item": [
+      0,
+      1
+    ],
+    "ops.remove_item": [
+      0,
+      0
+    ],
+    "ops.set_health": [
+      0,
+      0
+    ],
+    "ops.add_status": [
+      0,
+      0
+    ],
+    "ops.remove_status": [
+      0,
+      0
+    ],
+    "ops.add_npc": [
+      0,
+      3
+    ],
+    "ops.update_npc": [
+      0,
+      0
+    ],
+    "ops.merge_npc": [
+      0,
+      0
+    ],
+    "ops.npc_learns": [
+      18,
+      22
+    ],
+    "ops.set_scene": [
+      2,
+      5
+    ],
+    "ops.add_known_fact": [
+      16,
+      23
+    ],
+    "ops.update_known_fact": [
+      1,
+      1
+    ],
+    "ops.remove_known_fact": [
+      0,
+      1
+    ],
+    "ops.add_known_npc": [
+      3,
+      6
+    ],
+    "ops.set_known_npc_summary": [
+      6,
+      7
+    ],
+    "ops.add_loose_end": [
+      9,
+      13
+    ],
+    "ops.resolve_loose_end": [
+      1,
+      2
+    ],
+    "ops.add_lore_entry": [
+      0,
+      0
+    ],
+    "ops.update_lore_entry": [
+      0,
+      0
+    ],
+    "ops.remove_lore_entry": [
+      0,
+      0
+    ],
+    "ops.add_plot_thread": [
+      0,
+      0
+    ],
+    "ops.update_plot_thread": [
+      0,
+      0
+    ],
+    "ops.resolve_plot_thread": [
+      0,
+      0
+    ],
+    "ops.set_pc_appearance": [
+      0,
+      0
+    ],
+    "ops.set_era": [
+      1,
+      1
+    ],
+    "ops.set_story_time": [
+      1,
+      1
+    ],
+    "turns.opening": [
+      1,
+      1
+    ],
+    "upkeep.refused": [
+      0,
+      0
+    ],
+    "consistency.passed": [
+      16,
+      19
+    ],
+    "turns.turn": [
+      30,
+      31
+    ],
+    "consistency.not a slip": [
+      4,
+      7
+    ],
+    "turns.rewrite": [
+      1,
+      1
+    ],
+    "checks.failure": [
+      1,
+      3
+    ],
+    "checks.success": [
+      3,
+      12
+    ],
+    "turns.regenerate": [
+      1,
+      1
+    ],
+    "upkeep.set_scene": [
+      8,
+      10
+    ],
+    "upkeep.update_known_fact": [
+      3,
+      6
+    ],
+    "turns.edit": [
+      1,
+      1
+    ],
+    "upkeep.set_story_time": [
+      1,
+      2
+    ],
+    "upkeep.remove_item": [
+      0,
+      1
+    ],
+    "upkeep.add_item": [
+      1,
+      3
+    ],
+    "checks.difficultyMean": [
+      0,
+      0
+    ],
+    "unusable": [
+      1,
+      6
+    ],
+    "failed": [
+      0,
+      1
+    ],
+    "chapters.closed": [
+      0,
+      0
+    ],
+    "actions.rewrite": [
+      1,
+      1
+    ],
+    "actions.regenerate": [
+      1,
+      1
+    ],
+    "actions.continue": [
+      1,
+      1
+    ],
+    "actions.edit": [
+      1,
+      1
+    ],
+    "actions.worldChange": [
+      1,
+      1
+    ],
+    "end.plotThreads": [
+      4,
+      4
+    ],
+    "end.npcKnows": [
+      16,
+      17
+    ],
+    "end.knownFacts": [
+      15,
+      17
+    ],
+    "end.knownNpcs": [
+      3,
+      5
+    ],
+    "end.looseEnds": [
+      6,
+      10
+    ],
+    "end.sceneMemories": [
+      0,
+      0
+    ],
+    "end.worldBible": [
+      13,
+      13
+    ],
+    "end.npcs": [
+      3,
+      5
+    ],
+    "timing.firstText.median": [
+      40764,
+      64820
+    ],
+    "timing.firstText.max": [
+      341767,
+      425424
+    ],
+    "timing.turn.median": [
+      61928,
+      112018
+    ],
+    "timing.turn.max": [
+      374747,
+      471058
+    ],
+    "timing.upkeep.median": [
+      3713,
+      3956
+    ],
+    "timing.upkeep.max": [
+      15000,
+      15001
+    ],
+    "timing.fix.median": [
+      6050,
+      9118
+    ],
+    "timing.fix.max": [
+      15000,
+      15002
+    ],
+    "timing.memory.median": [
+      0,
+      0
+    ],
+    "timing.memory.max": [
+      0,
+      0
+    ],
+    "timing.decision.median": [
+      266,
+      342
+    ],
+    "timing.decision.max": [
+      2156,
+      3003
+    ],
+    "timing.picture.median": [
+      6503,
+      19569
+    ],
+    "timing.picture.max": [
+      32657,
+      69663
+    ],
+    "images.scene": [
+      1,
+      3
+    ],
+    "images.portrait": [
+      4,
+      6
+    ],
+    "images.requested": [
+      0,
+      0
+    ],
+    "tokens.narrator.turn.in": [
+      582610,
+      727079
+    ],
+    "tokens.narrator.turn.out": [
+      99493,
+      133263
+    ],
+    "cost.narrator.turn": [
+      0.24613690848,
+      0.31274702232
+    ],
+    "calls.narrator.turn": [
+      42,
+      51
+    ],
+    "tokens.reviewer.upkeep.in": [
+      85368,
+      96329
+    ],
+    "tokens.reviewer.upkeep.out": [
+      8602,
+      8912
+    ],
+    "cost.reviewer.upkeep": [
+      0.023960599000000006,
+      0.026619498000000005
+    ],
+    "calls.reviewer.upkeep": [
+      34,
+      35
+    ],
+    "tokens.narrator.picture.in": [
+      3706,
+      5492
+    ],
+    "tokens.narrator.picture.out": [
+      2419,
+      4686
+    ],
+    "cost.narrator.picture": [
+      0.00266516172,
+      0.00546297336
+    ],
+    "calls.narrator.picture": [
+      6,
+      9
+    ],
+    "tokens.reviewer.fix.in": [
+      26945,
+      29607
+    ],
+    "tokens.reviewer.fix.out": [
+      8693,
+      8904
+    ],
+    "cost.reviewer.fix": [
+      0.013049137000000002,
+      0.015074202
+    ],
+    "calls.reviewer.fix": [
+      15,
+      17
+    ],
+    "tokens.narrator.other.in": [
+      18013,
+      33275
+    ],
+    "tokens.narrator.other.out": [
+      11496,
+      23496
+    ],
+    "cost.narrator.other": [
+      0.01565925084,
+      0.02985641604
+    ],
+    "calls.narrator.other": [
+      7,
+      13
+    ],
+    "tokens.reviewer.other.in": [
+      6220,
+      6509
+    ],
+    "tokens.reviewer.other.out": [
+      95,
+      368
+    ],
+    "cost.reviewer.other": [
+      0.001945315,
+      0.0021223
+    ],
+    "calls.reviewer.other": [
+      1,
+      1
+    ],
+    "cost.decisions": [
+      0.0032814179999999995,
+      0.003634049999999999
+    ],
+    "calls.decisions": [
+      130,
+      134
+    ],
+    "cost.total": [
+      0.3068747750400001,
+      0.39533947672
+    ],
+    "cost.perRound": [
+      0.010229159168000003,
+      0.013177982557333334
+    ],
+    "perRound.narrator.in": [
+      20144,
+      25528
+    ],
+    "perRound.narrator.out": [
+      3780,
+      5382
+    ],
+    "perRound.reviewer.in": [
+      3951,
+      4415
+    ],
+    "perRound.reviewer.out": [
+      587,
+      599
+    ],
+    "perRound.decisions.cost": [
+      0.00010938059999999999,
+      0.00012113499999999996
+    ],
+    "judged.npcDied": [
+      0,
+      0
+    ],
+    "judged.pcInMortalDanger": [
+      0,
+      0
+    ],
+    "upkeep.remove_known_fact": [
+      0,
+      1
+    ]
+  },
+  "coverage": {
+    "Hidden Check": 2,
+    "Plot Thread added": 0,
+    "Plot Thread moved on": 0,
+    "Plot Thread resolved": 0,
+    "NPC learns (npcKnows)": 2,
+    "Known fact added": 2,
+    "Known fact changed": 2,
+    "Known NPC summary": 2,
+    "Loose End added": 2,
+    "Loose End resolved": 2,
+    "World Bible grew": 0,
+    "World Bible entry updated": 0,
+    "New NPC": 1,
+    "NPC look changed": 0,
+    "Scene moved": 2,
+    "Item picked up or put on": 2,
+    "Item lost or taken off": 1,
+    "Story Time moved": 2,
+    "PC hurt or changed": 0,
+    "Scene picture": 2,
+    "Portrait": 2,
+    "Scene Memory": 0,
+    "Chapter closed": 0,
+    "State Upkeep changed state": 2,
+    "Consistency fix": 2,
+    "World Change": 2,
+    "Rewrite": 2,
+    "Regenerate": 2,
+    "Continue": 2,
+    "Edit": 2,
+    "An NPC died (judged)": 0,
+    "PC in mortal danger and lived (judged)": 0
+  },
+  "judge": {
+    "by": "claude-opus-5-5",
+    "plays": [
+      {
+        "scores": {
+          "choices": {
+            "score": 7,
+            "reason": "The three Choices each round are distinct and fit what Wren knows, and handing Vane the satchel then asking it back has real weight, but most rounds offer small talk-or-watch options that change little."
+          },
+          "surprise": {
+            "score": 4,
+            "reason": "Sefa's riders close in round after round in the hidden threads but never appear, and nothing set up out of sight lands on the page beyond the haze."
+          },
+          "threads": {
+            "score": 5,
+            "reason": "Jory's confession moves to a promise to tell Tamsin, but the arrest, the dust-riders and the Free Wells are only rewritten in the hidden threads while the caravan never reaches Ashar."
+          },
+          "characters": {
+            "score": 7,
+            "reason": "Vane, Tamsin and Jory stay consistent and want their own things, with Tamsin's suspicion of the captain well drawn, though her spitting and her hand on the pommel recur too often."
+          },
+          "continuity": {
+            "score": 7,
+            "reason": "Gear, the satchel's whereabouts and the count of skins and seals hold, with only small slips like a dropped closing quote and Wren's spoken answer to Vane left out of the reply."
+          },
+          "pacing": {
+            "score": 3,
+            "reason": "All 30 rounds pass on one morning's ride, short replies of talk in the saddle with no arrival, camp or confrontation."
+          },
+          "prose": {
+            "score": 6,
+            "reason": "Clean and plain with a few good images, but short and repetitive: the creaking salt frames, the spitting and the maimed hand on the pommel come back again and again."
+          },
+          "pictures": {
+            "score": 4,
+            "reason": "The one scene picture in 30 rounds matches its prompt well, but the story went unillustrated for every round after the opening."
+          },
+          "secrets": {
+            "score": 7,
+            "reason": "Jory's coin comes out by his own confession and Vane's purpose stays guarded; nothing leaks."
+          },
+          "agency": {
+            "score": 6,
+            "reason": "Mostly faithful, but Wren's spoken answer to Vane is dropped for a shrug and the narration answers in her place."
+          },
+          "stakes": {
+            "score": 6,
+            "reason": "Handing over the satchel on a failed roll costs real worry until she gets it back; other failures change little."
+          }
+        },
+        "happened": {
+          "npcDied": false,
+          "pcInMortalDanger": false
+        },
+        "mystery": {
+          "score": 4,
+          "reason": "Who slits the skins is told by Jory early, and nothing is left to find."
+        }
+      },
+      {
+        "scores": {
+          "choices": {
+            "score": 7,
+            "reason": "Choices are distinct and grounded in what Wren knows, and taking Jory's coin or going round Deri to Tamsin have consequences, but many rounds are three versions of watching or asking."
+          },
+          "surprise": {
+            "score": 6,
+            "reason": "The red cord and Bost's fresh-whipped rope hint well at something set up out of sight, but the dust-riders and the arrest stay in the hidden threads and never land."
+          },
+          "threads": {
+            "score": 5,
+            "reason": "Jory's guilt moves to a coin handed over and a promise to tell Tamsin, but no thread resolves and the caravan never reaches Ashar or even nightfall."
+          },
+          "characters": {
+            "score": 7,
+            "reason": "Tamsin's pride in her line, Jory's fear and Vane's weary fairness hold, though Vane oddly claims to have watched Tamsin's thirty years on the road."
+          },
+          "continuity": {
+            "score": 5,
+            "reason": "Vane dismounts Wren's grey camel when he rides a bay horse, the narration slips from present to past tense mid-story, and the night camp is pitched in late morning."
+          },
+          "pacing": {
+            "score": 4,
+            "reason": "Thirty rounds cover one morning's march and the setting of a camp, with the night watch the story builds toward never reached."
+          },
+          "prose": {
+            "score": 6,
+            "reason": "Clear and concrete with good small details like the fresh whipping, but plain and repetitive, with Tamsin's spitting and the creaking pack saddles recurring."
+          },
+          "pictures": {
+            "score": 5,
+            "reason": "Only three scene pictures in 30 rounds; their prompts match the people and place, but one sets a camp scene in late-morning light."
+          },
+          "secrets": {
+            "score": 7,
+            "reason": "Jory's guilt comes out by his choice, and Bost's fresh whipping is shown, not explained."
+          },
+          "agency": {
+            "score": 7,
+            "reason": "Moves are narrated as given."
+          },
+          "stakes": {
+            "score": 5,
+            "reason": "Failed Checks on Vane and Tamsin cost little beyond a cold word."
+          }
+        },
+        "happened": {
+          "npcDied": false,
+          "pcInMortalDanger": false
+        },
+        "mystery": {
+          "score": 6,
+          "reason": "The red cord and the fresh-whipped rope are a fair, small puzzle found by looking, never solved."
+        }
+      }
+    ]
+  },
+  "plays": [
+    {
+      "rounds": 30,
+      "turns": 35,
+      "retries": 1,
+      "checks.asked": 6,
+      "upkeep.total": 17,
+      "consistency.fixed": 4,
+      "consistency.fix failed": 4,
+      "ops.add_item": 0,
+      "ops.remove_item": 0,
+      "ops.set_health": 0,
+      "ops.add_status": 0,
+      "ops.remove_status": 0,
+      "ops.add_npc": 0,
+      "ops.update_npc": 0,
+      "ops.merge_npc": 0,
+      "ops.npc_learns": 18,
+      "ops.set_scene": 2,
+      "ops.add_known_fact": 16,
+      "ops.update_known_fact": 1,
+      "ops.remove_known_fact": 0,
+      "ops.add_known_npc": 3,
+      "ops.set_known_npc_summary": 6,
+      "ops.add_loose_end": 9,
+      "ops.resolve_loose_end": 2,
+      "ops.add_lore_entry": 0,
+      "ops.update_lore_entry": 0,
+      "ops.remove_lore_entry": 0,
+      "ops.add_plot_thread": 0,
+      "ops.update_plot_thread": 0,
+      "ops.resolve_plot_thread": 0,
+      "ops.set_pc_appearance": 0,
+      "ops.set_era": 1,
+      "ops.set_story_time": 1,
+      "turns.opening": 1,
+      "upkeep.refused": 0,
+      "consistency.passed": 19,
+      "turns.turn": 31,
+      "consistency.not a slip": 7,
+      "turns.rewrite": 1,
+      "checks.failure": 3,
+      "checks.success": 3,
+      "turns.regenerate": 1,
+      "upkeep.set_scene": 8,
+      "upkeep.update_known_fact": 6,
+      "turns.edit": 1,
+      "upkeep.set_story_time": 1,
+      "upkeep.remove_item": 1,
+      "upkeep.add_item": 1,
+      "checks.difficultyMean": null,
+      "unusable": 1,
+      "failed": 0,
+      "chapters.closed": 0,
+      "actions.rewrite": 1,
+      "actions.regenerate": 1,
+      "actions.continue": 1,
+      "actions.edit": 1,
+      "actions.worldChange": 1,
+      "end.plotThreads": 4,
+      "end.npcKnows": 17,
+      "end.knownFacts": 15,
+      "end.knownNpcs": 3,
+      "end.looseEnds": 6,
+      "end.sceneMemories": 0,
+      "end.worldBible": 13,
+      "end.npcs": 3,
+      "timing.firstText.median": 40764,
+      "timing.firstText.max": 425424,
+      "timing.turn.median": 61928,
+      "timing.turn.max": 471058,
+      "timing.upkeep.median": 3956,
+      "timing.upkeep.max": 15000,
+      "timing.fix.median": 9118,
+      "timing.fix.max": 15002,
+      "timing.memory.median": 0,
+      "timing.memory.max": 0,
+      "timing.decision.median": 342,
+      "timing.decision.max": 2156,
+      "timing.picture.median": 19569,
+      "timing.picture.max": 32657,
+      "images.scene": 1,
+      "images.portrait": 4,
+      "images.requested": 0,
+      "tokens.narrator.turn.in": 582610,
+      "tokens.narrator.turn.out": 99493,
+      "cost.narrator.turn": 0.24613690848,
+      "calls.narrator.turn": 42,
+      "tokens.reviewer.upkeep.in": 85368,
+      "tokens.reviewer.upkeep.out": 8912,
+      "cost.reviewer.upkeep": 0.023960599000000006,
+      "calls.reviewer.upkeep": 35,
+      "tokens.narrator.picture.in": 3706,
+      "tokens.narrator.picture.out": 2419,
+      "cost.narrator.picture": 0.00266516172,
+      "calls.narrator.picture": 6,
+      "tokens.reviewer.fix.in": 26945,
+      "tokens.reviewer.fix.out": 8693,
+      "cost.reviewer.fix": 0.013049137000000002,
+      "calls.reviewer.fix": 15,
+      "tokens.narrator.other.in": 18013,
+      "tokens.narrator.other.out": 11496,
+      "cost.narrator.other": 0.01565925084,
+      "calls.narrator.other": 7,
+      "tokens.reviewer.other.in": 6220,
+      "tokens.reviewer.other.out": 368,
+      "cost.reviewer.other": 0.0021223,
+      "calls.reviewer.other": 1,
+      "cost.decisions": 0.0032814179999999995,
+      "calls.decisions": 134,
+      "cost.total": 0.3068747750400001,
+      "cost.perRound": 0.010229159168000003,
+      "perRound.narrator.in": 20144,
+      "perRound.narrator.out": 3780,
+      "perRound.reviewer.in": 3951,
+      "perRound.reviewer.out": 599,
+      "perRound.decisions.cost": 0.00010938059999999999,
+      "judged.npcDied": 0,
+      "judged.pcInMortalDanger": 0
+    },
+    {
+      "rounds": 30,
+      "turns": 34,
+      "retries": 2,
+      "checks.asked": 13,
+      "upkeep.total": 19,
+      "consistency.fixed": 12,
+      "consistency.fix failed": 1,
+      "ops.add_item": 1,
+      "ops.remove_item": 0,
+      "ops.set_health": 0,
+      "ops.add_status": 0,
+      "ops.remove_status": 0,
+      "ops.add_npc": 3,
+      "ops.update_npc": 0,
+      "ops.merge_npc": 0,
+      "ops.npc_learns": 22,
+      "ops.set_scene": 5,
+      "ops.add_known_fact": 23,
+      "ops.update_known_fact": 1,
+      "ops.remove_known_fact": 1,
+      "ops.add_known_npc": 6,
+      "ops.set_known_npc_summary": 7,
+      "ops.add_loose_end": 13,
+      "ops.resolve_loose_end": 1,
+      "ops.add_lore_entry": 0,
+      "ops.update_lore_entry": 0,
+      "ops.remove_lore_entry": 0,
+      "ops.add_plot_thread": 0,
+      "ops.update_plot_thread": 0,
+      "ops.resolve_plot_thread": 0,
+      "ops.set_pc_appearance": 0,
+      "ops.set_era": 1,
+      "ops.set_story_time": 1,
+      "turns.opening": 1,
+      "upkeep.refused": 0,
+      "consistency.passed": 16,
+      "turns.turn": 30,
+      "upkeep.add_item": 3,
+      "checks.failure": 1,
+      "upkeep.set_scene": 10,
+      "consistency.not a slip": 4,
+      "checks.success": 12,
+      "upkeep.update_known_fact": 3,
+      "turns.rewrite": 1,
+      "turns.regenerate": 1,
+      "upkeep.remove_known_fact": 1,
+      "turns.edit": 1,
+      "upkeep.set_story_time": 2,
+      "checks.difficultyMean": null,
+      "unusable": 6,
+      "failed": 1,
+      "chapters.closed": 0,
+      "actions.rewrite": 1,
+      "actions.regenerate": 1,
+      "actions.continue": 1,
+      "actions.edit": 1,
+      "actions.worldChange": 1,
+      "end.plotThreads": 4,
+      "end.npcKnows": 16,
+      "end.knownFacts": 17,
+      "end.knownNpcs": 5,
+      "end.looseEnds": 10,
+      "end.sceneMemories": 0,
+      "end.worldBible": 13,
+      "end.npcs": 5,
+      "timing.firstText.median": 64820,
+      "timing.firstText.max": 341767,
+      "timing.turn.median": 112018,
+      "timing.turn.max": 374747,
+      "timing.upkeep.median": 3713,
+      "timing.upkeep.max": 15001,
+      "timing.fix.median": 6050,
+      "timing.fix.max": 15000,
+      "timing.memory.median": 0,
+      "timing.memory.max": 0,
+      "timing.decision.median": 266,
+      "timing.decision.max": 3003,
+      "timing.picture.median": 6503,
+      "timing.picture.max": 69663,
+      "images.scene": 3,
+      "images.portrait": 6,
+      "images.requested": 0,
+      "tokens.narrator.turn.in": 727079,
+      "tokens.narrator.turn.out": 133263,
+      "cost.narrator.turn": 0.31274702232,
+      "calls.narrator.turn": 51,
+      "tokens.reviewer.upkeep.in": 96329,
+      "tokens.reviewer.upkeep.out": 8602,
+      "cost.reviewer.upkeep": 0.026619498000000005,
+      "calls.reviewer.upkeep": 34,
+      "tokens.narrator.picture.in": 5492,
+      "tokens.narrator.picture.out": 4686,
+      "cost.narrator.picture": 0.00546297336,
+      "calls.narrator.picture": 9,
+      "tokens.reviewer.fix.in": 29607,
+      "tokens.reviewer.fix.out": 8904,
+      "cost.reviewer.fix": 0.015074202,
+      "calls.reviewer.fix": 17,
+      "tokens.narrator.other.in": 33275,
+      "tokens.narrator.other.out": 23496,
+      "cost.narrator.other": 0.02985641604,
+      "calls.narrator.other": 13,
+      "tokens.reviewer.other.in": 6509,
+      "tokens.reviewer.other.out": 95,
+      "cost.reviewer.other": 0.001945315,
+      "calls.reviewer.other": 1,
+      "cost.decisions": 0.003634049999999999,
+      "calls.decisions": 130,
+      "cost.total": 0.39533947672,
+      "cost.perRound": 0.013177982557333334,
+      "perRound.narrator.in": 25528,
+      "perRound.narrator.out": 5382,
+      "perRound.reviewer.in": 4415,
+      "perRound.reviewer.out": 587,
+      "perRound.decisions.cost": 0.00012113499999999996,
+      "judged.npcDied": 0,
+      "judged.pcInMortalDanger": 0
+    }
+  ]
+}

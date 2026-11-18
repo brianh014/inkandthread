@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BenchChart } from "./bench-chart";
 import {
   AskIcon,
   ChapterIcon,
@@ -12,6 +13,7 @@ import {
   StartOverIcon,
   EditIcon,
   ExportIcon,
+  FullScreenIcon,
   RegenerateIcon,
   RenameIcon,
   RevertIcon,
@@ -117,6 +119,14 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             saying so).
           </li>
         </ul>
+        <h3>How the AIs compare</h3>
+        <p>
+          NovelForge's makers play the same stories on each AI and judge how well it tells them: whether Choices matter, the hidden plots surprise, people stay
+          true to themselves, and more. Each dot is one AI, set higher when it told the stories better and further left when it cost less a Turn. Pick a score
+          or a story to see where each one is strong, and press {tool(FullScreenIcon, "Full screen")} to see it larger. Every story was played with the same
+          setup otherwise, pictures drawn on ComfyUI.
+        </p>
+        <BenchChart />
         <h3>Pictures: your own ComfyUI is best</h3>
         <p>
           NovelForge draws a lot: the Cover, a portrait for each person, a scene picture whenever the scene changes, pictures you ask for and every redraw. On a

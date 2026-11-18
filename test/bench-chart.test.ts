@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { bestOnAllThree, type ChartResult, chartPage, costFrontier, type Point, points } from "../bench/chart";
+import { ALL_STORIES, bestOnAllThree, type ChartResult, chartPage, costFrontier, type Point, points } from "../bench/chart";
 
 const run = (narrator: string, scores: number[], cost: number, extra: Partial<ChartResult> = {}): ChartResult => ({
   version: "0.5.0.1",
@@ -68,14 +68,55 @@ test("a setup beaten on score and cost still counts on all three when it is the 
   expect(bestOnAllThree(all[2]!, all)).toBe(false);
 });
 
-test("the page escapes model names and says when a chart has no runs", () => {
-  const page = chartPage([point("<b>", 7, 0.01)], "0.5.0.1", 30);
+test("the page escapes model names, and each setup is picked with the Setup selector, saying when it has no runs", () => {
+  const page = chartPage([run("x/<b>", [7], 0.01)], 30);
   expect(page).toContain("&lt;b&gt;");
+  // Narrator-only runs alone: that chart shows, and the other setup's waits hidden with its empty message.
+  expect(page).toContain('<div data-setup="narrator">');
+  expect(page).toContain('<div data-setup="full" hidden>');
   expect(page).toContain("No judged, kept runs");
+  expect(page).toContain(">Narrator only</option>");
 });
 
 test("a setup with no cost recorded is named under the chart, not drawn on the log scale", () => {
-  const page = chartPage([point("priced", 7, 0.01), point("local", 6, 0)], "0.5.0.1", 30);
-  expect(page).toContain("No cost recorded, so not drawn: local.");
+  const page = chartPage([run("x/priced", [7], 0.01), run("x/local", [6], 0)], 30);
+  expect(page).toContain("No cost recorded, so not drawn: openrouter x/local, Thinking medium.");
   expect(page).not.toContain("NaN");
+});
+
+test("the page has a view for every version, score and story, newest version, the overall and all stories shown first", () => {
+  const page = chartPage(
+    [run("x/mimo", [7], 0.01), run("x/mimo", [8], 0.01, { version: "0.5.0.12" }), run("x/mimo", [6], 0.01, { world: "horror.json" })],
+    30,
+    {
+      titles: { "horror.json": "Horror" },
+    },
+  );
+  // Two versions, all stories plus two, and the overall plus items a and b.
+  expect(page.match(/class="view"/g)).toHaveLength(2 * 3 * 3);
+  expect(page).toContain('<div class="view" data-version="0.5.0.12" data-world="all" data-score="overall">');
+  expect(page.match(/class="view"[^>]*hidden/g)).toHaveLength(2 * 3 * 3 - 1);
+  expect(page).toContain(">All stories</option>");
+  expect(page).toContain(">Horror</option>");
+});
+
+test("all stories pools every story's plays into one point", () => {
+  const found = points([run("x/mimo", [8], 0.01), run("x/mimo", [6], 0.01, { world: "horror.json" })], "0.5.0.1", 30, ALL_STORIES);
+  expect(found[0]).toMatchObject({ score: 7, low: 6, high: 8, runs: 2, plays: 2 });
+});
+
+test("one rubric item can be charted alone, and a play judged without it is left out", () => {
+  const judged = run("x/mimo", [7], 0.01);
+  judged.judge!.plays[0]!.scores.c = { score: 3 };
+  expect(points([judged], "0.5.0.1", 30, "adventure.json", "c")[0]!.score).toBe(3);
+  expect(points([judged], "0.5.0.1", 30, "adventure.json", "overall")[0]!.score).toBeCloseTo(17 / 3);
+  expect(points([run("x/mimo", [7], 0.01)], "0.5.0.1", 30, "adventure.json", "c")).toHaveLength(0);
+});
+
+test("a genre score can be charted on its own, and stays out of the overall", () => {
+  const judged = run("x/mimo", [7], 0.01);
+  judged.judge!.plays[0]!.genres = { romance: { score: 2 } };
+  expect(points([judged], "0.5.0.1", 30, "adventure.json", "romance")[0]!.score).toBe(2);
+  expect(points([judged], "0.5.0.1", 30, "adventure.json", "overall")[0]!.score).toBe(7);
+  expect(chartPage([judged], 30)).toContain(">Romance</option>");
 });

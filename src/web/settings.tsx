@@ -1234,6 +1234,9 @@ function InstallSettings({
           </p>
         )}
         <ModelField key={draft.textBaseUrl} label="Text model" value={draft.textModel} list={addressSaved ? models : undefined} onChange={chooseModel} />
+        <p className="muted">
+          <a href="#/guide/models">How the AIs compare</a> on NovelForge's own stories.
+        </p>
         {local && !addressSaved && <p className="muted">Save the address to choose from this server's models.</p>}
         {textChoice === "google" && (
           <p className="muted">

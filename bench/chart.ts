@@ -1,5 +1,6 @@
-// `bun bench chart`: the kept runs of one bench version as two charts, judged score against cost per Turn, coloured by Turn time,
-// one for the Narrator alone and one for the Narrator with a reviewer and decision model. A self-contained page, no scripts.
+// `bun bench chart`: the kept runs as two charts, judged score against cost per Turn, coloured by Turn time, one for the Narrator
+// alone and one for the Narrator with a reviewer and decision model. A self-contained page whose one small script picks the bench
+// version, the score (overall or one rubric item) and the story to show; every pick is drawn up front.
 
 /** The parts of a bench result the chart reads (bench.ts's `Result`). */
 export type ChartResult = {
@@ -12,7 +13,8 @@ export type ChartResult = {
   provider: string;
   thinking: string;
   models: { narrator: string; reviewer: string; reviewThinking: string; consistency: string };
-  judge: { plays: { scores: Record<string, { score: number }> }[] } | null;
+  /** Each play's rubric items, which make the overall, and its genre scores (romance, horror and the like), asked only of a story of that kind. */
+  judge: { plays: { scores: Record<string, { score: number }>; genres?: Record<string, { score: number }> }[] } | null;
   plays: Record<string, number>[];
 };
 
@@ -36,18 +38,26 @@ export type Point = {
 const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
 const short = (model: string) => model.split("/").pop() || model;
 
+/** The overall score, or one rubric item's; and every story pooled, or one. */
+export const OVERALL = "overall";
+export const ALL_STORIES = "all";
+
 /**
  * One point per setup, from every judged result of `version` played on `world` in seeded Choices for `rounds`, with the pictures
- * drawn, so only like runs compare; several runs of a setup pool their plays.
+ * drawn, so only like runs compare; several runs of a setup pool their plays, and `ALL_STORIES` pools every story's. `score` is the overall, the mean of a play's rubric
+ * items, or one item; a play judged without that item is left out.
  */
-export function points(results: ChartResult[], version: string, rounds: number, world = "world.json"): Point[] {
+export function points(results: ChartResult[], version: string, rounds: number, world = "adventure.json", score = OVERALL): Point[] {
   const groups = new Map<
     string,
     { setup: Point["setup"]; label: string; detail: string; runs: number; plays: { score: number; cost: number; turnMs: number; firstMs: number }[] }
   >();
   for (const result of results) {
     const like =
-      String(result.version) === version && result.rounds === rounds && (result.mode ?? "choices") === "choices" && (result.world ?? "world.json") === world;
+      String(result.version) === version &&
+      result.rounds === rounds &&
+      (result.mode ?? "choices") === "choices" &&
+      (world === ALL_STORIES || (result.world ?? "adventure.json") === world);
     if (!like || !result.drawn || !result.setup || !result.judge) continue;
     const { narrator, reviewer, reviewThinking, consistency } = result.models;
     const label = result.setup === "narrator" ? short(narrator) : [narrator, reviewer, consistency].map(short).join(" · ");
@@ -59,7 +69,10 @@ export function points(results: ChartResult[], version: string, rounds: number, 
     const group = groups.get(key) ?? { setup: result.setup, label, detail, runs: 0, plays: [] };
     group.runs++;
     result.plays.forEach((flat, at) => {
-      const scores = Object.values(result.judge!.plays[at]?.scores ?? {}).map(({ score }) => score);
+      const play = result.judge!.plays[at];
+      const judged = play?.scores ?? {};
+      const item = judged[score] ?? play?.genres?.[score];
+      const scores = score === OVERALL ? Object.values(judged).map(({ score }) => score) : item ? [item.score] : [];
       if (!scores.length) return;
       group.plays.push({
         score: mean(scores),
@@ -188,9 +201,71 @@ ${dots.join("\n")}
 ${note}</section>`;
 }
 
-export function chartPage(all: Point[], version: string, rounds: number, world = "world.json", date = new Date().toISOString().slice(0, 10)) {
+// Each setup is its own chart, picked with the Setup selector, and says so when it has no runs in a pick.
+const SETUPS: [Point["setup"], string][] = [
+  ["narrator", "Narrator alone"],
+  ["full", "Narrator, reviewer and decision model"],
+];
+
+/** The key and both setups' charts for one pick, coloured by the Turn times of that pick alone, `shown` the one not hidden. */
+function view(all: Point[], shown: Point["setup"]) {
   const times = all.filter((p) => p.cost > 0).map((p) => p.turnMs);
   const speed: [number, number] = times.length ? [Math.min(...times), Math.max(...times)] : [0, 0];
+  return `<div class="key">
+<span>Turn time ${times.length ? seconds(speed[0]) : ""}<span class="ramp"></span>${times.length ? seconds(speed[1]) : ""}</span>
+<span><span class="ring"></span>No setup beats it on score, cost and speed</span>
+<span><span class="dash"></span>No setup beats it on score and cost</span>
+<span>Bars: lowest to highest play</span>
+</div>
+${SETUPS.map(
+  ([setup, title]) =>
+    `<div data-setup="${setup}"${setup === shown ? "" : " hidden"}>${chart(
+      title,
+      all.filter((p) => p.setup === setup),
+      speed,
+    )}</div>`,
+).join("\n")}`;
+}
+
+// Newest first, comparing each dotted part as a number, so 0.5.0.12 comes before 0.5.0.9.
+const byVersion = (a: string, b: string) => {
+  const [x, y] = [a, b].map((v) => v.split(".").map(Number));
+  for (let at = 0; at < Math.max(x!.length, y!.length); at++) if ((x![at] ?? 0) !== (y![at] ?? 0)) return (y![at] ?? 0) - (x![at] ?? 0);
+  return 0;
+};
+
+/** Every bench version, score and story among `results` as one page, with a selector for each. `titles` names each story's world file, such as by its genre. */
+export function chartPage(
+  results: ChartResult[],
+  rounds: number,
+  { date = new Date().toISOString().slice(0, 10), titles = {} as Record<string, string> } = {},
+) {
+  const charted = results.filter((result) => result.judge && result.drawn && result.setup && result.version !== undefined && result.rounds === rounds);
+  const versions = [...new Set(charted.map((result) => String(result.version)))].toSorted(byVersion);
+  const worlds = [ALL_STORIES, ...new Set(charted.map((result) => result.world ?? "adventure.json"))].toSorted((a, b) =>
+    a === ALL_STORIES ? -1 : b === ALL_STORIES ? 1 : a.localeCompare(b),
+  );
+  const items = [...new Set(charted.flatMap((result) => result.judge!.plays.flatMap((play) => Object.keys(play.scores))))];
+  const genres = [...new Set(charted.flatMap((result) => result.judge!.plays.flatMap((play) => Object.keys(play.genres ?? {}))))].toSorted();
+  const scores = [OVERALL, ...items, ...genres];
+  const pick = {
+    version: versions[0] ?? "",
+    score: OVERALL,
+    world: ALL_STORIES,
+    setup: (charted.some((result) => result.setup === "full") || !charted.length ? "full" : "narrator") as Point["setup"],
+  };
+  const views = versions.flatMap((version) =>
+    worlds.flatMap((world) =>
+      scores.map((score) => {
+        const shown = version === pick.version && world === pick.world && score === pick.score;
+        return `<div class="view" data-version="${html(version)}" data-world="${html(world)}" data-score="${html(score)}"${shown ? "" : " hidden"}>
+${view(points(charted, version, rounds, world, score), pick.setup)}
+</div>`;
+      }),
+    ),
+  );
+  const select = (name: string, label: string, options: string[], chosen: string, text = (option: string) => option) =>
+    `<label>${label} <select data-pick="${name}">${options.map((option) => `<option value="${html(option)}"${option === chosen ? " selected" : ""}>${html(text(option))}</option>`).join("")}</select></label>`;
   const gradient = (pair: string[]) => `linear-gradient(to right, ${pair[0]}, ${pair[1]})`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -210,6 +285,8 @@ svg { width: 100%; height: auto; display: block; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dot { fill: var(--cd); } }
 :root[data-theme="dark"] .dot { fill: var(--cd); }
 .best { fill: none; stroke: var(--ink); stroke-width: 2; } .hit { fill: transparent; }
+.picks { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 16px 0 4px; color: var(--ink-2); font-size: 13px; }
+select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--grid); border-radius: 6px; padding: 4px 6px; }
 .key { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; color: var(--ink-2); font-size: 13px; margin: 12px 0; }
 .ramp { display: inline-block; width: 120px; height: 10px; border-radius: 5px; background: var(--ramp); vertical-align: middle; margin: 0 6px; }
 .ring { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--ink); border-radius: 50%; vertical-align: middle; margin-right: 6px; box-sizing: border-box; }
@@ -218,23 +295,29 @@ table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px
 summary { cursor: pointer; color: var(--ink-2); } .empty { font-style: italic; }
 </style></head><body>
 <h1>NovelForge bench</h1>
-<p>Bench version ${version}, kept and judged runs of ${rounds} rounds on ${html(world)} with pictures drawn, charted ${date}. Higher is better, further left is cheaper. Hover a dot for its numbers.</p>
-<div class="key">
-<span>Turn time ${times.length ? seconds(speed[0]) : ""}<span class="ramp"></span>${times.length ? seconds(speed[1]) : ""}</span>
-<span><span class="ring"></span>No setup beats it on score, cost and speed</span>
-<span><span class="dash"></span>No setup beats it on score and cost</span>
-<span>Bars: lowest to highest play</span>
+<p>Kept and judged runs of ${rounds} rounds with pictures drawn, charted ${date}. Higher is better, further left is cheaper. Hover a dot for its numbers.</p>
+<div class="picks">
+${select("version", "Bench version", versions, pick.version)}
+${select("score", "Score", scores, pick.score, (score) => (score === OVERALL ? "Overall" : score[0]!.toUpperCase() + score.slice(1)))}
+${select("world", "Story", worlds, pick.world, (world) => (world === ALL_STORIES ? "All stories" : (titles[world] ?? world.replace(/\.json$/, ""))))}
+${select(
+  "setup",
+  "Setup",
+  SETUPS.map(([setup]) => setup),
+  pick.setup,
+  (setup) => (setup === "narrator" ? "Narrator only" : "With reviewer and decision model"),
+)}
 </div>
-${chart(
-  "Narrator alone",
-  all.filter((p) => p.setup === "narrator"),
-  speed,
-)}
-${chart(
-  "Narrator, reviewer and decision model",
-  all.filter((p) => p.setup === "full"),
-  speed,
-)}
+${views.length ? views.join("\n") : view([], pick.setup)}
+<script>
+const picks = [...document.querySelectorAll("[data-pick]")];
+const show = () => {
+  const chosen = Object.fromEntries(picks.map((select) => [select.dataset.pick, select.value]));
+  for (const view of document.querySelectorAll(".view")) view.hidden = ["version", "world", "score"].some((name) => view.dataset[name] !== chosen[name]);
+  for (const chart of document.querySelectorAll("[data-setup]")) chart.hidden = chart.dataset.setup !== chosen.setup;
+};
+for (const select of picks) select.addEventListener("change", show);
+</script>
 </body></html>
 `;
 }

@@ -15,6 +15,7 @@ export const DecideIcon = icon("M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10
 export const DrawIcon = icon("M3 5h18v14H3zM3 16l5-5 5 5 3-3 5 5M15.5 9.5h.01");
 export const AskIcon = icon("M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01");
 export const DownIcon = icon("M12 4v16M5 13l7 7 7-7");
+export const FullScreenIcon = icon("M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5");
 export const UpIcon = icon("M12 20V4M5 11l7-7 7 7");
 export const DuplicateIcon = icon("M8 3h9l3 3v12H8zM4 7v14h11");
 /** An arrow coming round to begin again. */

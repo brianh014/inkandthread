@@ -33,7 +33,7 @@ import { chartPage, points } from "./chart";
 
 const BENCH = import.meta.dir;
 // Bump whenever the prompts, the rubric or the world change: a chart compares only runs of one version.
-const BENCH_VERSION = 2;
+const BENCH_VERSION = 3;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 30;
 // --fake plays on the stand-in models, free and offline, to try the bench itself; its numbers say nothing of a real Narrator.

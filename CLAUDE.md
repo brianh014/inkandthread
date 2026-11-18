@@ -92,5 +92,6 @@ A bench world is a JSON file shaped like `bench/world.json`, played with `--worl
 - `opening` is the state play starts from: `storyTime`, `inventory`, `status`, `worldRules`, three `plotThreads`, each saying who is behind it and what it hides, and `worldBible`, Lore Entries with keywords, `alwaysOn` only for the setting itself. Give each Important Character a keyword Lore Entry with their looks, and name them in the Starting Hook, so the opening meets them as written.
 - `actions` holds the fixed words of the Rewrite, Edit and World Change the bench sends.
 - Build it to bring about everything the Narrator does, as `about` in `bench/world.json` lists: risky Choices for Checks, a Plot Thread that can resolve within a few days of story time, secrets for NPCs to learn, Loose Ends, lore to grow, mortal danger and people who may die.
+- `bench/worlds/` holds worlds in other genres (mystery, romance, horror), to check a prompt change doesn't help one kind of story and hurt another. The romance sets up attraction without explicit content, leaving how far it goes to play.
 - Invent it, never from a player's Save. A world kept out of git, such as an adult one (ticket 89), goes in git-ignored `bench/worlds-local/` with its `--moves` file.
 - Try it free first with `bun bench run --fake --world <file> --rounds 2 --runs 1 --yes`, and read the transcript.

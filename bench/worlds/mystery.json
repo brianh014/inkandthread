@@ -1,0 +1,121 @@
+{
+  "about": "A bench world for mystery: clues, alibis and secrets that must stay straight across many Turns. Invented, with no adult text. It brings about Checks on searching and questioning, a Plot Thread that resolves within a few days (the inquest), secrets for NPCs to learn, Loose Ends, lore to grow, a killer who will kill again, and people who may die. actions holds the fixed words of the Rewrite, Edit and World Change the bench sends.",
+  "save": {
+    "title": "The Low Tide Inquest",
+    "artStyle": "Traditional Impasto Oil Painting: Richly textured painterly realism featuring visible expressive brushstrokes, dynamic palette knife work, deep glazes, physical impasto texture, and dramatic chiaroscuro lighting across vibrant, wet-on-wet blended pigments.",
+    "theme": "",
+    "worldBrief": "Gullhaven, a fishing town on a grey northern coast in the 1890s, with a harbour, a chapel on the cliff and one constable. The railway reached the county town last year but not here; news comes by the carrier's cart and the telegraph office at the post house. Brandy and tea come ashore at night without paying duty, and everyone knows not to ask how.",
+    "startingHook": "At dawn the harbourmaster, Tobias Crane, was found drowned under the harbour wall at low tide. Constable Owen Price has called it an accident and asked Nell Ashby, who keeps the town's apothecary, to lay out the body before the inquest on Thursday. Kit Rowan, Crane's apprentice, is waiting outside her shop, and Harriet Vell from the Anchor Inn has sent word that she must see Nell today.",
+    "pc": {
+      "name": "Nell Ashby",
+      "background": "The widow of the town's doctor, who taught her his trade before he died of a fever three winters ago. She keeps the apothecary, sets bones and lays out the dead, and the town trusts her more than it would admit.",
+      "physicalTraits": "A tall woman of about thirty-five, pale and freckled, with red-brown hair pinned up under a plain hat, ink-stained fingers and spectacles she pushes up when she thinks.",
+      "skills": "Medicine and poisons, noticing small wrong things, keeping notes, patience, being underestimated.",
+      "personality": "Precise, stubborn and kind, with a dry wit she keeps to herself. She cannot leave a question unanswered.",
+      "other": ""
+    },
+    "importantCharacters": [
+      {
+        "name": "Owen Price",
+        "description": "A broad man in his fifties with a grey walrus moustache, a red face and a dark blue constable's coat buttoned wrong. The town's only constable, tired and wanting a quiet life.",
+        "onCover": true
+      },
+      {
+        "name": "Kit Rowan",
+        "description": "A wiry lad of about sixteen with black hair cut short, a sunburnt face, a patched pea jacket too big for him and a knitted cap. Crane's apprentice, frightened and trying not to show it.",
+        "onCover": true
+      },
+      {
+        "name": "Harriet Vell",
+        "description": "A handsome woman in her forties with dark hair going grey at the temples, sharp brown eyes, a high-collared black dress and a ring of keys at her waist. She keeps the Anchor Inn and misses nothing that happens in it.",
+        "onCover": true
+      }
+    ]
+  },
+  "opening": {
+    "storyTime": { "day": 1, "date": "Monday, 14th October 1894", "timeOfDay": "early morning" },
+    "inventory": {
+      "wearing": ["grey wool dress", "dark blue shawl", "laced boots", "wire spectacles"],
+      "carrying": ["medicine bag", "notebook and pencil", "magnifying glass", "door key to the apothecary"]
+    },
+    "status": { "health": "unhurt", "injuries": [], "conditions": [] },
+    "worldRules": [
+      "There is no magic; the dangers are the sea, the cliffs, cold and people.",
+      "The coroner holds the inquest at the Anchor Inn on Thursday, and a verdict of accident closes the matter for good.",
+      "Smuggling is a hanging crime if a Revenue man can prove it, and no one in Gullhaven has ever helped one prove it.",
+      "A woman's word counts for less than a man's before the coroner, unless she brings proof."
+    ],
+    "plotThreads": [
+      "Tobias Crane did not drown by accident: Silas Grout, the sexton, held his head under the harbour water on Sunday night, on the orders of Reverend Amos Thorne, because Crane had written to the Revenue about the brandy landed through the chapel crypt. Grout will kill again to keep it quiet, and Kit Rowan saw a lantern at the crypt that night.",
+      "Constable Owen Price takes a share of the smuggling money from Reverend Thorne and means to have the inquest on Thursday return accidental death, though he suspects the truth and hates himself for it. Proof put in front of the coroner would force his hand.",
+      "Harriet Vell is Tobias Crane's daughter by a secret marriage, and his cottage passes to her; hidden in its chimney is Crane's ledger of every cargo landed through the crypt, which she does not know is there and which Thorne is searching for."
+    ],
+    "worldBible": [
+      {
+        "title": "Gullhaven",
+        "keywords": ["Gullhaven", "town", "harbour", "post house"],
+        "content": "A fishing town of grey stone houses stacked up a steep cliff around a small harbour. The chapel stands on the cliff top above the town. The Anchor Inn is by the quay, the apothecary halfway up the hill, and the post house with its telegraph at the top of the high street. The carrier's cart goes to the county town on Tuesdays and Fridays.",
+        "alwaysOn": true
+      },
+      {
+        "title": "Owen Price",
+        "keywords": ["Price", "Constable", "constable", "Owen"],
+        "content": "A broad man in his fifties with a grey walrus moustache, a red face and a dark blue constable's coat he buttons wrong. Twenty years the town's constable. He takes a share of the smuggling money from Reverend Thorne to look the other way, and has never had to look away from a killing before. He drinks at the Anchor and is fond of Nell, who set his broken wrist.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Kit Rowan",
+        "keywords": ["Kit", "Rowan", "apprentice", "lad"],
+        "content": "A wiry lad of about sixteen with short black hair, a sunburnt face, a patched pea jacket too big for him and a knitted cap. Crane's apprentice, an orphan Crane took in. On Sunday night he saw a lantern moving in the chapel crypt and a man on the cliff path, and has told no one, because the man looked like Silas Grout and Grout once broke a boy's arm.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Harriet Vell",
+        "keywords": ["Harriet", "Vell", "Anchor", "innkeeper", "inn"],
+        "content": "A handsome woman in her forties with dark hair greying at the temples, sharp brown eyes, a high-collared black dress and a ring of keys at her waist. She keeps the Anchor Inn. She is Tobias Crane's daughter by a marriage he kept secret, and has his letter saying the cottage is hers. She suspects his death was no accident and wants Nell to look at the body for her.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Tobias Crane",
+        "keywords": ["Crane", "Tobias", "harbourmaster", "body", "drowned"],
+        "content": "The harbourmaster, a lean man of sixty with a white beard. His body has bruises on the back of the neck from a hand holding him down, sea water in his lungs, and a torn fingernail with a scrap of black wool under it, from the sexton's coat. He wrote to the Revenue a week before he died.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Reverend Amos Thorne",
+        "keywords": ["Thorne", "Reverend", "vicar", "chapel", "crypt"],
+        "content": "The vicar, a soft-voiced man in his sixties with silver hair and a kind face, loved by the town for his charity. He runs the smuggling, landing brandy and tea in the chapel crypt through a sea cave, and pays the constable and half the fishermen. He would sooner see another man dead than hang.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Silas Grout",
+        "keywords": ["Grout", "Silas", "sexton", "gravedigger"],
+        "content": "The sexton and gravedigger, a huge silent man with a bald head, a broken nose and a black wool coat, missing a button at the cuff. He does whatever Thorne asks. He drowned Crane, and he will kill anyone Thorne names, or anyone he thinks has seen him.",
+        "alwaysOn": false
+      },
+      {
+        "title": "The chapel crypt and the sea cave",
+        "keywords": ["crypt", "sea cave", "cave", "brandy", "tunnel"],
+        "content": "Under the chapel, a crypt of old family tombs leads down a cut stair to a sea cave that floods at high tide. Kegs of brandy and chests of tea are landed there at night and carried up through the crypt. A careless visitor at the wrong hour can drown in the cave.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Crane's cottage and ledger",
+        "keywords": ["cottage", "ledger", "chimney", "Crane's cottage"],
+        "content": "A two-room cottage on the quay with a wide old chimney. A loose brick halfway up the chimney hides an oilskin packet: Crane's ledger of every cargo landed through the crypt for six years, with dates and names, enough to hang Thorne.",
+        "alwaysOn": false
+      },
+      {
+        "title": "The coroner and the inquest",
+        "keywords": ["coroner", "inquest", "Mr Dacre", "verdict"],
+        "content": "Mr Dacre, the county coroner, comes by the carrier's cart on Thursday morning and holds the inquest in the Anchor's long room. He is honest but in a hurry, and takes the constable's word unless shown proof.",
+        "alwaysOn": false
+      }
+    ]
+  },
+  "actions": {
+    "rewrite": "Slow down, and let the people present react to what just happened before anything new happens.",
+    "edit": "Out on the water, a lugger with no lights was creeping in toward the cliffs.",
+    "worldChange": "A Revenue cutter has anchored off the harbour mouth, and its officer will come ashore tomorrow asking questions."
+  }
+}

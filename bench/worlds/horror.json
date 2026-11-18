@@ -1,0 +1,109 @@
+{
+  "about": "A bench world for horror and survival: dread, cold, isolation and a threat that may be human, with deaths likely. Invented, with no adult text. It brings about Checks on risky moves in the dark and the cold, a Plot Thread that resolves within a few days (the fuel running out before the storm breaks), secrets for NPCs to learn, Loose Ends, lore to grow, mortal danger to the PC, and people who may die. actions holds the fixed words of the Rewrite, Edit and World Change the bench sends.",
+  "save": {
+    "title": "Whiteout at Station Nine",
+    "artStyle": "Graphic Novel & Comic Illustration: Bold graphic aesthetic defined by clean ink linework, stylized cell-shading, dynamic speed lines, sharp silhouettes, and saturated flat tones with optional Ben-Day halftone dot patterns.",
+    "theme": "",
+    "worldBrief": "Station Nine, a small polar research station on an ice shelf in 1978, in the four months of winter dark. Six people overwinter there, a day's flight from anywhere, with a radio, a generator and a dog team. A storm has closed in, and last night something killed two of the dogs.",
+    "startingHook": "Dr Ingrid Sol, the station's glaciologist, is woken by the station chief, Brandt Okafor, to look at what is left of the two dogs in the kennel hut. Pavel Duda, the mechanic, found them, and swears the kennel door was bolted from outside. Lise Moen, the radio operator, says the storm has cut the radio off, and the relief flight cannot come until it clears.",
+    "pc": {
+      "name": "Ingrid Sol",
+      "background": "A glaciologist on her third winter at a polar station, here to drill ice cores. She came south after her marriage ended and found she liked the dark and the quiet better than people.",
+      "physicalTraits": "A strong, rawboned woman in her forties with a weathered pale face, short ash-blonde hair, pale blue eyes and frostbite scars on two fingertips of her left hand.",
+      "skills": "Ice and snow, survival in the cold, first aid, mechanics, the ice drill, staying calm when others don't.",
+      "personality": "Blunt, steady and private, with a dark sense of humour. Trusts evidence over people, and people slowly.",
+      "other": ""
+    },
+    "importantCharacters": [
+      {
+        "name": "Brandt Okafor",
+        "description": "A heavy-set man of fifty with dark brown skin, a grey-shot black beard, reading glasses on a cord, and a red station parka over a cable-knit sweater. The station chief, calm on the surface and tightly wound beneath.",
+        "onCover": true
+      },
+      {
+        "name": "Pavel Duda",
+        "description": "A wiry man in his thirties with a long pale face, a drooping brown moustache, grease on his hands and an orange boiler suit under a sheepskin vest. The mechanic, jumpy and talkative.",
+        "onCover": true
+      },
+      {
+        "name": "Lise Moen",
+        "description": "A small woman in her twenties with a round freckled face, a long brown braid, heavy black-framed glasses and a green wool sweater with leather elbow patches. The radio operator, quiet and watchful.",
+        "onCover": true
+      }
+    ]
+  },
+  "opening": {
+    "storyTime": { "day": 1, "date": "Tuesday, 6th June 1978", "timeOfDay": "small hours, dark" },
+    "inventory": {
+      "wearing": ["thermal long johns", "wool trousers", "heavy wool sweater", "felt-lined boots"],
+      "carrying": ["head torch", "clasp knife", "notebook", "station parka on the hook by the bunk"]
+    },
+    "status": { "health": "unhurt", "injuries": [], "conditions": [] },
+    "worldRules": [
+      "There is no magic and nothing unnatural; the dangers are cold, dark, the storm, the ice and people.",
+      "Outside in the storm, uncovered skin freezes in minutes, and a person who loses the guide rope between huts can die within shouting distance.",
+      "The station runs on one diesel generator; without it the huts freeze within a day.",
+      "Only Okafor holds the key to the station's one rifle."
+    ],
+    "plotThreads": [
+      "Arne Vik, the station geologist, did not die in the crevasse last month as Okafor reported: Okafor cut the rope when Vik's weight was dragging them both in, and Vik climbed out alive and crawled to the old abandoned hut two miles off. Half mad with cold and carbon monoxide from its stove, he is stealing food from the station by night, killed the dogs to stop them giving him away, and means to kill Okafor.",
+      "The generator's fuel will run out on Friday, as Okafor knows and has hidden from everyone: he let the autumn tanker leave half-unloaded to save a day. The storm will not clear until Saturday, so unless someone finds the reserve drums buried at the old hut, the station freezes.",
+      "Lise Moen has had the radio working since yesterday and has kept it quiet, because the relief pilot told her the flight is cancelled until the storm clears, and she is afraid of what Pavel will do when he hears; Pavel has been drinking the medical alcohol and has a flare pistol."
+    ],
+    "worldBible": [
+      {
+        "title": "Station Nine",
+        "keywords": ["Station Nine", "station", "huts", "ice shelf", "generator"],
+        "content": "Five huts on stilts on the ice shelf, joined by guide ropes: the main hut with the galley and bunks, the radio hut, the generator hut, the lab with the ice drill, and the kennel hut for the dogs. A day's flight from the nearest base. In winter the sun does not rise for four months.",
+        "alwaysOn": true
+      },
+      {
+        "title": "Brandt Okafor",
+        "keywords": ["Okafor", "Brandt", "chief", "station chief"],
+        "content": "A heavy-set man of fifty with dark brown skin, a grey-shot black beard, reading glasses on a cord, and a red station parka over a cable-knit sweater. Station chief for six winters. He cut Arne Vik's rope to save himself and reported him dead, and he hid the fuel shortage he caused. He holds the rifle key and will do almost anything to keep both secrets, but he is not a murderer by nature and cannot sleep.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Pavel Duda",
+        "keywords": ["Pavel", "Duda", "mechanic"],
+        "content": "A wiry man in his thirties with a long pale face, a drooping brown moustache, grease on his hands and an orange boiler suit under a sheepskin vest. The mechanic, who keeps the generator going. He found the dogs and believes something not human is out there. He is drinking the medical alcohol in secret and keeps a flare pistol under his bunk.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Lise Moen",
+        "keywords": ["Lise", "Moen", "radio", "radio operator"],
+        "content": "A small woman in her twenties with a round freckled face, a long brown braid, heavy black-framed glasses and a green wool sweater with elbow patches. The radio operator, on her first winter. The radio works; she has hidden it, and that the relief flight is cancelled, out of fear of Pavel. She has noticed that someone has been in the galley stores at night.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Arne Vik",
+        "keywords": ["Arne", "Vik", "geologist", "crevasse"],
+        "content": "The station geologist, a big fair-bearded man of forty, reported dead in a crevasse last month. Alive, frostbitten, gaunt and wild-eyed, wrapped in old canvas and furs, living in the abandoned hut two miles off. Poisoned slowly by its stove's fumes, he believes the whole crew left him to die, and wants Okafor dead most of all. He could still be talked down by someone he trusts, and he trusted Ingrid.",
+        "alwaysOn": false
+      },
+      {
+        "title": "The old hut",
+        "keywords": ["old hut", "abandoned hut", "reserve drums", "fuel drums"],
+        "content": "A survey hut abandoned in 1961, two miles inland along a line of bamboo poles, half buried in drift. A rusted stove inside leaks fumes. Six drums of diesel were cached beside it and are now under the snow, enough to run the generator for two weeks.",
+        "alwaysOn": false
+      },
+      {
+        "title": "The dogs and the kennel hut",
+        "keywords": ["dogs", "kennel", "huskies", "dog team"],
+        "content": "Eight huskies in the kennel hut; two are dead, their throats cut with a blade, the meat store raided. The kennel door bolts from outside only. The remaining dogs bark at the inland side of the hut at night.",
+        "alwaysOn": false
+      },
+      {
+        "title": "The storm",
+        "keywords": ["storm", "blizzard", "whiteout", "wind"],
+        "content": "A winter storm with winds that can knock a man down and snow so thick a torch shows nothing past an arm's length. Between huts, people move hand over hand on the guide ropes. It will blow until Saturday.",
+        "alwaysOn": false
+      }
+    ]
+  },
+  "actions": {
+    "rewrite": "Slow down, and let the people present react to what just happened before anything new happens.",
+    "edit": "Somewhere out in the dark, a light flickered once on the ice and went out.",
+    "worldChange": "The generator has started to cough and stall, and Pavel says it will fail within hours unless someone goes out to the generator hut."
+  }
+}

@@ -15,4 +15,5 @@ e2e/.results/
 perf/.data/
 perf/.results/
 bench/runs/
+bench/charts/
 bench/worlds-local/

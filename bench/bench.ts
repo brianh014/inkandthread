@@ -10,6 +10,9 @@
 //   bun bench judge <run folder> --by <model> --scores <scores.json>   (scores for a --judge self run, one entry per play)
 //   bun bench keep <run folder>        copies the run's numbers, never its story, to bench/results to commit
 //   bun bench table [--csv]            every kept and recent run, side by side
+//   bun bench chart [--version N]      the kept, judged runs of one bench version as charts, to bench/charts/bench-chart.html
+// To bench a setup without editing the Settings copy: --narrator <model>, --narrator-only (no other reviewer, Consistency off),
+// --reviewer <model> and --decisions <model>. The copy's pinned provider stays, so a model it doesn't offer fails, never reroutes.
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
@@ -25,8 +28,11 @@ import { localIsSetUp } from "../src/graph-builder";
 import { reviewerSettings, settingsStore } from "../src/settings-store";
 import { textProvider } from "../src/text-provider";
 import { askForJson, jsonSchemaOf, type TextProvider } from "../src/turn-engine";
+import { chartPage, points } from "./chart";
 
 const BENCH = import.meta.dir;
+// Bump whenever the prompts, the rubric or the world change: a chart compares only runs of one version.
+const BENCH_VERSION = 1;
 // --fake plays on the stand-in models, free and offline, to try the bench itself; its numbers say nothing of a real Narrator.
 const fake = process.argv.includes("--fake");
 // --draw draws on local ComfyUI, which costs nothing per picture; a paid image API is never drawn on.
@@ -145,6 +151,10 @@ const HEADLINE = [
 
 type Flat = Record<string, number>;
 type Result = {
+  /** BENCH_VERSION when it ran; absent on runs before it, which no chart shows. */
+  version?: number;
+  /** The Narrator alone (no other reviewer, Consistency off), or with a reviewer or decision model chosen. */
+  setup?: "narrator" | "full";
   date: string;
   label: string;
   commit: string;
@@ -769,6 +779,12 @@ async function run() {
     fail("--draw needs local ComfyUI set up as the image provider in the Settings file.");
   if (drawing.imageProvider === "local" ? !localIsSetUp(drawing) : !(drawing.imageModel && drawing.imageApiKey))
     settings.update({ imageProvider: "openrouter", imageModel: "fake-images", imageApiKey: "fake-key" });
+  const chosen = { narrator: option("--narrator"), reviewer: option("--reviewer"), decisions: option("--decisions") };
+  if (flag("--narrator-only") && (chosen.reviewer || chosen.decisions)) fail("--narrator-only can't go with --reviewer or --decisions.");
+  if (chosen.narrator) settings.update({ textModel: chosen.narrator });
+  if (flag("--narrator-only")) settings.update({ reviewOtherModel: false, consistencyEnabled: false });
+  if (chosen.reviewer) settings.update({ reviewOtherModel: true, reviewModel: chosen.reviewer });
+  if (chosen.decisions) settings.update({ consistencyEnabled: true, consistencyModel: chosen.decisions });
   if (fake) settings.update({ textBaseUrl: "http://127.0.0.1:9/v1", textModel: "fake-narrator", consistencyEnabled: true, consistencyModel: "fake-decisions" });
   const all = settings.read();
   const reviewer = reviewerSettings(settings).read();
@@ -791,6 +807,8 @@ async function run() {
   const commit = Bun.spawnSync(["git", "rev-parse", "--short", "HEAD"]).stdout.toString().trim();
   const dirty = Bun.spawnSync(["git", "status", "--porcelain"]).stdout.toString().trim() ? "+changes" : "";
   const result: Result = {
+    version: BENCH_VERSION,
+    setup: !all.reviewOtherModel && !all.consistencyEnabled ? "narrator" : "full",
     date: new Date().toISOString(),
     label,
     commit: `${commit}${dirty}`,
@@ -948,10 +966,25 @@ function table() {
   }
 }
 
+function chart() {
+  const version = option("--version") ? count("--version") : BENCH_VERSION;
+  const kept = allResults().filter(({ path }) => path.startsWith(RESULTS));
+  const found = points(
+    kept.map(({ result }) => result),
+    version,
+  );
+  const folder = join(BENCH, "charts");
+  mkdirSync(folder, { recursive: true });
+  const target = join(folder, "bench-chart.html");
+  writeFileSync(target, chartPage(found, version));
+  console.log(`${found.length} setup(s) of bench version ${version} charted in ${relative(process.cwd(), target)}.`);
+}
+
 const command = args[0];
 if (command === "run") await run();
 else if (command === "play") await playOne();
 else if (command === "judge") judgeRun();
 else if (command === "keep") keep();
 else if (command === "table") table();
-else fail("Use: bun bench run | judge | keep | table (see the top of bench/bench.ts).");
+else if (command === "chart") chart();
+else fail("Use: bun bench run | judge | keep | table | chart (see the top of bench/bench.ts).");

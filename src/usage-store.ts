@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite";
 import { chosenModels } from "./graph-builder";
 import type { ImageAdapter } from "./image-adapter";
 import { errorFields, log } from "./logger";
-import type { SettingsStore, TextSettings } from "./settings-store";
+import { modelName, type SettingsStore, type TextSettings } from "./settings-store";
 import type { TextProvider, TextUsage } from "./turn-engine";
 
 export type UsagePeriod = "day" | "week" | "month";
@@ -227,8 +227,8 @@ export function countedText(provider: TextProvider, usage: UsageStore, settings:
     let textModel = "";
     try {
       const current = settings.read();
-      textModel = current.textModel;
-      host = current.textBaseUrl;
+      textModel = modelName(current);
+      host = current.textCommand.length > 0 ? "command" : current.textBaseUrl;
       host = new URL(host).host;
     } catch {
       // Settings that won't read are the provider's to fail on, and an address that won't parse is shown as typed.

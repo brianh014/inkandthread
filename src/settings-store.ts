@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { basename } from "node:path";
 import { z } from "zod";
 import { LOG_LEVELS, log } from "./logger";
 
@@ -142,6 +143,9 @@ const PutAway = z.object({
   textProfiles: z.record(z.string(), TextProfile.catch({})).catch({}),
   imageProfiles: z.record(z.string(), ImageProfile.catch({})).catch({}),
 });
+// Set only in the file, never by a request, as it runs a program on this computer and NovelForge can be reached over a network.
+// A program and its arguments, run with no shell, in place of the text server. Empty uses the server.
+const FILE_ONLY = { textCommand: z.array(z.string().min(1)) };
 export type TextProfile = z.infer<typeof TextProfile>;
 export type ImageProfile = z.infer<typeof ImageProfile>;
 
@@ -230,11 +234,15 @@ export const reviewerSettings = (settings: TextSettings): TextSettings => ({
     // A review reads the whole world, so it may think as long as the longer limit allows, or Review thinking would be cut off.
     const thinking = { textThinking, textThinkingTokens: Math.max(all.textThinkingTokens, all.pictureThinkingTokens) };
     if (!all.reviewOtherModel) return { ...all, ...thinking };
-    const server = all.reviewSameProvider ? {} : { textBaseUrl: all.reviewBaseUrl, textApiKey: all.reviewApiKey };
+    // Its own server is a text server, never the Narrator's command.
+    const server = all.reviewSameProvider ? {} : { textBaseUrl: all.reviewBaseUrl, textApiKey: all.reviewApiKey, textCommand: [] };
     // The Narrator's chosen host may not offer the reviewer's model.
     return { ...all, ...server, ...thinking, textModel: all.reviewModel, textHost: "" };
   },
 });
+
+/** What a text call runs on, for logs and Usage: the command's program, or the chosen model. */
+export const modelName = ({ textCommand, textModel }: { textCommand: string[]; textModel: string }) => (textCommand[0] ? basename(textCommand[0]) : textModel);
 
 /** Per-install settings, including API keys. They live in one file outside the Saves folder, so no Save can carry them. */
 export function settingsStore(path: string) {
@@ -246,8 +254,9 @@ export function settingsStore(path: string) {
     const kept: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(fields)) {
       // A field this build doesn't know, from an older one, is dropped quietly, as before. Own keys only, or "constructor" would match.
-      if (!Object.hasOwn(SettingsUpdate.shape, key)) continue;
-      const result = SettingsUpdate.shape[key as keyof typeof SettingsUpdate.shape].safeParse(value);
+      const shape = { ...SettingsUpdate.shape, ...FILE_ONLY };
+      if (!Object.hasOwn(shape, key)) continue;
+      const result = shape[key as keyof typeof shape].safeParse(value);
       if (result.success) kept[key] = result.data;
       else if (!warned.has(key)) {
         warned.add(key);
@@ -260,7 +269,7 @@ export function settingsStore(path: string) {
     if ("consistencyBaseUrl" in fields && !("consistencyBaseUrl" in kept)) delete kept.consistencyApiKey;
     // Likewise a provider this build doesn't know, from a newer one, say, which would read as OpenRouter and get the other's key.
     if ("imageProvider" in fields && !("imageProvider" in kept)) delete kept.imageApiKey;
-    return { ...(kept as SettingsChange), ...PutAway.parse(fields) };
+    return { ...(kept as SettingsChange & { textCommand?: string[] }), ...PutAway.parse(fields) };
   };
 
   const read = () => {
@@ -269,7 +278,7 @@ export function settingsStore(path: string) {
     const typed = stored.comfySteps != null || stored.comfyCfg != null;
     // The Stage box is no longer offered (its code is kept), so a stored pick of it reads as Prose.
     if (stored.chatStyle === "stage") stored.chatStyle = "prose";
-    const all = { ...defaults, comfyDefaults: !typed, ...stored };
+    const all = { ...defaults, textCommand: [] as string[], comfyDefaults: !typed, ...stored };
     // What is in use is filed too, which a file from before the profiles has only as the settings in use.
     return {
       ...all,
@@ -279,6 +288,8 @@ export function settingsStore(path: string) {
   };
 
   return {
+    /** Where the file is, as Settings tells the player where a command is set. */
+    path,
     read,
 
     update(change: SettingsChange) {

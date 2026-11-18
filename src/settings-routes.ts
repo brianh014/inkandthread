@@ -7,7 +7,7 @@ import type { ImageAdapter } from "./image-adapter";
 import { defaultLogLevel, errorFields, errorType, log, setLogLevel } from "./logger";
 import { decisionModels } from "./decisions";
 import { estimateTokens } from "./lore-activation";
-import { OnlineImageProvider, reviewerSettings, type SettingsChange, SettingsUpdate } from "./settings-store";
+import { modelName, OnlineImageProvider, reviewerSettings, type SettingsChange, SettingsUpdate } from "./settings-store";
 import { textHosts, textModels } from "./text-provider";
 import { ContentRefused, TextProviderFailed } from "./turn-engine";
 import { GOOGLE_URL, NANOGPT_URL, OPENROUTER_URL, storyName, UNREADABLE_SAVE } from "./web/api";
@@ -24,7 +24,8 @@ const unkeyed = <T extends object>(profiles: Record<string, T>, key: keyof T) =>
 // The image providers that also serve the Narrator, by its address, whose one key does both.
 const SAME_SERVICE = { openrouter: OPENROUTER_URL, google: GOOGLE_URL, nanogpt: NANOGPT_URL };
 // Setup's save can ask for the Narrator's key to draw with too.
-const SettingsSave = SettingsUpdate.extend({ imageKeyFromText: z.boolean().optional() });
+// `textCommand` is read only to refuse it, as a command is set in the file alone.
+const SettingsSave = SettingsUpdate.extend({ imageKeyFromText: z.boolean().optional(), textCommand: z.unknown().optional() });
 
 /** Settings and their tests. `local` is the ComfyUI adapter, and `workflow` how its last job went, which only the screen shows. */
 export function settingsRoutes({ options, images, saves }: ServerContext, local: ImageAdapter, workflow: { problem: string }) {
@@ -91,8 +92,12 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
       storyInLog,
       textProfiles,
       imageProfiles,
+      textCommand,
     } = settings.read();
     return {
+      // Shown read-only, with where to change it.
+      textCommand,
+      settingsFile: settings.path,
       textBaseUrl,
       textModel,
       textRouting,
@@ -166,7 +171,11 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
     "/settings": {
       GET: () => Response.json(publicSettings()),
       PATCH: async (req) => {
-        const { imageKeyFromText, ...change } = await parseBody(req, SettingsSave);
+        const { imageKeyFromText, textCommand, ...change } = await parseBody(req, SettingsSave);
+        if (textCommand !== undefined) {
+          log.warning("settings", "A command was refused, as it's set only in settings.json");
+          return Response.json({ error: "The command is set only in settings.json." }, { status: 400 });
+        }
         const current = settings.read();
         if (imageKeyFromText) {
           // Copied here, as the page never holds a stored key, and only to the image side of the same service it was entered for.
@@ -243,7 +252,7 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
             seconds,
             firstSeconds: firstSeconds ?? seconds,
             tokens: estimateTokens(reply),
-            model: settings.read().textModel,
+            model: modelName(settings.read()),
           });
         } catch (error) {
           if (error instanceof ContentRefused) log.warning("text", "The model refused the test", errorType(error));

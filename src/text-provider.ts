@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { commandReply } from "./command-provider";
 import { errorFields, log } from "./logger";
 import type { SettingsStore, TextSettings } from "./settings-store";
 import { ContentRefused, ReplyCutOff, StoppedOnPurpose, type TextProvider, TextProviderFailed, type TextUsage, ThoughtTooLong } from "./turn-engine";
@@ -195,7 +196,10 @@ export function textProvider(
     return takes ?? false;
   }
 
-  return async (prompt, { schema, picture, lessThinking = 0, onText, onGeneration, onUsage, signal }) => {
+  return async (prompt, request) => {
+    const all = settings.read();
+    if (all.textCommand.length > 0) return commandReply(all.textCommand, prompt, request, all);
+    const { schema, picture, lessThinking = 0, onText, onGeneration, onUsage, signal } = request;
     const {
       textBaseUrl,
       textApiKey,
@@ -206,7 +210,7 @@ export function textProvider(
       textThinkingTokens,
       pictureThinkingTokens,
       ...chosen
-    } = settings.read();
+    } = all;
     const textThinking = lessThinking ? lowerThinking(chosenThinking, lessThinking) : chosenThinking;
     const thinkingTokens = picture ? pictureThinkingTokens : textThinkingTokens;
     if (!textModel) throw new TextProviderFailed("No text model is set, so choose one in Settings");

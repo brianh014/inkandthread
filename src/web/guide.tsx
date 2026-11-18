@@ -25,6 +25,31 @@ import { QUIET_TURNS } from "./usage";
 
 /** The Reader's Guide: what NovelForge is and how to use every part of it, one section at a time, kept in the URL hash. */
 
+/** What a player takes on with a command as their AI, in the Guide and beside the command in Settings. */
+export const CommandCaveats = () => (
+  <ul>
+    <li>
+      <b>Terms</b>: the provider's terms apply, and some don't allow a subscription to be used by another app. That's your call.
+    </li>
+    <li>
+      <b>Content rules</b>: a subscription brings its company's content rules into your story.
+    </li>
+    <li>
+      <b>Limits</b>: one Turn is several calls (the Narrator, the review, keeping the scene in step, the world moving on, picture prompts). A subscription's
+      limits can run out mid-story, and play stops until they reset.
+    </li>
+    <li>
+      <b>Speed</b>: each call starts the program again, which adds time before every reply.
+    </li>
+    <li>
+      <b>No caching or costs</b>: prompt caching is up to the program, and NovelForge can't see tokens or cost, so Usage counts calls only.
+    </li>
+    <li>
+      <b>No Thinking setting</b>: Thinking does nothing; set it in the command if the program allows.
+    </li>
+  </ul>
+);
+
 /** A tool as it looks on screen: its icon, then its name. */
 const tool = (icon: ReactNode, name: string) => (
   <b className="guide-tool">
@@ -116,6 +141,15 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             saying so).
           </li>
         </ul>
+        <h3>A command as your AI</h3>
+        <p>
+          Instead of a server, the story can run on a program you set up, such as a provider's own command-line tool. NovelForge sends it the prompt as text and
+          reads its reply. Anyone who can open Settings could run programs with it, so it's set only in the <code>settings.json</code> file, never in the app:
+          add <code>"textCommand": ["program", "argument", …]</code> and it's used from the next reply. Set it back to <code>[]</code> to go back to your
+          server. The program runs with no shell, in an empty folder, and must print its reply and nothing else. Settings shows where the file is. An online AI
+          as above is still the way we recommend.
+        </p>
+        <CommandCaveats />
         <h3>Pictures: your own ComfyUI is best</h3>
         <p>
           NovelForge draws a lot: the Cover, a portrait for each person, a scene picture whenever the scene changes, pictures you ask for and every redraw. On a

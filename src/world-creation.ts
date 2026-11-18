@@ -14,7 +14,7 @@ import {
   type Prompt,
   REQUESTED_IMAGE_PROMPT,
 } from "./prompt-assembler";
-import { reviewerSettings, type SettingsStore } from "./settings-store";
+import { modelName, reviewerSettings, type SettingsStore } from "./settings-store";
 import type { Message, Save, SaveStore } from "./save-store";
 import {
   applyOperations,
@@ -741,7 +741,7 @@ async function reviewed<T>(
   signal: AbortSignal,
   review: (reviewer: TextProvider) => Promise<{ result: T; reasons: string[] }>,
 ) {
-  const model = reviewerSettings(context.settings).read().textModel;
+  const model = modelName(reviewerSettings(context.settings).read());
   // No reviewer model chosen means no review, as Settings tells the player, not a failed call in Usage every time.
   if (!context.reviewProvider || !model) return unreviewed;
   try {

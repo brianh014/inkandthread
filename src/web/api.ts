@@ -30,6 +30,9 @@ export type Settings = Omit<Required<SettingsChange>, "textApiKey" | "imageApiKe
   workflowProblem: string;
   /** Only the downloaded app, which has no window to close. A server keeps running for everyone. */
   canQuit: boolean;
+  /** Set only in the file, so shown read-only, with the file's path. */
+  textCommand: string[];
+  settingsFile: string;
 };
 export type TextHost = Awaited<ReturnType<typeof textHosts>>[number];
 export type Journal = {
@@ -194,7 +197,14 @@ export const getTextHosts = (model: string) =>
   request<{ hosts: TextHost[] }>(`/settings/text-hosts?model=${encodeURIComponent(model)}`).then(({ hosts }) => hosts);
 
 /** What stops the Narrator replying, if anything. */
-export function setupProblem({ textBaseUrl, textModel, hasTextApiKey }: Pick<Settings, "textBaseUrl" | "textModel" | "hasTextApiKey">) {
+export function setupProblem({
+  textBaseUrl,
+  textModel,
+  hasTextApiKey,
+  textCommand,
+}: Pick<Settings, "textBaseUrl" | "textModel" | "hasTextApiKey" | "textCommand">) {
+  // A command has no model or key of NovelForge's, and a broken one fails its first call with what to fix.
+  if (textCommand.length > 0) return;
   if (!textModel) return "No text model is set.";
   // Every named provider needs a key; most local or other OpenAI-compatible servers need none.
   if (!hasTextApiKey && [OPENROUTER_URL, GOOGLE_URL, NANOGPT_URL].includes(textBaseUrl)) return "No API key is set.";

@@ -1,0 +1,788 @@
+{
+  "date": "2026-11-18T00:46:26.230Z",
+  "label": "tense-and-mounts",
+  "commit": "68342e1",
+  "provider": "openrouter",
+  "models": {
+    "narrator": "xiaomi/mimo-v2.6-pro",
+    "reviewer": "deepseek/deepseek-v4.1-flash-1017",
+    "reviewThinking": "medium",
+    "consistency": "liquid/d1.2"
+  },
+  "mode": "choices",
+  "drawn": true,
+  "thinking": "medium",
+  "seed": 1,
+  "rounds": 20,
+  "runs": 1,
+  "estimate": 0.30770363999999994,
+  "summary": {
+    "rounds": 20,
+    "turns": 25,
+    "retries": 0,
+    "checks.asked": 4,
+    "upkeep.total": 5,
+    "consistency.fixed": 2,
+    "consistency.fix failed": 3,
+    "ops.add_item": 0,
+    "ops.remove_item": 0,
+    "ops.set_health": 0,
+    "ops.add_status": 0,
+    "ops.remove_status": 0,
+    "ops.add_npc": 3,
+    "ops.update_npc": 0,
+    "ops.merge_npc": 0,
+    "ops.npc_learns": 13,
+    "ops.set_scene": 2,
+    "ops.add_known_fact": 15,
+    "ops.update_known_fact": 4,
+    "ops.remove_known_fact": 0,
+    "ops.add_known_npc": 3,
+    "ops.set_known_npc_summary": 4,
+    "ops.add_loose_end": 4,
+    "ops.resolve_loose_end": 1,
+    "ops.add_lore_entry": 0,
+    "ops.update_lore_entry": 0,
+    "ops.remove_lore_entry": 0,
+    "ops.add_plot_thread": 0,
+    "ops.update_plot_thread": 0,
+    "ops.resolve_plot_thread": 0,
+    "ops.set_pc_appearance": 0,
+    "ops.set_story_time": 2,
+    "turns.opening": 1,
+    "upkeep.refused": 0,
+    "consistency.passed": 16,
+    "turns.turn": 21,
+    "consistency.not a slip": 3,
+    "turns.rewrite": 1,
+    "upkeep.set_scene": 5,
+    "turns.regenerate": 1,
+    "checks.failure": 2,
+    "checks.success": 2,
+    "turns.edit": 1,
+    "checks.difficultyMean": 0,
+    "unusable": 1,
+    "failed": 0,
+    "chapters.closed": 0,
+    "actions.rewrite": 1,
+    "actions.regenerate": 1,
+    "actions.continue": 1,
+    "actions.edit": 1,
+    "actions.worldChange": 1,
+    "end.plotThreads": 4,
+    "end.npcKnows": 13,
+    "end.knownFacts": 18,
+    "end.knownNpcs": 5,
+    "end.looseEnds": 3,
+    "end.sceneMemories": 0,
+    "end.worldBible": 13,
+    "end.npcs": 5,
+    "timing.firstText.median": 20299,
+    "timing.firstText.max": 107893,
+    "timing.turn.median": 35731,
+    "timing.turn.max": 120205,
+    "timing.upkeep.median": 1662,
+    "timing.upkeep.max": 5207,
+    "timing.fix.median": 10802,
+    "timing.fix.max": 12001,
+    "timing.memory.median": 0,
+    "timing.memory.max": 0,
+    "timing.decision.median": 263,
+    "timing.decision.max": 1679,
+    "timing.picture.median": 4315,
+    "timing.picture.max": 12935,
+    "images.scene": 2,
+    "images.portrait": 6,
+    "images.requested": 0,
+    "tokens.narrator.turn.in": 397482,
+    "tokens.narrator.turn.out": 76042,
+    "cost.narrator.turn": 0.17627371344000003,
+    "calls.narrator.turn": 29,
+    "tokens.reviewer.upkeep.in": 50722,
+    "tokens.reviewer.upkeep.out": 6657,
+    "cost.reviewer.upkeep": 0.004325819999999999,
+    "calls.reviewer.upkeep": 25,
+    "tokens.narrator.picture.in": 5439,
+    "tokens.narrator.picture.out": 2553,
+    "cost.narrator.picture": 0.00372320208,
+    "calls.narrator.picture": 8,
+    "tokens.reviewer.fix.in": 11596,
+    "tokens.reviewer.fix.out": 8773,
+    "cost.reviewer.fix": 0.004754036,
+    "calls.reviewer.fix": 8,
+    "tokens.narrator.other.in": 28946,
+    "tokens.narrator.other.out": 9310,
+    "cost.narrator.other": 0.016686624959999997,
+    "calls.narrator.other": 10,
+    "tokens.reviewer.other.in": 5671,
+    "tokens.reviewer.other.out": 3515,
+    "cost.reviewer.other": 0.001961656,
+    "calls.reviewer.other": 1,
+    "cost.decisions": 0.0012778199999999996,
+    "calls.decisions": 94,
+    "cost.total": 0.20900287248000005,
+    "cost.perRound": 0.010450143624000003,
+    "perRound.narrator.in": 21593,
+    "perRound.narrator.out": 4395,
+    "perRound.reviewer.in": 3399,
+    "perRound.reviewer.out": 947,
+    "perRound.decisions.cost": 0.00006389099999999997,
+    "judged.npcDied": 0,
+    "judged.pcInMortalDanger": 0,
+    "coverage.fired": 19,
+    "judge.choices": 7,
+    "judge.surprise": 7,
+    "judge.threads": 8,
+    "judge.characters": 8,
+    "judge.continuity": 8,
+    "judge.pacing": 6,
+    "judge.prose": 7,
+    "judge.pictures": 7,
+    "judge.overall": 7.25
+  },
+  "range": {
+    "rounds": [
+      20,
+      20
+    ],
+    "turns": [
+      25,
+      25
+    ],
+    "retries": [
+      0,
+      0
+    ],
+    "checks.asked": [
+      4,
+      4
+    ],
+    "upkeep.total": [
+      5,
+      5
+    ],
+    "consistency.fixed": [
+      2,
+      2
+    ],
+    "consistency.fix failed": [
+      3,
+      3
+    ],
+    "ops.add_item": [
+      0,
+      0
+    ],
+    "ops.remove_item": [
+      0,
+      0
+    ],
+    "ops.set_health": [
+      0,
+      0
+    ],
+    "ops.add_status": [
+      0,
+      0
+    ],
+    "ops.remove_status": [
+      0,
+      0
+    ],
+    "ops.add_npc": [
+      3,
+      3
+    ],
+    "ops.update_npc": [
+      0,
+      0
+    ],
+    "ops.merge_npc": [
+      0,
+      0
+    ],
+    "ops.npc_learns": [
+      13,
+      13
+    ],
+    "ops.set_scene": [
+      2,
+      2
+    ],
+    "ops.add_known_fact": [
+      15,
+      15
+    ],
+    "ops.update_known_fact": [
+      4,
+      4
+    ],
+    "ops.remove_known_fact": [
+      0,
+      0
+    ],
+    "ops.add_known_npc": [
+      3,
+      3
+    ],
+    "ops.set_known_npc_summary": [
+      4,
+      4
+    ],
+    "ops.add_loose_end": [
+      4,
+      4
+    ],
+    "ops.resolve_loose_end": [
+      1,
+      1
+    ],
+    "ops.add_lore_entry": [
+      0,
+      0
+    ],
+    "ops.update_lore_entry": [
+      0,
+      0
+    ],
+    "ops.remove_lore_entry": [
+      0,
+      0
+    ],
+    "ops.add_plot_thread": [
+      0,
+      0
+    ],
+    "ops.update_plot_thread": [
+      0,
+      0
+    ],
+    "ops.resolve_plot_thread": [
+      0,
+      0
+    ],
+    "ops.set_pc_appearance": [
+      0,
+      0
+    ],
+    "ops.set_story_time": [
+      2,
+      2
+    ],
+    "turns.opening": [
+      1,
+      1
+    ],
+    "upkeep.refused": [
+      0,
+      0
+    ],
+    "consistency.passed": [
+      16,
+      16
+    ],
+    "turns.turn": [
+      21,
+      21
+    ],
+    "consistency.not a slip": [
+      3,
+      3
+    ],
+    "turns.rewrite": [
+      1,
+      1
+    ],
+    "upkeep.set_scene": [
+      5,
+      5
+    ],
+    "turns.regenerate": [
+      1,
+      1
+    ],
+    "checks.failure": [
+      2,
+      2
+    ],
+    "checks.success": [
+      2,
+      2
+    ],
+    "turns.edit": [
+      1,
+      1
+    ],
+    "checks.difficultyMean": [
+      0,
+      0
+    ],
+    "unusable": [
+      1,
+      1
+    ],
+    "failed": [
+      0,
+      0
+    ],
+    "chapters.closed": [
+      0,
+      0
+    ],
+    "actions.rewrite": [
+      1,
+      1
+    ],
+    "actions.regenerate": [
+      1,
+      1
+    ],
+    "actions.continue": [
+      1,
+      1
+    ],
+    "actions.edit": [
+      1,
+      1
+    ],
+    "actions.worldChange": [
+      1,
+      1
+    ],
+    "end.plotThreads": [
+      4,
+      4
+    ],
+    "end.npcKnows": [
+      13,
+      13
+    ],
+    "end.knownFacts": [
+      18,
+      18
+    ],
+    "end.knownNpcs": [
+      5,
+      5
+    ],
+    "end.looseEnds": [
+      3,
+      3
+    ],
+    "end.sceneMemories": [
+      0,
+      0
+    ],
+    "end.worldBible": [
+      13,
+      13
+    ],
+    "end.npcs": [
+      5,
+      5
+    ],
+    "timing.firstText.median": [
+      20299,
+      20299
+    ],
+    "timing.firstText.max": [
+      107893,
+      107893
+    ],
+    "timing.turn.median": [
+      35731,
+      35731
+    ],
+    "timing.turn.max": [
+      120205,
+      120205
+    ],
+    "timing.upkeep.median": [
+      1662,
+      1662
+    ],
+    "timing.upkeep.max": [
+      5207,
+      5207
+    ],
+    "timing.fix.median": [
+      10802,
+      10802
+    ],
+    "timing.fix.max": [
+      12001,
+      12001
+    ],
+    "timing.memory.median": [
+      0,
+      0
+    ],
+    "timing.memory.max": [
+      0,
+      0
+    ],
+    "timing.decision.median": [
+      263,
+      263
+    ],
+    "timing.decision.max": [
+      1679,
+      1679
+    ],
+    "timing.picture.median": [
+      4315,
+      4315
+    ],
+    "timing.picture.max": [
+      12935,
+      12935
+    ],
+    "images.scene": [
+      2,
+      2
+    ],
+    "images.portrait": [
+      6,
+      6
+    ],
+    "images.requested": [
+      0,
+      0
+    ],
+    "tokens.narrator.turn.in": [
+      397482,
+      397482
+    ],
+    "tokens.narrator.turn.out": [
+      76042,
+      76042
+    ],
+    "cost.narrator.turn": [
+      0.17627371344000003,
+      0.17627371344000003
+    ],
+    "calls.narrator.turn": [
+      29,
+      29
+    ],
+    "tokens.reviewer.upkeep.in": [
+      50722,
+      50722
+    ],
+    "tokens.reviewer.upkeep.out": [
+      6657,
+      6657
+    ],
+    "cost.reviewer.upkeep": [
+      0.004325819999999999,
+      0.004325819999999999
+    ],
+    "calls.reviewer.upkeep": [
+      25,
+      25
+    ],
+    "tokens.narrator.picture.in": [
+      5439,
+      5439
+    ],
+    "tokens.narrator.picture.out": [
+      2553,
+      2553
+    ],
+    "cost.narrator.picture": [
+      0.00372320208,
+      0.00372320208
+    ],
+    "calls.narrator.picture": [
+      8,
+      8
+    ],
+    "tokens.reviewer.fix.in": [
+      11596,
+      11596
+    ],
+    "tokens.reviewer.fix.out": [
+      8773,
+      8773
+    ],
+    "cost.reviewer.fix": [
+      0.004754036,
+      0.004754036
+    ],
+    "calls.reviewer.fix": [
+      8,
+      8
+    ],
+    "tokens.narrator.other.in": [
+      28946,
+      28946
+    ],
+    "tokens.narrator.other.out": [
+      9310,
+      9310
+    ],
+    "cost.narrator.other": [
+      0.016686624959999997,
+      0.016686624959999997
+    ],
+    "calls.narrator.other": [
+      10,
+      10
+    ],
+    "tokens.reviewer.other.in": [
+      5671,
+      5671
+    ],
+    "tokens.reviewer.other.out": [
+      3515,
+      3515
+    ],
+    "cost.reviewer.other": [
+      0.001961656,
+      0.001961656
+    ],
+    "calls.reviewer.other": [
+      1,
+      1
+    ],
+    "cost.decisions": [
+      0.0012778199999999996,
+      0.0012778199999999996
+    ],
+    "calls.decisions": [
+      94,
+      94
+    ],
+    "cost.total": [
+      0.20900287248000005,
+      0.20900287248000005
+    ],
+    "cost.perRound": [
+      0.010450143624000003,
+      0.010450143624000003
+    ],
+    "perRound.narrator.in": [
+      21593,
+      21593
+    ],
+    "perRound.narrator.out": [
+      4395,
+      4395
+    ],
+    "perRound.reviewer.in": [
+      3399,
+      3399
+    ],
+    "perRound.reviewer.out": [
+      947,
+      947
+    ],
+    "perRound.decisions.cost": [
+      0.00006389099999999997,
+      0.00006389099999999997
+    ],
+    "judged.npcDied": [
+      0,
+      0
+    ],
+    "judged.pcInMortalDanger": [
+      0,
+      0
+    ]
+  },
+  "coverage": {
+    "Hidden Check": 1,
+    "Plot Thread added": 0,
+    "Plot Thread moved on": 0,
+    "Plot Thread resolved": 0,
+    "NPC learns (npcKnows)": 1,
+    "Known fact added": 1,
+    "Known fact changed": 1,
+    "Known NPC summary": 1,
+    "Loose End added": 1,
+    "Loose End resolved": 1,
+    "World Bible grew": 0,
+    "World Bible entry updated": 0,
+    "New NPC": 1,
+    "NPC look changed": 0,
+    "Scene moved": 1,
+    "Item picked up or put on": 0,
+    "Item lost or taken off": 0,
+    "Story Time moved": 1,
+    "PC hurt or changed": 0,
+    "Scene picture": 1,
+    "Portrait": 1,
+    "Scene Memory": 0,
+    "Chapter closed": 0,
+    "State Upkeep changed state": 1,
+    "Consistency fix": 1,
+    "World Change": 1,
+    "Rewrite": 1,
+    "Regenerate": 1,
+    "Continue": 1,
+    "Edit": 1,
+    "An NPC died (judged)": 0,
+    "PC in mortal danger and lived (judged)": 0
+  },
+  "judge": {
+    "by": "claude-opus-5-5",
+    "plays": [
+      {
+        "scores": {
+          "choices": {
+            "score": 7,
+            "reason": "Picks carry: siding plainly with Vane sets Tamsin watching, sitting by the boy drives Vane off, and carrying Vane's offer to Tamsin turns her; most rounds are three ways of talking."
+          },
+          "surprise": {
+            "score": 7,
+            "reason": "Vane's offer to the boy at the post and the re-tied knots come out of the hidden threads; the riders and the Well stay off stage."
+          },
+          "threads": {
+            "score": 8,
+            "reason": "Moves keep each thread's secret, the letter naming Marrick word for word, and push each on by the hour (Vane turning to the boy, Sefa closing then shifting for the storm); the Free Wells' muster falls out when Tamsin's thread takes its place."
+          },
+          "characters": {
+            "score": 8,
+            "reason": "Vane honest and hard, buying a witness by his own lights, Tamsin protective and shrewd, Jory guilty and frightened, the two hands with views of their own."
+          },
+          "continuity": {
+            "score": 8,
+            "reason": "Tense, looks, mounts, the halt and who knows what hold throughout."
+          },
+          "pacing": {
+            "score": 6,
+            "reason": "Twenty rounds cover one morning and a midday halt in talk; the camp, the Well and the riders are never reached."
+          },
+          "prose": {
+            "score": 7,
+            "reason": "Clear and concrete in one steady voice, the PC's words told in narration; Jory rubbing his throat comes back four times."
+          },
+          "pictures": {
+            "score": 7,
+            "reason": "Both drawn pictures follow the Art Style and show the right people, faces, mounts, place and light; Jory's waterskin is drawn as a clay jug, and two pictures in 25 replies is thin."
+          }
+        },
+        "happened": {
+          "npcDied": false,
+          "pcInMortalDanger": false
+        }
+      }
+    ]
+  },
+  "plays": [
+    {
+      "rounds": 20,
+      "turns": 25,
+      "retries": 0,
+      "checks.asked": 4,
+      "upkeep.total": 5,
+      "consistency.fixed": 2,
+      "consistency.fix failed": 3,
+      "ops.add_item": 0,
+      "ops.remove_item": 0,
+      "ops.set_health": 0,
+      "ops.add_status": 0,
+      "ops.remove_status": 0,
+      "ops.add_npc": 3,
+      "ops.update_npc": 0,
+      "ops.merge_npc": 0,
+      "ops.npc_learns": 13,
+      "ops.set_scene": 2,
+      "ops.add_known_fact": 15,
+      "ops.update_known_fact": 4,
+      "ops.remove_known_fact": 0,
+      "ops.add_known_npc": 3,
+      "ops.set_known_npc_summary": 4,
+      "ops.add_loose_end": 4,
+      "ops.resolve_loose_end": 1,
+      "ops.add_lore_entry": 0,
+      "ops.update_lore_entry": 0,
+      "ops.remove_lore_entry": 0,
+      "ops.add_plot_thread": 0,
+      "ops.update_plot_thread": 0,
+      "ops.resolve_plot_thread": 0,
+      "ops.set_pc_appearance": 0,
+      "ops.set_story_time": 2,
+      "turns.opening": 1,
+      "upkeep.refused": 0,
+      "consistency.passed": 16,
+      "turns.turn": 21,
+      "consistency.not a slip": 3,
+      "turns.rewrite": 1,
+      "upkeep.set_scene": 5,
+      "turns.regenerate": 1,
+      "checks.failure": 2,
+      "checks.success": 2,
+      "turns.edit": 1,
+      "checks.difficultyMean": null,
+      "unusable": 1,
+      "failed": 0,
+      "chapters.closed": 0,
+      "actions.rewrite": 1,
+      "actions.regenerate": 1,
+      "actions.continue": 1,
+      "actions.edit": 1,
+      "actions.worldChange": 1,
+      "end.plotThreads": 4,
+      "end.npcKnows": 13,
+      "end.knownFacts": 18,
+      "end.knownNpcs": 5,
+      "end.looseEnds": 3,
+      "end.sceneMemories": 0,
+      "end.worldBible": 13,
+      "end.npcs": 5,
+      "timing.firstText.median": 20299,
+      "timing.firstText.max": 107893,
+      "timing.turn.median": 35731,
+      "timing.turn.max": 120205,
+      "timing.upkeep.median": 1662,
+      "timing.upkeep.max": 5207,
+      "timing.fix.median": 10802,
+      "timing.fix.max": 12001,
+      "timing.memory.median": 0,
+      "timing.memory.max": 0,
+      "timing.decision.median": 263,
+      "timing.decision.max": 1679,
+      "timing.picture.median": 4315,
+      "timing.picture.max": 12935,
+      "images.scene": 2,
+      "images.portrait": 6,
+      "images.requested": 0,
+      "tokens.narrator.turn.in": 397482,
+      "tokens.narrator.turn.out": 76042,
+      "cost.narrator.turn": 0.17627371344000003,
+      "calls.narrator.turn": 29,
+      "tokens.reviewer.upkeep.in": 50722,
+      "tokens.reviewer.upkeep.out": 6657,
+      "cost.reviewer.upkeep": 0.004325819999999999,
+      "calls.reviewer.upkeep": 25,
+      "tokens.narrator.picture.in": 5439,
+      "tokens.narrator.picture.out": 2553,
+      "cost.narrator.picture": 0.00372320208,
+      "calls.narrator.picture": 8,
+      "tokens.reviewer.fix.in": 11596,
+      "tokens.reviewer.fix.out": 8773,
+      "cost.reviewer.fix": 0.004754036,
+      "calls.reviewer.fix": 8,
+      "tokens.narrator.other.in": 28946,
+      "tokens.narrator.other.out": 9310,
+      "cost.narrator.other": 0.016686624959999997,
+      "calls.narrator.other": 10,
+      "tokens.reviewer.other.in": 5671,
+      "tokens.reviewer.other.out": 3515,
+      "cost.reviewer.other": 0.001961656,
+      "calls.reviewer.other": 1,
+      "cost.decisions": 0.0012778199999999996,
+      "calls.decisions": 94,
+      "cost.total": 0.20900287248000005,
+      "cost.perRound": 0.010450143624000003,
+      "perRound.narrator.in": 21593,
+      "perRound.narrator.out": 4395,
+      "perRound.reviewer.in": 3399,
+      "perRound.reviewer.out": 947,
+      "perRound.decisions.cost": 0.00006389099999999997,
+      "judged.npcDied": 0,
+      "judged.pcInMortalDanger": 0
+    }
+  ]
+}

@@ -14,6 +14,9 @@ const REJECTED = "The Text Provider returned an error, so look over its address,
 const LIMITS = {
   // Generous, as a local server can spend minutes loading a model before its first byte.
   silenceMs: 10 * 60 * 1000,
+  // A hosted API has no model to load and streams its thinking, so this long with nothing from it is a stuck request. Real
+  // replies have taken six minutes, but streamed text the whole time.
+  hostedSilenceMs: 2 * 60 * 1000,
   // The list is only a nicety, so a server too busy to answer holds up a Turn or Settings this long at most.
   listMs: 15 * 1000,
 };
@@ -43,11 +46,15 @@ const isRefusal = (error?: ProviderError) => ["refusal", "content_policy_violati
 async function* eventData(body: ReadableStream, onRead: () => void) {
   let pending = "";
   for await (const part of body.pipeThrough(new TextDecoderStream())) {
-    onRead();
     const lines = (pending + part).split("\n");
     pending = lines.pop()!;
-    // Anything else is a blank line or a comment, such as OpenRouter's keep-alive.
-    for (const line of lines) if (line.startsWith("data:")) yield line.slice("data:".length).trim();
+    // Anything else is a blank line or a comment, such as OpenRouter's keep-alive, which a stuck upstream sends forever, so it
+    // never counts as hearing from the model.
+    for (const line of lines)
+      if (line.startsWith("data:")) {
+        onRead();
+        yield line.slice("data:".length).trim();
+      }
   }
   if (pending.startsWith("data:")) yield pending.slice("data:".length).trim();
 }
@@ -129,7 +136,10 @@ const LEVELS = ["low", "medium", "high"];
 /** `steps` levels below `level`, and never below Low. The model's own level is taken as one that thinks too long, so it goes to Low. */
 const lowerThinking = (level: string, steps: number) => LEVELS[Math.max(0, LEVELS.indexOf(level) - steps)] ?? "low";
 
-export function textProvider(settings: TextSettings, { silenceMs, listMs } = LIMITS): TextProvider {
+export function textProvider(
+  settings: TextSettings,
+  { silenceMs, hostedSilenceMs = silenceMs, listMs }: { silenceMs: number; hostedSilenceMs?: number; listMs: number } = LIMITS,
+): TextProvider {
   const schemaSupport = new Map<string, boolean>();
   // Whether a model takes `reasoning`, by its provider's listing, or false after it refused one. Sent to a model that doesn't, on
   // OpenRouter it would leave a schema call, which requires every parameter, no host.
@@ -202,6 +212,9 @@ export function textProvider(settings: TextSettings, { silenceMs, listMs } = LIM
     if (!textModel) throw new TextProviderFailed("No text model is set, so choose one in Settings");
     const url = textBaseUrl.replace(/\/$/, "");
     const openRouter = url.includes("openrouter.ai");
+    // shortcut: https stands for a hosted API, as local servers run on http; a self-hosted server behind https that loads models
+    // slowly gets the hosted limit too, give it a setting if a player hits that.
+    const quiet = url.startsWith("https:") ? hostedSilenceMs : silenceMs;
     const headers = keyHeader(textApiKey);
     const sent = prompt.map(({ content }) => content).join("\n");
     // A provider may echo what it was sent, and this text goes to the Server Log at Verbose, so no key and nothing of the prompt.
@@ -232,7 +245,7 @@ export function textProvider(settings: TextSettings, { silenceMs, listMs } = LIM
     let deadline: Timer | undefined;
     const heardFrom = () => {
       clearTimeout(timer);
-      timer = setTimeout(() => silence.abort(), silenceMs);
+      timer = setTimeout(() => silence.abort(), quiet);
     };
 
     let withThinking = false;

@@ -309,8 +309,8 @@ test("an Edit is told of the player's Journal edits, and doesn't refill the Loos
 });
 
 test("a stale Regenerate makes no World Change, and a fresh one settles against the state before the response", async () => {
-  const ADDED = `${SECRET} a thread from the response.`;
-  play(narration("One."), narration("Two.", { op: "add_plot_thread", thread: ADDED }), settled(), narration("Two again."));
+  const ADDED = `${SECRET} a fact from the response.`;
+  play(narration("One."), narration("Two.", { op: "add_known_fact", fact: ADDED }), settled(), narration("Two again."));
   const id = createSave(MISSING);
   await turn(id);
   await turn(id);

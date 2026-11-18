@@ -36,6 +36,8 @@ export type ServerOptions = {
   decisionProvider?: DecisionProvider;
   /** For the Consistency model dropdown, in place of the provider's list, as --fake has no network. */
   decisionModels?: () => Promise<string[]>;
+  /** Whether the world moves on at natural pauses (`moveWorldOn`): on in the app and the bench, off in tests, whose scripted Narrator would answer it. */
+  moveWorld?: boolean;
   /** `--consistency-log-only`: every question scores and logs, tuned or not, and nothing is fixed. */
   consistencyLogOnly?: boolean;
   /**

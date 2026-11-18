@@ -29,6 +29,10 @@ import { countWords, withinLimit } from "./limits";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
+import { MOVE_LIMIT, moveDue, moveWorldOn } from "./world-moves-on";
+
+// Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
+const moving = new Map<string, Promise<void>>();
 
 /** The token counts and cost a server reports for one reply, in the OpenAI shape. OpenRouter adds `cost`. */
 export type TextUsage = { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number }; cost?: number };
@@ -95,13 +99,20 @@ export class TurnFailed extends Error {
 }
 
 // set_summary was offered once, and a model that still sends it, such as one with no schema mode, only repeats the summary field.
+// A Turn no longer adds a Plot Thread, which is World Moves On's: Turns added threads that restated what the PC knew or were
+// the PC's own goals. A model that still sends one has it dropped, not the reply.
+const RETIRED = ["set_summary", "add_plot_thread"];
 const withoutRetired = (operations: unknown) =>
-  Array.isArray(operations) ? operations.filter((operation) => (operation as { op?: unknown })?.op !== "set_summary") : operations;
+  Array.isArray(operations) ? operations.filter((operation) => !RETIRED.includes((operation as { op?: string })?.op ?? "")) : operations;
+const TurnOperation = z.discriminatedUnion(
+  "op",
+  StateOperation.options.filter(({ shape }) => !RETIRED.includes(shape.op.value)) as unknown as typeof StateOperation.options,
+);
 
 const FinishedTurn = z.object({
   // Whether it has words is checked once it's parsed, so a Check's result without any is told as declined.
   narration: z.string().trim().min(1),
-  state_operations: z.preprocess(withoutRetired, z.array(StateOperation).default([])),
+  state_operations: z.preprocess(withoutRetired, z.array(TurnOperation).default([])),
   people: z.array(Person).catch([]),
   summary: z.string().catch(""),
   recent_summary: z.string().nullish().catch(""),
@@ -153,7 +164,7 @@ const ResponseShape = z.object({
       ),
   }),
   narration: z.string().nullable(),
-  state_operations: z.array(StateOperation),
+  state_operations: z.array(TurnOperation),
   // Described here for the same reason as chapter_ends: speakers kept going missing from it.
   people: z
     .array(Person)
@@ -205,6 +216,14 @@ const declined = (narration: string) => (narration.match(/\p{L}+/gu)?.length ?? 
 // Words, not just punctuation, as a reply once came back as a lone comma.
 const NO_WORDS = "a story with no words";
 const hasWords = (narration: string) => /\p{L}{2}/u.test(narration);
+// A result reply once came back as one line about the Turn awaiting its roll, shown as the story.
+// Prose speaks of dice and turns too, as at a game, so only a short reply naming two of these, one of them the app's own
+// reply, check or result, is taken for such a note.
+const NOTE_ABOUT_TURN = "a note about the Turn instead of story";
+const isNoteAboutTurn = (narration: string) => {
+  const named = new Set(narration.toLowerCase().match(/\b(?:turn|reply|check|dice|roll|rolled|result)\b/g));
+  return countWords(narration) < 30 && named.size >= 2 && ["reply", "check", "result"].some((word) => named.has(word));
+};
 // A model once put its Check request in narration, which was saved as the story.
 const JSON_NARRATION = "JSON for narration";
 const isJsonObject = (narration: string) => {
@@ -340,6 +359,11 @@ type WorldContext = { textProvider: TextProvider; settings: SettingsStore; image
  * before any call. Any other failure only skips it, as the reply is still told of the edits.
  */
 async function settleJournal(saves: SaveStore, context: WorldContext, id: string, signal: AbortSignal, stateOf: () => State) {
+  // Stop ends the wait, as a move on a slow model can run two minutes.
+  const move = moving.get(id);
+  signal.throwIfAborted();
+  if (move) await Promise.race([move, new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }))]);
+  signal.throwIfAborted();
   const change = journalChange(saves.pendingEdits(id));
   if (!change) return;
   stateOf();
@@ -362,6 +386,7 @@ export async function playTurn(
     usage,
     reviewProvider,
     consistency,
+    moveWorld,
   }: {
     textProvider: TextProvider;
     dice: Dice;
@@ -371,6 +396,8 @@ export async function playTurn(
     usage?: UsageStore;
     reviewProvider?: TextProvider;
     consistency?: Consistency;
+    /** Whether the world moves on at natural pauses. See `moveWorldOn`. */
+    moveWorld?: boolean;
   },
   id: string,
   input: string,
@@ -393,7 +420,7 @@ export async function playTurn(
   const kind = input === OPENING_INPUT ? "opening" : "turn";
   // Read before the call, as it's the model asked. shortcut: a Rewrite, Regenerate, Edit or Revert keeps the first reply's counts (a Revert restarts the counts since), recount them if the report needs to match the story exactly.
   const model = settings.read().textModel;
-  return narrate(textProvider, signal, emit, {
+  const played = await narrate(textProvider, signal, emit, {
     kind,
     prompt,
     input,
@@ -413,6 +440,13 @@ export async function playTurn(
     // Only what the player did counts, so not the opening or a Continue, which have nothing to check.
     counted: kind === "turn" && !isContinueInput(input) ? (turn) => usage?.turn(id, model, turn) : undefined,
   });
+  const replies = messages.filter(({ role }) => role === "narrator").length + 1;
+  if (moveWorld && kind === "turn" && moveDue(state, saves.latestState(id), replies)) {
+    // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
+    const move = moveWorldOn(textProvider, settings, saves, id, AbortSignal.timeout(MOVE_LIMIT.ms)).finally(() => moving.delete(id));
+    moving.set(id, move);
+  }
+  return played;
 }
 
 /** The Narrator's first Message, which the player has done nothing to earn a Check in. A story already open is stale. */
@@ -611,7 +645,8 @@ async function narrate(
       const choices = playMode === "choices" ? usableChoices(response.choices) : undefined;
       const unchosen = playMode === "choices" && !choices ? NO_CHOICES : undefined;
       // A long speech is only logged, as rewriting it restarted too many Turns the player could see.
-      const fault = attempt < MAX_ATTEMPTS ? (unplaced ?? (spoken === LONG_SPEECH ? undefined : spoken) ?? unchosen) : undefined;
+      const noted = edited === undefined && isNoteAboutTurn(narration) ? NOTE_ABOUT_TURN : undefined;
+      const fault = attempt < MAX_ATTEMPTS ? (noted ?? unplaced ?? (spoken === LONG_SPEECH ? undefined : spoken) ?? unchosen) : undefined;
       unplacedBefore = fault === unplaced && !!unplaced;
       if (fault) throw new InvalidResponse(undefined, { cause: fault });
       if (spoken === LONG_SPEECH) log.warning("turn", "Long speech kept", { attempt, generation });
@@ -774,6 +809,7 @@ function playerReason({ cause }: InvalidResponse) {
   if (cause === "a picture without set_scene") return "The last reply moved to a new scene without saying where";
   if (cause === NO_CHOICES) return "The last reply offered no choices";
   if (cause === DECLINED) return "The last reply wasn't a story, which can mean the AI's content rules block this";
+  if (cause === NOTE_ABOUT_TURN) return "The last reply was a note about the story instead of the story";
   if (cause === RAN_ON) return "The last reply ran on far too long";
   if (cause === OVERTHOUGHT) return "The AI thought for too long before writing";
   if (Array.isArray(cause)) return "The last reply changed the story in a way that doesn't fit what's already true";

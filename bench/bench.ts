@@ -1,15 +1,18 @@
 // The Narrator bench: plays bench/world.json in Choices mode on the real models from a Settings file, through the real server,
-// and records what every Narrator feature did, how long each step took, what it cost, and a judge's scores. It costs real money,
-// so it asks before it starts. The real AI writes every Image Prompt, to be judged, but a stand-in draws it.
+// (each play in a process of its own, all at once unless the Narrator is a local model) and records what every Narrator feature did, how long each step took, what it cost, and a judge's scores. It costs real money,
+// so it asks before it starts. The real AI writes every Image Prompt, to be judged, but a stand-in draws it, unless --draw.
 //   bun bench run --rounds N --runs M [--settings settings.json] [--judge self|narrator] [--label name] [--seed 1] [--yes]
 //   bun bench run --moves moves.txt --runs M [...]   plays in Free Text instead, one move per line (# starts a comment), to
 //                                                    steer the story a chosen way; the rounds are the moves
+//   bun bench run --world <file> [...]   plays another world shaped like bench/world.json, such as one kept out of git
+//   bun bench run --draw [...]   draws the pictures on the Settings file's local ComfyUI, never a paid API, into each play's
+//                                pictures folder, to judge the pictures themselves
 //   bun bench judge <run folder> --by <model> --scores <scores.json>   (scores for a --judge self run, one entry per play)
 //   bun bench keep <run folder>        copies the run's numbers, never its story, to bench/results to commit
 //   bun bench table [--csv]            every kept and recent run, side by side
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, relative } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { z } from "zod";
 import { decisionProvider } from "../src/decisions";
 import { fakeDecisions, fakeImages, fakeTextProvider } from "../src/fake-services";
@@ -26,6 +29,8 @@ import { askForJson, jsonSchemaOf, type TextProvider } from "../src/turn-engine"
 const BENCH = import.meta.dir;
 // --fake plays on the stand-in models, free and offline, to try the bench itself; its numbers say nothing of a real Narrator.
 const fake = process.argv.includes("--fake");
+// --draw draws on local ComfyUI, which costs nothing per picture; a paid image API is never drawn on.
+const draw = process.argv.includes("--draw");
 const narratorOf = (settings: ReturnType<typeof settingsStore>) => (fake ? fakeTextProvider : textProvider(settings));
 const RUNS = join(BENCH, "runs");
 const RESULTS = join(BENCH, "results");
@@ -33,6 +38,7 @@ const World = z.object({
   save: z.object({
     title: z.string(),
     theme: z.string(),
+    artStyle: z.string(),
     worldBrief: z.string(),
     startingHook: z.string(),
     pc: z.object({ name: z.string() }).catchall(z.string()),
@@ -146,6 +152,12 @@ type Result = {
   models: { narrator: string; reviewer: string; reviewThinking: string; consistency: string };
   /** Seeded Choices, or Free Text from a moves file, which runs compare only within. */
   mode?: string;
+  /** Plays that failed and were left out, when any did; `runs` then counts only those kept. */
+  failedPlays?: number[];
+  /** The world file played, by name, as runs compare only on one world. Absent on runs before --world, which played world.json. */
+  world?: string;
+  /** Whether the pictures were drawn (--draw), so judged as pictures, or judged from their prompts alone. Absent on older runs. */
+  drawn?: boolean;
   thinking: string;
   seed: number;
   rounds: number;
@@ -363,11 +375,13 @@ async function play(
         decisions.push(performance.now() - started);
       }
     },
-    // The real AI writes and checks every Image Prompt, to be judged, but a stand-in draws it, as real pictures cost money and time.
+    // The real AI writes and checks every Image Prompt, to be judged, but a stand-in draws it, as real pictures cost money and time,
+    // unless --draw, which draws on local ComfyUI only.
     imageAdapter: fakeImages,
-    localImages: fakeImages,
+    localImages: draw && !fake ? undefined : fakeImages,
     dice: () => Math.floor(roll() * 20) + 1,
     nearMissMargin: 3,
+    moveWorld: true,
     port: 0,
   });
   setLogLevel("verbose");
@@ -378,31 +392,42 @@ async function play(
   async function send(round: number, action: string, path: string, body: object, input = "") {
     const before = saves.latestState(id);
     const started = performance.now();
-    const response = await fetch(new URL(path, server.url), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-      body: JSON.stringify(body),
-    });
     let firstText: number | undefined;
-    let ok = response.ok;
-    let status = response.status;
-    if (response.headers.get("content-type")?.includes("event-stream") && response.body) {
-      const decoder = new TextDecoder();
-      let buffer = "";
-      for await (const chunk of response.body) {
-        buffer += decoder.decode(chunk, { stream: true });
-        const blocks = buffer.split("\n\n");
-        buffer = blocks.pop() ?? "";
-        for (const block of blocks) {
-          const event = block.match(/^event: (.+)$/m)?.[1];
-          if (event === "narration") firstText ??= performance.now() - started;
-          if (event === "error") {
-            ok = false;
-            status = (JSON.parse(block.match(/^data: (.+)$/m)?.[1] ?? "{}") as { status?: number }).status ?? 0;
+    let ok = false;
+    let status = 0;
+    // A request that dies, such as a provider that never answers past fetch's own time limit, is a failed step, not the end of the play.
+    try {
+      const response = await fetch(new URL(path, server.url), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        // A browser waits as long as the server lets a Turn run; Bun's own 5 minutes ended the step while the Turn ran on, and left every later one busy.
+        timeout: false,
+        body: JSON.stringify(body),
+      });
+      ok = response.ok;
+      status = response.status;
+      if (response.headers.get("content-type")?.includes("event-stream") && response.body) {
+        const decoder = new TextDecoder();
+        let buffer = "";
+        for await (const chunk of response.body) {
+          buffer += decoder.decode(chunk, { stream: true });
+          const blocks = buffer.split("\n\n");
+          buffer = blocks.pop() ?? "";
+          for (const block of blocks) {
+            const event = block.match(/^event: (.+)$/m)?.[1];
+            if (event === "narration") firstText ??= performance.now() - started;
+            if (event === "error") {
+              ok = false;
+              status = (JSON.parse(block.match(/^data: (.+)$/m)?.[1] ?? "{}") as { status?: number }).status ?? 0;
+            }
           }
         }
-      }
-    } else await response.body?.cancel();
+      } else await response.body?.cancel();
+    } catch {
+      // Status 0 marks it, as the stream may have answered 200 before it died.
+      ok = false;
+      status = 0;
+    }
     const step: Step = { round, action, input, ok, status, ms: performance.now() - started, firstText, hidden: hiddenChanges(before, saves.latestState(id)) };
     steps.push(step);
     process.stdout.write(`  play ${index} round ${round} ${action}: ${ok ? "ok" : `failed (${status})`} in ${(step.ms / 1000).toFixed(1)} s\n`);
@@ -433,9 +458,11 @@ async function play(
       const { offer } = (await (await fetch(new URL(`/saves/${id}/chapters`, server.url))).json()) as { offer: boolean };
       if (offer) await send(round, "chapter", `/saves/${id}/chapters`, {});
     }
-    // OpenRouter reports some usage a moment after the reply ends, and the last pictures may still be written.
+    // OpenRouter reports some usage a moment after the reply ends, and the last pictures may still be written, or with --draw
+    // still drawing, which the count alone can't tell as one picture takes longer than a check.
     await Bun.sleep(5000);
-    for (let waited = 0, seen = -1; waited < 120 && saves.gallery(id).length !== seen; waited += 5) {
+    const drawing = async () => ((await (await fetch(new URL(`/saves/${id}/images`, server.url))).json()) as { pending: boolean }).pending;
+    for (let waited = 0, seen = -1; waited < 600 && (saves.gallery(id).length !== seen || (await drawing())); waited += 5) {
       seen = saves.gallery(id).length;
       await Bun.sleep(5000);
     }
@@ -544,9 +571,21 @@ async function play(
   flat["perRound.decisions.cost"] = decisionCost / rounds;
 
   writeFileSync(join(folder, "transcript.md"), transcript(world, saves, id, steps));
+  if (draw) keepPictures(saves, id, join(folder, "pictures"));
   rmSync(savesDir, { recursive: true, force: true });
   return flat;
 }
+
+/** Each drawn picture as a file named as the transcript names it, so a judge can look at it. */
+function keepPictures(saves: ReturnType<typeof saveStore>, id: string, into: string) {
+  mkdirSync(into, { recursive: true });
+  for (const { kind, ref, npc } of saves.gallery(id)) {
+    const bytes =
+      kind === "scene" ? saves.sceneImage(id, ref) : kind === "portrait" ? saves.portrait(id, ref) : kind === "original" ? saves.original(id, ref) : undefined;
+    if (bytes) writeFileSync(join(into, pictureName(kind, ref, npc)), bytes);
+  }
+}
+const pictureName = (kind: string, ref: number, npc: string | null) => `${kind}-${kind === "scene" ? ref : safe(npc ?? "pc")}.png`;
 
 function transcript(world: z.infer<typeof World>, saves: ReturnType<typeof saveStore>, id: string, steps: Step[]) {
   const checks = new Map(saves.checks(id).map((check) => [check.messageId, check]));
@@ -556,12 +595,16 @@ function transcript(world: z.infer<typeof World>, saves: ReturnType<typeof saveS
     const check = checks.get(messageId);
     const rolled = check ? `\n\n> Hidden Check: ${check.action} (difficulty ${check.difficulty}, rolled ${check.roll}): ${check.outcome}` : "";
     const scene = scenes.get(messageId);
-    const pictured = scene ? `\n\n> Picture prompt: ${scene}` : "";
+    const drawn = draw ? `\n>\n> Picture: pictures/${pictureName("scene", messageId, null)}` : "";
+    const pictured = scene ? `\n\n> Picture prompt: ${scene}${drawn}` : "";
     return role === "player" ? `**Player:** ${text}` : `${text}${rolled}${pictured}`;
   });
   const portraits = gallery
     .filter(({ kind }) => kind === "portrait" || kind === "original")
-    .map(({ kind, npc, prompt }) => `- ${npc ?? world.save.pc.name}${kind === "original" ? " (first portrait)" : ""}: ${prompt ?? "(no prompt kept)"}`);
+    .map(
+      ({ kind, ref, npc, prompt }) =>
+        `- ${npc ?? world.save.pc.name}${kind === "original" ? " (first portrait)" : ""}: ${prompt ?? "(no prompt kept)"}${draw ? ` (pictures/${pictureName(kind, ref, npc)})` : ""}`,
+    );
   const timeline = steps.map(({ round, action, input, ok, hidden, offered }) => {
     const lines = [...(offered ? [`Offered: ${offered.map((choice) => `"${choice}"`).join(", ")}`] : []), ...hidden];
     return `- Round ${round}, ${action}${input ? ` "${input}"` : ""}${ok ? "" : " (failed)"}${lines.map((line) => `\n  - ${line}`).join("")}`;
@@ -640,8 +683,7 @@ function report(result: Result) {
 
 // ---- Commands ----
 
-async function run() {
-  const movesFile = option("--moves");
+function readMoves(movesFile: string | undefined) {
   if (movesFile && !existsSync(movesFile)) fail(`No moves file at ${movesFile}.`);
   const moves = movesFile
     ? readFileSync(movesFile, "utf8")
@@ -650,6 +692,56 @@ async function run() {
         .filter((line) => line && !line.startsWith("#"))
     : undefined;
   if (moves?.length === 0) fail(`No moves in ${movesFile}.`);
+  return moves;
+}
+// Absolute, as each play runs in a process of its own.
+const worldFile = resolve(option("--world") ?? join(BENCH, "world.json"));
+const readWorld = () => World.parse(JSON.parse(readFileSync(worldFile, "utf8")));
+
+/** One play, in a process of its own, as the log is one file per process. Started only by `run`, which reads its play.json. */
+async function playOne() {
+  const folder = option("--folder")!;
+  const played = await play(
+    count("--index"),
+    Number(option("--seed")),
+    count("--rounds"),
+    readMoves(option("--moves")),
+    option("--settings")!,
+    readWorld(),
+    folder,
+  );
+  writeFileSync(join(folder, "play.json"), JSON.stringify(played));
+}
+
+/** Starts a play in a child process and gives back what it recorded. */
+async function playApart(index: number, seed: number, rounds: number, movesFile: string | undefined, settingsPath: string, folder: string) {
+  const child = Bun.spawn(
+    [
+      process.execPath,
+      import.meta.path,
+      "play",
+      ...["--index", String(index), "--seed", String(seed), "--rounds", String(rounds), "--settings", settingsPath, "--folder", folder],
+      ...(movesFile ? ["--moves", movesFile] : []),
+      ...["--world", worldFile],
+      ...(fake ? ["--fake"] : []),
+      ...(draw ? ["--draw"] : []),
+    ],
+    { stdout: "inherit", stderr: "inherit" },
+  );
+  // Not the whole run, as the other plays are paid for and still going.
+  if ((await child.exited) !== 0) {
+    console.error(`Play ${index} failed; its log is in ${folder}. The others go on.`);
+    return undefined;
+  }
+  const played = JSON.parse(readFileSync(join(folder, "play.json"), "utf8")) as Awaited<ReturnType<typeof play>>;
+  // Gone once read, as every JSON file under runs/ is taken for a run's result.
+  rmSync(join(folder, "play.json"));
+  return played;
+}
+
+async function run() {
+  const movesFile = option("--moves");
+  const moves = readMoves(movesFile);
   const rounds = moves?.length ?? count("--rounds");
   const runs = count("--runs");
   const judge = option("--judge") ?? "self";
@@ -658,7 +750,8 @@ async function run() {
   const seed = Number(option("--seed") ?? 1);
   const given = option("--settings") ?? "settings.json";
   if (!fake && !existsSync(given)) fail(`No Settings file at ${given}.`);
-  const world = World.parse(JSON.parse(readFileSync(join(BENCH, "world.json"), "utf8")));
+  if (!existsSync(worldFile)) fail(`No world file at ${worldFile}.`);
+  readWorld();
 
   // A copy outside the repo, as it holds keys. Pictures are on, drawn by a stand-in, with the player's image Settings, which shape
   // the prompts; with none set up, as an OpenRouter model, which takes prose prompts.
@@ -671,6 +764,9 @@ async function run() {
   const settings = settingsStore(settingsPath);
   settings.update({ imagesEnabled: true, drawScenes: true });
   const drawing = settings.read();
+  // With --fake, the stand-in still draws, so keeping the pictures can be tried free.
+  if (draw && !fake && (drawing.imageProvider !== "local" || !localIsSetUp(drawing)))
+    fail("--draw needs local ComfyUI set up as the image provider in the Settings file.");
   if (drawing.imageProvider === "local" ? !localIsSetUp(drawing) : !(drawing.imageModel && drawing.imageApiKey))
     settings.update({ imageProvider: "openrouter", imageModel: "fake-images", imageApiKey: "fake-key" });
   if (fake) settings.update({ textBaseUrl: "http://127.0.0.1:9/v1", textModel: "fake-narrator", consistencyEnabled: true, consistencyModel: "fake-decisions" });
@@ -701,6 +797,8 @@ async function run() {
     provider,
     models,
     mode: movesFile ? `free text: ${basename(movesFile)}` : "choices",
+    world: basename(worldFile),
+    drawn: draw && !fake,
     thinking: all.textThinking,
     seed,
     rounds,
@@ -712,9 +810,26 @@ async function run() {
     judge: null,
     plays: [],
   };
-  for (let index = 1; index <= runs; index++) {
-    console.log(`Play ${index} of ${runs}`);
-    result.plays.push(await play(index, seed, rounds, moves, settingsPath, world, join(folder, `play-${index}`)));
+  const playAt = (index: number) => playApart(index, seed, rounds, movesFile, settingsPath, join(folder, `play-${index}`));
+  const indexes = Array.from({ length: runs }, (_, at) => at + 1);
+  // All at once on remote models; one at a time on a local one, which would only make each play wait on the other.
+  const outcomes: Awaited<ReturnType<typeof playAt>>[] = [];
+  if (provider === "local") {
+    for (const index of indexes) {
+      console.log(`Play ${index} of ${runs}`);
+      outcomes.push(await playAt(index));
+    }
+  } else {
+    console.log(`Playing all ${runs} at once`);
+    outcomes.push(...(await Promise.all(indexes.map(playAt))));
+  }
+  // The result holds the plays that finished, and names any that didn't, so a judge reads only those with a transcript.
+  const kept = indexes.filter((index) => outcomes[index - 1] !== undefined);
+  if (kept.length === 0) fail(`Every play failed; their logs are in ${relative(process.cwd(), folder)}.`);
+  result.plays = kept.map((index) => outcomes[index - 1]!);
+  if (kept.length < runs) {
+    result.failedPlays = indexes.filter((index) => !kept.includes(index));
+    result.runs = kept.length;
   }
   summarise(result);
   writeFileSync(join(folder, "result.json"), JSON.stringify(result, null, 2));
@@ -723,7 +838,7 @@ async function run() {
     const calls: Call[] = [];
     const judgeWith = counted(narratorOf(settings), "narrator", calls);
     const plays: JudgeReply[] = [];
-    for (let index = 1; index <= runs; index++) {
+    for (const index of kept) {
       const story = readFileSync(join(folder, `play-${index}`, "transcript.md"), "utf8");
       plays.push(
         await askForJson(
@@ -745,7 +860,7 @@ async function run() {
   } else {
     writeFileSync(
       join(folder, "judge.md"),
-      `# Judge this run\n\nRead each play's transcript.md, then judge it by these rules:\n\n${JUDGE_RULES}\n\nWrite a JSON array with one reply per play, in order, and save it with:\n\n    bun bench judge ${relative(process.cwd(), folder)} --by <your model> --scores <file>\n`,
+      `# Judge this run\n\nRead each play's transcript.md, then judge it by these rules:\n\n${JUDGE_RULES}\n\nWrite a JSON array with one reply per play, in order${result.failedPlays ? ` (only plays ${kept.join(", ")}, as ${result.failedPlays.join(", ")} failed)` : ""}, and save it with:\n\n    bun bench judge ${relative(process.cwd(), folder)} --by <your model> --scores <file>\n`,
     );
     console.log(`\nTo judge it yourself, follow ${relative(process.cwd(), join(folder, "judge.md"))}.`);
   }
@@ -788,10 +903,23 @@ function table() {
   if (flag("--csv")) {
     const keys = [...new Set(found.flatMap(({ result }) => Object.keys(result.summary)))].toSorted();
     const quote = (text: string) => `"${text.replaceAll('"', '""')}"`;
-    console.log(["date", "kept", "label", "provider", "narrator", "reviewer", "consistency", "judge", "rounds", "runs", ...keys].map(quote).join(","));
+    console.log(
+      ["date", "kept", "label", "provider", "narrator", "reviewer", "consistency", "judge", "drawn", "world", "rounds", "runs", ...keys].map(quote).join(","),
+    );
     for (const { path, result } of found) {
-      const { date, label, provider, models, judge, rounds, runs, summary } = result;
-      const meta = [date, path.startsWith(RESULTS) ? "yes" : "no", label, provider, models.narrator, models.reviewer, models.consistency, judge?.by ?? ""];
+      const { date, label, provider, models, judge, drawn, world, rounds, runs, summary } = result;
+      const meta = [
+        date,
+        path.startsWith(RESULTS) ? "yes" : "no",
+        label,
+        provider,
+        models.narrator,
+        models.reviewer,
+        models.consistency,
+        judge?.by ?? "",
+        drawn === undefined ? "" : drawn ? "yes" : "no",
+        world ?? "world.json",
+      ];
       console.log([...meta.map(quote), rounds, runs, ...keys.map((key) => summary[key] ?? "")].join(","));
     }
     return;
@@ -822,6 +950,7 @@ function table() {
 
 const command = args[0];
 if (command === "run") await run();
+else if (command === "play") await playOne();
 else if (command === "judge") judgeRun();
 else if (command === "keep") keep();
 else if (command === "table") table();

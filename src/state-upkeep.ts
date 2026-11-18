@@ -6,7 +6,10 @@ import { reviewerSettings, type TextSettings } from "./settings-store";
 import { type State, StateOperation } from "./state-applier";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
-/** The operations State Upkeep may give: only what a reply can show happening, never the hidden world. */
+/**
+ * The operations State Upkeep may give: only what a reply can show happening. Never a Plot Thread, which is World Moves On's: seeing
+ * one reply, Upkeep's rewrites dropped a thread's key clause and its resolutions ended threads play had only reached.
+ */
 const UPKEEP_OPS = new Set([
   "set_scene",
   "add_item",

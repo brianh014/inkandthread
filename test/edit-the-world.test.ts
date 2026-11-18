@@ -90,11 +90,12 @@ test("facts can be edited in place, added and removed", async () => {
 });
 
 test("text stored with stray spaces can still be named exactly", async () => {
-  play(
-    narration("One.", { op: "add_known_fact", fact: "Bees sing. " }, { op: "add_plot_thread", thread: "Bees spy. " }),
-    update({ plot_threads: [{ old: "Bees spy. ", new: "Bees rest." }] }),
-  );
-  const id = createSave();
+  play(narration("One.", { op: "add_known_fact", fact: "Bees sing. " }), update({ plot_threads: [{ old: "Bees spy. ", new: "Bees rest." }] }));
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: { ...WORLD, plotThreads: [...WORLD.plotThreads, "Bees spy. "], npcs: NPCS, pcKnown: KNOWN, summary: "It began to rain." },
+  });
   await turn(id);
 
   expect((await edit(id, { edit: "fact", old: "Bees sing. ", new: "Bees hum." })).status).toBe(200);

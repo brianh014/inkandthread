@@ -66,12 +66,13 @@ test("State Upkeep records what the reply showed and the Narrator missed, after 
   const state = store().latestState(id);
   expect(state.scene.location).toBe("Ash's flat");
   expect(state.inventory).toEqual({ wearing: [], carrying: ["a key"] });
-  // It sees the state after the Narrator's operations, with the move and the reply, and none of the hidden world.
+  // It sees the state after the Narrator's operations, with the move and the reply, and of the hidden world only the Plot Threads.
   const sent = JSON.parse(upkeep.prompts[0]!.at(-1)!.content);
   // No reply came before the first, so there is no previous one to agree with.
   expect(sent).toMatchObject({ state: { inventory: { carrying: ["a key"] } }, previous_reply: "", player_move: "I walk home and hang up my coat." });
   expect(sent.reply).toContain("hangs the coat");
-  expect(Object.keys(sent.state)).not.toContain("plotThreads");
+  expect(Object.keys(sent.state)).not.toContain("plot_threads");
+  expect(Object.keys(sent.state)).not.toContain("worldBible");
   expect(log).toContain('"operations":["set_scene","remove_item"]');
   expect(log).toContain('"upkeepRefused":0');
   expect(log).not.toContain("Ash's flat");
@@ -137,6 +138,34 @@ test("an operation State Upkeep may not give, or a broken one, is dropped and th
   expect(state.inventory.carrying).toEqual(["a key"]);
   expect(upkeep.prompts.length).toBe(1);
   expect(log).toContain('"operations":["add_item"],"dropped":3');
+});
+
+test("State Upkeep never changes a Plot Thread, which is World Moves On's", async () => {
+  play(
+    [narration("Ash finds the thief at the dock and the thief confesses.")],
+    [
+      upkept(
+        { op: "update_plot_thread", thread: "A thief steals from the library.", replacement: "The exposed thief flees by boat." },
+        { op: "resolve_plot_thread", thread: "The tide rises." },
+      ),
+    ],
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The dock", visibleCast: [] },
+      summary: "",
+      plotThreads: ["A thief steals from the library.", "The tide rises."],
+    },
+  });
+
+  const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
+
+  expect(store().latestState(id).plotThreads).toEqual(["A thief steals from the library.", "The tide rises."]);
+  expect(log).toContain('"operations":[],"dropped":2');
+  expect(log).not.toContain("thief");
 });
 
 test("State Upkeep is sent the reply before, so a description two replies agree is out of date can be brought up to date", async () => {

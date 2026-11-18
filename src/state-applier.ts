@@ -290,10 +290,13 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       return;
     case "remove_status":
       return take(state.status[operation.kind], operation.text) ? undefined : "not there";
-    case "add_npc":
-      if (findNpc(state, operation.name)) return "already an NPC";
-      state.npcs.push({ name: operation.name, appearance: operation.appearance });
+    case "add_npc": {
+      // No two people share a name, so adding someone already there gives them the looks they now have, as update_npc would.
+      const npc = findNpc(state, operation.name);
+      if (npc) npc.appearance = operation.appearance;
+      else state.npcs.push({ name: operation.name, appearance: operation.appearance });
       return;
+    }
     case "update_npc": {
       const npc = findNpc(state, operation.name);
       if (!npc) return "no such NPC";
@@ -503,7 +506,8 @@ export type VisibleEdit = z.infer<typeof VisibleEdit>;
 export const WorldEdit = z.discriminatedUnion("edit", [
   ...VisibleEdit.options,
   // `made` counts the edits just before it that the same World Change wrote, which a Save from before it lacks.
-  z.object({ edit: z.literal("world"), update: WorldUpdate, made: z.number().int().min(0).optional() }),
+  // `moved` marks World Moves On's, which settles none of the player's Journal edits and rests on the reply it followed.
+  z.object({ edit: z.literal("world"), update: WorldUpdate, made: z.number().int().min(0).optional(), moved: z.boolean().optional() }),
   // Whole lists, as a World Change rewrites what the player says is wrong rather than one item at a time.
   z.object({ edit: z.literal("inventory"), wearing: z.array(z.string()), carrying: z.array(z.string()) }),
   z.object({ edit: z.literal("status"), health: z.string(), injuries: z.array(z.string()), conditions: z.array(z.string()) }),
@@ -576,9 +580,12 @@ export const Person = z.object({ name: z.string().trim().min(1), appearance: z.s
 export function introduce(state: State, people: z.infer<typeof Person>[], pcName: string, operations: StateOperation[]) {
   // Someone shortened to a name only one person has is that person, not someone new.
   const known = (name: string) => findPerson(state.npcs, name)?.name;
-  // A list of people is never worth a Turn, so someone with no looks waits until they're named again.
+  // A list of people is never worth a Turn, so someone with no looks waits until they're named again. Each name once, the first
+  // listing, as a second add_npc would give them its looks.
+  const listed = new Set<string>();
   const introductions = people
     .filter(({ name, appearance }) => !named(pcName, name) && (known(name) || appearance.trim()))
+    .filter(({ name }) => !listed.has(name) && listed.add(name))
     .flatMap(({ name, appearance }): StateOperation[] => {
       const kept = known(name) ?? name;
       return [

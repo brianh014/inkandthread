@@ -78,8 +78,12 @@ A second AI call that checks a new world, or a World Change before it is applied
 _Avoid_: Critic, judge, validator
 
 **State Upkeep**:
-A second AI call after each reply, on the reviewer model, that brings the scene, cast, inventory, Story Time and known facts in line with what the reply showed happening. It records only changes the reply shows, never a detail to fit a passing mention. The Turn is saved once it finishes; if it fails, the Narrator's own state is kept.
+A second AI call after each reply, on the reviewer model, that brings the scene, cast, inventory, Story Time and known facts in line with what the reply showed happening. It never changes a Plot Thread, which is World Moves On's. It records only changes the reply shows, never a detail to fit a passing mention. The Turn is saved once it finishes; if it fails, the Narrator's own state is kept.
 _Avoid_: State sync, bookkeeping call
+
+**World Moves On**:
+A Narrator call at a natural pause (a new place, a new day, or every fifth reply), run after the Turn is saved while the player reads, that rewrites each Plot Thread by what its people did out of the PC's sight, true to the Lore Entries it names, removes one play has brought to an end, and adds one while fewer than three remain. The next Turn waits for it. It changes only the hidden Plot Threads, so the player never sees it, only its results in play.
+_Avoid_: Off-screen turn, world tick
 
 **Consistency model**:
 An optional decision model, chosen in Settings, that answers consistency questions of each reply: narrow yes-or-no questions, each sent only the slice of the story it needs, such as whether the reply's time of day fits Story Time. A question over its cut-off has the reviewer fix the reply before it is saved.

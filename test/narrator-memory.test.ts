@@ -377,11 +377,12 @@ test("a Save holding more Plot Threads than the limit sends only the first ones"
   expect(prompt).not.toContain(`THREAD-${MAX_PLOT_THREADS}.`);
 });
 
-test("the Narrator is told beside the Plot Threads when they're full, and only then", () => {
-  const full = "Plot Threads (8 of 8 open, so resolve or rewrite one before adding another):";
+test("the Turn is never asked to add a Plot Thread, which is World Moves On's", () => {
+  const prompt = promptFor({ plotThreads: Array.from({ length: MAX_PLOT_THREADS }, (_, i) => `T${i}.`) });
 
-  expect(promptFor({ plotThreads: Array.from({ length: MAX_PLOT_THREADS }, (_, i) => `T${i}.`) })).toContain(full);
-  expect(promptFor({ plotThreads: ["T."] })).toContain('Plot Threads: ["T."]');
+  expect(prompt).not.toContain("before adding another");
+  expect(prompt).not.toContain("to start another");
+  expect(prompt).not.toContain("add_plot_thread");
 });
 
 test("the Narrator is told to keep its records true to play", () => {
@@ -390,6 +391,29 @@ test("the Narrator is told to keep its records true to play", () => {
   expect(prompt).toContain("what has happened in play beats any Lore Entry or Plot Thread");
   for (const op of ["update_lore_entry", "remove_lore_entry", "update_plot_thread", "update_known_fact", "remove_known_fact", "merge_npc"])
     expect(prompt).toContain(op);
+});
+
+test("the Narrator tells what the PC says in narration, never as a line under someone else's name", () => {
+  expect(promptFor()).toContain("telling anything the PC says in the narration's own words, never as a spoken line under any name");
+});
+
+test("each reply keeps the tense and point of view of the replies before it", () => {
+  expect(promptFor()).toContain("in the same tense and point of view as the replies above");
+});
+
+test("a picture prompt names what each person rides, sits on or holds, as the image model can't read the story", () => {
+  const prompt = textOfPrompt(
+    assemblePrompt({
+      save: { worldBrief: "", pc: { name: "Ash" }, startingHook: "" } as never,
+      state: withState({}),
+      messages: [],
+      modelInstructions: "",
+      input: "I wait.",
+      responseSchema: "{}",
+      promptStyle: "prose",
+    }),
+  );
+  expect(prompt).toContain("name whatever it rests on, such as what each person rides, sits on or holds");
 });
 
 test("the summary has room to keep what still matters, most of it for the recent story", () => {
@@ -413,6 +437,24 @@ test("the last instruction has the Narrator correct a wrong assumption, in play 
   expect(rule).toBeGreaterThan(prompt.indexOf("world_rules:"));
   expect(prompt.slice(rule)).toContain("make what is true clear in this reply");
   expect(prompt.slice(rule)).toContain("keeping every secret");
+});
+
+test("the first Turn is sent the Lore Entries its Starting Hook names, so the opening meets people as the world made them", () => {
+  const promptWith = (messages: unknown[]) =>
+    textOfPrompt(
+      assemblePrompt({
+        save: { worldBrief: "", pc: { name: "Ash" }, startingHook: "Ash rides out with Captain Mora." } as never,
+        state: withState({ worldBible: [entry("Captain Mora", ["Mora"], { content: "A tall woman with a shaved head." })] }),
+        messages: messages as never,
+        modelInstructions: "",
+        input: "Begin the story.",
+        responseSchema: "{}",
+        promptStyle: null,
+      }),
+    );
+
+  expect(promptWith([])).toContain("A tall woman with a shaved head.");
+  expect(promptWith([{ role: "narrator", text: "The road is long." }])).not.toContain("A tall woman with a shaved head.");
 });
 
 test("a long story's World Bible fits the budget, with its Plot Threads and world_rules", () => {

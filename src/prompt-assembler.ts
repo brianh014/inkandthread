@@ -321,9 +321,11 @@ export function assemblePrompt({
   const { inventory, scene, storyTime, ...restOfState } = currentState;
   // The first Turn opens from the Starting Hook, so the people it names are met with their entries, not given new looks.
   const opening = messages.some(({ role }) => role === "narrator") ? [] : [startingHook];
+  // The Plot Threads first, so the people the hidden plot will bring on come with their entries, as a Narrator naming one for the
+  // first time rewrote who they were; first, so recent mentions rank ahead of them for the budget.
   const activeEntries = activateLore(
     worldBible,
-    [...opening, ...recent.map(({ text }) => text), input].join("\n"),
+    [...plotThreads, ...opening, ...recent.map(({ text }) => text), input].join("\n"),
     // Plot Threads and world_rules are always-on too, so they spend the budget before any Lore Entry.
     LORE_TOKEN_BUDGET - estimateTokens(JSON.stringify([plotThreads, worldRules])),
   );

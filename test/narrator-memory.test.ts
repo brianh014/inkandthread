@@ -465,3 +465,15 @@ test("a long story's World Bible fits the budget, with its Plot Threads and worl
 
   for (const { title } of worldBible) expect(prompt).toContain(`"${title}"`);
 });
+
+test("a Lore Entry a Plot Thread names comes into the prompt, so the person the plot brings on is met as the lore has them", () => {
+  const prompt = promptFor({
+    plotThreads: ["Marrick pays riders to take the letters."],
+    worldBible: [
+      { title: "Marrick", keywords: ["Marrick"], content: "MARRICK-IS-THE-STEWARD.", alwaysOn: false },
+      { title: "Gulls", keywords: ["gull"], content: "GULLS-ON-THE-DOME.", alwaysOn: false },
+    ],
+  });
+  expect(prompt).toContain("MARRICK-IS-THE-STEWARD.");
+  expect(prompt).not.toContain("GULLS-ON-THE-DOME.");
+});

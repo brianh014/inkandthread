@@ -792,7 +792,10 @@ async function narrate(
           const next = kept.next;
           repeated = repeats;
           ignored = harmless;
-          if (summary.trim()) next.summary = summary.trim();
+          // Kept when cut to a fifth of the last, as an 80-round story's became "(see journal)" and would have lost the whole story.
+          const words = { was: countWords(next.summary), now: countWords(summary) };
+          if (words.now * 5 < words.was) log.warning("turn", "Summary kept", words);
+          else if (summary.trim()) next.summary = summary.trim();
           if (recent_summary?.trim()) next.recentSummary = recent_summary.trim();
           if (memory) next.sceneMemories.push(memory);
           next.chapterReady = !!chapter_ends;

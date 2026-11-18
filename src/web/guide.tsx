@@ -3,6 +3,7 @@ import { BenchChart } from "./bench-chart";
 import {
   AskIcon,
   ChapterIcon,
+  ChartIcon,
   ChoicesIcon,
   ContinueIcon,
   DecideIcon,
@@ -55,8 +56,9 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           <li>
             Choose <b>Setup NovelForge</b> on the Menu. Until the AI that writes your story is set up, it takes the place of New Story and Load Story. Its pages
             go one at a time, with what to pick beside each: the AI that writes your story, its key and model, a second AI to review it, a check on each reply,
-            pictures or text only, and how the story reads. Only the first AI is needed; the rest can be skipped. {link("models", "Choosing your AI")} says more
-            about which to pick.
+            pictures or text only, and how the story reads. Only the first AI is needed; the rest can be skipped. Beside the model,{" "}
+            {tool(ChartIcon, "How the AIs compare")} shows how each AI told our test stories and what a Turn cost. {link("models", "Choosing your AI")} says
+            more about which to pick.
           </li>
           <li>
             When it's done, choose <b>Begin a New Story</b>. Write as much or as little as you like, or press {tool(DecideIcon, "Pick for me")} and let the

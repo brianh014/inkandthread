@@ -5,7 +5,7 @@ import { activateLore, wholeWord } from "./lore-activation";
 import { LORE_TOKEN_BUDGET, type Prompt } from "./prompt-assembler";
 import type { SaveStore } from "./save-store";
 import type { SettingsStore } from "./settings-store";
-import { ListChange, MAX_PLOT_THREADS, changeList, type State } from "./state-applier";
+import { ListChange, changeList, type State } from "./state-applier";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
 /** Replies between moves when nothing else calls for one, as a long scene in one place would otherwise never let the world act. */
@@ -13,6 +13,8 @@ export const MOVE_EVERY = 5;
 // A thread sits in every prompt, so a move keeps each one as short as the world's own. Named in the prompt, as "a sentence or two"
 // alone let rewrites grow each move until most of a run's moves were refused.
 const THREAD_WORDS = 64;
+// A move adds a thread only while fewer than this many are open.
+const OPEN_THREADS = 3;
 // It runs while the player reads; past this, the next Turn stops waiting and the world stays where it was.
 export const MOVE_LIMIT = { ms: 120_000 };
 
@@ -66,8 +68,9 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   // Only the changes that fail are dropped, as throwing away a whole move for one of them lost most moves in bench runs.
   const sorted = (changes: z.infer<typeof ListChange>[]) => {
     const kept = changes.filter((change, index) => fault(change, index, changes) === null);
-    const cap = Math.max(MAX_PLOT_THREADS, plotThreads.length);
-    // Past the limit a thread never reaches a Turn's prompt, so the last adds go first.
+    // Adds only up to OPEN_THREADS, as the rule says, since an 80-round story's moves added past it to seven that nothing ended,
+    // and each move then rewrote all seven. More may stand, from a World Change, but a move adds none then. The last adds go first.
+    const cap = Math.max(OPEN_THREADS, plotThreads.length);
     while (kept.reduce(changeList, plotThreads).length > cap)
       kept.splice(
         kept.findLastIndex(({ old }) => old === null),
@@ -78,9 +81,10 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   };
   // Asked again only when nothing usable is left.
   const Reply = z.object({ plot_threads: z.array(ListChange) }).superRefine(({ plot_threads }, context) => {
-    const { kept, faults, overflow } = sorted(plot_threads);
-    if (plot_threads.length === 0 || kept.length > 0) return;
-    for (const message of new Set([...faults, ...(overflow > 0 ? ["it leaves too many threads"] : [])])) context.addIssue({ code: "custom", message });
+    const { kept, faults } = sorted(plot_threads);
+    // Adds past the limit alone are no move rather than a fault, so they aren't asked again.
+    if (plot_threads.length === 0 || kept.length > 0 || faults.length === 0) return;
+    for (const message of new Set(faults)) context.addIssue({ code: "custom", message });
   });
   const prompt: Prompt = [
     {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { type ChartResult, chartPage } from "../../bench/chart";
 import bench from "./bench-results.json";
-import { FullScreenIcon } from "./icons";
+import { ChartIcon, FullScreenIcon } from "./icons";
 
 // Written by `bun bench chart` from the kept bench runs, so the chart ships with the app and needs no network.
 const page = chartPage(bench.results as ChartResult[], bench.rounds, { titles: bench.titles, scores: bench.scores });
@@ -41,27 +41,47 @@ function Frame({ full = false }: { full?: boolean }) {
   return <iframe ref={frame} className="bench-chart" title="How the AIs compare" srcDoc={page} onLoad={fit} />;
 }
 
+/** The chart filling the window, open from when it mounts until closed. */
+function FullChart({ onClose }: { onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => dialog.current!.showModal(), []);
+  return (
+    <dialog ref={dialog} className="bench-chart-full" onClose={onClose} aria-label="How the AIs compare">
+      <Frame full />
+      <button type="button" className="quiet" onClick={() => dialog.current!.close()}>
+        Close
+      </button>
+    </dialog>
+  );
+}
+
 /** How the AIs scored on NovelForge's own bench, with a button in its corner to see it full screen. */
 export function BenchChart() {
   const [full, setFull] = useState(false);
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    if (full) dialog.current!.showModal();
-  }, [full]);
   return (
     <div className="bench-chart-box">
       <Frame />
       <button type="button" className="icon" title="Full screen" aria-label="Full screen" aria-haspopup="dialog" onClick={() => setFull(true)}>
         {FullScreenIcon}
       </button>
-      {full && (
-        <dialog ref={dialog} className="bench-chart-full" onClose={() => setFull(false)} aria-label="How the AIs compare">
-          <Frame full />
-          <button type="button" className="quiet" onClick={() => dialog.current!.close()}>
-            Close
-          </button>
-        </dialog>
-      )}
+      {full && <FullChart onClose={() => setFull(false)} />}
     </div>
+  );
+}
+
+/**
+ * The same chart behind a button, for a screen with no room for it, such as Setup's model picker. In words as well as its icon,
+ * as an icon alone there didn't say it could be opened.
+ */
+export function BenchChartButton() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className="quiet bench-chart-open" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+        {ChartIcon}
+        How the AIs compare
+      </button>
+      {open && <FullChart onClose={() => setOpen(false)} />}
+    </>
   );
 }

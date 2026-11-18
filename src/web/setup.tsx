@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { askTextTest, getImageModels, getSettings, getTextModels, offersDecisions, type Settings, saveSettings, setupProblem } from "./api";
 import type { SettingsChange } from "../settings-store";
+import { BenchChartButton } from "./bench-chart";
 import { roman } from "./chat-style";
 import { MenuRibbon, Sheet } from "./menu";
 import { CHAT_STYLES, ReadingSamples, THEMES } from "./reading-samples";
@@ -309,6 +310,10 @@ function Steps({ initial }: { initial: Settings }) {
               local: "Choose the model your server runs. MiMo and DeepSeek write well if you can run them.",
             }[textChoice]
           }
+        </p>
+        <p className="muted bench-chart-hint">
+          <BenchChartButton />
+          How well each AI told our test stories, and what a Turn cost.
         </p>
         <ModelField
           key={draft.textBaseUrl}

@@ -55,6 +55,21 @@ test("each finished Turn's recent_summary becomes the Journal's recent summary, 
   expect(lastSystem()).not.toContain("recentSummary");
 });
 
+test("a summary cut to a fraction of the last, as a placeholder such as '(see journal)', keeps the last; a shorter real one is taken", async () => {
+  const long = "Ash reached the docks at dusk, met the ferryman, learned the tide tables were forged, and followed the forger to the old customs house.";
+  const turn = (summary: string) => JSON.stringify({ check: null, narration: "Rain.", state_operations: [], summary, recent_summary: null });
+  play(turn(long), turn("(see journal)"), turn("Ash followed the forger to the customs house and found the false tables."));
+  const id = await app.createSave();
+  const summary = async () => ((await app.get(`/saves/${id}/journal`).then((r) => r.json())) as { summary: string }).summary;
+
+  await playTurn(id);
+  await playTurn(id);
+  expect(await summary()).toBe(long);
+  await playTurn(id);
+
+  expect(await summary()).toBe("Ash followed the forger to the customs house and found the false tables.");
+});
+
 for (const [label, missing] of [
   ["blank", "  "],
   ["malformed", 7],

@@ -151,6 +151,31 @@ test("a Regenerate drops the move made from the reply it replaces", async () => 
   expect(store().latestState(id).plotThreads).toEqual(["A thief plans to rob the library at the next high tide."]);
 });
 
+test("a move adds threads only while fewer than three are open, as an 80-round story's grew to seven that nothing ended", async () => {
+  const add = (text: string) => ({ old: null, new: text });
+  play(
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),
+    moved(add("The ferryman owes the thief."), add("The gulls are omens."), add("The tide is wrong.")),
+    narration("Ash watches the barges.", { op: "set_scene", location: "The quay", visible_cast: [] }),
+    // Three open now, so a move of adds alone is no move, and isn't asked again.
+    moved(add("A fourth.")),
+    narration("Ash goes home."),
+  );
+  const id = createSave();
+
+  const log = await logOf(async () => {
+    for (const input of ["I walk to the dock.", "I walk to the quay.", "I go home."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(store().latestState(id).plotThreads).toEqual([
+    "A thief plans to rob the library at the next high tide.",
+    "The ferryman owes the thief.",
+    "The gulls are omens.",
+  ]);
+  expect(log).toContain('"overflow":1');
+  expect(log).not.toContain("World didn't move on");
+});
+
 test("a move keeps its usable changes and drops only those that change a thread twice or misquote one", async () => {
   play(
     narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),

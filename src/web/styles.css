@@ -2945,6 +2945,31 @@ dialog blockquote {
   right: 16px;
 }
 
+/* Setup's line about the chart, its button leading. */
+.bench-chart-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+button.bench-chart-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+button.bench-chart-open svg {
+  flex: none;
+  width: 1.1em;
+  height: 1.1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 /* Almost the whole window; the chart inside is sized to fit it whole. */
 dialog.bench-chart-full {
   width: calc(100vw - 32px);

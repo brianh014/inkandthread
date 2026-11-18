@@ -6,6 +6,7 @@ const icon = (path: string) => (
   </svg>
 );
 
+export const ChartIcon = icon("M4 4v16h16M8 15h.01M12 10h.01M16 13h.01M18 7h.01");
 export const ChapterIcon = icon("M6 3h12v18l-6-4-6 4z");
 export const ContinueIcon = icon("M4 12h16M13 5l7 7-7 7");
 export const ChoicesIcon = icon("M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01");

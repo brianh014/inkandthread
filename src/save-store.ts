@@ -574,7 +574,9 @@ function latestTurn(db: Database, messageId: number) {
   if (narrator!.id !== messageId || narrator!.role !== "narrator") throw new StaleTurn();
   // Director's Notes changed since the player Message must carry across, or the replacement would undo them. So must edits.
   const { directorsNotes } = currentState(db);
-  const edits = [...parseEdits(narrator!.edits), ...pendingEdits(db)];
+  // A pending move of the world rests on the response being replaced, so it goes with it; one stored on that response came before it.
+  const pending = pendingEdits(db).filter((edit) => !(edit.edit === "world" && edit.moved));
+  const edits = [...parseEdits(narrator!.edits), ...pending];
   const state = edits.reduce(applyEdit, { ...toState(sectionsAt(db, player!.id)), directorsNotes });
   return { narrator: narrator!, player: player!, state, edits };
 }

@@ -239,7 +239,9 @@ The player changed the Journal since the last reply. ${lines} These are changes 
  * which already settled any before it. Empty when there are none to settle.
  */
 export function journalChange(edits: WorldEdit[]) {
-  const lines = journalLines(edits.slice(edits.findLastIndex(({ edit }) => edit === "world") + 1));
+  // World Moves On's change settles none of them, so only another World Change counts.
+  const settled = edits.findLastIndex((edit) => edit.edit === "world" && !edit.moved);
+  const lines = journalLines(edits.slice(settled + 1));
   return (
     lines &&
     `The player changed the Journal. ${lines} Bring the Plot Threads, Lore Entries and world rules in line with this, changing only what it touches. These are changes to the record, not events: what happened in the story still happened, so never change the summary for them or put back what the player removed. If nothing needs to change, leave every list empty and every other field null.`

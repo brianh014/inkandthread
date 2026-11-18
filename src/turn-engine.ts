@@ -217,10 +217,13 @@ const declined = (narration: string) => (narration.match(/\p{L}+/gu)?.length ?? 
 const NO_WORDS = "a story with no words";
 const hasWords = (narration: string) => /\p{L}{2}/u.test(narration);
 // A result reply once came back as one line about the Turn awaiting its roll, shown as the story.
-// Prose speaks of dice and turns too, so only a short reply naming two of these is taken for such a note.
+// Prose speaks of dice and turns too, as at a game, so only a short reply naming two of these, one of them the app's own
+// reply, check or result, is taken for such a note.
 const NOTE_ABOUT_TURN = "a note about the Turn instead of story";
-const isNoteAboutTurn = (narration: string) =>
-  countWords(narration) < 30 && new Set(narration.toLowerCase().match(/\b(?:turn|reply|check|dice|roll|rolled|result)\b/g)).size >= 2;
+const isNoteAboutTurn = (narration: string) => {
+  const named = new Set(narration.toLowerCase().match(/\b(?:turn|reply|check|dice|roll|rolled|result)\b/g));
+  return countWords(narration) < 30 && named.size >= 2 && ["reply", "check", "result"].some((word) => named.has(word));
+};
 // A model once put its Check request in narration, which was saved as the story.
 const JSON_NARRATION = "JSON for narration";
 const isJsonObject = (narration: string) => {
@@ -356,7 +359,11 @@ type WorldContext = { textProvider: TextProvider; settings: SettingsStore; image
  * before any call. Any other failure only skips it, as the reply is still told of the edits.
  */
 async function settleJournal(saves: SaveStore, context: WorldContext, id: string, signal: AbortSignal, stateOf: () => State) {
-  await moving.get(id);
+  // Stop ends the wait, as a move on a slow model can run two minutes.
+  const move = moving.get(id);
+  signal.throwIfAborted();
+  if (move) await Promise.race([move, new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }))]);
+  signal.throwIfAborted();
   const change = journalChange(saves.pendingEdits(id));
   if (!change) return;
   stateOf();

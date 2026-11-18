@@ -3,7 +3,8 @@ import { dirname, join } from "node:path";
 import { startServer } from "../src/rest-api";
 import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
-import { openingState } from "../src/state-applier";
+import { openingState, type WorldEdit } from "../src/state-applier";
+import { journalChange } from "../src/prompt-assembler";
 import { MOVE_EVERY, moveDue } from "../src/world-moves-on";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
 
@@ -103,11 +104,62 @@ test("a move that misquotes a thread, or fails, leaves the world as it was and t
   expect(log).toContain("World didn't move on");
 });
 
-test("a move is due at a new place, a new day or every few replies, and never with no threads", () => {
+test("a move is due at a new place, a new day or every few replies, even with no threads, as only a move adds them", () => {
   const before = { ...openingState, plotThreads: ["A thread."], scene: { location: "Here", visibleCast: [] } };
   expect(moveDue(before, before, 1)).toBe(false);
   expect(moveDue(before, { ...before, scene: { location: "There", visibleCast: [] } }, 1)).toBe(true);
   expect(moveDue(before, { ...before, storyTime: { date: "2nd of Thaw", timeOfDay: "dawn", day: 1 } }, 1)).toBe(true);
   expect(moveDue(before, before, MOVE_EVERY)).toBe(true);
-  expect(moveDue(before, { ...before, plotThreads: [] }, MOVE_EVERY)).toBe(false);
+  expect(moveDue(before, { ...before, plotThreads: [] }, MOVE_EVERY)).toBe(true);
+});
+
+test("the player's Journal edits are still settled after a move, which settles none of them", () => {
+  const fact: WorldEdit = { edit: "fact", old: null, new: "Bees sing." };
+  const world = { edit: "world" as const, update: { lore_entries: [], removed_lore: [], world_rules: [], plot_threads: [] }, made: 0 };
+
+  expect(journalChange([fact, { ...world, moved: true }])).toContain("Bees sing.");
+  expect(journalChange([fact, world])).toBe("");
+});
+
+test("a Regenerate drops the move made from the reply it replaces", async () => {
+  play(
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),
+    moved({ old: "A thief plans to rob the library at the next high tide.", new: "The thief has robbed the library." }),
+    narration("Ash stays in the library."),
+  );
+  const id = createSave();
+  expect((await turn(id, "I walk to the dock.")).ok).toBe(true);
+
+  const replaced = store().latestMessageId(id);
+  const response = await fetch(new URL(`/saves/${id}/messages/${replaced}/regenerate`, server.url), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+
+  expect(response.ok).toBe(true);
+  expect(store().latestState(id).plotThreads).toEqual(["A thief plans to rob the library at the next high tide."]);
+});
+
+test("a move that changes one thread twice is refused, as the thread would come out twice", async () => {
+  const twice = moved(
+    { old: "A thief plans to rob the library at the next high tide.", new: "The thief waits." },
+    { old: "A thief plans to rob the library at the next high tide.", new: "The thief strikes." },
+  );
+  play(
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),
+    twice,
+    twice,
+    twice,
+    narration("Ash watches the barges."),
+  );
+  const id = createSave();
+
+  const log = await logOf(async () => {
+    expect((await turn(id, "I walk to the dock.")).ok).toBe(true);
+    expect((await turn(id, "I watch the barges.")).ok).toBe(true);
+  }, "info");
+
+  expect(store().latestState(id).plotThreads).toEqual(["A thief plans to rob the library at the next high tide."]);
+  expect(log).toContain("World didn't move on");
 });

@@ -262,7 +262,7 @@ test.each([
   expect(JSON.stringify(prompts[4])).not.toContain("towering");
 });
 
-test("repeating a known fact or NPC, or adding an NPC who exists, is harmless, so the response stands with no retry", async () => {
+test("repeating a known fact or NPC is harmless, and adding an NPC who exists gives them new looks, so the response stands with no retry", async () => {
   const { app, prompts } = play(
     narration(
       "Setup.",
@@ -286,10 +286,10 @@ test("repeating a known fact or NPC, or adding an NPC who exists, is harmless, s
 
   expect(prompts).toHaveLength(2);
   expect(await snapshotAt(app, id, 4)).toMatchObject({ pcKnown: { facts: ["The gate is broken", "Bees sing"], npcs: ["Mara"] } });
-  // Mara is left as she was, not given the second add's looks, which the next prompt would show.
+  // Mara now has the second add's looks, as update_npc would give her, which the next prompt shows.
   await app.post(`/saves/${id}/turns`, { input: "Three." });
-  expect(JSON.stringify(prompts[2])).toContain("grey coat");
-  expect(JSON.stringify(prompts[2])).not.toContain("a stranger");
+  expect(JSON.stringify(prompts[2])).toContain("a stranger");
+  expect(JSON.stringify(prompts[2])).not.toContain("grey coat");
 });
 
 test("a Narrator can update an NPC, and the next Turn's prompt carries the state", async () => {
@@ -2255,6 +2255,12 @@ test("a reply that's a note about the Turn rather than story is retried, while a
   const other = await kept.app.createSave();
   await kept.app.post(`/saves/${other}/turns`, { input: "I watch the game." });
   expect(kept.prompts).toHaveLength(1);
+
+  // A game at the table, short and full of turns and rolls, is still story.
+  const game = playWithDice([], narration('She slides the dice across. "Your turn. Roll."'));
+  const played = await game.app.createSave();
+  await game.app.post(`/saves/${played}/turns`, { input: "I take the dice." });
+  expect(game.prompts).toHaveLength(1);
 });
 
 test("a reply whose narration has no words is retried", async () => {

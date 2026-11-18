@@ -34,6 +34,8 @@ export type State = {
   storyTime: StoryTime | null;
   /** How the PC's body and face look now, once the story changes them. Empty until then, when the PC's own physicalTraits stand. */
   pcAppearance: string;
+  /** The real era and region every picture resembles, set once so pictures don't drift between eras. Empty until the Narrator sets it. */
+  era: string;
 };
 
 /** `day` counts days since the Opening, as Narrators add whole numbers far better than they work an in-world calendar. The player never sees it. */
@@ -61,6 +63,7 @@ export const openingState: State = {
   chapterReady: false,
   storyTime: null,
   pcAppearance: "",
+  era: "",
 };
 
 const stringList = z.array(z.string());
@@ -86,6 +89,7 @@ export const StateSections = {
   chapterReady: z.boolean(),
   storyTime: z.object({ day: z.number().int(), date: z.string(), timeOfDay: z.string() }).nullable(),
   pcAppearance: z.string(),
+  era: z.string(),
 } satisfies { [Section in keyof State]: z.ZodType<State[Section]> };
 
 const nonEmpty = z.string().min(1);
@@ -130,6 +134,7 @@ export const StateOperation = z.discriminatedUnion("op", [
   z.object({ op: z.literal("update_plot_thread"), thread: nonEmpty, replacement: nonEmpty }),
   z.object({ op: z.literal("resolve_plot_thread"), thread: nonEmpty }),
   z.object({ op: z.literal("set_pc_appearance"), appearance: nonEmpty }),
+  z.object({ op: z.literal("set_era"), era: nonEmpty }),
   z.object({ op: z.literal("set_story_time"), days_passed: z.number().int().min(0), date: nonEmpty.nullable(), time_of_day: nonEmpty }),
 ]);
 export type StateOperation = z.infer<typeof StateOperation>;
@@ -397,6 +402,11 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
     }
     case "set_pc_appearance":
       state.pcAppearance = operation.appearance;
+      return;
+    case "set_era":
+      // Set once, as changing it later is the drift it exists to stop.
+      if (state.era) return "already there";
+      state.era = operation.era;
       return;
     case "set_story_time": {
       const { days_passed, time_of_day } = operation;

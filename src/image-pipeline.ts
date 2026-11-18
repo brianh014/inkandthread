@@ -130,6 +130,24 @@ export function expandMarks(text: string, npcs: Npc[], pcName: string, reference
   return { prompt, pictured };
 }
 
+/**
+ * Marks each person the prompt names without a [Name: phrase] mark, as a model sometimes writes "Ash, a short man," instead:
+ * unmarked, their name would reach the image model and their portrait wouldn't. Text already in a mark or the likeness
+ * sentence is left alone, and so is a possessive, as "Ash's boat" doesn't put Ash in the picture.
+ */
+export function markNames(text: string, npcs: Npc[], pcName: string) {
+  const names = [pcName, ...npcs.map(({ name }) => name)].filter(Boolean);
+  // shortcut: a capitalised title in a name, such as Captain, counts as that person when no one else has it; list titles to skip if it misfires.
+  const parts = names.flatMap((name) => name.split(" ")).filter((part) => /^\p{Lu}/u.test(part) && names.filter((name) => named(name, part)).length === 1);
+  const candidates = [...new Set([...names, ...parts])].toSorted((a, b) => b.length - a.length);
+  if (candidates.length === 0) return text;
+  const pattern = new RegExp(`(?<![\\p{L}'’])(?:${candidates.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\p{L}'’])`, "gu");
+  return text
+    .split(/(\[[^[\]]*\]|\{[^{}]*\})/)
+    .map((part, at) => (at % 2 === 1 ? part : part.replace(pattern, (name) => `[${name}]`)))
+    .join("");
+}
+
 // What a head and shoulders frame can't show, as an image model squeezes the whole body in to fit a mention of feet.
 const BELOW_THE_FRAME =
   /\b(?:hands?|wrists?|fingers?|arms?|legs?|knees?|feet|foot|barefoot|toes?|boots?|shoes?|sandals?|hose|breeches|trousers|pants|skirt|holding|carrying|clutching|gripping)\b/i;
@@ -317,8 +335,9 @@ export function imagePipeline(
   };
 
   async function drawMoment(id: string, { description: written, npcs }: Moment, signal: AbortSignal) {
-    const description = await reviewPicture(written, promptStyle(settings.read()), signal);
     const pcName = saves.read(id).pc.name;
+    // Before the review, which keeps every mark.
+    const description = await reviewPicture(markNames(written, npcs, pcName), promptStyle(settings.read()), signal);
     // Twice, as who is pictured decides which portraits go in, and those decide how each mark is written.
     const { pictured } = expandMarks(description, npcs, pcName);
     const { prompt } = expandMarks(description, npcs, pcName, referenced(id, pictured));
@@ -346,7 +365,7 @@ export function imagePipeline(
     const pc = pcNow(started, state);
     const looks = npc ? npc.appearance : pc.physicalTraits?.trim() && pcLooks(pc, state.inventory.wearing);
     if (!looks || saves.portraitOf(id, name)) return;
-    const prompt = await writer({ kind: "portrait", looks, theme, world: worldBrief, artStyle })(signal);
+    const prompt = await writer({ kind: "portrait", looks, theme, world: worldBrief, artStyle, era: state.era })(signal);
     const bytes = await adapter(portraitPayload(prompt), signal);
     session++;
     saves.addPortrait(id, messageId, name, bytes, prompt);
@@ -415,10 +434,12 @@ export function imagePipeline(
     const portrait = saves.portraits(id).find((candidate) => candidate.npc === (npc?.name ?? null));
     if (!portrait) return;
     const { pc: started, theme, worldBrief, artStyle } = saves.read(id);
-    const pc = pcNow(started, saves.latestState(id));
+    const state = saves.latestState(id);
+    const pc = pcNow(started, state);
     const looks = npc ? npc.appearance.trim() : pc.physicalTraits?.trim() && pcLooks(pc, wearing);
     if (!looks) return;
-    if (pipeline.redraw(id, { kind: "portrait", ref: portrait.id }, portrait.messageId, { kind: "portrait", looks, theme, world: worldBrief, artStyle })) {
+    const ask = { kind: "portrait" as const, looks, theme, world: worldBrief, artStyle, era: state.era };
+    if (pipeline.redraw(id, { kind: "portrait", ref: portrait.id }, portrait.messageId, ask)) {
       log.info("images", "Portrait updated to new looks", about(id, { kind: "portrait", messageId: portrait.messageId }));
     }
   }

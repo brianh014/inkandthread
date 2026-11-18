@@ -437,7 +437,8 @@ ${imageInstructions(context)}`,
 
 /** Where and how any picture of a story is drawn: its world, and the player's Art Style. An empty theme is a Save from before themes. */
 /** `nudge` is the player's own few words for this one picture, such as "smiling". */
-export type PictureSetting = { theme: string; world: string; artStyle: string; nudge?: string };
+/** `era` is the one every picture of a story keeps to, once its Narrator has named it. */
+export type PictureSetting = { theme: string; world: string; artStyle: string; era?: string; nudge?: string };
 /** What a Cover or portrait shows, all of it text the player can read, with nobody named. */
 /** A portrait's `was` is the prompt of the portrait an Update edits, so the new prompt says only what changes. */
 /** `was` is the prompt of a portrait being edited, and `face` says a portrait goes with it for its face alone. */

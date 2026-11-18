@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { promptStyle } from "../src/graph-builder";
-import { chestUp, expandMarks } from "../src/image-pipeline";
+import { chestUp, expandMarks, markNames } from "../src/image-pipeline";
 import { assemblePrompt, IN_ITS_WORLD_AND_STYLE, REQUESTED_IMAGE_PROMPT } from "../src/prompt-assembler";
-import { openingState } from "../src/state-applier";
+import { applyOperations, openingState } from "../src/state-applier";
 
 const npcs = [
   { name: "Hesper", appearance: "a tall woman in oilskins" },
@@ -39,6 +39,16 @@ test("part of a name finds someone only when it can mean nobody else", () => {
   expect(expandMarks("[Dana: a woman in grey] waits", people, pc)).toEqual({ prompt: "a woman in grey waits", pictured: ["Dana Reyes"] });
   expect(expandMarks("[dana reyes] waits", people, pc).pictured).toEqual(["Dana Reyes"]);
   expect(expandMarks("[Woman] waits", people, pc)).toEqual({ prompt: "a person waits", pictured: [] });
+});
+
+test("a person named without a mark is marked, so their portrait goes in and their name never reaches the model", () => {
+  const written = "Ash Vane, a short man, waves at Hesper. Hesper's boat bobs. {Keep each face.} Ashore, [Orin: an old man] naps by Orin.";
+  const marked = markNames(written, npcs, pc);
+  expect(marked).toBe("[Ash Vane], a short man, waves at [Hesper]. Hesper's boat bobs. {Keep each face.} Ashore, [Orin: an old man] naps by [Orin].");
+  expect(expandMarks(marked, npcs, pc, [null, "Hesper"]).prompt).toBe(
+    "the person from image 1, a short man, waves at the person from image 2. Hesper's boat bobs. Keep each face. Ashore, an old man naps by the same person.",
+  );
+  expect(markNames("Vane nods", npcs, pc)).toBe("[Vane] nods");
 });
 
 test("no stored looks are ever added, as the Narrator writes the whole prompt to its length", () => {
@@ -121,4 +131,11 @@ test("a portrait's template keeps only what a head and shoulders frame shows", (
     "a woman in her late twenties, gaunt and hollow-cheeked, with long dark hair, pale bare feet streaked with mud, swallowed in a hooded brown wool cloak, her wrists bound behind her back";
   expect(chestUp(seren)).toBe("a woman in her late twenties, gaunt and hollow-cheeked, with long dark hair, swallowed in a hooded brown wool cloak");
   expect(chestUp("a man with charms on a thong, in those clothes")).toBe("a man with charms on a thong, in those clothes");
+});
+
+test("the era is set once, and a later set_era is ignored rather than failing the Turn, so pictures never drift", () => {
+  const first = applyOperations(openingState, [{ op: "set_era", era: "early medieval Arabia" }]);
+  const again = applyOperations(first.next, [{ op: "set_era", era: "1870s American West" }]);
+  expect(again.next.era).toBe("early medieval Arabia");
+  expect(again.refused).toEqual([]);
 });

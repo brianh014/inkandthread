@@ -9,6 +9,7 @@ import { Menu } from "./menu";
 import { NewVersionToast } from "./new-version";
 import { Play } from "./play";
 import { applyLook, SettingsScreen } from "./settings";
+import { Setup } from "./setup";
 import { NewStory } from "./wizard";
 
 const onHashChange = (listener: () => void) => {
@@ -26,6 +27,7 @@ function App() {
   if (screen === "load") return <LoadStory />;
   if (screen === "guide") return <Guide section={id} />;
   if (screen === "settings") return <SettingsScreen id={id} />;
+  if (screen === "setup") return <Setup />;
   return <Menu />;
 }
 

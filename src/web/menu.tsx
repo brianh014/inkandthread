@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { getSettings, getUpdate, quitApp, type UpdateStatus } from "./api";
+import { getSettings, getUpdate, quitApp, setupProblem, type UpdateStatus } from "./api";
 import { DownIcon } from "./icons";
 import logo from "./logo.svg";
 
@@ -208,13 +208,19 @@ export const MenuRibbon = () => (
 
 export function Menu() {
   const [canQuit, setCanQuit] = useState(false);
+  // Unknown until Settings answer, so New Story doesn't flash before Setup takes its place.
+  const [setUp, setSetUp] = useState<boolean>();
   const [closed, setClosed] = useState(false);
   const [update, setUpdate] = useState<UpdateStatus>();
 
   useEffect(() => {
     getSettings().then(
-      (settings) => setCanQuit(settings.canQuit),
-      () => {},
+      (settings) => {
+        setCanQuit(settings.canQuit);
+        setSetUp(!setupProblem(settings));
+      },
+      // A server that can't answer can't play either, so the usual Menu, whose screens say what's wrong.
+      () => setSetUp(true),
     );
     getUpdate().then(setUpdate, () => {});
   }, []);
@@ -242,9 +248,15 @@ export function Menu() {
           <p className="eyebrow" aria-hidden="true">
             Contents
           </p>
-          <nav aria-label="Main Menu">
-            <a href="#/new">New Story</a>
-            <a href="#/load">Load Story</a>
+          <nav aria-label="Main Menu" hidden={setUp === undefined}>
+            {setUp ? (
+              <>
+                <a href="#/new">New Story</a>
+                <a href="#/load">Load Story</a>
+              </>
+            ) : (
+              <a href="#/setup">Setup NovelForge</a>
+            )}
             <a href="#/guide">Reader's Guide</a>
             <a href="#/settings">Settings</a>
             {/* A server gone by now still counts as closed. */}

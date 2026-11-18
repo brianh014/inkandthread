@@ -183,6 +183,13 @@ _Avoid_: Wiki, help, manual
 The player's own global guidance to the Narrator, set in Settings and applying to every Save. Settings shows it as Extra Narrator Instructions, as the Narrator works without it.
 _Avoid_: System prompt
 
+**Setup**:
+The Prologue: a page at a time through the main Settings, from the AI that writes the Story and its model to pictures and how the Story reads, each page saving only its own settings. Until a Narrator is set up, the Menu offers **Setup NovelForge** in place of New Story and Load Story.
+_Avoid_: Wizard, onboarding
+
+**Guided setup**:
+Settings' way back into Setup at any time, starting from the choices already saved.
+
 ### State
 
 **Snapshot**:

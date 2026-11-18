@@ -53,15 +53,14 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>Your first story</h3>
         <ol>
           <li>
-            Open <b>Settings → Text</b> and fill in the AI that writes your story: where it is, which one, and its key. {link("models", "Choosing your AI")}{" "}
-            says which to pick. Press <b>Test text</b> to check it answers.
+            Choose <b>Setup NovelForge</b> on the Menu. Until the AI that writes your story is set up, it takes the place of New Story and Load Story. Its pages
+            go one at a time, with what to pick beside each: the AI that writes your story, its key and model, a second AI to review it, a check on each reply,
+            pictures or text only, and how the story reads. Only the first AI is needed; the rest can be skipped. {link("models", "Choosing your AI")} says more
+            about which to pick.
           </li>
           <li>
-            Optionally, open <b>Settings → Images</b> and set up an image AI, then press <b>Test image</b>. Without one, the story is text only.
-          </li>
-          <li>
-            Back on the Menu, choose <b>New Story</b>. Write as much or as little as you like, or press {tool(DecideIcon, "Pick for me")} and let the Narrator
-            fill it in. See {link("new", "Making a story")}.
+            When it's done, choose <b>Begin a New Story</b>. Write as much or as little as you like, or press {tool(DecideIcon, "Pick for me")} and let the
+            Narrator fill it in. See {link("new", "Making a story")}.
           </li>
           <li>Read the Opening, then type what your PC does or says and send it. See {link("play", "Playing")}.</li>
         </ol>
@@ -469,6 +468,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             reply, such as whether its time of day fits the story's, and the reviewing AI quietly fixes a reply that slips before you read on. Each check costs
             a fraction of a cent and shows in Usage under its own model. It uses the Narrator's provider when that's OpenRouter or NanoGPT, unless you untick{" "}
             <b>Same provider as the Narrator</b> and give it its own. That AI is sent parts of the story, so for privacy choose one that keeps no data.
+            pplx-decider suits it (search "pplx decider").
           </li>
           <li>
             <b>Test text</b>: sends a short prompt to check the AI works. A paid provider may charge for it.
@@ -496,10 +496,10 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>Reading</h3>
         <ul>
           <li>
-            <b>Theme</b>: light, dark, or matching this device.
+            <b>Chat style</b>: how the story reads: Prose, Script or Bubbles, each shown as a few lines of story.
           </li>
           <li>
-            <b>Chat style</b>: how the story looks: Script, Prose or Bubbles.
+            <b>Light or dark</b>: light, dark, or matching this device.
           </li>
           <li>
             <b>Font size</b>: small, medium or large.
@@ -532,6 +532,11 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <p>
           <b>Narrator</b>: how often the AI used its tools in each story, such as Checks and moving story time. A note names a story after {QUIET_TURNS} Turns
           without either. If it's low, try another AI and compare.
+        </p>
+        <h3>Guided setup</h3>
+        <p>
+          Walks through the main settings again a page at a time, starting from what you chose, as <b>Setup NovelForge</b> did the first time. Each page's{" "}
+          <b>Next</b> saves only that page, so leaving halfway loses nothing.
         </p>
       </>
     ),

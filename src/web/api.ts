@@ -159,7 +159,8 @@ export const stillHere = () => void fetch("/alive", { method: "POST" }).catch(()
 /** Fired with the saved Settings, so what is already on screen can follow a change, such as a new image family. */
 export const SETTINGS_SAVED = "novelforge-settings-saved";
 
-export const saveSettings = async (change: SettingsChange) => {
+/** `imageKeyFromText` draws with the Narrator's saved key, on the same service. */
+export const saveSettings = async (change: SettingsChange & { imageKeyFromText?: boolean }) => {
   const saved = await request<Settings>("/settings", { ...jsonBody(change), method: "PATCH" });
   globalThis.dispatchEvent?.(new CustomEvent(SETTINGS_SAVED, { detail: saved }));
   return saved;
@@ -195,8 +196,8 @@ export const getTextHosts = (model: string) =>
 /** What stops the Narrator replying, if anything. */
 export function setupProblem({ textBaseUrl, textModel, hasTextApiKey }: Pick<Settings, "textBaseUrl" | "textModel" | "hasTextApiKey">) {
   if (!textModel) return "No text model is set.";
-  // shortcut: local servers need no key, so only OpenRouter is checked, ask per server if more keyed hosts appear.
-  if (!hasTextApiKey && textBaseUrl.includes("openrouter.ai")) return "No API key is set.";
+  // Every named provider needs a key; most local or other OpenAI-compatible servers need none.
+  if (!hasTextApiKey && [OPENROUTER_URL, GOOGLE_URL, NANOGPT_URL].includes(textBaseUrl)) return "No API key is set.";
 }
 
 /** A Narrator Message's Check, only with Show Checks on. */

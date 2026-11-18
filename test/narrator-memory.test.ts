@@ -396,6 +396,25 @@ test("the Narrator tells what the PC says in narration, never as a line under so
   expect(promptFor()).toContain("telling anything the PC says in the narration's own words, never as a spoken line under any name");
 });
 
+test("each reply keeps the tense and point of view of the replies before it", () => {
+  expect(promptFor()).toContain("in the same tense and point of view as the replies above");
+});
+
+test("a picture prompt names what each person rides, sits on or holds, as the image model can't read the story", () => {
+  const prompt = textOfPrompt(
+    assemblePrompt({
+      save: { worldBrief: "", pc: { name: "Ash" }, startingHook: "" } as never,
+      state: withState({}),
+      messages: [],
+      modelInstructions: "",
+      input: "I wait.",
+      responseSchema: "{}",
+      promptStyle: "prose",
+    }),
+  );
+  expect(prompt).toContain("name whatever it rests on, such as what each person rides, sits on or holds");
+});
+
 test("the summary has room to keep what still matters, most of it for the recent story", () => {
   expect(promptFor()).toContain("under 500 words");
   expect(promptFor()).toContain("give the last few scenes about two thirds of the words");

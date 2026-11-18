@@ -3260,7 +3260,9 @@ dialog blockquote {
   accent-color: var(--accent);
 }
 
+/* The label's accent would colour the whole sample, where play colours only the names. */
 .sample .story {
+  color: var(--ink);
   flex-direction: column;
   overflow: visible;
   font-size: 13px;

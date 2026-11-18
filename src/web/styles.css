@@ -48,6 +48,11 @@
   --display: "Libre Caslon Display", "Hoefler Text", Georgia, serif;
   --body: "Libre Caslon Text", "Hoefler Text", Georgia, serif;
   --label: "Libre Caslon Text", Georgia, serif;
+}
+
+/* The reading sizes, also on the font size samples, so each shows its own. */
+:root,
+.font-sample.medium {
   --reading-size: 16px;
 }
 
@@ -59,11 +64,13 @@
   color-scheme: dark;
 }
 
-:root[data-font-size="small"] {
+:root[data-font-size="small"],
+.font-sample.small {
   --reading-size: 14.5px;
 }
 
-:root[data-font-size="large"] {
+:root[data-font-size="large"],
+.font-sample.large {
   --reading-size: 18.5px;
 }
 
@@ -3309,4 +3316,11 @@ dialog blockquote {
 /* Setup counts its pages in small numerals, as a book's prologue does. */
 .eyebrow .numeral {
   text-transform: none;
+}
+
+/* Each size sample at its own reading size, from the same rules that size the story. */
+.font-sample {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--reading-size);
 }

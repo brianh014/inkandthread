@@ -1,8 +1,9 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { askTextTest, getImageModels, getSettings, getTextModels, offersDecisions, type Settings, saveSettings, setupProblem } from "./api";
 import type { SettingsChange } from "../settings-store";
-import { BeatLine, type ChatStyle, roman } from "./chat-style";
+import { roman } from "./chat-style";
 import { MenuRibbon, Sheet } from "./menu";
+import { CHAT_STYLES, ReadingSamples, THEMES } from "./reading-samples";
 import {
   applyLook,
   ComfySettings,
@@ -28,7 +29,7 @@ const STEP_FIELDS: Record<number, RegExp> = {
   [REVIEW]: /^review/,
   [CONSISTENCY]: /^consistency/,
   [PICTURES]: /^(image|comfy)/,
-  [READING]: /^(theme|chatStyle|showChecks)$/,
+  [READING]: /^(theme|chatStyle|fontSize|showChecks)$/,
 };
 
 // Each provider's own pages. The README names the same pages, so change them together.
@@ -72,26 +73,6 @@ const IMAGE_CHOICES = [
   { value: "google", label: "Google AI Studio" },
   { value: "wiro", label: "Wiro" },
 ] as const;
-
-const SAMPLE_PC = "Wren";
-// As a Turn reads: the player's move, then the Narrator's reply, its speech in quotes as the Narrator writes it.
-const SAMPLE = [
-  { role: "player", beats: [{ player: true, text: "I tip my hat and step aboard." }] },
-  {
-    role: "narrator",
-    beats: [{ text: "Rain needles the harbour lanterns as the ferry noses in." }, { speaker: "Mara", text: "\"You're late. The tide won't wait.\"" }],
-  },
-];
-const CHAT_STYLES: { value: ChatStyle; label: string }[] = [
-  { value: "prose", label: "Prose" },
-  { value: "script", label: "Script" },
-  { value: "bubbles", label: "Bubbles" },
-];
-const THEMES: { value: Settings["theme"]; label: string }[] = [
-  { value: "system", label: "Match this device" },
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
-];
 
 const textName = (url: string) => TEXT_CHOICES.find(({ value }) => value === textChoiceOf(url))!.label;
 
@@ -464,51 +445,13 @@ function Steps({ initial }: { initial: Settings }) {
     ),
     [READING]: (
       <>
-        <fieldset className="samples">
-          <legend>How the story reads</legend>
-          {CHAT_STYLES.map(({ value, label }) => (
-            <label key={value} className="sample">
-              <span>
-                <input type="radio" name="chat-style" checked={draft.chatStyle === value} onChange={() => set({ chatStyle: value })} /> {label}
-              </span>
-              {/* Wrapped as the story wraps each Message, so its styles apply as in play. */}
-              <div className={`story chat-${value}`} aria-hidden="true">
-                <div>
-                  {SAMPLE.map(({ role, beats }) => (
-                    <div key={role} className={`message ${role}`}>
-                      {beats.map((beat) => (
-                        <BeatLine key={beat.text} beat={beat} style={value} pc={SAMPLE_PC} />
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </label>
-          ))}
-        </fieldset>
-        <fieldset className="samples">
-          <legend>Light or dark</legend>
-          {THEMES.map(({ value, label }) => (
-            <label key={value} className="sample">
-              <span>
-                <input
-                  type="radio"
-                  name="theme"
-                  checked={draft.theme === value}
-                  onChange={() => {
-                    set({ theme: value });
-                    applyLook({ ...draft, theme: value });
-                  }}
-                />{" "}
-                {label}
-              </span>
-              <div className={`theme-sample ${value}`} aria-hidden="true">
-                <p>The tide won't wait.</p>
-                <i />
-              </div>
-            </label>
-          ))}
-        </fieldset>
+        <ReadingSamples
+          value={draft}
+          onChange={(change) => {
+            set(change);
+            applyLook({ ...draft, ...change });
+          }}
+        />
         <h3>Dice</h3>
         <p>
           When your character tries something that could fail, or someone reacts to what they do, the Narrator rolls hidden dice, and the story follows the
@@ -543,7 +486,7 @@ function Steps({ initial }: { initial: Settings }) {
           <dt>Reading</dt>
           <dd>
             {CHAT_STYLES.find(({ value }) => value === saved.chatStyle)?.label ?? saved.chatStyle}, {THEMES.find(({ value }) => value === saved.theme)?.label},{" "}
-            {saved.showChecks ? "Checks shown" : "dice hidden"}
+            {saved.fontSize} type, {saved.showChecks ? "Checks shown" : "dice hidden"}
           </dd>
         </dl>
       </>

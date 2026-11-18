@@ -29,6 +29,7 @@ import { ChoicesIcon } from "./icons";
 import { BookTabs, MenuRibbon, Sheet } from "./menu";
 import { UpdatesSection } from "./new-version";
 import { PlayModePicker } from "./play-choices";
+import { ReadingSamples } from "./reading-samples";
 import { NarratorTable, UsageSection } from "./usage";
 
 const SECTIONS = ["Text", "Images", "Reading", "Advanced"];
@@ -1478,36 +1479,7 @@ function InstallSettings({
 
       <div data-section="Reading" className="fields" hidden={section !== "Reading"}>
         <h2>Reading</h2>
-        <Picker
-          label="Theme"
-          value={draft.theme}
-          choices={[
-            { value: "system", label: "Match this device" },
-            { value: "light", label: "Light" },
-            { value: "dark", label: "Dark" },
-          ]}
-          onChange={(theme) => set({ theme })}
-        />
-        <Picker
-          label="Chat style"
-          value={draft.chatStyle}
-          choices={[
-            { value: "script", label: "Script" },
-            { value: "prose", label: "Prose" },
-            { value: "bubbles", label: "Bubbles" },
-          ]}
-          onChange={(chatStyle) => set({ chatStyle })}
-        />
-        <Picker
-          label="Font size"
-          value={draft.fontSize}
-          choices={[
-            { value: "small", label: "Small" },
-            { value: "medium", label: "Medium" },
-            { value: "large", label: "Large" },
-          ]}
-          onChange={(fontSize) => set({ fontSize })}
-        />
+        <ReadingSamples value={draft} onChange={set} />
         <label className="toggle">
           <input type="checkbox" checked={draft.showChecks} onChange={(e) => set({ showChecks: e.target.checked })} />
           Show Checks

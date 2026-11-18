@@ -486,10 +486,10 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>Reading</h3>
         <ul>
           <li>
-            <b>Theme</b>: light, dark, or matching this device.
+            <b>How the story reads</b>: Prose, Script or Bubbles, each shown as a few lines of story.
           </li>
           <li>
-            <b>Chat style</b>: how the story looks: Script, Prose or Bubbles.
+            <b>Light or dark</b>: light, dark, or matching this device.
           </li>
           <li>
             <b>Font size</b>: small, medium or large.

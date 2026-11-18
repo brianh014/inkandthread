@@ -1,11 +1,13 @@
 import { z } from "zod";
 import { errorType, log } from "./logger";
+import { wholeWord } from "./lore-activation";
 import type { Prompt } from "./prompt-assembler";
 import type { State } from "./state-applier";
 import { slowReviewer, UPKEEP_LIMIT, type Upkeep } from "./state-upkeep";
 import { askForJson, jsonSchemaOf } from "./turn-engine";
 
-const mentions = (text: string, word: string) => new RegExp(`(?<!\\p{L})${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\p{L})`, "iu").test(text);
+// A capitalised name only as written, so the name Mark isn't "mark the door"; a many-word keyword in any case.
+const mentions = (text: string, word: string) => wholeWord(word, /^\p{Lu}/u.test(word) ? "u" : "iu").test(text);
 
 /**
  * The words in each Choice that name someone or something the PC has never read of: a person in the state or a Lore Entry's

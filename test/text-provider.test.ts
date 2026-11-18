@@ -1182,7 +1182,7 @@ test("a provider's error that repeats the prompt is held back from the log", asy
 
 test("speech left in the prose is found, but never a speaker line, an apostrophe or a quoted word", () => {
   expect(speechOutsideLines("'Guard take your iron, I heard,' she said.")).toBe(true);
-  expect(speechOutsideLines("He said “Go now” and left.")).toBe(true);
+  expect(speechOutsideLines("He said, “Go now.” Then he left.")).toBe(true);
   expect(speechOutsideLines("[Tamsin]: 'Thirty years.'")).toBe(false);
   expect(speechOutsideLines("Wren's satchel was heavy. The camels' hooves rang.")).toBe(false);
   expect(speechOutsideLines("She called it 'the old road' once.")).toBe(false);
@@ -1191,4 +1191,9 @@ test("speech left in the prose is found, but never a speaker line, an apostrophe
 test("an opening must bring on each Important Character its Starting Hook names, by full name or a part of it", () => {
   expect(peopleLeftOut("Vane watched the road while Tamsin drove.", ["Captain Vane", "Tamsin", "Jory"])).toEqual(["Jory"]);
   expect(peopleLeftOut("The boy, Jory, ran ahead.", ["Jory"])).toEqual([]);
+});
+
+test("a sign or a title in quotes isn't speech, and a name inside another word doesn't count as meeting someone", () => {
+  expect(speechOutsideLines('A sign over the door reads "THE RED LION".')).toBe(false);
+  expect(peopleLeftOut("She sat leeward, annoyed.", ["Ann Lee"])).toEqual(["Ann Lee"]);
 });

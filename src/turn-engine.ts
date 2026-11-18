@@ -27,6 +27,7 @@ import { applyOperations, givenName, introduce, Person, type SceneMemory, type S
 import { type Checked, type Consistency, checkConsistency, replyToCheck } from "./consistency";
 import { countWords, withinLimit } from "./limits";
 import { knownChoices } from "./known-choices";
+import { wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
@@ -290,8 +291,8 @@ type Narrated = {
   consistency?: Consistency;
   /** The Narrator's last reply before this one, which the questions check this one against. */
   previous?: string;
-  /** All the player has read so far, the Starting Hook and the Messages, so a Choice is never built on what the PC hasn't. */
-  seen?: string;
+  /** All the player has read so far, the Starting Hook and the Messages, so a Choice is never built on what the PC hasn't. Built only when asked, as a long story's is large. */
+  seen?: () => string;
   /** For the opening, the Important Characters its Starting Hook names, whom it must bring on, as an opening that skipped them left the plot they seed unplayed. */
   mustMeet?: string[];
   /** The player's own words for an Edit, which stand in for whatever narration the reply holds. */
@@ -436,7 +437,7 @@ export async function playTurn(
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
     consistency,
     previous: lastNarration(messages),
-    seen: [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
+    seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     mustMeet:
       kind === "opening"
         ? (saves.read(id).importantCharacters ?? []).map(({ name }) => name).filter((name) => (saves.read(id).startingHook ?? "").includes(name))
@@ -500,7 +501,7 @@ export async function replaceResponse(
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
     consistency,
     previous: lastNarration(messages),
-    seen: [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
+    seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     check,
     memory,
     playMode,
@@ -546,7 +547,7 @@ export async function editResponse(
     before: state,
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
     previous: lastNarration(messages),
-    seen: [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
+    seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     narration: text,
     memory,
     playMode,
@@ -699,8 +700,11 @@ async function narrate(
         // Nothing tells the player, but the fixed reply takes the streamed one's place.
         if (narration !== told) emit("revise", { text: narration });
       }
-      const upkept = upkeep ? await upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal) : undefined;
-      const offered = choices && upkeep && seen !== undefined ? await knownChoices(upkeep, choices, narrated.next, seen, narration, signal) : choices;
+      // Side by side, as neither needs the other, so a slow reviewer holds the Choices back once, not twice.
+      const [upkept, offered] = await Promise.all([
+        upkeep ? upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal) : undefined,
+        choices && upkeep && seen !== undefined ? knownChoices(upkeep, choices, narrated.next, seen(), narration, signal) : choices,
+      ]);
       const dropped = !!unplaced && !upkept;
       if (dropped) log.warning("turn", "Picture dropped without set_scene", { attempt, generation });
       let upkeepRefused = 0;
@@ -814,14 +818,17 @@ const LEFT_OUT = "an opening that leaves out someone its Starting Hook names";
 
 /** Who of `people` the narration never names, by their full name or any capitalised part of it, such as a surname. */
 export const peopleLeftOut = (narration: string, people: string[]) =>
-  people.filter((name) => ![name, ...name.split(" ").filter((part) => part.length > 2 && /^\p{Lu}/u.test(part))].some((part) => narration.includes(part)));
+  people.filter(
+    (name) => ![name, ...name.split(" ").filter((part) => part.length > 2 && /^\p{Lu}/u.test(part))].some((part) => wholeWord(part, "u").test(narration)),
+  );
 
 /** Whether a line of prose, not a [Name]: line, holds quoted speech, as in 'Come here,' she said. An apostrophe isn't a quote. */
 export const speechOutsideLines = (narration: string) =>
   narration
     .split("\n")
     .map((line) => line.trim())
-    .some((line) => !line.startsWith("[") && /(^|[\s(—-])(“[^”]{3,}”|"[^"]{3,}"|['‘]\p{Lu}[^'‘’]*[.,!?…—-]['’](?!\p{L}))/u.test(line));
+    // Speech ends on its own punctuation inside the quote, which a sign or a title, such as "THE RED LION". doesn't.
+    .some((line) => !line.startsWith("[") && /(^|[\s(—-])(“[^”]{2,}[.,!?…—-]”|"[^"]{2,}[.,!?…—-]"|['‘]\p{Lu}[^'‘’]*[.,!?…—-]['’](?!\p{L}))/u.test(line));
 const TAG_WITHOUT_BRACKET = "a speaker tag without its [";
 const PC_LINE = "a spoken line for the PC";
 

@@ -41,17 +41,24 @@ export const UPKEEP_LIMIT = { ms: 15_000 };
 /**
  * Thinking levels below Review thinking that reviews are sent at, raised each time one runs out of time, as a reviewer on a slow
  * model or provider was cut off a third of the time on the bench, and a review cut off does nothing. Never below Low, and a State
- * Upkeep done in under half its time raises it a step again, so one stall doesn't lower reviews for good.
+ * Upkeep done in under half its time three times running raises it a step again, so one stall doesn't lower reviews for good.
  * shortcut: in memory and shared by every Save; key it by model if that misfires.
  */
-export const slowReviewer = { steps: 0 };
+export const slowReviewer = { steps: 0, quick: 0 };
+// Three quick in a row, as one quick review at the lowered level says little about the level above, and raising after one swung
+// back and forth, a time-out every other Turn.
+const QUICK_TO_RAISE = 3;
 export function reviewTimedOut(during: "State Upkeep" | "fix") {
+  slowReviewer.quick = 0;
   if (slowReviewer.steps >= 2) return;
   slowReviewer.steps++;
   log.info("turn", "Review thinking lowered", { during, steps: slowReviewer.steps });
 }
 function reviewWasQuick(ms: number) {
-  if (slowReviewer.steps === 0 || ms >= UPKEEP_LIMIT.ms / 2) return;
+  if (slowReviewer.steps === 0) return;
+  slowReviewer.quick = ms < UPKEEP_LIMIT.ms / 2 ? slowReviewer.quick + 1 : 0;
+  if (slowReviewer.quick < QUICK_TO_RAISE) return;
+  slowReviewer.quick = 0;
   slowReviewer.steps--;
   log.info("turn", "Review thinking raised", { steps: slowReviewer.steps });
 }

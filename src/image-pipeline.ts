@@ -173,7 +173,7 @@ export function markNames(text: string, npcs: Npc[], pcName: string) {
     .filter((part) => /^\p{Lu}/u.test(part) && !NOT_A_NAME.has(part) && names.filter((name) => named(name, part)).length === 1);
   const candidates = [...new Set([...names, ...parts])].toSorted((a, b) => b.length - a.length);
   if (candidates.length === 0) return text;
-  const pattern = new RegExp(`(?<![\\p{L}'’])(?:${candidates.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\p{L}'’])`, "gu");
+  const pattern = new RegExp(`(?<![\\p{L}'’])(?:${candidates.map((name) => RegExp.escape(name)).join("|")})(?![\\p{L}'’])`, "gu");
   return text
     .split(/(\[[^[\]]*\]|\{[^{}]*\})/)
     .map((part, at) => (at % 2 === 1 ? part : part.replace(pattern, (name) => `[${name}]`)))

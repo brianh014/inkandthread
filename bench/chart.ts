@@ -46,7 +46,8 @@ export function points(results: ChartResult[], version: string, rounds: number, 
     { setup: Point["setup"]; label: string; detail: string; runs: number; plays: { score: number; cost: number; turnMs: number; firstMs: number }[] }
   >();
   for (const result of results) {
-    const like = result.version === version && result.rounds === rounds && (result.mode ?? "choices") === "choices" && (result.world ?? "world.json") === world;
+    const like =
+      String(result.version) === version && result.rounds === rounds && (result.mode ?? "choices") === "choices" && (result.world ?? "world.json") === world;
     if (!like || !result.drawn || !result.setup || !result.judge) continue;
     const { narrator, reviewer, reviewThinking, consistency } = result.models;
     const label = result.setup === "narrator" ? short(narrator) : [narrator, reviewer, consistency].map(short).join(" · ");

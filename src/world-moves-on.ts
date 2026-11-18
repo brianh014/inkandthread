@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { withinLimit } from "./limits";
 import { errorType, log } from "./logger";
-import { activateLore } from "./lore-activation";
+import { activateLore, wholeWord } from "./lore-activation";
 import { LORE_TOKEN_BUDGET, type Prompt } from "./prompt-assembler";
 import type { SaveStore } from "./save-store";
 import type { SettingsStore } from "./settings-store";
@@ -39,13 +39,16 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const { plotThreads } = state;
   // Names a rewrite must keep, as moves kept a thread's surface and dropped who was behind it and what it hid, in every bench run
   // despite the rule. One the PC has learned may go, as play has revealed it. shortcut: names only; a secret with no name in it isn't checked.
-  // Each person or place is all the names it goes by, so a rewrite that keeps "Thorne" keeps "Reverend Amos Thorne".
+  // Each person or place is all the names it goes by, so a rewrite that keeps "Thorne" keeps "Reverend Amos Thorne". The
+  // always-on setting isn't one, or naming the city would bind every rewrite.
   const people = [
-    ...state.npcs.map(({ name }) => [name]),
-    ...state.worldBible.map(({ keywords }) => keywords.filter((word) => /^\p{Lu}/u.test(word))).filter((names) => names.length > 0),
+    ...state.npcs.map(({ name }) => [name, ...name.split(" ").filter((part) => part.length > 2 && /^\p{Lu}/u.test(part))]),
+    ...state.worldBible
+      .filter(({ alwaysOn }) => !alwaysOn)
+      .map(({ keywords }) => keywords.filter((word) => /^\p{Lu}/u.test(word)))
+      .filter((names) => names.length > 0),
   ];
-  const mentions = (text: string, name: string, flags = "iu") =>
-    new RegExp(`(?<!\\p{L})${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\p{L})`, flags).test(text);
+  const mentions = (text: string, name: string, flags = "iu") => wholeWord(name, flags).test(text);
   // Capitalised in the old thread, so a keyword that is also a common word, such as "harbour", binds no rewrite.
   const keepsNames = ({ old, new: text }: z.infer<typeof ListChange>) =>
     old === null ||

@@ -13,6 +13,7 @@ let server: ReturnType<typeof startServer>;
 beforeEach(() => {
   // Shared by every Save, so one test's time-out would lower another's thinking.
   slowReviewer.steps = 0;
+  slowReviewer.quick = 0;
   folder = tempFolder();
   savesDir = join(folder.path, "Saves");
 });

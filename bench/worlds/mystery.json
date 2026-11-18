@@ -1,11 +1,11 @@
 {
-  "about": "A bench world for mystery: clues, alibis and secrets that must stay straight across many Turns. Invented, with no adult text. It brings about Checks on searching and questioning, a Plot Thread that resolves within a few days (the inquest), secrets for NPCs to learn, Loose Ends, lore to grow, a killer who will kill again, and people who may die. actions holds the fixed words of the Rewrite, Edit and World Change the bench sends.",
+  "about": "A bench world for mystery: clues, alibis and secrets that must stay straight across many Turns. Invented, with no adult text. It brings about Checks on searching and questioning, a Plot Thread that resolves by the next day (the inquest), secrets for NPCs to learn, Loose Ends, lore to grow, a killer who will kill again, and people who may die. actions holds the fixed words of the Rewrite, Edit and World Change the bench sends.",
   "save": {
     "title": "The Low Tide Inquest",
     "artStyle": "Traditional Impasto Oil Painting: Richly textured painterly realism featuring visible expressive brushstrokes, dynamic palette knife work, deep glazes, physical impasto texture, and dramatic chiaroscuro lighting across vibrant, wet-on-wet blended pigments.",
     "theme": "",
     "worldBrief": "Gullhaven, a fishing town on a grey northern coast in the 1890s, with a harbour, a chapel on the cliff and one constable. The railway reached the county town last year but not here; news comes by the carrier's cart and the telegraph office at the post house. Brandy and tea come ashore at night without paying duty, and everyone knows not to ask how.",
-    "startingHook": "At dawn the harbourmaster, Tobias Crane, was found drowned under the harbour wall at low tide. Constable Owen Price has called it an accident and asked Nell Ashby, who keeps the town's apothecary, to lay out the body before the inquest on Thursday. Kit Rowan, Crane's apprentice, is waiting outside her shop, and Harriet Vell from the Anchor Inn has sent word that she must see Nell today.",
+    "startingHook": "At dawn the harbourmaster, Tobias Crane, was found drowned under the harbour wall at low tide. Constable Owen Price has called it an accident and asked Nell Ashby, who keeps the town's apothecary, to lay out the body before the inquest on Tuesday. Kit Rowan, Crane's apprentice, is waiting outside her shop, and Harriet Vell from the Anchor Inn has sent word that she must see Nell today.",
     "pc": {
       "name": "Nell Ashby",
       "background": "The widow of the town's doctor, who taught her his trade before he died of a fever three winters ago. She keeps the apothecary, sets bones and lays out the dead, and the town trusts her more than it would admit.",
@@ -33,7 +33,7 @@
     ]
   },
   "opening": {
-    "storyTime": { "day": 1, "date": "Monday, 14th October 1894", "timeOfDay": "early morning" },
+    "storyTime": { "day": 1, "date": "Monday, 15th October 1894", "timeOfDay": "early morning" },
     "inventory": {
       "wearing": ["grey wool dress", "dark blue shawl", "laced boots", "wire spectacles"],
       "carrying": ["medicine bag", "notebook and pencil", "magnifying glass", "door key to the apothecary"]
@@ -41,13 +41,13 @@
     "status": { "health": "unhurt", "injuries": [], "conditions": [] },
     "worldRules": [
       "There is no magic; the dangers are the sea, the cliffs, cold and people.",
-      "The coroner holds the inquest at the Anchor Inn on Thursday, and a verdict of accident closes the matter for good.",
+      "The coroner holds the inquest at the Anchor Inn on Tuesday, and a verdict of accident closes the matter for good.",
       "Smuggling is a hanging crime if a Revenue man can prove it, and no one in Gullhaven has ever helped one prove it.",
       "A woman's word counts for less than a man's before the coroner, unless she brings proof."
     ],
     "plotThreads": [
       "Tobias Crane did not drown by accident: Silas Grout, the sexton, held his head under the harbour water on Sunday night, on the orders of Reverend Amos Thorne, because Crane had written to the Revenue about the brandy landed through the chapel crypt. Grout will kill again to keep it quiet, and Kit Rowan saw a lantern at the crypt that night.",
-      "Constable Owen Price takes a share of the smuggling money from Reverend Thorne and means to have the inquest on Thursday return accidental death, though he suspects the truth and hates himself for it. Proof put in front of the coroner would force his hand.",
+      "Constable Owen Price takes a share of the smuggling money from Reverend Thorne and means to have the inquest on Tuesday return accidental death, though he suspects the truth and hates himself for it. Proof put in front of the coroner would force his hand.",
       "Harriet Vell is Tobias Crane's daughter by a secret marriage, and his cottage passes to her; hidden in its chimney is Crane's ledger of every cargo landed through the crypt, which she does not know is there and which Thorne is searching for."
     ],
     "worldBible": [
@@ -108,7 +108,7 @@
       {
         "title": "The coroner and the inquest",
         "keywords": ["coroner", "inquest", "Mr Dacre", "verdict"],
-        "content": "Mr Dacre, the county coroner, comes by the carrier's cart on Thursday morning and holds the inquest in the Anchor's long room. He is honest but in a hurry, and takes the constable's word unless shown proof.",
+        "content": "Mr Dacre, the county coroner, comes by the carrier's cart on Tuesday morning and holds the inquest in the Anchor's long room. He is honest but in a hurry, and takes the constable's word unless shown proof.",
         "alwaysOn": false
       }
     ]

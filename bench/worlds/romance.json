@@ -1,5 +1,5 @@
 {
-  "about": "A bench world for romance and slower drama: attraction, guarded hearts, family loyalty and quiet scenes that must not stall. Invented. It sets up a slow-burning attraction and brings about Checks on persuasion and risky moves, a Plot Thread that resolves within a few days (the sale at the end of the harvest), secrets for NPCs to learn, Loose Ends, lore to grow, a wildfire, and people who may die. actions holds the fixed words of the Rewrite, Edit and World Change the bench sends.",
+  "about": "A bench world for romance and slower drama: attraction, guarded hearts, family loyalty and quiet scenes that must not stall. Invented. It sets up a slow-burning attraction and brings about Checks on persuasion and risky moves, a Plot Thread that resolves by the next night (the sale at the harvest feast), secrets for NPCs to learn, Loose Ends, lore to grow, a wildfire, and people who may die. actions holds the fixed words of the Rewrite, Edit and World Change the bench sends.",
   "save": {
     "title": "The Last Harvest at Corra",
     "artStyle": "Luminous Fluid Watercolor: Soft semi-translucent aesthetic characterized by delicate watery washes, soft-edge color bleeding, visible paper grain texture, expressive paint splatters, and vibrant pigment pooling along fine hand-drawn ink contours.",
@@ -41,12 +41,12 @@
     "status": { "health": "unhurt", "injuries": [], "conditions": [] },
     "worldRules": [
       "There is no magic; the dangers are fire, heat, the steep terraces, the sea and people's hearts.",
-      "The harvest ends with the feast on Saturday night, when the estate's year is settled.",
+      "The harvest ends with the feast on Tuesday night, when the estate's year is settled.",
       "Phones have little signal on the hills; the house has a landline and the town is twenty minutes down a winding road.",
       "The fire brigade warns that one spark on these hills in this wind can burn a valley in an hour."
     ],
     "plotThreads": [
-      "Anselm has secretly agreed to sell the estate to Victor Haldane, a hotel developer, to pay the debts his late wife Chiara left; he signs on Saturday after the harvest feast, has told no one but Bette, and means to let his grandmother learn it only once it is done.",
+      "Anselm has secretly agreed to sell the estate to Victor Haldane, a hotel developer, to pay the debts his late wife Chiara left; he signs on Tuesday night after the harvest feast, has told no one but Bette, and means to let his grandmother learn it only once it is done.",
       "Bette Sorell still loves Anselm, whom she was to marry before he met Chiara, and is quietly ruining the fresco work, wetting the plaster at night, so the restorer fails and leaves; she fears what Anselm feels around Mara, and she knows about the sale.",
       "Ilse Corra's heart is failing and she has told only the town doctor; she means to live to see one last harvest, and she knows an old family story that the chapel fresco hides the deed that forbids the estate ever being sold, but not where."
     ],
@@ -78,7 +78,7 @@
       {
         "title": "Victor Haldane",
         "keywords": ["Haldane", "Victor", "developer", "hotel", "sale"],
-        "content": "A smooth, tanned developer in his fifties in pale linen suits, who builds luxury hotels on the coast. He wants the hill for its view and means to tear out the vines. He arrives for the feast on Saturday with the papers.",
+        "content": "A smooth, tanned developer in his fifties in pale linen suits, who builds luxury hotels on the coast. He wants the hill for its view and means to tear out the vines. He arrives for the feast on Tuesday with the papers.",
         "alwaysOn": false
       },
       {
@@ -95,7 +95,7 @@
       },
       {
         "title": "The harvest feast",
-        "keywords": ["feast", "harvest", "Saturday", "pickers"],
+        "keywords": ["feast", "harvest", "feast night", "pickers"],
         "content": "On the last night of the harvest the family feeds every picker at long tables under the pergola, with music and the year's first wine. It is when the estate settles its debts and makes its announcements.",
         "alwaysOn": false
       },
@@ -110,6 +110,6 @@
   "actions": {
     "rewrite": "Slow down, and let the people present react to what just happened before anything new happens.",
     "edit": "Above the terraces, a thin thread of smoke was rising from the scrub.",
-    "worldChange": "Victor Haldane has arrived two days early and is staying at the house as Anselm's guest."
+    "worldChange": "Victor Haldane has arrived a day early and is staying at the house as Anselm's guest."
   }
 }

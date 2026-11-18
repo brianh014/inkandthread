@@ -1,5 +1,5 @@
 {
-  "about": "A bench world for horror and survival: dread, cold, isolation and a threat that may be human, with deaths likely. Invented, with no adult text. It brings about Checks on risky moves in the dark and the cold, a Plot Thread that resolves within a few days (the fuel running out before the storm breaks), secrets for NPCs to learn, Loose Ends, lore to grow, mortal danger to the PC, and people who may die. actions holds the fixed words of the Rewrite, Edit and World Change the bench sends.",
+  "about": "A bench world for horror and survival: dread, cold, isolation and a threat that may be human, with deaths likely. Invented, with no adult text. It brings about Checks on risky moves in the dark and the cold, a Plot Thread that resolves by the next night (the fuel running out before the storm breaks), secrets for NPCs to learn, Loose Ends, lore to grow, mortal danger to the PC, and people who may die. actions holds the fixed words of the Rewrite, Edit and World Change the bench sends.",
   "save": {
     "title": "Whiteout at Station Nine",
     "artStyle": "Graphic Novel & Comic Illustration: Bold graphic aesthetic defined by clean ink linework, stylized cell-shading, dynamic speed lines, sharp silhouettes, and saturated flat tones with optional Ben-Day halftone dot patterns.",
@@ -47,7 +47,7 @@
     ],
     "plotThreads": [
       "Arne Vik, the station geologist, did not die in the crevasse last month as Okafor reported: Okafor cut the rope when Vik's weight was dragging them both in, and Vik climbed out alive and crawled to the old abandoned hut two miles off. Half mad with cold and carbon monoxide from its stove, he is stealing food from the station by night, killed the dogs to stop them giving him away, and means to kill Okafor.",
-      "The generator's fuel will run out on Friday, as Okafor knows and has hidden from everyone: he let the autumn tanker leave half-unloaded to save a day. The storm will not clear until Saturday, so unless someone finds the reserve drums buried at the old hut, the station freezes.",
+      "The generator's fuel will run out on Wednesday night, as Okafor knows and has hidden from everyone: he let the autumn tanker leave half-unloaded to save a day. The storm will not clear until Thursday, so unless someone finds the reserve drums buried at the old hut, the station freezes.",
       "Lise Moen has had the radio working since yesterday and has kept it quiet, because the relief pilot told her the flight is cancelled until the storm clears, and she is afraid of what Pavel will do when he hears; Pavel has been drinking the medical alcohol and has a flare pistol."
     ],
     "worldBible": [
@@ -96,7 +96,7 @@
       {
         "title": "The storm",
         "keywords": ["storm", "blizzard", "whiteout", "wind"],
-        "content": "A winter storm with winds that can knock a man down and snow so thick a torch shows nothing past an arm's length. Between huts, people move hand over hand on the guide ropes. It will blow until Saturday.",
+        "content": "A winter storm with winds that can knock a man down and snow so thick a torch shows nothing past an arm's length. Between huts, people move hand over hand on the guide ropes. It will blow until Thursday.",
         "alwaysOn": false
       }
     ]

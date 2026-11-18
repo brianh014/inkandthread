@@ -10,6 +10,7 @@
     "consistency": "liquid/d1.2"
   },
   "mode": "choices",
+  "drawn": true,
   "thinking": "medium",
   "seed": 1,
   "rounds": 20,

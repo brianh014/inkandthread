@@ -151,6 +151,8 @@ type Result = {
   models: { narrator: string; reviewer: string; reviewThinking: string; consistency: string };
   /** Seeded Choices, or Free Text from a moves file, which runs compare only within. */
   mode?: string;
+  /** Whether the pictures were drawn (--draw), so judged as pictures, or judged from their prompts alone. Absent on older runs. */
+  drawn?: boolean;
   thinking: string;
   seed: number;
   rounds: number;
@@ -782,6 +784,7 @@ async function run() {
     provider,
     models,
     mode: movesFile ? `free text: ${basename(movesFile)}` : "choices",
+    drawn: draw && !fake,
     thinking: all.textThinking,
     seed,
     rounds,
@@ -877,10 +880,20 @@ function table() {
   if (flag("--csv")) {
     const keys = [...new Set(found.flatMap(({ result }) => Object.keys(result.summary)))].toSorted();
     const quote = (text: string) => `"${text.replaceAll('"', '""')}"`;
-    console.log(["date", "kept", "label", "provider", "narrator", "reviewer", "consistency", "judge", "rounds", "runs", ...keys].map(quote).join(","));
+    console.log(["date", "kept", "label", "provider", "narrator", "reviewer", "consistency", "judge", "drawn", "rounds", "runs", ...keys].map(quote).join(","));
     for (const { path, result } of found) {
-      const { date, label, provider, models, judge, rounds, runs, summary } = result;
-      const meta = [date, path.startsWith(RESULTS) ? "yes" : "no", label, provider, models.narrator, models.reviewer, models.consistency, judge?.by ?? ""];
+      const { date, label, provider, models, judge, drawn, rounds, runs, summary } = result;
+      const meta = [
+        date,
+        path.startsWith(RESULTS) ? "yes" : "no",
+        label,
+        provider,
+        models.narrator,
+        models.reviewer,
+        models.consistency,
+        judge?.by ?? "",
+        drawn === undefined ? "" : drawn ? "yes" : "no",
+      ];
       console.log([...meta.map(quote), rounds, runs, ...keys.map((key) => summary[key] ?? "")].join(","));
     }
     return;

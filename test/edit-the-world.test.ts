@@ -446,21 +446,35 @@ test("a World Change can fix what the PC wears and carries, and their status, wh
   expect(prompts[0]![0]!.content).toContain('"inventory":{"wearing":[],"carrying":[]}');
 });
 
-test("a World Change can rewrite an NPC's looks, which stay hidden, and one for a name it doesn't know is retried", async () => {
+test("a World Change can rewrite an NPC's looks, which stay hidden, and one for someone not in the story is left out", async () => {
   play(
-    update({ npc_looks: [{ name: "Nobody", appearance: "a ghost" }] }),
-    update({ npc_looks: [{ name: "Corvin", appearance: "a man in a hooded wool cloak" }] }),
+    update({
+      npc_looks: [
+        { name: "Nobody", appearance: "a ghost" },
+        { name: "Corvin", appearance: "a man in a hooded wool cloak" },
+      ],
+      npc_summaries: [{ name: "Nobody", summary: "A ghost." }],
+    }),
   );
   const id = createSave();
 
-  const response = await change(id, "Corvin dresses for his era");
+  const log = await logged(async () => expect((await change(id, "Corvin dresses for his era")).status).toBe(200));
 
-  expect(response.status).toBe(200);
-  expect(prompts).toHaveLength(2);
+  expect(prompts).toHaveLength(1);
   expect(store().latestState(id).npcs).toEqual([NPCS[0]!, { name: "Corvin", appearance: "a man in a hooded wool cloak" }]);
+  expect(log).toContain('"dropped":2');
   expect(prompts[0]![0]!.content).toContain('"npcs":{"Hesper":"a woman","Corvin":"a man"}');
   expect(prompts[0]![0]!.content).toContain("name each garment by its period form");
   expect(JSON.stringify(await journal(id))).not.toContain("hooded wool cloak");
+});
+
+test("a misquoted change is asked again with the check that refused it", async () => {
+  play(update({ plot_threads: [{ old: "a thread that isn't there", new: "x" }] }), update({ removed_lore: ["The Tide"] }));
+  const id = createSave();
+
+  expect((await change(id)).status).toBe(200);
+
+  expect(prompts[1]!.at(-1)!.content).toContain("a change misquotes a thread");
 });
 
 test("a World Change can rewrite the PC's looks from those they have now, which stay hidden", async () => {

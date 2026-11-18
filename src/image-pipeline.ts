@@ -20,6 +20,8 @@ export type Scene = {
   wearing: string[];
   portraits: Npc[];
   restyled?: (Npc | null)[];
+  /** Each person merged into another this Turn, as [name, into], whose portrait goes with them. */
+  merged?: [string, string][];
 };
 /**
  * A `redraw` key marks what the player asked for by hand, which draws whatever the Settings now say. `npc` is whose
@@ -112,7 +114,8 @@ export function pcLooks({ name, physicalTraits = "" }: Save["pc"], wearing: stri
 export function expandMarks(text: string, npcs: Npc[], pcName: string, referenced: Pictured = []) {
   const pictured: Pictured = [];
   const prompt = text
-    .replace(/\s*\{([^{}]*)\}/g, (_, likeness: string) => (referenced.length > 0 ? ` ${likeness.trim()}` : ""))
+    // An unclosed brace at the end counts too, as models sometimes leave the closing one off.
+    .replace(/\s*\{([^{}]*)(?:\}|$)/g, (_, likeness: string) => (referenced.length > 0 ? ` ${likeness.trim()}` : ""))
     .replace(/\[([^[\]:]+)(?::([^[\]]*))?\]/g, (_, mark: string, phrase: string | undefined, at: number, whole: string) => {
       const brief = (phrase ?? "").trim();
       const isPc = named(pcName, mark.trim());
@@ -608,6 +611,9 @@ export function imagePipeline(
      */
     sceneChanged(id: string, messageId: number, scene: Scene) {
       const { drawScenes, updatePortraits } = settings.read();
+      // First, so a job for the merged name finds the portrait and draws none.
+      const moved = (scene.merged ?? []).filter(([from, to]) => saves.renamePortrait(id, from, to)).length;
+      if (moved > 0) log.info("images", "Portraits moved to merged names", { save: id, count: moved });
       enqueue(id, (jobs) => {
         if (scene.moved) jobs.queue.push(portraitJob(id, OPENING_SNAPSHOT));
         jobs.queue.push(...scene.portraits.map((npc) => portraitJob(id, messageId, npc)));

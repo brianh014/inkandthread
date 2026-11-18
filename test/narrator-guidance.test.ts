@@ -167,7 +167,7 @@ test("a reply is held to one thing for the PC to answer, in numbers the Narrator
 
   await playTurn(id);
 
-  expect(lastSystem()).toContain("Each person speaks once in a reply, and no one speaks more than twice.");
+  expect(lastSystem()).toContain("Each person speaks once in a reply, and no one speaks more than three times.");
   expect(lastSystem()).toContain("at most one thing for the PC to answer");
 });
 

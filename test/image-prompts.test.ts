@@ -73,6 +73,11 @@ test("each person with a portrait is pointed at their image by number, and the l
   );
   expect(expandMarks(prompt, npcs, pc).prompt).toBe("a tall woman waves at a short man by an old man.");
   expect(expandMarks("They wave at [Hesper: a tall woman].", npcs, pc, ["Hesper"]).prompt).toBe("They wave at the person from image 1, a tall woman.");
+  // Models sometimes leave off the closing brace at the end.
+  expect(expandMarks("[Hesper: a tall woman] waves. {Keep each face.", npcs, pc).prompt).toBe("a tall woman waves.");
+  expect(expandMarks("[Hesper: a tall woman] waves. {Keep each face.", npcs, pc, ["Hesper"]).prompt).toBe(
+    "the person from image 1, a tall woman, waves. Keep each face.",
+  );
 });
 
 test.each([

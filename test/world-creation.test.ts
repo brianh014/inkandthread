@@ -420,9 +420,9 @@ test.each(["name", "characterName"])("Enhance on a %s box writes only a name, re
   expect(prompts[0]![0]!.content).toContain("only the name, in at most 5 words");
 });
 
-test("Enhance on the looks box keeps to thirty words, or the player's own length if longer, retrying one a quarter over", async () => {
+test("Enhance on the looks box keeps to thirty words, or the player's own length if longer, retrying one half over", async () => {
   play(
-    JSON.stringify({ text: "tall ".repeat(39) }),
+    JSON.stringify({ text: "tall ".repeat(46) }),
     JSON.stringify({ text: "Tall and lean, with a scar on one cheek." }),
     JSON.stringify({ text: "word ".repeat(40) }),
   );
@@ -439,7 +439,7 @@ test("Enhance on the looks box keeps to thirty words, or the player's own length
 
 test("Enhance on the wearing and carrying box details only the player's items, as a list of at most forty words, retrying prose", async () => {
   play(
-    JSON.stringify({ text: "item ".repeat(51) }),
+    JSON.stringify({ text: "item ".repeat(61) }),
     JSON.stringify({ text: "Rain falls. Your coat hangs heavy." }),
     JSON.stringify({ text: "oilskin coat, narrow single-edged knife" }),
   );

@@ -234,11 +234,15 @@ const byVersion = (a: string, b: string) => {
   return 0;
 };
 
-/** Every bench version, score and story among `results` as one page, with a selector for each. `titles` names each story's world file, such as by its genre. */
+/**
+ * Every bench version, score and story among `results` as one page, with a selector for each. `titles` names each story's world
+ * file, such as by its genre; `scores` lists every rubric item and genre score the bench asks, so the picker offers them all,
+ * those with no runs yet saying so.
+ */
 export function chartPage(
   results: ChartResult[],
   rounds: number,
-  { date = new Date().toISOString().slice(0, 10), titles = {} as Record<string, string> } = {},
+  { date = new Date().toISOString().slice(0, 10), titles = {} as Record<string, string>, scores: known = [] as string[] } = {},
 ) {
   const charted = results.filter((result) => result.judge && result.drawn && result.setup && result.version !== undefined && result.rounds === rounds);
   const versions = [...new Set(charted.map((result) => String(result.version)))].toSorted(byVersion);
@@ -247,7 +251,7 @@ export function chartPage(
   );
   const items = [...new Set(charted.flatMap((result) => result.judge!.plays.flatMap((play) => Object.keys(play.scores))))];
   const genres = [...new Set(charted.flatMap((result) => result.judge!.plays.flatMap((play) => Object.keys(play.genres ?? {}))))].toSorted();
-  const scores = [OVERALL, ...items, ...genres];
+  const scores = [...new Set([OVERALL, ...known, ...items, ...genres])];
   const pick = {
     version: versions[0] ?? "",
     score: OVERALL,

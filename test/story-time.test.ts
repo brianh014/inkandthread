@@ -17,6 +17,10 @@ test("days passing add to the day count, with the new date the Narrator worked o
   expect(applyOperations(at(DUSK), [set(2, "5th of Lowtide", "dawn")]).next.storyTime).toEqual({ day: 5, date: "5th of Lowtide", timeOfDay: "dawn" });
 });
 
+test("days passing on the same date count no days, as models gave the day count as days_passed and doubled it", () => {
+  expect(applyOperations(at(DUSK), [set(3, "3rd of Lowtide", "night")]).next.storyTime).toEqual({ ...DUSK, timeOfDay: "night" });
+});
+
 test("a new day with no date, or a first Story Time with none, is ignored and changes nothing", () => {
   for (const [state, operation] of [
     [at(DUSK), set(1, null, "dawn")],

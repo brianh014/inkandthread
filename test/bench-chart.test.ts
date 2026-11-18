@@ -120,3 +120,9 @@ test("a genre score can be charted on its own, and stays out of the overall", ()
   expect(points([judged], "0.5.0.1", 30, "adventure.json", "overall")[0]!.score).toBe(7);
   expect(chartPage([judged], 30)).toContain(">Romance</option>");
 });
+
+test("the picker offers every score the bench asks, even one no kept run has yet", () => {
+  const page = chartPage([run("x/mimo", [7], 0.01)], 30, { scores: ["a", "b", "spiciness"] });
+  expect(page).toContain(">Spiciness</option>");
+  expect(page).toContain('data-score="spiciness"');
+});

@@ -81,6 +81,20 @@ test("a response of only whitespace is retried, as it would leave a Message with
   expect(messages.at(-1)!.text).toBe("The tide rises.");
 });
 
+test("a reply written again is told why, naming the reply it just wrote, and speech in the prose after the opening is kept", async () => {
+  const { app, prompts } = play(narration("  \n "), narration("'Go now,' she said."));
+  const id = await app.createSave();
+
+  await app.post(`/saves/${id}/turns`, { input: "I wade forward." });
+
+  expect(prompts).toHaveLength(2);
+  expect(prompts[1]!.at(-1)!.content).toStartWith("The reply you just wrote to this couldn't be used:");
+  // The retry follows the prompt, which is otherwise the same, so the provider's cache still holds.
+  expect(prompts[1]!.slice(0, -1)).toEqual(prompts[0]!);
+  const { messages } = (await app.get(`/saves/${id}/messages`).then((r) => r.json())) as { messages: { text: string }[] };
+  expect(messages.at(-1)!.text).toBe("'Go now,' she said.");
+});
+
 test("Messages survive a server restart", async () => {
   const { app } = play(narration("The tide rises around you."));
   const id = await app.createSave();
@@ -589,7 +603,9 @@ test.each([
 
   expect(response.status).toBe(201);
   expect(prompts).toHaveLength(3);
-  expect(prompts[2]).toEqual(prompts[0]!);
+  // The same prompt, told why the last reply couldn't be used.
+  expect(prompts[2]!.slice(0, -1)).toEqual(prompts[0]!);
+  expect(prompts[2]!.at(-1)!.content).toStartWith("The reply you just wrote to this couldn't be used:");
   expect(await messageTexts(app, id)).toEqual(["I wade forward.", "The tide rises around you."]);
 });
 
@@ -890,7 +906,7 @@ test.each([
   expect(response.status).toBe(201);
   expect(prompts).toHaveLength(3);
   expect(resultOf(prompts[2])).toBe("outcome:failure,degree:plain");
-  expect(prompts[2]).toEqual(prompts[1]!);
+  expect(prompts[2]!.slice(0, -1)).toEqual(prompts[1]!);
 });
 
 test("the result call gets three attempts of its own", async () => {
@@ -1029,7 +1045,8 @@ test("a Continue reaches the Narrator as an instruction, not as the PC's words, 
   const response = await app.post(`/saves/${id}/turns`, { input: CONTINUE });
 
   expect(response.status).toBe(201);
-  expect(prompts.at(-1)!.at(-1)!.content).toBe(CONTINUE_INPUT);
+  // Before the reason the Check request was refused.
+  expect(prompts.at(-1)!.at(-2)!.content).toBe(CONTINUE_INPUT);
   expect(CONTINUE_INPUT).toContain("without moving time on or ending what is under way");
   const { messages } = (await app.get(`/saves/${id}/messages`).then((r) => r.json())) as { messages: { role: string; text: string }[] };
   // Kept as a marker, so the words sent can change without old Continues going unrecognised.
@@ -1422,7 +1439,7 @@ const UNHURT = { health: "unhurt", injuries: [], conditions: [] };
 test("the Journal holds the summary, what the PC knows, known NPCs and the Full Log", async () => {
   const { app } = play(
     narration(
-      'Mara waves.\n\n  "Come in," she says.',
+      "Mara waves.\n\n  [Mara]: “Come in.”",
       { op: "add_npc", name: "Mara", appearance: "grey coat" },
       { op: "add_known_npc", name: "Mara" },
       { op: "add_known_fact", fact: "The ferry stopped running." },
@@ -1447,7 +1464,7 @@ test("the Journal holds the summary, what the PC knows, known NPCs and the Full 
     portraits: [],
     fullLog: [
       { id: 1, role: "player", text: "I wave back." },
-      { id: 2, role: "narrator", text: 'Mara waves.\n\n  "Come in," she says.' },
+      { id: 2, role: "narrator", text: "Mara waves.\n\n  [Mara]: “Come in.”" },
     ],
     chapters: [{ title: "", lastMessage: null }],
   });
@@ -2257,7 +2274,7 @@ test("a reply that's a note about the Turn rather than story is retried, while a
   expect(kept.prompts).toHaveLength(1);
 
   // A game at the table, short and full of turns and rolls, is still story.
-  const game = playWithDice([], narration('She slides the dice across. "Your turn. Roll."'));
+  const game = playWithDice([], narration("She slides the dice across.\n[Mara]: “Your turn. Roll.”"));
   const played = await game.app.createSave();
   await game.app.post(`/saves/${played}/turns`, { input: "I take the dice." });
   expect(game.prompts).toHaveLength(1);

@@ -49,6 +49,7 @@ const createSave = () =>
       inventory: { wearing: [], carrying: [] },
       scene: { location: "The library", visibleCast: [] },
       summary: "",
+      worldRules: ["The city has one boat."],
       plotThreads: ["A thief plans to rob the library at the next high tide."],
       worldBible: [
         { title: "The thief", keywords: ["thief"], content: "The thief is the librarian's own son.", alwaysOn: false },
@@ -62,7 +63,11 @@ const moved = (...plot_threads: object[]) => JSON.stringify({ plot_threads });
 
 test("at a change of place the world moves on out of sight, and the next Turn reads it moved", async () => {
   const told = play(
-    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),
+    narration(
+      "Ash walks to the dock.",
+      { op: "add_npc", name: "Ferryman", appearance: "a stooped man in oilskins" },
+      { op: "set_scene", location: "The dock", visible_cast: ["Ferryman"] },
+    ),
     moved({ old: "A thief plans to rob the library at the next high tide.", new: "The thief has robbed the library and hides the books on a barge." }),
     narration("Ash watches the barges."),
   );
@@ -79,6 +84,10 @@ test("at a change of place the world moves on out of sight, and the next Turn re
   // With the Lore Entries its threads name, so a move keeps who is behind each one true to the world.
   expect(told.prompts[1]!.at(-1)!.content).toContain("the librarian's own son");
   expect(told.prompts[1]!.at(-1)!.content).not.toContain("Gulls nest");
+  // And the world rules, so a move keeps to the setting's own facts.
+  expect(told.prompts[1]!.at(-1)!.content).toContain("The city has one boat.");
+  // And who is with the PC, so a move doesn't retell the scene in play as what they did out of sight.
+  expect(told.prompts[1]!.at(-1)!.content).toContain('"visible_cast":["Ferryman"]');
   expect(told.prompts[2]!.map(({ content }) => content).join("\n")).toContain("hides the books on a barge");
   expect(store().latestState(id).plotThreads).toEqual(["The thief has robbed the library and hides the books on a barge."]);
   expect(log).toContain('"threads":1,"added":0,"removed":0');
@@ -102,6 +111,7 @@ test("a move that misquotes a thread, or fails, leaves the world as it was and t
 
   expect(store().latestState(id).plotThreads).toEqual(["A thief plans to rob the library at the next high tide."]);
   expect(log).toContain("World didn't move on");
+  expect(log).toContain("a change misquotes a thread");
 });
 
 test("a move is due at a new place, a new day or every few replies, even with no threads, as only a move adds them", () => {
@@ -141,16 +151,14 @@ test("a Regenerate drops the move made from the reply it replaces", async () => 
   expect(store().latestState(id).plotThreads).toEqual(["A thief plans to rob the library at the next high tide."]);
 });
 
-test("a move that changes one thread twice is refused, as the thread would come out twice", async () => {
-  const twice = moved(
-    { old: "A thief plans to rob the library at the next high tide.", new: "The thief waits." },
-    { old: "A thief plans to rob the library at the next high tide.", new: "The thief strikes." },
-  );
+test("a move keeps its usable changes and drops only those that change a thread twice or misquote one", async () => {
   play(
     narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),
-    twice,
-    twice,
-    twice,
+    moved(
+      { old: "A thief plans to rob the library at the next high tide.", new: "The thief waits." },
+      { old: "A thief plans to rob the library at the next high tide.", new: "The thief strikes." },
+      { old: "A thread that isn't there.", new: "x" },
+    ),
     narration("Ash watches the barges."),
   );
   const id = createSave();
@@ -160,8 +168,23 @@ test("a move that changes one thread twice is refused, as the thread would come 
     expect((await turn(id, "I watch the barges.")).ok).toBe(true);
   }, "info");
 
-  expect(store().latestState(id).plotThreads).toEqual(["A thief plans to rob the library at the next high tide."]);
-  expect(log).toContain("World didn't move on");
+  expect(store().latestState(id).plotThreads).toEqual(["The thief waits."]);
+  expect(log).toContain('"dropped":{"a change changes a thread twice":1,"a change misquotes a thread":1}');
+});
+
+test("a move with no usable change is written again, saying why", async () => {
+  const told = play(
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),
+    moved({ old: "A thread that isn't there.", new: "x" }),
+    moved(),
+    narration("Ash watches the barges."),
+  );
+  const id = createSave();
+
+  expect((await turn(id, "I walk to the dock.")).ok).toBe(true);
+  expect((await turn(id, "I watch the barges.")).ok).toBe(true);
+
+  expect(told.prompts.some((prompt) => prompt.at(-1)!.content.includes("a change misquotes a thread"))).toBe(true);
 });
 
 test("a move that drops someone its thread named is written again, as a rewrite must keep who is behind it", async () => {

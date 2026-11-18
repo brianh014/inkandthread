@@ -55,7 +55,7 @@ test("a review sends only the prompt, checks the picture holds together, and its
 test("a review that changes a mark or the portrait sentence, or runs long, is retried, and then the prompt is drawn as written", async () => {
   const lostMark = checked("[Ash: a tall person in red] kneels by the fire. {The people from the images are the same people.}");
   const lostLikeness = checked("[Ash: a short person in grey] kneels by the fire.");
-  const long = checked(`[Ash: a short person in grey] kneels. {The people from the images are the same people.} ${"word ".repeat(200)}`);
+  const long = checked(`[Ash: a short person in grey] kneels. {The people from the images are the same people.} ${"word ".repeat(400)}`);
   const { reviewed, prompts } = review("prose", lostMark, lostLikeness, long);
 
   const line = await logOf(() => reviewed, "warning");
@@ -107,8 +107,8 @@ test("a Cover's prompt is written whole, Art Style and world included, from only
 test.each([
   ["prose", 120],
   ["keywords", 60],
-] as const)("a %s portrait's prompt keeps to %i words, retrying one a quarter over", async (style, words) => {
-  const { written, prompts } = write(portrait, style, text("tall ".repeat(Math.ceil(words * 1.25) + 1)), text("A tall woman in an oilskin coat."));
+] as const)("a %s portrait's prompt keeps to %i words, retrying one half over", async (style, words) => {
+  const { written, prompts } = write(portrait, style, text("tall ".repeat(Math.ceil(words * 1.5) + 1)), text("A tall woman in an oilskin coat."));
 
   expect(await written).toBe("A tall woman in an oilskin coat.");
   expect(prompts[0]![0]!.content).toContain(`about ${Math.round(words * 0.75)} words and never over ${words}`);

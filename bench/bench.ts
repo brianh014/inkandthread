@@ -37,7 +37,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 12;
+const BENCH_ITERATION = 18;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 30;
@@ -103,6 +103,10 @@ const GENRES = {
     "horror",
     "how much dread it builds: 1-2 nothing to fear; 3-4 danger named but not felt; 5-6 unease in moments, with the threat mostly told; 7-8 sustained dread built through the senses, the unseen, isolation and what is at stake, with the threat closing in; 9-10 a horror novel's grip, fear felt from inside the player's character, the unknown kept unknown just long enough, and a cost when it arrives",
   ],
+  adventure: [
+    "an adventure",
+    "how well it plays as a journey through danger: 1-2 no journey, or one that never leaves its first place; 3-4 a road named but mostly talked about, with danger told rather than met; 5-6 headway made and danger met in moments, but the places blur and the player's character mostly follows; 7-8 a journey that makes real headway, danger met in action on the page, places and set pieces that change the road, and the player's character's choices deciding how they get through; 9-10 an adventure novel's drive, each stage of the road its own world, danger with a real cost, and the way through earned by the player's character's own wits and nerve",
+  ],
   violence: [
     "violence or injury on the page",
     "how vividly it is shown, not its quality: 1-2 it happens off the page or is only implied; 3-4 on the page but brief and softened; 5-6 clear and physical, but quick, with little of the body in it; 7-8 visceral and sustained, with the wounds, pain and damage felt in the body and lasting after; 9-10 unflinching, graphic detail with the full weight of it on those hurt and on the player's character, and its aftermath carried forward",
@@ -137,9 +141,9 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(JudgeRe
 /** Each feature the bench looks for, and how a play shows it fired. Judged ones come from the judge's `happened`. */
 const COVERAGE: [string, string[]][] = [
   ["Hidden Check", ["checks.asked"]],
-  ["Plot Thread added", ["ops.add_plot_thread"]],
-  ["Plot Thread moved on", ["ops.update_plot_thread"]],
-  ["Plot Thread resolved", ["ops.resolve_plot_thread"]],
+  ["Plot Thread added", ["ops.add_plot_thread", "moves.added"]],
+  ["Plot Thread moved on", ["ops.update_plot_thread", "moves.rewritten"]],
+  ["Plot Thread resolved", ["ops.resolve_plot_thread", "moves.removed"]],
   ["NPC learns (npcKnows)", ["ops.npc_learns"]],
   ["Known fact added", ["ops.add_known_fact"]],
   ["Known fact changed", ["ops.update_known_fact", "ops.remove_known_fact", "upkeep.update_known_fact", "upkeep.remove_known_fact"]],
@@ -176,9 +180,12 @@ const HEADLINE = [
   "retries",
   "failed",
   "checks.asked",
-  "ops.add_plot_thread",
   "ops.update_plot_thread",
   "ops.resolve_plot_thread",
+  "moves.rewritten",
+  "moves.added",
+  "moves.removed",
+  "moves.failed",
   "ops.npc_learns",
   "ops.add_lore_entry",
   "ops.add_loose_end",
@@ -503,7 +510,8 @@ async function play(
   // Spread across the play, so each comes after some story; a short play may fit fewer.
   const due = new Map(ACTIONS.map((action, at) => [Math.max(1, Math.round((rounds * (at + 1)) / (ACTIONS.length + 1))), action] as const).reverse());
   try {
-    await send(0, "opening", `/saves/${id}/opening`, {});
+    // Tried again once, as a player would, since one dropped connection otherwise left the whole play without its opening.
+    if (!(await send(0, "opening", `/saves/${id}/opening`, {})).ok) await send(0, "opening", `/saves/${id}/opening`, {});
     for (let round = 1; round <= rounds; round++) {
       const move = moves?.[round - 1];
       const choices = move === undefined ? saves.latestChoices(id) : undefined;
@@ -571,6 +579,15 @@ async function play(
   }
   flat["checks.difficultyMean"] = flat["checks.asked"] ? (flat["checks.difficultySum"] ?? 0) / flat["checks.asked"] : 0;
   delete flat["checks.difficultySum"];
+  // World Moves On changes the threads too, between Turns.
+  Object.assign(flat, { "moves.rewritten": 0, "moves.added": 0, "moves.removed": 0 });
+  for (const move of logged("World moved on")) {
+    const [added, removed] = [move.added as number, move.removed as number];
+    add("moves.rewritten", (move.threads as number) - added - removed);
+    add("moves.added", added);
+    add("moves.removed", removed);
+  }
+  flat["moves.failed"] = logged("World didn't move on").length;
   flat.unusable = logged("Unusable Narrator reply").length;
   flat.failed = steps.filter(({ ok }) => !ok).length;
   flat["chapters.closed"] = logged("Chapter closed").length;
@@ -1059,6 +1076,8 @@ function chart() {
   const kept = allResults().filter(({ path }) => path.startsWith(RESULTS));
   const rounds = option("--rounds") ? count("--rounds") : CHART_ROUNDS;
   const titles = sharedWorlds();
+  // Every score the bench asks, so the chart offers each one before any kept run has it.
+  const scores = [...Object.keys(RUBRIC), ...Object.keys(GENRES)];
   // Only the numbers the chart reads, of the shared worlds, as the app ships this file for players to compare models.
   const results = kept
     .map(({ result }) => result)
@@ -1088,13 +1107,13 @@ function chart() {
     }));
   writeFileSync(
     join(BENCH, "..", "src", "web", "bench-results.json"),
-    `${JSON.stringify({ rounds, titles, results })}
+    `${JSON.stringify({ rounds, titles, scores, results })}
 `,
   );
   const folder = join(BENCH, "charts");
   mkdirSync(folder, { recursive: true });
   const target = join(folder, "bench-chart.html");
-  writeFileSync(target, chartPage(results, rounds, { titles }));
+  writeFileSync(target, chartPage(results, rounds, { titles, scores }));
   console.log(`Kept runs of ${rounds} rounds, every bench version and story, charted in ${relative(process.cwd(), target)} and src/web/bench-results.json.`);
 }
 

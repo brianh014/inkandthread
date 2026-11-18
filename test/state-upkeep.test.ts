@@ -121,6 +121,34 @@ test("an operation of State Upkeep's that the state refuses is dropped, and the 
   expect(log).toContain('"upkeepRefused":1');
 });
 
+test("State Upkeep doesn't move time in a Turn where the Narrator did, as it moved it a second time", async () => {
+  const time = (days_passed: number, date: string, time_of_day: string) => ({ op: "set_story_time", days_passed, date, time_of_day });
+  const { upkeep } = play(
+    [narration("Ash wakes at dawn.", time(0, "1st of Thaw", "dusk")), narration("Ash wakes at dawn.", time(1, "2nd of Thaw", "dawn"))],
+    [upkept(), upkept(time(4, "3rd of Thaw", "morning"), { op: "set_scene", location: "Ash's flat", visible_cast: [] })],
+  );
+  const id = createSave();
+  await turn(id);
+
+  const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
+
+  expect(store().latestState(id).storyTime).toEqual({ day: 2, date: "2nd of Thaw", timeOfDay: "dawn" });
+  expect(store().latestState(id).scene.location).toBe("Ash's flat");
+  // Not even offered, so its wrong time can't creep into the facts it rewrites; one given anyway is dropped.
+  expect(upkeep.prompts.map((prompt) => prompt[0]!.content.includes("set_story_time"))).toEqual([false, false]);
+  expect(log).toContain('"operations":["set_scene"],"dropped":1');
+});
+
+test("State Upkeep may move time in a Turn where the Narrator didn't", async () => {
+  const { upkeep } = play([narration("Ash waits until dark.")], [upkept({ op: "set_story_time", days_passed: 0, date: "1st of Thaw", time_of_day: "night" })]);
+  const id = createSave();
+
+  expect((await turn(id)).ok).toBe(true);
+
+  expect(upkeep.prompts[0]![0]!.content).toContain("set_story_time");
+  expect(store().latestState(id).storyTime).toEqual({ day: 1, date: "1st of Thaw", timeOfDay: "night" });
+});
+
 test("an operation State Upkeep may not give, or a broken one, is dropped and the rest kept, with no second call", async () => {
   const { upkeep } = play(
     [narration("Ash walks home.")],

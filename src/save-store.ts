@@ -1015,6 +1015,15 @@ export function saveStore(savesDir: string) {
       return mediaType ? { bytes: portrait!.bytes, mediaType } : undefined;
     },
 
+    /**
+     * Moves `from`'s portrait to `to`, the name a merge gave them, unless `to` has one, so a person named later keeps their face.
+     * shortcut: a Revert or Regenerate past the merge leaves it under the new name, so the old name is drawn again; move it back if players notice.
+     */
+    renamePortrait(id: string, from: string, to: string) {
+      using db = open(id);
+      return db.run("UPDATE portraits SET npc = ?1 WHERE npc = ?2 AND NOT EXISTS (SELECT 1 FROM portraits WHERE npc = ?1)", [to, from]).changes > 0;
+    },
+
     /** Stores nothing if the Message that asked has gone, like `addSceneImage`. An NPC's goes by their first appearance, or by that Message if they have been in no Scene. */
     addPortrait(id: string, messageId: number, npc: string | null, bytes: Uint8Array, prompt: string | null = null) {
       if (!imageType(bytes)) throw new Error("The image model returned something that isn't a PNG, JPEG or WebP");

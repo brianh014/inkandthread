@@ -72,22 +72,24 @@ test("switching to Free Text and back keeps the latest Choices, and the next Tur
   expect(await latestChoices(id)).toBeUndefined();
 });
 
-test("a reply without three different Choices is retried, and the last try is kept without any", async () => {
-  const { id, prompts } = await choosing(
-    narration("Missing."),
-    withChoices("Too few.", ["I run."]),
-    withChoices("Repeated.", ["I run.", "I run.", " I run. "]),
-  );
+test("a reply without three different Choices keeps its story, and the Choices are asked for alone", async () => {
+  const { id, prompts } = await choosing(narration("Missing."), JSON.stringify({ choices: ["I run."] }), JSON.stringify({ choices: CHOICES }));
 
   const response = await app!.post(`/saves/${id}/turns`, { input: "I look around." });
 
   expect(response.status).toBe(201);
   expect(prompts).toHaveLength(4);
-  expect(((await response.json()) as { messages: object[] }).messages.at(-1)).toEqual({
-    id: 4,
-    role: "narrator",
-    text: "Repeated.",
-  });
+  expect(((await response.json()) as { messages: object[] }).messages.at(-1)).toMatchObject({ role: "narrator", text: "Missing." });
+  expect(await latestChoices(id)).toEqual(CHOICES);
+});
+
+test("a Turn whose Choices can't be written alone is kept without any", async () => {
+  const repeated = JSON.stringify({ choices: ["I run.", "I run.", " I run. "] });
+  const { id, prompts } = await choosing(withChoices("Repeated.", ["next", "next2", "next3"]), repeated, repeated, repeated);
+
+  expect((await app!.post(`/saves/${id}/turns`, { input: "I look around." })).status).toBe(201);
+
+  expect(prompts).toHaveLength(5);
   expect(await latestChoices(id)).toBeUndefined();
 });
 

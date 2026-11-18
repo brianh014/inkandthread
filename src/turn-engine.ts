@@ -23,10 +23,10 @@ import {
 import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } from "./save-store";
 import type { SettingsStore } from "./settings-store";
 import type { NarratorTurn, UsageStore } from "./usage-store";
-import { applyOperations, givenName, introduce, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
+import { applyOperations, findPerson, givenName, introduce, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
 import { type Checked, type Consistency, checkConsistency, replyToCheck } from "./consistency";
 import { countWords, withinLimit } from "./limits";
-import { knownChoices } from "./known-choices";
+import { knownChoices, writeChoices } from "./known-choices";
 import { wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
@@ -111,6 +111,27 @@ const TurnOperation = z.discriminatedUnion(
   StateOperation.options.filter(({ shape }) => !RETIRED.includes(shape.op.value)) as unknown as typeof StateOperation.options,
 );
 
+// Real replies held at most 16 operations, and openings 23; a model stuck in a loop sent up to 138, mostly one thread updated
+// again and again. An opening gets twice as many, as it does twice the work.
+const MAX_OPERATIONS = 30;
+const LOOPING = "operations repeated in a loop";
+type TurnOperation = z.infer<typeof TurnOperation>;
+/**
+ * The operations without a second update of a thread already updated, and at most `limit` of them. An update then a resolve
+ * of one thread is kept, as the state applier follows it.
+ * shortcut: threads are told apart by their exact words, so a loop that rewords its quote each time gets through; match them as closestThread does if that shows up.
+ */
+function withoutLoop(operations: TurnOperation[], limit: number) {
+  const updated = new Set<string>();
+  return operations
+    .filter((operation) => {
+      if (operation.op !== "update_plot_thread") return true;
+      if (updated.has(operation.thread)) return false;
+      updated.add(operation.thread);
+      return true;
+    })
+    .slice(0, limit);
+}
 const FinishedTurn = z.object({
   // Whether it has words is checked once it's parsed, so a Check's result without any is told as declined.
   narration: z.string().trim().min(1),
@@ -190,26 +211,39 @@ const ResponseShape = z.object({
     ),
 });
 // Last, so the narration streams first. Only sent in Choices mode, and its rule is beside it, as a rule mid-prompt gets ignored.
-const ChoicesShape = ResponseShape.extend({
-  choices: z
-    .array(z.string())
-    .describe(
-      "exactly three things the PC might say or do next, each one first-person sentence of at most 25 words, built only from what the PC knows, and each taking a clearly different approach, at least one of them moving the story on toward what comes next that the PC knows of, such as setting out, acting on a plan or facing what waits. Never hint at risk, difficulty, dice or a Check",
-    ),
-});
+export const CHOICES_RULE =
+  "exactly three things the PC might say or do next, each one first-person sentence of at most 25 words, built only from what the PC knows and fitting what they now hold, wear and have just done, and each taking a clearly different approach, at least one of them moving the story on toward what comes next that the PC knows of, such as setting out, acting on a plan, facing what waits or taking up what someone offers or the PC wants. Never hint at risk, difficulty, dice or a Check";
+const ChoicesShape = ResponseShape.extend({ choices: z.array(z.string()).describe(CHOICES_RULE) });
 // Once a Check is rolled, or none can be, the schema itself forbids one and asks for the story, as the prompt's "Do not request another check" was ignored three times running.
 const SCHEMAS = {
   free: { any: jsonSchemaOf(ResponseShape), noCheck: jsonSchemaOf(ResponseShape.extend({ check: z.null(), narration: z.string() })) },
   choices: { any: jsonSchemaOf(ChoicesShape), noCheck: jsonSchemaOf(ChoicesShape.extend({ check: z.null(), narration: z.string() })) },
 };
 
-/** Three different Choices, or none if the reply hasn't that many. */
+/**
+ * A text field without JSON punctuation or invisible characters a model left at its end, such as `:null,`, `]]}` or `"],`.
+ * A closing quote alone stays, as a Choice may end on speech, and one the marks took is put back when the text opened it.
+ */
+export function withoutJsonTail(text: string) {
+  const visible = text.replace(/[​-‍⁠﻿]+$/u, "");
+  const tail = visible.match(/(?::\s*null)?[\s"\]}{[,:​-‍⁠﻿]*$/u)![0];
+  if (!/[\]}{[,:]/.test(tail)) return visible.trim();
+  const kept = visible.slice(0, visible.length - tail.length).trim();
+  return tail.includes('"') && (kept.match(/"/g)?.length ?? 0) % 2 === 1 ? `${kept}"` : kept;
+}
+
+/**
+ * Three different Choices, or none if the reply hasn't that many. One-word Choices that differ only by a number at the end
+ * count as one, as a model once offered "next", "next2" and "next3".
+ */
 export function usableChoices(choices: unknown) {
-  const parsed = z.array(z.string().trim().min(1)).safeParse(choices);
-  const distinct = [...new Set(parsed.data ?? [])];
+  const parsed = z.array(z.string()).safeParse(choices);
+  const sameAs = (choice: string) => (/\s/.test(choice) ? choice : choice.replace(/\d+$/, ""));
+  const byKind = new Map<string, string>();
+  for (const choice of (parsed.data ?? []).map(withoutJsonTail)) if (/\p{L}/u.test(choice) && !byKind.has(sameAs(choice))) byKind.set(sameAs(choice), choice);
+  const distinct = [...byKind.values()];
   return distinct.length >= 3 ? distinct.slice(0, 3) : undefined;
 }
-const NO_CHOICES = "no usable choices";
 // A model that won't write a Check's result can't refuse in words when the provider holds it to the schema, so it sends
 // something that isn't a story: replies came back as a lone comma, a single name and the rating written out.
 const DECLINED = "a story the AI declined to write";
@@ -225,6 +259,17 @@ const NOTE_ABOUT_TURN = "a note about the Turn instead of story";
 const isNoteAboutTurn = (narration: string) => {
   const named = new Set(narration.toLowerCase().match(/\b(?:turn|reply|check|dice|roll|rolled|result)\b/g));
   return countWords(narration) < 30 && named.size >= 2 && ["reply", "check", "result"].some((word) => named.has(word));
+};
+// A reply once left a bare "state_operations:[]" line in its narration, which was saved as the story. The fields come after the
+// narration, so such a line starts a tail that isn't story, and the narration ends before it.
+const FIELD_LINE = new RegExp(String.raw`^\s*"?(?:${Object.keys(ChoicesShape.shape).join("|")})"?\s*:`, "m");
+// A reply also once ended its narration with its JSON's closing brace and a tool-call tag, as "}</arg_value>".
+const JSON_TAIL = /\s*\}?(?:\s*<\/\w+>)*\s*$/;
+const withoutFields = (narration: string) => {
+  const at = narration.search(FIELD_LINE);
+  const story = at < 0 ? narration : narration.slice(0, at);
+  // Whole JSON is left for isJsonObject to refuse.
+  return story.trimStart().startsWith("{") ? story.trimEnd() : story.replace(JSON_TAIL, "");
 };
 // A model once put its Check request in narration, which was saved as the story.
 const JSON_NARRATION = "JSON for narration";
@@ -590,6 +635,8 @@ async function narrate(
   let narrationSent = 0;
   let retry = "";
   let unplacedBefore = false;
+  // Why the last reply failed, told to the Narrator, as a retry with the same prompt mostly repeated the fault.
+  let why: Prompt = [];
   for (let attempt = 1; ; attempt++) {
     // Without a reason the player sees text vanish, which looks like a glitch.
     if (narrationSent > 0) emit("restart", { reason: retry });
@@ -625,7 +672,7 @@ async function narrate(
     try {
       const reply: string = await askNarrator(
         textProvider,
-        [...prompt, ...(check ? [resultInstruction(check)] : []), ...(unplacedBefore ? [SET_SCENE_NOTE] : [])],
+        [...prompt, ...(check ? [resultInstruction(check)] : []), ...(unplacedBefore ? [SET_SCENE_NOTE] : []), ...why],
         {
           schema: check || !rollCheck ? schemas.noCheck : schemas.any,
           onText,
@@ -644,11 +691,16 @@ async function narrate(
         if (check || !rollCheck) throw new InvalidResponse();
         check = rollCheck(response.check);
         attempt = 0; // The result call gets its own retries.
+        why = [];
         continue;
       }
-      const { state_operations, people, summary, recent_summary, scene_changed, visual_description, chapter_ends } = response;
+      const { people, summary, recent_summary, scene_changed, visual_description, chapter_ends } = response;
+      // Written again while tries remain, as a model in a loop mostly isn't the next time; the last try keeps the reply without the loop.
+      const operationLimit = MAX_OPERATIONS * (kind === "opening" ? 2 : 1);
+      const state_operations = withoutLoop(response.state_operations, operationLimit);
+      const looping = state_operations.length < response.state_operations.length ? LOOPING : undefined;
       // Later replies copy marks like these, so they never reach a Save.
-      let narration = edited ?? withoutStrayMarks(response.narration as string);
+      let narration = edited ?? withoutFields(withoutStrayMarks(response.narration as string));
       // The last attempt keeps such a reply, as losing the Turn costs more than a long speech.
       // A picture without set_scene would be drawn from the last scene's place and people, which may have moved on. State Upkeep
       // brings the scene up to date, so with it the picture is kept; without it the reply is written again, then the picture dropped.
@@ -658,28 +710,30 @@ async function narrate(
       if (edited === undefined && isJsonObject(narration)) throw new InvalidResponse(undefined, { cause: JSON_NARRATION });
       const unplaced = scene_changed && !state_operations.some(({ op }) => op === "set_scene") ? "a picture without set_scene" : undefined;
       const spoken = edited === undefined ? spokenLineFault(narration, pcName) : undefined;
-      // The opening sets the book's voice, which every reply copies, so speech it leaves in the prose is written again there alone.
+      // The opening sets the book's voice, which every reply copies, so speech it leaves in the prose is written again there alone:
+      // checked on every reply, it doubled a Turn's calls on a model that writes speech in the prose, and the retry didn't change it.
       const inline = edited === undefined && kind === "opening" && speechOutsideLines(narration) ? INLINE_SPEECH : undefined;
       const unmet = edited === undefined && kind === "opening" && peopleLeftOut(narration, mustMeet).length > 0 ? LEFT_OUT : undefined;
       const choices = playMode === "choices" ? usableChoices(response.choices) : undefined;
-      const unchosen = playMode === "choices" && !choices ? NO_CHOICES : undefined;
+      // A reply good but for its Choices keeps its story, and the Choices are asked for alone once it's checked.
+      const unchosen = playMode === "choices" && !choices;
       // A long speech is only logged, as rewriting it restarted too many Turns the player could see.
       const noted = edited === undefined && isNoteAboutTurn(narration) ? NOTE_ABOUT_TURN : undefined;
       const fault =
         attempt < MAX_ATTEMPTS
-          ? (noted ?? (upkeep ? undefined : unplaced) ?? (spoken === LONG_SPEECH ? undefined : spoken) ?? inline ?? unmet ?? unchosen)
+          ? (noted ?? looping ?? (upkeep ? undefined : unplaced) ?? (spoken === LONG_SPEECH ? undefined : spoken) ?? inline ?? unmet)
           : undefined;
       unplacedBefore = fault === unplaced && !!unplaced;
       if (fault) throw new InvalidResponse(undefined, { cause: fault });
       if (spoken === LONG_SPEECH) log.warning("turn", "Long speech kept", { attempt, generation });
-      // The player picks again from a Regenerate, or switches to Free Text.
-      if (unchosen) log.warning("turn", "Turn kept without Choices", { attempt, generation });
+      if (looping)
+        log.warning("turn", "Looping operations dropped", { attempt, generation, sent: response.state_operations.length, kept: state_operations.length });
       // Checked before State Upkeep, so a reply that will be written again costs no call.
       const introducedBefore = introduce(before, people, pcName, state_operations);
       const narrated = applyOperations(introducedBefore.state, introducedBefore.operations);
       const clashesBefore = attempt < MAX_ATTEMPTS ? introducedBefore.refused : [];
       if (clashesBefore.length > 0 || narrated.refused.length > 0) throw new InvalidResponse(undefined, { cause: [...clashesBefore, ...narrated.refused] });
-      let description = visual_description?.trim() ?? "";
+      let description = withoutJsonTail(visual_description ?? "");
       let checked: Checked | undefined;
       if (consistency?.enabled()) {
         const told = narration;
@@ -700,10 +754,15 @@ async function narrate(
         // Nothing tells the player, but the fixed reply takes the streamed one's place.
         if (narration !== told) emit("revise", { text: narration });
       }
+      const timed = state_operations.some(({ op }) => op === "set_story_time");
       // Side by side, as neither needs the other, so a slow reviewer holds the Choices back once, not twice.
       const [upkept, offered] = await Promise.all([
-        upkeep ? upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal) : undefined,
-        choices && upkeep && seen !== undefined ? knownChoices(upkeep, choices, narrated.next, seen(), narration, signal) : choices,
+        upkeep ? upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal, timed) : undefined,
+        choices && upkeep && seen !== undefined
+          ? knownChoices(upkeep, choices, narrated.next, seen(), narration, signal)
+          : unchosen
+            ? writeChoices(textProvider, narration, signal)
+            : choices,
       ]);
       const dropped = !!unplaced && !upkept;
       if (dropped) log.warning("turn", "Picture dropped without set_scene", { attempt, generation });
@@ -758,6 +817,12 @@ async function narrate(
           wearing,
           portraits,
           restyled,
+          // By the name the person had, as a merge may name them by part of it.
+          merged: [...state_operations, ...(upkept ?? [])].flatMap((operation) =>
+            operation.op === "merge_npc"
+              ? [[findPerson(introducedBefore.state.npcs, operation.name)?.name ?? operation.name, operation.into] as [string, string]]
+              : [],
+          ),
         });
       } catch (error) {
         log.error("turn", "Image work after commit failed", errorFields(error));
@@ -785,6 +850,8 @@ async function narrate(
       return messages;
     } catch (cause) {
       retry = `${retryIfInvalid(cause, attempt, input, generation)}, so the Narrator is writing it again (try ${attempt + 1} of ${MAX_ATTEMPTS}).`;
+      const reason = whyInvalid(cause as InvalidResponse);
+      why = reason === OVERTHOUGHT ? [] : [couldNotUse(reason)];
     }
   }
 }
@@ -794,13 +861,14 @@ export function usableFix(text: string, pcName: string, told: string, check?: Ch
   return (
     hasWords(text) &&
     !isJsonObject(text) &&
+    !FIELD_LINE.test(text) &&
     !(check && declined(text)) &&
     ![PC_LINE, TAG_WITHOUT_BRACKET].includes(spokenLineFault(text, pcName) ?? "") &&
     withinLimit(text, Math.max(REPLY_WORDS, countWords(told)))
   );
 }
 
-/** Why the spoken lines break the reply's shape, if they do: a tag missing its "[", a line for the PC, or someone speaking more than twice. */
+/** Why the spoken lines break the reply's shape, if they do: a tag missing its "[", a line for the PC, or someone speaking more than three times. */
 export function spokenLineFault(narration: string, pcName: string) {
   const lines = new Map<string, number>();
   for (const line of narration.split("\n").map((text) => text.trim())) {
@@ -810,9 +878,9 @@ export function spokenLineFault(narration: string, pcName: string) {
     if (speaker && pcName && (speaker.toLowerCase() === pcName.toLowerCase() || (givenName(speaker) ?? "") === givenName(pcName))) return PC_LINE;
     if (speaker) lines.set(speaker, (lines.get(speaker) ?? 0) + 1);
   }
-  return [...lines.values()].some((count) => count > 2) ? LONG_SPEECH : undefined;
+  return [...lines.values()].some((count) => count > 3) ? LONG_SPEECH : undefined;
 }
-const LONG_SPEECH = "someone speaks more than twice";
+const LONG_SPEECH = "someone speaks more than three times";
 const INLINE_SPEECH = "speech in the prose, not on a speaker line";
 const LEFT_OUT = "an opening that leaves out someone its Starting Hook names";
 
@@ -852,15 +920,24 @@ function playerReason({ cause }: InvalidResponse) {
   if (cause === INLINE_SPEECH) return "The story's opening didn't set out who says what";
   if (cause === LEFT_OUT) return "The story's opening left out someone it was set up to meet";
   if (cause === "a picture without set_scene") return "The last reply moved to a new scene without saying where";
-  if (cause === NO_CHOICES) return "The last reply offered no choices";
   if (cause === DECLINED) return "The last reply wasn't a story, which can mean the AI's content rules block this";
   if (cause === NOTE_ABOUT_TURN) return "The last reply was a note about the story instead of the story";
+  if (cause === LOOPING) return "The last reply got stuck repeating itself";
   if (cause === RAN_ON) return "The last reply ran on far too long";
   if (cause === OVERTHOUGHT) return "The AI thought for too long before writing";
   if (Array.isArray(cause)) return "The last reply changed the story in a way that doesn't fit what's already true";
   if (cause === undefined) return "The last reply asked for a second dice roll";
   return "The last reply came back garbled";
 }
+
+/**
+ * After the prompt, so the provider's cache still holds, and in the app's own words, never the reply's. It names the reply just
+ * written, as "your last reply" led a Narrator to rewrite the story's last Message in place of answering the player's move.
+ */
+const couldNotUse = (reason: string): Prompt[number] => ({
+  role: "system",
+  content: `The reply you just wrote to this couldn't be used: ${reason}. Write that reply again, fixing that.`,
+});
 
 /** Returns, if another attempt should run, why it's needed in the player's words. Anything but an invalid reply goes on up. */
 function retryIfInvalid(cause: unknown, attempt: number, input: string, generation: string | undefined) {
@@ -959,8 +1036,7 @@ export async function askForJson<T>(
       const reason = whyInvalid(cause as InvalidResponse);
       // The same level would most likely think past the limit again.
       if (reason === OVERTHOUGHT) lessThinking++;
-      // After the prompt, so the provider's cache still holds, and in the app's own words, never the reply's.
-      else asked = [...prompt, { role: "system", content: `Your last reply couldn't be used: ${reason}. Reply again, fixing that.` }];
+      else asked = [...prompt, couldNotUse(reason)];
     }
   }
 }

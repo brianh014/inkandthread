@@ -177,6 +177,7 @@ test("a fix that runs past its time limit keeps the reply as the Narrator wrote 
     facts: [],
     summary: "",
     memories: [],
+    knows: {},
     narration: "Six men.",
     visualDescription: "",
   };
@@ -214,6 +215,7 @@ test("the fix asks the reviewer to think a level below Review thinking, from its
     facts: [],
     summary: "",
     memories: [],
+    knows: {},
     narration: "Six men.",
     visualDescription: "",
   };
@@ -242,6 +244,7 @@ test("a reply no question answered is logged as unanswered, not passed", async (
     facts: [],
     summary: "",
     memories: [],
+    knows: {},
     narration: "Six men.",
     visualDescription: "",
   };

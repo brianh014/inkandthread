@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { settingsStore } from "../src/settings-store";
 import { introduce } from "../src/state-applier";
 import { textProvider } from "../src/text-provider";
-import { peopleLeftOut, speechOutsideLines, spokenLineFault } from "../src/turn-engine";
+import { peopleLeftOut, speechOutsideLines, spokenLineFault, usableChoices, withoutJsonTail } from "../src/turn-engine";
 import { delta, fakeOpenAi, logOf, scriptedDice, startApp, tempFolder, turnEvents } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -716,6 +716,58 @@ test("someone new given a first name the PC or someone in the story has is writt
 
   expect(provider.requests).toHaveLength(6);
   expect(await knownPeople(id)).toEqual(["Mara Kade", "Owen Kade", "Man in grey coat", "Mrs. Owen"]);
+});
+
+test("a spaced speaker tag, an empty one and a line of prose in brackets are tidied", () => {
+  expect(
+    messageBeats({ role: "narrator", text: '[ Tamsin ]: "Here."\n[Bette]:\nShe turns.\n[He shut the door on the wind]\n[Old Man]\n[Jan van Dijk]' }),
+  ).toEqual([
+    { speaker: "Tamsin", text: '"Here."' },
+    { text: "She turns." },
+    { text: "He shut the door on the wind" },
+    { text: "[Old Man]" },
+    { text: "[Jan van Dijk]" },
+  ]);
+  expect(messageBeats({ role: "narrator", text: '[Mara]:\n\n"Get down!"' })).toEqual([{ speaker: "Mara", text: '"Get down!"' }]);
+});
+
+test("a reply that leaves one of its fields in the narration is saved without it, and all after it", async () => {
+  play([narrated("He sits.\n\nstate_operations:[]\nsummary: He sat.")]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+
+  expect(provider.requests).toHaveLength(1);
+  expect((await storedMessages(id)).at(-1)!.text).toBe("He sits.");
+});
+
+test("a reply that ends its narration with the brace or tag of its own JSON is saved without them", async () => {
+  play([narrated('[Ilse]: "Since dawn?"}</arg_value>'), narrated("He sits.}")]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+
+  expect((await storedMessages(id)).map(({ text }) => text).slice(-3)).toEqual(['[Ilse]: "Since dawn?"', "I wait.", "He sits."]);
+});
+
+test("a reply that updates one Plot Thread twice is written again, and one that updates then resolves it is kept", async () => {
+  const update = (replacement: string) => ({ op: "update_plot_thread", thread: "The duke plots.", replacement });
+  const resolve = { op: "resolve_plot_thread", thread: "The duke plots." };
+  play([narrated("He sits.", update("The duke waits."), update("The duke strikes.")), narrated("He sits.", update("The duke waits."), resolve)]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+
+  expect(provider.requests).toHaveLength(2);
+});
+
+test("Choices lose JSON marks left at their end, and one-word Choices told apart by a number are one", () => {
+  expect(usableChoices(["I go north.:null,", 'I say, "Wait."', "I wait here]]}​"])).toEqual(["I go north.", 'I say, "Wait."', "I wait here"]);
+  expect(usableChoices(["next", "next2", "next3"])).toBeUndefined();
+  expect(usableChoices(["我打开门", "我逃跑", "我问她"])).toEqual(["我打开门", "我逃跑", "我问她"]);
+  expect(withoutJsonTail('A lane at dusk"],')).toBe("A lane at dusk");
+  expect(withoutJsonTail('I shout "Run!""]')).toBe('I shout "Run!"');
 });
 
 test("a line for someone who only shares the PC's title isn't the PC's", () => {

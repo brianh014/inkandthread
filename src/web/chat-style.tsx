@@ -56,7 +56,8 @@ export const readable = (messages: Message[]) =>
 
 /**
  * Marks a model sometimes puts in narration that aren't story: a Markdown quote ">" before a paragraph, and a speaker tag
- * written as `[Name: ""]`, `[Name:]` or a bare `Name:` before a quote, which become `[Name]:`, so later replies copy that.
+ * written as `[Name: ""]`, `[Name:]`, `[ Name ]:` or a bare `Name:` before a quote, which become `[Name]:`, so later replies copy
+ * that; a speaker tag with no words after it; and a line of prose in brackets, which loses them.
  * Taken out of a reply before it's saved, and when shown, for Messages saved before.
  */
 // shortcut: a bare name is any capitalized words before a colon and a quote, so "Sign: “Closed”" gets a speaker and "Jan van Dijk" doesn't, match against the state's names if that shows up.
@@ -64,7 +65,14 @@ export const withoutStrayMarks = (text: string) =>
   text
     .replace(/^[ \t]*>[ \t]*/gm, "")
     .replace(/^([ \t]*)\[([^[\]:\n]+?)[ \t]*:[ \t]*(?:""|“”)?[ \t]*\][ \t]*:?[ \t]*(?=["“])/gm, "$1[$2]: ")
-    .replace(/^([ \t]*)(\p{Lu}[\p{L}'’.-]*(?: \p{Lu}[\p{L}'’.-]*){0,3}):[ \t]*(?=["“])/gmu, "$1[$2]: ");
+    .replace(/^([ \t]*)(\p{Lu}[\p{L}'’.-]*(?: \p{Lu}[\p{L}'’.-]*){0,3}):[ \t]*(?=["“])/gmu, "$1[$2]: ")
+    .replace(/^([ \t]*)\[[ \t]*([^[\]\s][^[\]\n]*?)[ \t]*\]:/gm, "$1[$2]:")
+    // A tag on its own line takes the speech that follows it; with none, it goes. Only once a line follows, so a tag still
+    // streaming its words isn't hidden.
+    .replace(/^([ \t]*\[[^[\]\n]+\]:)[ \t]*\r?\n(?:[ \t]*\r?\n)*[ \t]*(?=["“])/gm, "$1 ")
+    .replace(/^[ \t]*\[[^[\]\n]+\]:[ \t]*\r?\n/gm, "")
+    // Prose has two or more words in lower case; a name such as "Jan van Dijk" has at most one, so it stays.
+    .replace(/^([ \t]*)\[([^[\]\n]*?\s\p{Ll}[^[\]\n]*?\s\p{Ll}[^[\]\n]*)\][ \t]*$/gmu, "$1$2");
 
 /** The Narrator is told to write `[Name]:`. Anything else, including a tag still streaming, is narration. */
 export function messageBeats({ role, text }: Pick<Message, "role" | "text">): Beat[] {

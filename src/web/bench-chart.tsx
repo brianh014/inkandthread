@@ -4,7 +4,7 @@ import bench from "./bench-results.json";
 import { FullScreenIcon } from "./icons";
 
 // Written by `bun bench chart` from the kept bench runs, so the chart ships with the app and needs no network.
-const page = chartPage(bench.results as ChartResult[], bench.rounds, { titles: bench.titles });
+const page = chartPage(bench.results as ChartResult[], bench.rounds, { titles: bench.titles, scores: bench.scores });
 // The pickers, key and chart title above a full-screen chart, so it is sized to show whole beneath them.
 const ABOVE_CHART = "220px";
 

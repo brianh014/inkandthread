@@ -409,7 +409,9 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       state.era = operation.era;
       return;
     case "set_story_time": {
-      const { days_passed, time_of_day } = operation;
+      const { time_of_day } = operation;
+      // The date wins over days_passed when they disagree, as models gave the day count there, doubling it each time (day 280 in 30 rounds).
+      const days_passed = operation.date === state.storyTime?.date ? 0 : operation.days_passed;
       // A new day kept on the old date would put the story on the wrong day, so it waits for a Turn that names one.
       const date = operation.date ?? (days_passed === 0 ? state.storyTime?.date : undefined);
       if (date === undefined) return "no date";

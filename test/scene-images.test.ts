@@ -121,8 +121,9 @@ test("a picture without set_scene is retried, so it never takes the last place's
   await playTurn(id);
 
   expect(script.prompts).toHaveLength(3);
-  expect(script.prompts[1]!.at(-1)!.content).not.toContain("without a set_scene");
-  expect(script.prompts[2]!.at(-1)!.content).toContain("without a set_scene");
+  const told = (prompt: { content: string }[]) => prompt.map(({ content }) => content).join(" ");
+  expect(told(script.prompts[1]!)).not.toContain("without a set_scene");
+  expect(told(script.prompts[2]!)).toContain("without a set_scene");
   expect((await settled(id)).images.map(({ caption }) => caption)).toEqual(["The drowned street", "The ridge"]);
   expect(images.payloads[1]!.reference_images).toEqual([]);
 });

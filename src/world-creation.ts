@@ -629,26 +629,39 @@ const quotes = (list: string[], changes: { old: string | null }[]) => changes.ev
 
 // A misquoted entry can't be matched, and a reply with no change would tell the player it was done when it wasn't.
 // A player's change must change something, but settling Journal edits may find nothing to.
-const fitsWorld = ({ worldBible, worldRules, plotThreads, pcKnown, npcs }: State, mayKeep: boolean) =>
-  WorldChange.refine((reply) => {
-    const { removed_lore, world_rules, plot_threads, facts, npc_summaries, npc_looks, status } = reply;
-    const changed = changesSomething(reply);
-    // The same rule as a Turn's status.
-    const statusInWords = status === null || ![status.health, ...status.injuries, ...status.conditions].some(hasNumber);
-    // Past the limit a thread never reaches a Turn's prompt, so the change would do nothing. A Save from before the limit may hold more, but not gain any.
-    const threadsFit = plot_threads.reduce(changeList, plotThreads).length <= Math.max(MAX_PLOT_THREADS, plotThreads.length);
-    return (
-      (changed || mayKeep) &&
-      statusInWords &&
-      threadsFit &&
-      removed_lore.every((title) => worldBible.some((entry) => entry.title === title)) &&
-      quotes(worldRules, world_rules) &&
-      quotes(plotThreads, plot_threads) &&
-      quotes(pcKnown.facts, facts) &&
-      npc_summaries.every(({ name }) => pcKnown.npcs.includes(name)) &&
-      npc_looks.every(({ name }) => npcs.some((npc) => npc.name === name))
-    );
-  });
+// Apart, so the log and the request to write it again both say which one refused it.
+const fitsWorld = (state: State, mayKeep: boolean) => {
+  const { worldBible, worldRules, plotThreads, pcKnown } = state;
+  return (
+    WorldChange.refine((reply) => mayKeep || changesSomething(known(state, reply)), "it changes nothing")
+      // The same rule as a Turn's status.
+      .refine(({ status }) => status === null || ![status.health, ...status.injuries, ...status.conditions].some(hasNumber), "the status has digits")
+      // Past the limit a thread never reaches a Turn's prompt, so the change would do nothing. A Save from before the limit may hold more, but not gain any.
+      .refine(
+        ({ plot_threads }) => plot_threads.reduce(changeList, plotThreads).length <= Math.max(MAX_PLOT_THREADS, plotThreads.length),
+        "it leaves too many threads",
+      )
+      .refine(({ removed_lore }) => removed_lore.every((title) => worldBible.some((entry) => entry.title === title)), "a removed lore title isn't in the world")
+      .refine(({ world_rules }) => quotes(worldRules, world_rules), "a change misquotes a world rule")
+      .refine(({ plot_threads }) => quotes(plotThreads, plot_threads), "a change misquotes a thread")
+      .refine(({ facts }) => quotes(pcKnown.facts, facts), "a change misquotes a fact")
+  );
+};
+
+/** The change without looks and Journal summaries for anyone not yet in the story, which have nowhere to go. */
+const known = <T extends z.infer<typeof WorldChange>>({ pcKnown, npcs }: State, change: T): T => ({
+  ...change,
+  npc_summaries: change.npc_summaries.filter(({ name }) => pcKnown.npcs.includes(name)),
+  npc_looks: change.npc_looks.filter(({ name }) => npcs.some((npc) => npc.name === name)),
+});
+
+// Left out rather than refused, as refusing the whole change for them cost players changes that were otherwise right. Logs the count only.
+function withoutStrangers<T extends z.infer<typeof WorldChange>>(state: State, change: T): T {
+  const kept = known(state, change);
+  const dropped = change.npc_summaries.length + change.npc_looks.length - kept.npc_summaries.length - kept.npc_looks.length;
+  if (dropped > 0) log.info("world", "World Change left out people not in the story", { dropped });
+  return kept;
+}
 
 /** How a World Change is written, for the Narrator that writes one and the review that corrects it. */
 const CHANGE_FORM = `List only what changes, as everything you leave out stays exactly as it is, and never repeat what stays the same.
@@ -694,12 +707,15 @@ The world as it stands, as JSON: ${JSON.stringify(worldAsItStands(state))}`,
  */
 export async function changeWorld(context: Context, state: State, change: string, signal: AbortSignal, mayKeep = false) {
   const fits = fitsWorld(state, mayKeep);
-  const proposed = await askForJson(
-    context.textProvider,
-    worldChangePrompt(context, state, change),
-    fits,
-    "The Narrator refused this change. Reword it and try again.",
-    signal,
+  const proposed = withoutStrangers(
+    state,
+    await askForJson(
+      context.textProvider,
+      worldChangePrompt(context, state, change),
+      fits,
+      "The Narrator refused this change. Reword it and try again.",
+      signal,
+    ),
   );
   // Settling Journal edits may find nothing to change, and nothing is no change to review.
   if (!changesSomething(proposed)) return proposed;
@@ -722,7 +738,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
   ];
   return reviewed(context, "World Change", proposed, signal, async (reviewer) => {
     const { fixed, change: corrected } = await askForJson(reviewer, prompt, reply, REFUSAL, signal);
-    return corrected ? { result: corrected, reasons: fixed } : { result: proposed, reasons: [] };
+    return corrected ? { result: withoutStrangers(state, corrected), reasons: fixed } : { result: proposed, reasons: [] };
   });
 }
 

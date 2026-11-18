@@ -1,5 +1,5 @@
 {
-  "about": "A bench world for mystery: clues, alibis and secrets that must stay straight across many Turns. Invented, with no adult text. It brings about Checks on searching and questioning, a Plot Thread that resolves by the next day (the inquest), secrets for NPCs to learn, Loose Ends, lore to grow, a killer who will kill again, and people who may die. actions holds the fixed words of the Rewrite, Edit and World Change the bench sends.",
+  "about": "A bench world for mystery: clues, alibis and secrets that must stay straight across many Turns. Invented, with no adult text. Every clue can be found by looking (the body, the harbour steps, the crypt, the chimney) as well as by asking, and the story opens the afternoon before the inquest, so the truth has a place to come out within a run. It brings about Checks on searching and questioning, a Plot Thread that resolves by the next day (the inquest), secrets for NPCs to learn, Loose Ends, lore to grow, a killer who will kill again, and people who may die. actions holds the fixed words of the Rewrite, Edit and World Change the bench sends.",
   "genres": ["mystery"],
   "save": {
     "title": "The Low Tide Inquest",
@@ -34,12 +34,20 @@
     ]
   },
   "opening": {
-    "storyTime": { "day": 1, "date": "Monday, 15th October 1894", "timeOfDay": "early morning" },
+    "storyTime": {
+      "day": 1,
+      "date": "Monday, 15th October 1894",
+      "timeOfDay": "early afternoon"
+    },
     "inventory": {
       "wearing": ["grey wool dress", "dark blue shawl", "laced boots", "wire spectacles"],
       "carrying": ["medicine bag", "notebook and pencil", "magnifying glass", "door key to the apothecary"]
     },
-    "status": { "health": "unhurt", "injuries": [], "conditions": [] },
+    "status": {
+      "health": "unhurt",
+      "injuries": [],
+      "conditions": []
+    },
     "worldRules": [
       "There is no magic; the dangers are the sea, the cliffs, cold and people.",
       "The coroner holds the inquest at the Anchor Inn on Tuesday, and a verdict of accident closes the matter for good.",
@@ -91,13 +99,13 @@
       {
         "title": "Silas Grout",
         "keywords": ["Grout", "Silas", "sexton", "gravedigger"],
-        "content": "The sexton and gravedigger, a huge silent man with a bald head, a broken nose and a black wool coat, missing a button at the cuff. He does whatever Thorne asks. He drowned Crane, and he will kill anyone Thorne names, or anyone he thinks has seen him.",
+        "content": "The sexton and gravedigger, a huge silent man with a bald head, a broken nose and a black wool coat, missing a button at the cuff. He does whatever Thorne asks. He drowned Crane, and he will kill anyone Thorne names, or anyone he thinks has seen him. The button is caught in the weed on the harbour steps where Crane was held under, and wet sand from the sea cave is on his boots.",
         "alwaysOn": false
       },
       {
         "title": "The chapel crypt and the sea cave",
         "keywords": ["crypt", "sea cave", "cave", "brandy", "tunnel"],
-        "content": "Under the chapel, a crypt of old family tombs leads down a cut stair to a sea cave that floods at high tide. Kegs of brandy and chests of tea are landed there at night and carried up through the crypt. A careless visitor at the wrong hour can drown in the cave.",
+        "content": "Under the chapel, a crypt of old family tombs leads down a cut stair to a sea cave that floods at high tide. Kegs of brandy and chests of tea are landed there at night and carried up through the crypt. A careless visitor at the wrong hour can drown in the cave. Fresh keg rings mark the crypt floor, and the tomb of the Pengelly family has been moved aside to open the stair.",
         "alwaysOn": false
       },
       {

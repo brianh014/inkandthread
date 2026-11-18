@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { DecisionProvider, Question } from "./decisions";
 import { errorType, log } from "./logger";
+import { wholeWord } from "./lore-activation";
 import type { Prompt } from "./prompt-assembler";
 import type { State, StoryTime } from "./state-applier";
 import { reviewTimedOut, slowReviewer } from "./state-upkeep";
@@ -28,7 +29,7 @@ export const QUESTIONS = {
   ),
   past: noul(
     "Does the reply clash with what the story so far says happened or is true?",
-    "The reply gets wrong something known_facts, summary or scene_memories state: who someone is, what they did or said, where someone or something is, or who is alive.",
+    "The reply gets wrong something known_facts, summary or scene_memories state: who someone is, what they did or said, where someone or something is, or who is alive; or has someone speak or act on what those show them never seeing, hearing or being told, which npc_knows doesn't give them either.",
     "The reply fits known_facts, summary and scene_memories, or only adds what they don't cover.",
   ),
 } as const;
@@ -65,6 +66,8 @@ export type ReplyToCheck = {
   summary: string;
   /** The newest Scene Memories' text, oldest first. */
   memories: string[];
+  /** What the NPCs the reply names have learned in play, by name. */
+  knows: Record<string, string[]>;
   narration: string;
   visualDescription: string;
 };
@@ -92,13 +95,19 @@ export function replyToCheck(
     summary: before.summary,
     // The newest few, as a decision model grows unreliable on a long slice.
     memories: before.sceneMemories.slice(-3).map(({ text }) => text),
+    // Everyone the reply names, as someone arriving in it is in no cast yet; by any part of their name, as replies shorten them.
+    knows: Object.fromEntries(
+      Object.entries(before.npcKnows).filter(([name]) =>
+        [name, ...name.split(" ").filter((part) => part.length > 2 && /^\p{Lu}/u.test(part))].some((part) => wholeWord(part, "u").test(reply.narration)),
+      ),
+    ),
   };
 }
 
 const when = (time: StoryTime | null) => (time ? `${time.date}, ${time.timeOfDay}` : null);
 
 export function slices(reply: ReplyToCheck): Partial<Record<Name, Record<string, unknown>>> {
-  const { previous, input, timeBefore, timeAfter, pc, pcLooks, wearing, cast, facts, summary, memories, narration } = reply;
+  const { previous, input, timeBefore, timeAfter, pc, pcLooks, wearing, cast, facts, summary, memories, knows, narration } = reply;
   return {
     ...((timeBefore || timeAfter) && { time: { story_time_before: when(timeBefore), story_time_after: when(timeAfter), reply: narration } }),
     ...(previous && { continuity: { previous_reply: previous, player_input: input, reply: narration } }),
@@ -106,7 +115,9 @@ export function slices(reply: ReplyToCheck): Partial<Record<Name, Record<string,
       people: [{ name: pc, is_pc: true, looks: pcLooks, wearing }, ...cast.map(({ name, appearance }) => ({ name, looks: appearance }))],
       reply: narration,
     },
-    ...((facts.length > 0 || summary || memories.length > 0) && { past: { known_facts: facts, summary, scene_memories: memories, reply: narration } }),
+    ...((facts.length > 0 || summary || memories.length > 0) && {
+      past: { known_facts: facts, summary, scene_memories: memories, npc_knows: knows, reply: narration },
+    }),
   };
 }
 

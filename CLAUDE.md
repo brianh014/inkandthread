@@ -41,7 +41,13 @@ Log every action by default, whether the player, the app or the AI takes it: wha
 
 ### Model prompts
 
-The prompts in `src/prompt-assembler.ts` and `src/world-creation.ts` go into every call, so they must stay lean. When play shows a problem, find the wider principle it breaks, such as people staying true to what they said rather than one character leaving early, and fix that once, in general words. Prefer widening or rewording a rule that's already there over adding one. Never add a rule for one story's case, or examples drawn from the story being debugged, as a pile of specific tweaks bloats every prompt and boxes in the model's invention. If a problem can be fixed in code instead, such as a check on the reply, prefer that.
+The prompts in `src/prompt-assembler.ts` and `src/world-creation.ts` go into every call, so they must stay lean. When play shows a problem, find the wider principle it breaks, such as people staying true to what they said rather than one character leaving early, and fix that once, in general words. Prefer widening or rewording a rule that's already there over adding one. Never add a rule for one story's case, or examples drawn from the story being debugged, as a pile of specific tweaks bloats every prompt and boxes in the model's invention. If a problem can be fixed in code instead, prefer that, preventing it before the reply is written over checking it after.
+
+### Replies the player reads
+
+- Everything the player types is the PC's own words and actions, a bare quote included. The player never speaks or acts for anyone else, so a fix for a misread move makes the move unmistakably the PC's, such as the PC's name sent with it.
+- A retry is a last resort, as the player waits through it or sees the text restart. Prevent the fault first: how the prompt or move is built, a schema, or the state sent. Never add a retry in the player's path to enforce a rule; one off it (State Upkeep, World Moves On) still costs time and money.
+- Code never cuts or rewrites a reply's story sentences, as the rest of the reply was written around them, and never changes text the player has read. It may trim what isn't story, such as stray JSON or a field name. When a reply's text itself is broken, such as one that restarts the story, writing it again beats keeping it with its state repaired.
 
 ### Reader's Guide
 

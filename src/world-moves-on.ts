@@ -306,7 +306,11 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
   const started = Date.now();
   try {
     const reply = await askForJson(textProvider, prompt, Reply, "The Narrator refused to move the world on.", signal, { call: "moveWorld" });
-    const { kept, faults, overflow } = sorted(reply.plot_threads);
+    const { kept: sent, faults, overflow } = sorted(reply.plot_threads);
+    // A rewrite still faulted once asked again keeps its thread's old now and plan, as kept ones handed a vicar a ledger only a
+    // secret knew of. An add has no old one to keep, so it stands.
+    const reverted = sent.filter((change) => change.thread !== null && change.now !== null && nowFaults([change]).length > 0);
+    const kept = sent.filter((change) => !reverted.includes(change));
     // A rewrite's truth is never used, as only play reveals a truth: World Moves On writes one only for a thread it adds.
     const plot_threads = kept.flatMap(({ thread, truth, now }): ListChange[] =>
       thread === null ? [{ old: null, new: truth }] : now === null ? [{ old: thread, new: null }] : [],
@@ -342,6 +346,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       }),
       dropped: countOf(faults),
       ...(nowFaults(kept).length > 0 && { nowsKept: countOf(nowFaults(kept)) }),
+      ...(reverted.length > 0 && { nowsReverted: reverted.length }),
       ...(overflow > 0 && { overflow }),
       ...(asked.length > 0 && { asked: asked.length, closed: removed.filter(({ thread }) => asked.includes(thread ?? "")).length }),
       ms: Date.now() - started,

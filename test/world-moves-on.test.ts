@@ -609,6 +609,40 @@ test("a now that waits on the PC, puts someone with the PC elsewhere or gives th
   expect(store().latestState(id).threadsNow[drowned]).toBe(committed);
 });
 
+test("a now still faulted when asked again keeps that thread's old now and plan, while the move's other changes stand", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  const hidden = "The ledger is hidden in the cottage chimney, and the vicar is searching for it.";
+  const waiting = "Grout will deal with Ash if she presses.";
+  const vicar = "The vicar has torn up the cottage floor and found nothing.";
+  const told = play(
+    narration("Ash walks to the quay.", nextDay()),
+    moved(change(drowned, waiting), change(hidden, vicar)),
+    moved(change(drowned, waiting), change(hidden, vicar)),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [drowned, hidden],
+      threadsNow: { [drowned]: "Grout digs a grave.", [hidden]: "The vicar waits for night." },
+      worldBible: [],
+    },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I walk.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(told.prompts).toHaveLength(4);
+  expect(store().latestState(id).threadsNow).toEqual({ [drowned]: "Grout digs a grave.", [hidden]: vicar });
+  expect(log).toMatch(/World moved on .*"nowsReverted":1/);
+});
+
 test("a move keeps what a thread's people have done apart from what they plan, and the next Turn and move read the plan as not yet done", async () => {
   const done = "The thief has hidden the books on a barge.";
   const plan = "He will sell them at the dock by noon tomorrow.";

@@ -14,6 +14,7 @@ const setup = (fields: Partial<Parameters<typeof draftFrom>[0]> = {}): Parameter
 
 test("a built-in theme comes back as itself, and anything else as the player's own", () => {
   expect(themeFor(`Noir: ${THEMES.Noir}`)).toEqual({ theme: "Noir", ownTheme: "" });
+  expect(themeFor(`Romantasy: ${THEMES.Romantasy}`)).toEqual({ theme: "Romantasy", ownTheme: "" });
   expect(themeFor("Noir")).toEqual({ theme: OWN_THEME, ownTheme: "Noir" });
   expect(themeFor("Sunken kingdoms")).toEqual({ theme: OWN_THEME, ownTheme: "Sunken kingdoms" });
   expect(themeFor("")).toEqual({ theme: OWN_THEME, ownTheme: "" });

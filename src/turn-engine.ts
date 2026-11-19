@@ -879,7 +879,13 @@ async function narrate(
       let asked: string[] = [];
       let rewrites: (readonly [string, string])[] = [];
       // Later replies copy marks like these, so they never reach a Save.
-      const cleaned = withoutFields(withoutStrayMarks(response.narration as string));
+      const unlabelled = withoutFields(withoutStrayMarks(response.narration as string));
+      const speakers = [
+        ...before.npcs.map(({ name }) => name),
+        ...state_operations.flatMap((operation) => (operation.op === "add_npc" ? [operation.name] : [])),
+      ];
+      const cleaned = withKnownSpeakers(unlabelled, [...new Set(speakers)]);
+      if (cleaned !== unlabelled && edited === undefined) log.info("turn", "Speaker labels given in full", { attempt, generation });
       let narration = edited ?? withoutBareSpeech(cleaned, pcName);
       if (narration !== cleaned && edited === undefined)
         log.info("turn", "Bare speech dropped", { attempt, generation, lines: lineCount(cleaned) - lineCount(narration) });
@@ -1207,6 +1213,30 @@ export function spokenLineFault(narration: string, pcName: string) {
 }
 const isPc = (speaker: string, pcName: string) =>
   !!pcName && (speaker.toLowerCase() === pcName.toLowerCase() || (givenName(speaker) ?? "") === givenName(pcName));
+
+/**
+ * Each speaker label of two words or more that shortens one known name, word by word or to an initial, written as that name,
+ * as "[Reverend Amos T.]" was kept for Reverend Amos Thorne. A lone word is left, as a first name alone is a fair label.
+ */
+export const withKnownSpeakers = (narration: string, names: string[]) =>
+  narration.replace(/^([ \t]*)\[([^[\]\n]+)\]:/gm, (line, indent: string, label: string) => {
+    const words = label.trim().split(/\s+/);
+    const shortens = (name: string) => {
+      const full = name.split(/\s+/);
+      return (
+        name !== label.trim() &&
+        words.length >= 2 &&
+        words.length <= full.length &&
+        words.every((word, index) => {
+          const bare = word.replace(/\.$/, "").toLowerCase();
+          const whole = full[index]!.toLowerCase();
+          return bare === whole || (bare.length === 1 && whole.startsWith(bare));
+        })
+      );
+    };
+    const matches = names.filter(shortens);
+    return matches.length === 1 ? `${indent}[${matches[0]}]:` : line;
+  });
 
 /** The words of each [Name]: line whose speaker `whose` picks, in lower case. */
 const spokenLines = (narration: string, whose: (speaker: string) => boolean) =>

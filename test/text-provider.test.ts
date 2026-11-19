@@ -15,6 +15,7 @@ import {
   usableChoices,
   usableFix,
   usableOperations,
+  withKnownSpeakers,
   withoutBareSpeech,
   withoutCut,
   withoutJsonTail,
@@ -1548,6 +1549,14 @@ test("a line that is only quoted speech after the PC's paragraph is dropped, and
     'Wren rides up beside Tamsin.\n\n"I know it\'s the boy. Leave him to me."\n\n[Tamsin]: "Is that so?"\n\n“Fine,” she said.\n\nA sign reads\n"THE RED LION"';
   expect(withoutBareSpeech(reply, "Wren Hale")).toBe(
     'Wren rides up beside Tamsin.\n\n[Tamsin]: "Is that so?"\n\n“Fine,” she said.\n\nA sign reads\n"THE RED LION"',
+  );
+});
+
+test("a speaker label that shortens one known name, by its first words or initials, is written as that name", () => {
+  const names = ["Reverend Amos Thorne", "Amos Kell", "Kit Rowan"];
+  const reply = '[Reverend Amos T.]: "A sad morning."\n\n[Reverend A. Thorne]: "Yes."\n\n[Amos]: "Two Amoses."\n\n[Kit]: "Me."\n\n[Voice in the dark]: "Who?"';
+  expect(withKnownSpeakers(reply, names)).toBe(
+    '[Reverend Amos Thorne]: "A sad morning."\n\n[Reverend Amos Thorne]: "Yes."\n\n[Amos]: "Two Amoses."\n\n[Kit]: "Me."\n\n[Voice in the dark]: "Who?"',
   );
 });
 

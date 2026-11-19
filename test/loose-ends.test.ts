@@ -92,6 +92,17 @@ test("a miscopied resolve costs no Turn or second call, and logs why with no sto
   expect(line).not.toContain("ZQX");
 });
 
+test("an Edit that keeps the response whole keeps the Loose Ends it resolved, though the Narrator misses them the second time", async () => {
+  play(narration("You find the guide.", resolve(MISSING)), narration("You find the guide.\n\nA bell rings."));
+  const id = createSave(MISSING, SOCIAL);
+  expect((await turn(id)).status).toBe(201);
+
+  const line = await logOf(() => app.post(`/saves/${id}/messages/2/edit`, { text: "You find the guide.\n\nA bell rings." }), "info");
+
+  expect(ends(id)).toEqual([SOCIAL]);
+  expect(line).toContain('"looseEndsKept":1');
+});
+
 test("a repeated Loose End logs only its count, at Info", async () => {
   play(narration("A line.", add("ZQX"), add("ZQX")));
   const id = createSave();

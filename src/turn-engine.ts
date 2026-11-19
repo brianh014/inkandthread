@@ -721,6 +721,11 @@ export async function editResponse(
   const times = { started: Date.now() };
   await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.turnToReplace(id, messageId).state);
   const { input, state, messages, journalEdits } = saves.turnToReplace(id, messageId);
+  // An Edit that keeps the response whole keeps the Loose Ends it resolved, as the Narrator, bringing the state in line
+  // again, left one open to the end of a play.
+  const replaced = saves.messages(id).find((message) => message.id === messageId)?.text ?? "";
+  const after = saves.latestState(id).looseEnds;
+  const resolved = replaced && text.includes(replaced) ? state.looseEnds.filter((end) => !after.includes(end)) : [];
   const { prompt, memory, playMode } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
@@ -743,7 +748,19 @@ export async function editResponse(
     narration: text,
     memory,
     playMode,
-    commit: (narration, _check, advance, choices) => saves.editTurn(id, messageId, narration, advance, choices),
+    commit: (narration, _check, advance, choices) =>
+      saves.editTurn(
+        id,
+        messageId,
+        narration,
+        (before) => {
+          const next = advance(before);
+          const kept = next.looseEnds.filter((end) => resolved.includes(end));
+          if (kept.length > 0) log.info("turn", "Loose Ends kept resolved by an Edit", { looseEndsKept: kept.length });
+          return { ...next, looseEnds: next.looseEnds.filter((end) => !kept.includes(end)) };
+        },
+        choices,
+      ),
     // Only portraits for anyone new, as the Scene Image stays.
     committed: (edited, scene) => images.sceneChanged(id, edited, { ...scene, changed: false }),
     times,

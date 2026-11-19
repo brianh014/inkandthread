@@ -49,8 +49,9 @@ export function unknownWords(choices: string[], state: State, seen: string, jour
   const hiddenRuns = new Set(journal ? [] : runs(hidden));
   return choices.map((choice) => [...new Set([...unknown.filter((word) => mentions(choice, word)), ...guessed(choice)])]);
   function guessed(choice: string) {
-    // A Journal entry is held to names and the secrets' long words alone, as it is written as the PC, who names things in their own words.
-    return [...(journal ? [] : copiedOrMadeUp(choice)), ...secretWords(choice, hidden, known, unseen)];
+    // A Journal entry is held to names alone, as it is written as the PC, who names things in their own words: the long-word
+    // test dropped 8 true notes in a play for "lantern" where the page said "a light" and caught no leak.
+    return journal ? [] : [...copiedOrMadeUp(choice), ...secretWords(choice, hidden, known, unseen)];
   }
   function copiedOrMadeUp(choice: string) {
     return [
@@ -133,8 +134,7 @@ const journalText = (operation: StateOperation) =>
  */
 export function withoutUnread<Operation extends StateOperation>(operations: Operation[], state: State, read: string) {
   const journal = operations.filter(({ op }) => JOURNAL.includes(op));
-  // With the secrets' long words too, as a summary called someone a daughter that no page had, and then let Choices through on it.
-  // shortcut: a fact the player read in other words, such as a daughter who said "my father", is lost too; match meanings if that costs true notes.
+  // shortcut: names and keywords only, so a secret in plain words reaches the Journal; match meanings if leaks show there.
   const leaks = unknownWords(journal.map(journalText), { ...state, summary: "", pcKnown: { facts: [], npcs: [] } }, read, true);
   const leaking = new Set(journal.filter((_, index) => leaks[index]!.length > 0));
   return operations.filter((operation) => !leaking.has(operation));

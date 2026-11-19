@@ -66,14 +66,21 @@ test("a known fact, summary or Loose End naming someone or somewhere the player 
   const operations = [
     { op: "add_known_fact", fact: "Ossery has the ledger." },
     { op: "set_known_npc_summary", name: "Tamsin", summary: "A driver who knows Ossery." },
-    // A long word only the secrets hold, as a summary named a woman someone's daughter, which the page never said.
-    { op: "add_known_fact", fact: "The ledger is wrapped in oilskin." },
     { op: "add_loose_end", loose_end: "Tamsin wants the ledger found." },
     { op: "npc_learns", name: "Tamsin", fact: "Ossery has the oilskin." },
   ] as Parameters<typeof withoutUnread>[0];
-  expect(withoutUnread(operations, secret, "Tamsin rides ahead and speaks of a ledger.")).toEqual(operations.slice(3));
+  expect(withoutUnread(operations, secret, "Tamsin rides ahead and speaks of a ledger.")).toEqual(operations.slice(2));
   // Kept once the player has read it.
-  expect(withoutUnread(operations, secret, "Tamsin sees the ledger in its oilskin.")).toEqual(operations.slice(2));
+  expect(withoutUnread(operations, secret, "Tamsin sees Ossery with the ledger.")).toEqual(operations);
+});
+
+test("a Journal entry is never dropped for a long word only the secrets hold, as the PC names what they read in their own words", () => {
+  const secret = { ...state, plotThreads: ["Ossery carried a lantern down to the crypt, and his daughter saw it."] };
+  const operations = [
+    { op: "add_known_fact", fact: "Jory saw a lantern in the crypt." },
+    { op: "add_loose_end", loose_end: "Whose daughter is Tamsin?" },
+  ] as Parameters<typeof withoutUnread>[0];
+  expect(withoutUnread(operations, secret, "Jory says he saw a light down in the crypt. Tamsin says: my father.")).toEqual(operations);
 });
 
 test("a Journal entry naming a many-word name or keyword is kept when the player has read the word that tells it apart", () => {

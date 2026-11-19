@@ -30,9 +30,8 @@ export type Settings = Omit<Required<SettingsChange>, "textApiKey" | "imageApiKe
   workflowProblem: string;
   /** Only the downloaded app, which has no window to close. A server keeps running for everyone. */
   canQuit: boolean;
-  /** Set only in the file, so shown read-only, with the file's path. */
-  textCommand: string[];
-  settingsFile: string;
+  /** The page is on the computer NovelForge runs on, so it may change the command. */
+  commandHere: boolean;
 };
 export type TextHost = Awaited<ReturnType<typeof textHosts>>[number];
 export type Journal = {
@@ -195,6 +194,12 @@ export const getTextModels = (whose?: "review" | "consistency") =>
   request<{ models: string[] }>(`/settings/text-models${whose ? `?for=${whose}` : ""}`).then(({ models }) => models);
 export const getTextHosts = (model: string) =>
   request<{ hosts: TextHost[] }>(`/settings/text-hosts?model=${encodeURIComponent(model)}`).then(({ hosts }) => hosts);
+
+/** A command line as words, split at spaces, with double quotes keeping an argument's spaces. shortcut: no escaped quotes, add them if a player needs one. */
+export const commandWords = (line: string) => [...line.matchAll(/"([^"]*)"|(\S+)/g)].map(([, quoted, bare]) => quoted ?? bare!).filter(Boolean);
+
+/** Words as a command line, quoting those with spaces, as commandWords reads it back. */
+export const commandText = (words: string[]) => words.map((word) => (/\s/.test(word) ? `"${word}"` : word)).join(" ");
 
 /** What stops the Narrator replying, if anything. */
 export function setupProblem({

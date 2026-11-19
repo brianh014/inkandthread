@@ -104,7 +104,7 @@ test("a fresh install has images on, Prose, medium type, blank Model Instruction
     storyInLog: false,
     canQuit: false,
     textCommand: [],
-    settingsFile: expect.stringMatching(/settings.json$/),
+    commandHere: true,
   });
 });
 
@@ -259,7 +259,7 @@ test("every setting survives a restart, and no key comes back", async () => {
     defaultLogLevel: "warning",
     canQuit: false,
     textCommand: [],
-    settingsFile: expect.stringMatching(/settings.json$/),
+    commandHere: true,
   };
   expect(await response.json()).toEqual(expected);
 

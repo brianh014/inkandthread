@@ -1,11 +1,14 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { networkInterfaces } from "node:os";
 import { join } from "node:path";
 import { commandInput } from "../src/command-provider";
+import { startServer } from "../src/rest-api";
 import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
 import { textProvider } from "../src/text-provider";
-import { logOf, startApp, tempFolder } from "./support";
+import { commandText, commandWords } from "../src/web/api";
+import { logOf, scriptedDice, scriptedImages, startApp, tempFolder } from "./support";
 
 type Rule = { when?: string; reply?: string; exit?: number; hang?: boolean };
 
@@ -152,17 +155,48 @@ test("a command is killed when the player stops it", async () => {
   expect(running()).toBe(false);
 });
 
-test("no route can set the command, and Settings shows it read-only", async () => {
+test("only Settings on this computer can change the command, and others see it", async () => {
   useCommand(PLAYS);
-  app = startApp(join(folder.path, "Saves"), async () => "");
+  const server = startServer({
+    savesDir: join(folder.path, "Saves"),
+    settings: settingsStore(join(folder.path, "settings.json")),
+    textProvider: async () => "",
+    imageAdapter: scriptedImages().imageAdapter,
+    dice: scriptedDice(),
+    nearMissMargin: 2,
+    port: 0,
+    hostname: "0.0.0.0",
+  });
+  try {
+    const at = (host: string) => new URL(`http://${host}:${server.port}/settings`);
+    const patch = (host: string, body: object, headers: Record<string, string> = {}) =>
+      fetch(at(host), { method: "PATCH", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
+    const stored = () => JSON.parse(readFileSync(join(folder.path, "settings.json"), "utf8")).textCommand;
+    const set = [process.execPath, FAKE, rules];
 
-  const refused = await app.patch("/settings", { textCommand: ["calc.exe"] });
-  expect(refused.status).toBe(400);
-  const shown = (await app.get("/settings").then((r) => r.json())) as { textCommand: string[]; settingsFile: string };
-  expect(shown.textCommand).toEqual([process.execPath, FAKE, rules]);
-  expect(shown.settingsFile).toEndWith("settings.json");
+    // A page rebinding its domain to this computer is sent from here, but under its own name.
+    expect((await patch("127.0.0.1", { textCommand: ["calc.exe"] }, { Host: "rebound.example" })).status).toBe(403);
+    expect(stored()).toEqual(set);
 
-  // A save of anything else keeps the command as the file set it.
-  expect((await app.patch("/settings", { fontSize: "large" })).status).toBe(200);
-  expect(JSON.parse(readFileSync(join(folder.path, "settings.json"), "utf8")).textCommand).toEqual([process.execPath, FAKE, rules]);
+    const lan = Object.values(networkInterfaces())
+      .flat()
+      .find((each) => each?.family === "IPv4" && !each.internal)?.address;
+    if (lan) {
+      expect((await patch(lan, { textCommand: ["calc.exe"] })).status).toBe(403);
+      // The form sends every field, so the same command, with anything else, is saved.
+      expect((await patch(lan, { textCommand: set, fontSize: "large" })).status).toBe(200);
+      expect(await fetch(at(lan)).then((r) => r.json())).toMatchObject({ textCommand: set, commandHere: false });
+    }
+
+    expect(await fetch(at("127.0.0.1")).then((r) => r.json())).toMatchObject({ textCommand: set, commandHere: true });
+    expect((await patch("localhost", { textCommand: ["claude", "-p"] })).status).toBe(200);
+    expect(stored()).toEqual(["claude", "-p"]);
+  } finally {
+    await server.stop(true);
+  }
+});
+
+test("a command line splits at spaces, keeping quoted ones, and reads back as typed", () => {
+  expect(commandWords(' claude  -p "/opt/my tools/cli" --flag')).toEqual(["claude", "-p", "/opt/my tools/cli", "--flag"]);
+  expect(commandText(["claude", "-p", "/opt/my tools/cli"])).toBe('claude -p "/opt/my tools/cli"');
 });

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { parseWorkflow } from "./comfy-workflow";
 import { comfyModels, randomSeed } from "./comfyui";
 import { chosenModels, drawSteps, localIsSetUp } from "./graph-builder";
-import { imageResponse, parseBody, PromptRequest, routes, type ServerContext } from "./http";
+import { fromThisComputer, imageResponse, parseBody, PromptRequest, routes, type ServerContext } from "./http";
 import type { ImageAdapter } from "./image-adapter";
 import { defaultLogLevel, errorFields, errorType, log, setLogLevel } from "./logger";
 import { decisionModels } from "./decisions";
@@ -24,14 +24,14 @@ const unkeyed = <T extends object>(profiles: Record<string, T>, key: keyof T) =>
 // The image providers that also serve the Narrator, by its address, whose one key does both.
 const SAME_SERVICE = { openrouter: OPENROUTER_URL, google: GOOGLE_URL, nanogpt: NANOGPT_URL };
 // Setup's save can ask for the Narrator's key to draw with too.
-// `textCommand` is read only to refuse it, as a command is set in the file alone.
-const SettingsSave = SettingsUpdate.extend({ imageKeyFromText: z.boolean().optional(), textCommand: z.unknown().optional() });
+const SettingsSave = SettingsUpdate.extend({ imageKeyFromText: z.boolean().optional() });
 
 /** Settings and their tests. `local` is the ComfyUI adapter, and `workflow` how its last job went, which only the screen shows. */
 export function settingsRoutes({ options, images, saves }: ServerContext, local: ImageAdapter, workflow: { problem: string }) {
   const { settings } = options;
   // An allowlist, so the API key can never reach a response.
-  const publicSettings = () => {
+  // `here` says the page is on this computer, so it may change the command.
+  const publicSettings = (here: boolean) => {
     const {
       textBaseUrl,
       textModel,
@@ -95,9 +95,8 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
       textCommand,
     } = settings.read();
     return {
-      // Shown read-only, with where to change it.
       textCommand,
-      settingsFile: settings.path,
+      commandHere: here,
       textBaseUrl,
       textModel,
       textRouting,
@@ -169,14 +168,16 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
 
   return routes({
     "/settings": {
-      GET: () => Response.json(publicSettings()),
-      PATCH: async (req) => {
-        const { imageKeyFromText, textCommand, ...change } = await parseBody(req, SettingsSave);
-        if (textCommand !== undefined) {
-          log.warning("settings", "A command was refused, as it's set only in settings.json");
-          return Response.json({ error: "The command is set only in settings.json." }, { status: 400 });
-        }
+      GET: (req, server) => Response.json(publicSettings(fromThisComputer(req, server))),
+      PATCH: async (req, server) => {
+        const { imageKeyFromText, ...change } = await parseBody(req, SettingsSave);
         const current = settings.read();
+        const here = fromThisComputer(req, server);
+        // The form sends every field, so only a command that differs is a change.
+        if (change.textCommand && JSON.stringify(change.textCommand) !== JSON.stringify(current.textCommand) && !here) {
+          log.warning("settings", "A command change was refused, as it came from another computer");
+          return Response.json({ error: "The command can only be changed in Settings on the computer NovelForge runs on." }, { status: 403 });
+        }
         if (imageKeyFromText) {
           // Copied here, as the page never holds a stored key, and only to the image side of the same service it was entered for.
           const url = SAME_SERVICE[(change.imageProvider ?? current.imageProvider) as keyof typeof SAME_SERVICE];
@@ -194,7 +195,7 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
         // Names only, as a value can be a key. The form sends every field, so only those that differ.
         const same = (field: keyof SettingsChange) => JSON.stringify(current[field] ?? null) === JSON.stringify(change[field] ?? null);
         log.info("settings", "Settings changed", () => ({ fields: (Object.keys(change) as (keyof SettingsChange)[]).filter((field) => !same(field)) }));
-        return Response.json(publicSettings());
+        return Response.json(publicSettings(here));
       },
     },
     // Only ever the saved server, so a key can't reach an address that is still being typed. `for=review` lists the reviewer's,

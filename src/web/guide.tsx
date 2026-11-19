@@ -144,10 +144,11 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>A command as your AI</h3>
         <p>
           Instead of a server, the story can run on a program you set up, such as a provider's own command-line tool. NovelForge sends it the prompt as text and
-          reads its reply. Anyone who can open Settings could run programs with it, so it's set only in the <code>settings.json</code> file, never in the app:
-          add <code>"textCommand": ["program", "argument", …]</code> and it's used from the next reply. Set it back to <code>[]</code> to go back to your
-          server. The program runs with no shell, in an empty folder, and must print its reply and nothing else. Settings shows where the file is. An online AI
-          as above is still the way we recommend.
+          reads its reply. In <b>Settings → Text</b>, choose <b>Command</b> as the <b>Text provider</b> and type the program and its arguments, such as{" "}
+          <code>claude -p --output-format text</code>, quoting any argument with spaces. The program runs with no shell, in an empty folder, and must print its
+          reply and nothing else. As it runs a program on your computer, only Settings opened on that computer, at <code>127.0.0.1</code> or{" "}
+          <code>localhost</code>, can set or change it; on a phone or another computer it's shown but locked. An online AI as above is still the way we
+          recommend.
         </p>
         <CommandCaveats />
         <h3>Pictures: your own ComfyUI is best</h3>

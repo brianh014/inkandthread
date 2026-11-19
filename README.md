@@ -170,7 +170,7 @@ A local model works too: choose **Local / OpenAI server** and give the address o
 - In Settings → Text, set **Longest reply, in tokens** to about 3000 and **Recent Messages** to 40. The server keeps room in its context for the longest reply, so a high limit leaves less for the story.
 - Leave the server's memory settings at their defaults first. On an RTX 3080, Ollama's `q8_0` KV cache made Gemma 4 12B about ten times slower.
 
-A command works too, such as a provider's own command-line tool, set as `"textCommand": ["program", "argument", …]` in `settings.json` (only there, never in the app, as it runs a program on your computer). NovelForge sends it the prompt on its input and reads the reply from its output. Hosted APIs remain the recommended path: with a command, the provider's terms and content rules apply, a subscription's limits can stop play mid-story, each call starts the program again, and Usage counts calls only. The Reader's Guide → Choosing your AI says more.
+A command works too, such as a provider's own command-line tool: in **Settings → Text**, choose **Command** as the **Text provider** and type it, such as `claude -p --output-format text`. As it runs a program on your computer, only Settings opened on that computer (at `127.0.0.1` or `localhost`) can set or change it. NovelForge sends it the prompt on its input and reads the reply from its output. Hosted APIs remain the recommended path: with a command, the provider's terms and content rules apply, a subscription's limits can stop play mid-story, each call starts the program again, and Usage counts calls only. The Reader's Guide → Choosing your AI says more.
 
 ### Images: your own ComfyUI
 

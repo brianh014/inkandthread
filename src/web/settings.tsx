@@ -4,6 +4,8 @@ import { WORKFLOW_EXAMPLE } from "../comfy-workflow";
 import { chosenModels, familyDefaults, switchFamily } from "../graph-builder";
 import { ArtStylePicker, artStyleText, readArtStyle } from "./art-style-picker";
 import {
+  commandText,
+  commandWords,
   askTextTest,
   type ComfyModels,
   drawComfyTest,
@@ -1095,6 +1097,8 @@ function InstallSettings({
   const [reviewKey, setReviewKey] = useState("");
   const [consistencyKey, setConsistencyKey] = useState("");
   const set = (change: Partial<Settings>) => setDraft({ ...draft, ...change });
+  // The command as the player types it, or undefined while the Narrator is on a server.
+  const [commandLine, setCommandLine] = useState(initial.textCommand.length > 0 ? commandText(initial.textCommand) : undefined);
 
   const textChoice = textChoiceOf(draft.textBaseUrl);
   const local = textChoice === "local";
@@ -1153,6 +1157,7 @@ function InstallSettings({
     // A reviewer on the Narrator's provider names its model the old provider's way, so it is chosen again.
     set({
       textBaseUrl,
+      textCommand: [],
       ...(saved.textProfiles[textBaseUrl] ?? { textModel: "", textHost: "" }),
       ...(draft.reviewSameProvider && { reviewModel: "" }),
       ...(draft.consistencySameProvider && { consistencyModel: "" }),
@@ -1172,9 +1177,7 @@ function InstallSettings({
       textProfiles,
       imageProfiles,
       workflowProblem,
-      // Set only in the file, so the route refuses it.
-      textCommand,
-      settingsFile,
+      commandHere,
       ...change
     } = draft;
     const next = await saveSettings({
@@ -1214,108 +1217,148 @@ function InstallSettings({
     >
       <div data-section="Text" className="fields" hidden={section !== "Text"}>
         <h2>Text</h2>
-        {saved.textCommand.length > 0 ? (
+        {commandLine !== undefined && !saved.commandHere ? (
           <>
             <p>
-              The AI is a command, set in <code>{saved.settingsFile}</code>. Only that file can change it or turn it off, by setting <code>textCommand</code>{" "}
-              back to <code>[]</code>.
+              The AI is a command: <code>{commandLine}</code>. It runs a program on the computer NovelForge runs on, so only Settings opened there, at{" "}
+              <code>127.0.0.1</code> or <code>localhost</code>, can change it.
             </p>
-            <code className="command">{JSON.stringify(saved.textCommand)}</code>
             <CommandCaveats />
           </>
         ) : (
           <>
-            <Picker label="Text provider" value={textChoice} choices={[...TEXT_CHOICES]} onChange={switchText} />
-            {local && (
-              <label>
-                Server address
-                <input
-                  type="url"
-                  required
-                  placeholder="http://localhost:1234/v1"
-                  value={draft.textBaseUrl}
-                  onChange={(e) => set({ textBaseUrl: e.target.value })}
-                />
-              </label>
-            )}
-            {/* Right under the provider, as the key is what lets its models be listed. */}
-            <label>
-              {local ? "Text API key (most local servers need none)" : "Text API key"}
-              <input
-                type="password"
-                autoComplete="new-password"
-                placeholder={keyHint(saved.textKeysFor.includes(draft.textBaseUrl))}
-                value={textKey}
-                onChange={(e) => setTextKey(e.target.value)}
-              />
-            </label>
-            {needsKey && (
-              <p className="notice">
-                A key only goes to the server it was entered for, so this server needs its own. Enter it above. The old server's key is kept for when you switch
-                back.
-              </p>
-            )}
-            <ModelField key={draft.textBaseUrl} label="Text model" value={draft.textModel} list={addressSaved ? models : undefined} onChange={chooseModel} />
-            {local && !addressSaved && <p className="muted">Save the address to choose from this server's models.</p>}
-            {textChoice === "google" && (
-              <p className="muted">
-                {!addressSaved && "Save your key to choose from Google's models. "}
-                Its free key needs only a Google account, but on the free tier Google may use what you send, your story among it, to improve its products.
-              </p>
-            )}
-            {addressSaved && models?.length === 0 && <p className="muted">No models listed. Make sure the server is running, or type the model's name.</p>}
-            {!local && (
+            <Picker
+              label="Text provider"
+              value={commandLine !== undefined ? "command" : textChoice}
+              choices={[...TEXT_CHOICES, ...(saved.commandHere ? [{ value: "command" as const, label: "Command" }] : [])]}
+              onChange={(provider) => {
+                setCommandLine(provider === "command" ? "" : undefined);
+                // A server switched to turns the command off.
+                if (provider !== "command") switchText(provider);
+              }}
+            />
+            {commandLine !== undefined ? (
               <>
-                <Picker
-                  label="Thinking"
-                  value={draft.textThinking}
-                  choices={[
-                    { value: "default", label: "The model's own" },
-                    { value: "low", label: "Low" },
-                    { value: "medium", label: "Medium" },
-                    { value: "high", label: "High" },
-                  ]}
-                  onChange={(textThinking) => set({ textThinking })}
-                />
-                <p className="muted">
-                  How long a model that thinks before it writes may think. Less is quicker and cheaper. A model that doesn't take it is sent nothing. On High,
-                  some models think past Longest thinking, and the reply is then stopped and asked again, which can fail every try. Use Medium, or raise Longest
-                  thinking.
-                </p>
-              </>
-            )}
-            {textChoice === "openrouter" && (
-              <>
-                <Picker
-                  label="Provider"
-                  value={draft.textHost}
-                  choices={[
-                    { value: "", label: "Any, using the routing below" },
-                    // A saved one stays as it is while its model's hosts load, or if they no longer include it.
-                    ...(draft.textHost && !hosts.some(({ slug }) => slug === draft.textHost) ? [{ value: draft.textHost, label: draft.textHost }] : []),
-                    ...hosts.map(({ slug, name }) => ({ value: slug, label: name })),
-                  ]}
-                  onChange={(textHost) => set({ textHost })}
-                />
-                {draft.textHost ? (
-                  <label className="toggle">
-                    <input type="checkbox" checked={draft.textHostFallback} onChange={(e) => set({ textHostFallback: e.target.checked })} />
-                    If this provider is down, let OpenRouter use another
-                  </label>
-                ) : (
-                  <Picker
-                    label="Routing"
-                    value={draft.textRouting}
-                    choices={[
-                      { value: "price", label: "Cheapest" },
-                      { value: "throughput", label: "Fastest writing" },
-                      { value: "latency", label: "Quickest to start" },
-                      { value: "default", label: "OpenRouter's choice" },
-                    ]}
-                    onChange={(textRouting) => set({ textRouting })}
+                <label>
+                  Command
+                  <input
+                    required
+                    spellCheck={false}
+                    placeholder="claude -p --output-format text"
+                    value={commandLine}
+                    onChange={(e) => {
+                      setCommandLine(e.target.value);
+                      set({ textCommand: commandWords(e.target.value) });
+                    }}
                   />
+                </label>
+                <p className="muted">
+                  A program and its arguments, such as a provider's own command-line tool, run with no shell. NovelForge sends it the prompt on its input and
+                  reads the reply from its output, which must be the reply alone. Quote an argument with spaces. As it runs a program, only Settings on this
+                  computer can change it.
+                </p>
+                <CommandCaveats />
+              </>
+            ) : (
+              <>
+                {local && (
+                  <label>
+                    Server address
+                    <input
+                      type="url"
+                      required
+                      placeholder="http://localhost:1234/v1"
+                      value={draft.textBaseUrl}
+                      onChange={(e) => set({ textBaseUrl: e.target.value })}
+                    />
+                  </label>
                 )}
-                <p className="muted">Staying on one provider keeps its prompt cache, which can cut the cost of a Turn.</p>
+                {/* Right under the provider, as the key is what lets its models be listed. */}
+                <label>
+                  {local ? "Text API key (most local servers need none)" : "Text API key"}
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder={keyHint(saved.textKeysFor.includes(draft.textBaseUrl))}
+                    value={textKey}
+                    onChange={(e) => setTextKey(e.target.value)}
+                  />
+                </label>
+                {needsKey && (
+                  <p className="notice">
+                    A key only goes to the server it was entered for, so this server needs its own. Enter it above. The old server's key is kept for when you
+                    switch back.
+                  </p>
+                )}
+                <ModelField
+                  key={draft.textBaseUrl}
+                  label="Text model"
+                  value={draft.textModel}
+                  list={addressSaved ? models : undefined}
+                  onChange={chooseModel}
+                />
+                {local && !addressSaved && <p className="muted">Save the address to choose from this server's models.</p>}
+                {textChoice === "google" && (
+                  <p className="muted">
+                    {!addressSaved && "Save your key to choose from Google's models. "}
+                    Its free key needs only a Google account, but on the free tier Google may use what you send, your story among it, to improve its products.
+                  </p>
+                )}
+                {addressSaved && models?.length === 0 && <p className="muted">No models listed. Make sure the server is running, or type the model's name.</p>}
+                {!local && (
+                  <>
+                    <Picker
+                      label="Thinking"
+                      value={draft.textThinking}
+                      choices={[
+                        { value: "default", label: "The model's own" },
+                        { value: "low", label: "Low" },
+                        { value: "medium", label: "Medium" },
+                        { value: "high", label: "High" },
+                      ]}
+                      onChange={(textThinking) => set({ textThinking })}
+                    />
+                    <p className="muted">
+                      How long a model that thinks before it writes may think. Less is quicker and cheaper. A model that doesn't take it is sent nothing. On
+                      High, some models think past Longest thinking, and the reply is then stopped and asked again, which can fail every try. Use Medium, or
+                      raise Longest thinking.
+                    </p>
+                  </>
+                )}
+                {textChoice === "openrouter" && (
+                  <>
+                    <Picker
+                      label="Provider"
+                      value={draft.textHost}
+                      choices={[
+                        { value: "", label: "Any, using the routing below" },
+                        // A saved one stays as it is while its model's hosts load, or if they no longer include it.
+                        ...(draft.textHost && !hosts.some(({ slug }) => slug === draft.textHost) ? [{ value: draft.textHost, label: draft.textHost }] : []),
+                        ...hosts.map(({ slug, name }) => ({ value: slug, label: name })),
+                      ]}
+                      onChange={(textHost) => set({ textHost })}
+                    />
+                    {draft.textHost ? (
+                      <label className="toggle">
+                        <input type="checkbox" checked={draft.textHostFallback} onChange={(e) => set({ textHostFallback: e.target.checked })} />
+                        If this provider is down, let OpenRouter use another
+                      </label>
+                    ) : (
+                      <Picker
+                        label="Routing"
+                        value={draft.textRouting}
+                        choices={[
+                          { value: "price", label: "Cheapest" },
+                          { value: "throughput", label: "Fastest writing" },
+                          { value: "latency", label: "Quickest to start" },
+                          { value: "default", label: "OpenRouter's choice" },
+                        ]}
+                        onChange={(textRouting) => set({ textRouting })}
+                      />
+                    )}
+                    <p className="muted">Staying on one provider keeps its prompt cache, which can cut the cost of a Turn.</p>
+                  </>
+                )}
               </>
             )}
           </>

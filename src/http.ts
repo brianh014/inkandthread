@@ -165,12 +165,20 @@ const LOOPBACK_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
 export const isLoopback = (hostname: string) => LOOPBACK_HOST.test(hostname) || hostname === "::1";
 
 /**
+ * A request from a browser on this computer, at one of its own names. The address alone isn't enough on a server open to the
+ * network, as a page rebinding its domain to it is sent from this computer too, but under its own name.
+ */
+export const fromThisComputer = (req: Request, server: Bun.Server<undefined>) =>
+  LOOPBACK_HOST.test(req.headers.get("host") ?? "") && isLoopback((server.requestIP(req)?.address ?? "").replace(/^::ffff:/, ""));
+
+/**
  * Every route, logged by its pattern as a real path holds ids and could hold anything. Each line a request causes,
  * however long after, names its route and any Save, so a Save id needn't be passed down to everything that logs.
  * `loopback`: only this computer's own names may reach the routes, so a page rebinding its domain to 127.0.0.1 can't read the Saves or spend the keys.
  */
 export function logged<Route extends string>(routes: Bun.Serve.Routes<undefined, Route>, loopback: boolean) {
-  const wrap = (route: string, method: string, handler: (req: Bun.BunRequest) => Response | Promise<Response>) => (req: Bun.BunRequest) => {
+  type Handler = (req: Bun.BunRequest, server: Bun.Server<undefined>) => Response | Promise<Response>;
+  const wrap = (route: string, method: string, handler: Handler) => (req: Bun.BunRequest, server: Bun.Server<undefined>) => {
     const { id } = req.params as { id?: string };
     // Not `/worlds/:id`, whose id is a story's before it has a Save, which then gets another.
     const save = route.startsWith("/saves/") && z.uuid().safeParse(id).success ? id : undefined;
@@ -179,7 +187,7 @@ export function logged<Route extends string>(routes: Bun.Serve.Routes<undefined,
       if (loopback && !LOOPBACK_HOST.test(req.headers.get("host") ?? "")) return Response.json({ error: "Not found" }, { status: 404 });
       const started = performance.now();
       const response = await Promise.resolve()
-        .then(() => handler(req))
+        .then(() => handler(req, server))
         .catch(errorResponse);
       // Anything but a read is an action, logged by default so none goes unrecorded; reads, and the page's own pings, are only for tracing.
       const action = method !== "GET" && !NOT_ACTIONS.has(route);

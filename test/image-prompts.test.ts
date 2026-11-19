@@ -194,6 +194,16 @@ test("someone's looks keep no weather, dust or thing carried, which pass with th
   expect(next.npcs[0]!.appearance).toBe(coat);
 });
 
+test("someone's looks keep no caked dirt, passing pallor, bonds or garment taken off and put down, but keep what they wear", () => {
+  const coat = "a broad man in his fifties with a grey moustache, in a dark blue coat";
+  const before = { ...openingState, npcs: [{ name: "Price", appearance: coat }] };
+  const passing = `${coat}, heavy boots caked at the treads with pale sand, drained grey now, his wrists bound before him with rope, coat off and folded over a barrel, his hat left below on a chair`;
+  const { next } = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: passing }]);
+  expect(next.npcs[0]!.appearance).toBe(coat);
+  const lasting = `${coat}, hair tied back, a scar left on his cheek`;
+  expect(applyOperations(before, [{ op: "update_npc", name: "Price", appearance: lasting }]).next.npcs[0]!.appearance).toBe(lasting);
+});
+
 test("the era is set once, and a later set_era is ignored rather than failing the Turn, so pictures never drift", () => {
   const first = applyOperations(openingState, [{ op: "set_era", era: "early medieval Arabia" }]);
   const again = applyOperations(first.next, [{ op: "set_era", era: "1870s American West" }]);

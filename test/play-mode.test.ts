@@ -131,6 +131,21 @@ test("Choices kept from the reply and from the Choices asked for alone are merge
   expect(await latestChoices(id)).toEqual(["I climb the wall.", "I wade on.", "I call for help."]);
 });
 
+test("a Choice asked for alone that takes the same approach as a kept one, in other words, is not added beside it", async () => {
+  const reviewer: TextProvider = async () => JSON.stringify({ state_operations: [] });
+  const kept = "I turn back the sheet and examine the man's neck and scalp closely.";
+  const script = scriptedTextProvider(
+    withChoices("The tide rises.", ["I ride for Qasr.", kept, "I wade on."]),
+    JSON.stringify({ choices: ["I'll pull back the sheet and examine the man's body closely, writing every mark.", "I call for help.", "I wade on."] }),
+  );
+  app = startApp(savesDir, script.textProvider, undefined, undefined, undefined, undefined, undefined, reviewer);
+  const id = await app.createSave();
+  await app.patch(`/saves/${id}`, { playMode: "choices" });
+  await app.post(`/saves/${id}/turns`, { input: "I wade forward." });
+
+  expect(await latestChoices(id)).toEqual([kept, "I wade on.", "I call for help."]);
+});
+
 test("a Turn whose Choices can't be written alone is kept without any", async () => {
   const repeated = JSON.stringify({ choices: ["I run.", "I run.", " I run. "] });
   const { id, prompts } = await choosing(withChoices("Repeated.", ["next", "next2", "next3"]), repeated, repeated, repeated);

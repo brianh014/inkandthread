@@ -1030,7 +1030,9 @@ async function narrate(
         for (let ask = 0; ask < 2 && kept.length < 3; ask++) {
           const written = await alone();
           if (!written) break;
-          kept = [...new Set([...kept, ...written])].slice(0, 3);
+          const fresh = written.filter((choice) => !kept.some((other) => sameApproach(choice, other)));
+          if (fresh.length < written.length) log.info("turn", "Choices repeating a kept one dropped", { count: written.length - fresh.length });
+          kept = [...new Set([...kept, ...fresh])].slice(0, 3);
         }
         return kept;
       };
@@ -1170,6 +1172,16 @@ async function narrate(
   }
 }
 
+const choiceWords = (text: string) => new Set(text.toLowerCase().match(/\p{L}[\p{L}']{3,}/gu) ?? []);
+/**
+ * Whether two Choices take one approach in other words: four words of four letters or more shared, half the shorter's, as a
+ * Choice asked for alone offered "pull back the sheet and examine" beside a kept "turn back the sheet and examine".
+ */
+const sameApproach = (one: string, other: string) => {
+  const [a, b] = [choiceWords(one), choiceWords(other)];
+  const shared = [...a].filter((word) => b.has(word)).length;
+  return one === other || (shared >= 4 && shared * 2 >= Math.min(a.size, b.size));
+};
 const longWords = (text: string) => new Set(text.toLowerCase().match(/\p{L}{6,}/gu) ?? []);
 /** The long words a fix took out of the reply, which what the PC learns in that Turn mustn't keep. */
 export const cutWords = (told: string, fixed: string) => {

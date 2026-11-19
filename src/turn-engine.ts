@@ -236,6 +236,19 @@ export function withoutJsonTail(text: string) {
  * Three different Choices, or none if the reply hasn't that many. One-word Choices that differ only by a number at the end
  * count as one, as a model once offered "next", "next2" and "next3".
  */
+/**
+ * Without a Choice that names the PC, as one written as someone else, "I crouch beside Nell and tell her…", was offered to Nell
+ * as her own move. The PC's name only with its capital, so a name that is also a word isn't taken for it. The rest stay, even
+ * if fewer than three, as asking again costs a call for one bad Choice.
+ */
+function forThePc(choices: string[] | undefined, pcName: string) {
+  if (!choices || !pcName) return choices;
+  const names = [pcName, ...pcName.split(" ").filter((part) => part.length > 2 && /^\p{Lu}/u.test(part))];
+  const kept = choices.filter((choice) => !names.some((name) => wholeWord(name, "u").test(choice)));
+  if (kept.length < choices.length) log.info("turn", "Choices naming the PC dropped", { count: choices.length - kept.length });
+  return kept.length > 0 ? kept : undefined;
+}
+
 export function usableChoices(choices: unknown) {
   const parsed = z.array(z.string()).safeParse(choices);
   const sameAs = (choice: string) => (/\s/.test(choice) ? choice : choice.replace(/\d+$/, ""));
@@ -809,7 +822,7 @@ async function narrate(
           restyled = restyledBy(state, next);
           return next;
         },
-        offered,
+        forThePc(offered, pcName),
       );
       // The Turn is saved by now, so image trouble must not report it failed, or the player would send it again.
       try {

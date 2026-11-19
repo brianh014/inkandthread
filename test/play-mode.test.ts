@@ -59,6 +59,17 @@ test("in Choices mode a response keeps its three Choices, sent last in the schem
   expect(await app!.get(`/saves/${id}`).then((r) => r.json())).toMatchObject({ playMode: "choices" });
 });
 
+test("a Choice that names the PC, written as someone else, is dropped and the others kept", async () => {
+  const script = play(withChoices("The tide rises.", ["I wade on.", "I crouch beside Ash and tell him to keep still.", "I climb the wall."]));
+  const id = await script.app.createSave();
+  await script.app.patch(`/saves/${id}`, { playMode: "choices" });
+
+  const log = await logOf(() => script.app.post(`/saves/${id}/turns`, { input: "I wade forward." }), "info");
+
+  expect(await latestChoices(id)).toEqual(["I wade on.", "I climb the wall."]);
+  expect(log).toContain("Choices naming the PC dropped");
+});
+
 test("switching to Free Text and back keeps the latest Choices, and the next Turn ends them", async () => {
   const { id } = await choosing(narration("The wall holds."));
 

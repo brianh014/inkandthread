@@ -21,7 +21,7 @@ afterEach(async () => {
   folder.remove();
 });
 
-function play(...replies: (string | Error)[]) {
+function play(...replies: (string | Error | Promise<string>)[]) {
   const settings = settingsStore(join(dirname(savesDir), "settings.json"));
   settings.update({ textModel: "narrator/model" });
   const told = scriptedTextProvider(...replies);
@@ -95,6 +95,38 @@ test("on a new day the world moves on out of sight, and the next Turn reads it m
   expect(store().latestState(id).plotThreads).toEqual(["The thief has robbed the library and hides the books on a barge."]);
   expect(log).toContain('"threads":1,"added":0,"removed":0');
   expect(log).not.toContain("barge");
+});
+
+test("a World Change sent while the world is moving on waits for the move, so it rewrites the thread as moved", async () => {
+  let finish: (reply: string) => void = () => {};
+  const told = play(
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
+    new Promise<string>((resolve) => (finish = resolve)),
+    JSON.stringify({
+      lore_entries: [],
+      removed_lore: [],
+      world_rules: [{ old: null, new: "The mayor rules the city." }],
+      plot_threads: [],
+      world_brief: null,
+      summary: null,
+      facts: [],
+      npc_summaries: [],
+    }),
+  );
+  const id = createSave();
+  await (await turn(id, "I walk to the dock.")).text();
+  const change = fetch(new URL(`/saves/${id}/world-change`, server.url), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ change: "the thief is the mayor" }),
+  });
+  await Bun.sleep(50);
+  // Still waiting for the move, so the World Change hasn't asked yet.
+  expect(told.prompts.length).toBe(2);
+  finish(moved({ old: "A thief plans to rob the library at the next high tide.", new: "The thief has robbed the library and hides the books on a barge." }));
+
+  expect((await change).ok).toBe(true);
+  expect(told.prompts[2]!.map(({ content }) => content).join("\n")).toContain("hides the books on a barge");
 });
 
 test("a move reads the Lore Entries the story names too, not only its threads', so a thread it adds keeps to the world", async () => {

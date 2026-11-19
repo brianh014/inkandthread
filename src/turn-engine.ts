@@ -486,6 +486,19 @@ function turnPrompt(
 
 const lastNarration = (messages: Message[]) => messages.findLast(({ role }) => role === "narrator")?.text ?? "";
 
+/**
+ * Waits for the Save's move of the world still running, if any, so what follows reads the world as moved: a World Change read
+ * alongside one rewrote a thread the move had just rewritten, which came out twice. Stop ends the wait, as a move can run two minutes.
+ */
+export async function worldMoved(id: string, signal: AbortSignal) {
+  const move = moving.get(id);
+  signal.throwIfAborted();
+  if (!move) return;
+  log.info("world", "Waiting for the world to move on");
+  await Promise.race([move, new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }))]);
+  signal.throwIfAborted();
+}
+
 /** What a World Change needs: the Narrator, the reviewer and the pictures a change can restyle. */
 type WorldContext = { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline; reviewProvider?: TextProvider; consistency?: Consistency };
 
@@ -495,11 +508,7 @@ type WorldContext = { textProvider: TextProvider; settings: SettingsStore; image
  * before any call. Any other failure only skips it, as the reply is still told of the edits.
  */
 async function settleJournal(saves: SaveStore, context: WorldContext, id: string, signal: AbortSignal, stateOf: () => State) {
-  // Stop ends the wait, as a move on a slow model can run two minutes.
-  const move = moving.get(id);
-  signal.throwIfAborted();
-  if (move) await Promise.race([move, new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }))]);
-  signal.throwIfAborted();
+  await worldMoved(id, signal);
   const change = journalChange(saves.pendingEdits(id));
   if (!change) return;
   stateOf();

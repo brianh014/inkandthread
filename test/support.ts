@@ -33,7 +33,7 @@ export const narration = (text: string, ...parts: object[]) =>
   JSON.stringify({ narration: text, state_operations: parts.filter((part) => "op" in part), ...Object.assign({}, ...parts.filter((part) => !("op" in part))) });
 
 /** Replies with each entry in turn, throwing Errors, and records every prompt. */
-export function scriptedTextProvider(...replies: (string | Error)[]) {
+export function scriptedTextProvider(...replies: (string | Error | Promise<string>)[]) {
   const prompts: Prompt[] = [];
   const schemas: unknown[] = [];
   const budgets: (number | undefined)[] = [];
@@ -41,7 +41,8 @@ export function scriptedTextProvider(...replies: (string | Error)[]) {
     prompts.push(prompt);
     schemas.push(request.schema);
     budgets.push(request.thinkingBudget);
-    const reply = replies.shift() ?? new Error("Text Provider script exhausted");
+    // A promise stays in flight until it settles, like a slow model.
+    const reply = await (replies.shift() ?? new Error("Text Provider script exhausted"));
     if (reply instanceof Error) throw reply;
     return reply;
   };

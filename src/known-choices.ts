@@ -31,9 +31,14 @@ export function unknownWords(choices: string[], state: State, seen: string, name
   const unknown = [...new Set(words)].filter((word) => word.length >= 4 && !nameForms(word).some((form) => mentions(known, form)));
   const hidden = [...state.plotThreads, ...state.worldBible.filter(({ alwaysOn }) => !alwaysOn).map(({ content }) => content)].join("\n");
   const unseen = (word: string) => !wholeWord(word, "iu").test(known);
+  const hiddenRuns = new Set(namesOnly ? [] : runs(hidden));
+  const knownRuns = new Set(namesOnly ? [] : runs(known));
   return choices.map((choice) => [...new Set([...unknown.filter((word) => mentions(choice, word)), ...(namesOnly ? [] : guessed(choice))])]);
   function guessed(choice: string) {
     return [
+      // Four words in a row from the hidden threads and Lore, as a Choice copied a thread's "whose side the lie falls on". Not
+      // a run of short or everyday words alone, as those are in any Choice.
+      ...runs(choice).filter((run) => hiddenRuns.has(run) && !knownRuns.has(run) && !run.split(" ").every((word) => word.length <= 3 || EVERYDAY.has(word))),
       // A name or place the Narrator made up, as a town no one had spoken of was offered as where to ride. Not a sentence's first word.
       ...(choice.match(/(?<!\p{L}|[.!?:;"“‘(]\s*|^[\s"“‘]*)\p{Lu}\p{L}{3,}/gu) ?? []).filter((word) => !EVERYDAY.has(word.toLowerCase()) && unseen(word)),
       // A thing only the hidden threads and Lore hold, as an oilskin a secret ledger was wrapped in. Long words only, as short ones
@@ -41,6 +46,12 @@ export function unknownWords(choices: string[], state: State, seen: string, name
       ...(choice.match(/\p{L}{6,}/gu) ?? []).filter((word) => !EVERYDAY.has(word.toLowerCase()) && wholeWord(word, "iu").test(hidden) && unseen(word)),
     ];
   }
+}
+
+/** Every run of four words in the text, in lower case and without punctuation. */
+function runs(text: string) {
+  const words = text.toLowerCase().match(/\p{L}+(?:['’]\p{L}+)*/gu) ?? [];
+  return words.slice(3).map((_, index) => words.slice(index, index + 4).join(" "));
 }
 
 // shortcut: a short list of everyday long words seen in Choices; use a word-frequency list if ordinary words still get flagged.

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import { dirname, join } from "node:path";
-import { CUT_OFFS, checkConsistency, FIX_LIMIT } from "../src/consistency";
+import { CUT_OFFS, checkConsistency, FIX_LIMIT, QUESTIONS } from "../src/consistency";
 import { slowReviewer } from "../src/state-upkeep";
 import { type DecisionProvider, decisionModels, decisionProvider } from "../src/decisions";
 import { startServer } from "../src/rest-api";
@@ -249,29 +249,57 @@ test("the fix asks at Review thinking, and once more when it changes nothing of 
   expect(log).toContain("Empty fix asked again");
 });
 
-test("the fix may think longer for each further question flagged, up to a budget whose time stop leaves it room to answer", async () => {
+test("each flagged question is fixed in a call of its own, and their edits are made together, skipping one an earlier edit changed", async () => {
   CUT_OFFS["liquid/d1.2"]!.continuity = 0.5;
   const budgets: (number | undefined)[] = [];
-  const reviewer = async (_prompt: unknown, { thinkingBudget }: { thinkingBudget?: number }) => {
+  const asked: string[][] = [];
+  const edits: Record<string, { old: string; new: string }[]> = {
+    continuity: [{ old: "Six men", new: "Five men" }],
+    past: [{ old: "Six men", new: "Seven men" }],
+    description: [{ old: "wet", new: "dry" }],
+  };
+  const reviewer = async (prompt: { content: string }[], { thinkingBudget }: { thinkingBudget?: number }) => {
     budgets.push(thinkingBudget);
-    return JSON.stringify({ narration_edits: [{ old: "Six", new: "Five" }], visual_description_edits: [] });
+    const questions = JSON.parse(prompt.at(-1)!.content).flagged.map(({ question }: { question: string }) => question);
+    asked.push(questions);
+    const name = Object.keys(edits).find((each) => questions[0] === QUESTIONS[each as keyof typeof QUESTIONS].instructions)!;
+    return JSON.stringify({ narration_edits: edits[name], visual_description_edits: [] });
   };
   const reply = {
     ...{ previous: "Five men.", input: "I count them.", timeBefore: null, timeAfter: null, pc: "Ash", pcLooks: "", wearing: [], cast: [] },
-    ...{ facts: ["Five men came."], summary: "", memories: [], knows: {}, narration: "Six men.", visualDescription: "" },
+    ...{ facts: ["Five men came."], summary: "", memories: [], knows: {}, narration: "Six men, wet.", visualDescription: "" },
   };
-  for (const scores of [
-    { continuity: 0.99, past: 0.99 },
-    { continuity: 0.99, past: 0.99, description: 0.99 },
-  ] as Record<string, number>[])
-    await checkConsistency(
-      { decide: decisions(scores).decide, enabled: () => true, logOnly: false },
+  let fixed: Awaited<ReturnType<typeof checkConsistency>> | undefined;
+  const log = await logOf(async () => {
+    fixed = await checkConsistency(
+      { decide: decisions({ continuity: 0.99, past: 0.99, description: 0.99 }).decide, enabled: () => true, logOnly: false },
       { provider: reviewer, settings: REVIEW },
       reply,
       () => true,
       new AbortController().signal,
     );
-  expect(budgets).toEqual([2000, 2000]);
+  }, "info");
+  expect(asked.map((questions) => questions.length)).toEqual([1, 1, 1]);
+  expect(budgets).toEqual([1500, 1500, 1500]);
+  expect(fixed!.narration).toBe("Five men, dry.");
+  expect(fixed!.checked.outcome).toBe("fixed");
+  expect(log).toContain('"calls":3,"failed":0,"edits":3,"skipped":1');
+});
+
+test("a reply some question went unanswered on is logged as unanswered, not passed", async () => {
+  const some: DecisionProvider = async (_state, questions) => ({
+    answers: Object.fromEntries(Object.keys(questions).map((name) => [name, name === "continuity" ? undefined : 0.02])),
+    model: "liquid/d1.2",
+  });
+  const reply = { previous: "Five men.", input: "I count them.", timeBefore: null, timeAfter: null, pc: "Ash", pcLooks: "", wearing: [], cast: [] };
+  const { checked } = await checkConsistency(
+    { decide: some, enabled: () => true, logOnly: false },
+    undefined,
+    { ...reply, facts: [], summary: "", memories: [], knows: {}, narration: "Six men.", visualDescription: "" },
+    () => true,
+    new AbortController().signal,
+  );
+  expect(checked.outcome).toBe("unanswered");
 });
 
 test("the fix is shown the Turn's Check, to keep what it decided", async () => {

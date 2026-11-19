@@ -44,10 +44,9 @@ export const CUT_OFFS: Record<string, Record<Name, number>> = { "liquid/d1.2": {
 // 25 s, as 15 s cut off 22 of 28 fixes by DeepSeek at Low: finished fixes thought up to 1,010 tokens and answered in under 100,
 // which a provider streaming 50 tokens a second needs about 22 s for. Exported only so a test can shorten it.
 export const FIX_LIMIT = { ms: 25_000 };
-// Thinking tokens a fix may spend, sent where the provider takes a budget, as Low alone has no ceiling (over 2,300 tokens on hard
-// ones), while none at all left real slips in. By the questions flagged, as at 1,000 for any fix all ten with two or three were cut
-// and four of ten with one; at most 2,000.
-const fixThinking = (questions: number) => Math.min(1_000 + 500 * questions, 2_000);
+// Thinking tokens a fix of one question may spend, sent where the provider takes a budget, as Low alone has no ceiling (over 2,300
+// tokens on hard ones), while none at all left real slips in; at 1,000, four of ten fixes were cut.
+const FIX_THINKING = 1_500;
 // Where the budget can't be sent, thinking stops 15 s from its first token, as a stop by length cut sound fixes at 9 to 12 s;
 // that leaves FIX_LIMIT 10 s to answer, which took up to 7.6 s after thinking on a slow stream (0.5.0.39 bench).
 const FIX_THINKING_MS = 15_000;
@@ -154,43 +153,77 @@ export async function checkConsistency(
   const scores = Object.fromEntries(scored.map(([name, score]) => [name, score ?? null]));
   const flagged = scored.filter(([name, score]) => score !== undefined && score >= cutOffs(model)[name]).map(([name]) => name);
   const kept = { narration: reply.narration, visualDescription: reply.visualDescription };
-  // Nothing answered, as with no model, a refusal or a time-out, isn't a reply found fine.
-  const answered = scored.some(([, score]) => score !== undefined);
+  // Any question unanswered, as with no model, a refusal, a time-out or a rate limit, isn't a reply found fine.
+  const answered = scored.every(([, score]) => score !== undefined);
   if (logOnly || flagged.length === 0 || !reviewer)
     return { ...kept, checked: { model, scores, outcome: logOnly ? "logged" : flagged.length > 0 ? "fix failed" : answered ? "passed" : "unanswered" } };
   const limited = AbortSignal.any([signal, AbortSignal.timeout(FIX_LIMIT.ms)]);
-  try {
-    const toFix = Object.fromEntries(asked.filter(([name]) => flagged.includes(name)));
-    const unchanged = ({ narration, visualDescription }: typeof kept) => narration === reply.narration && visualDescription === reply.visualDescription;
-    let fixed = await fixReply(reviewer.provider, reply, toFix, limited);
-    // Asked once more, as on the bench most fixes of a slip scored this high that came back unchanged had left a real slip in.
-    if (unchanged(fixed) && flagged.some((name) => (scores[name] ?? 0) >= SURE_SLIP)) {
-      fixed = await fixReply(reviewer.provider, reply, toFix, limited);
-      log.info("consistency", "Empty fix asked again", { flagged: flagged.length, fixed: unchanged(fixed) ? 0 : 1 });
-    }
-    if (!usable(fixed.narration)) throw new Error("unusable fix");
-    // No edits is the reviewer judging the flag a false alarm, which the log tells apart from a fix.
-    return { ...fixed, checked: { model, scores, outcome: unchanged(fixed) ? "not a slip" : "fixed" } };
-  } catch (error) {
-    if (signal.aborted) throw error;
+  // A call for each question, side by side, as calls fixing several at once mostly ran out of time: 2 of 12 finished, to 12 of 16.
+  const fixes = await Promise.allSettled(
+    flagged.map(async (name) => {
+      const one = { [name]: Object.fromEntries(asked)[name] };
+      const edits = await fixReply(reviewer.provider, reply, one, limited);
+      // Asked once more, as on the bench most fixes of a slip scored this high that came back unchanged had left a real slip in.
+      if (changes(edits) || (scores[name] ?? 0) < SURE_SLIP) return edits;
+      const again = await fixReply(reviewer.provider, reply, one, limited);
+      log.info("consistency", "Empty fix asked again", { fixed: changes(again) ? 1 : 0 });
+      return again;
+    }),
+  );
+  if (signal.aborted) throw signal.reason;
+  const made = fixes.flatMap((fix) => (fix.status === "fulfilled" ? [fix.value] : []));
+  const failed = fixes.flatMap((fix) => (fix.status === "rejected" ? [fix.reason] : []));
+  // In the order the questions were asked, as two fixes can quote the same words.
+  const narration = edited(
+    reply.narration,
+    made.flatMap(({ narration }) => narration),
+  );
+  const visualDescription = edited(
+    reply.visualDescription,
+    made.flatMap(({ visualDescription }) => visualDescription),
+  );
+  const fixed = { narration: narration.text, visualDescription: visualDescription.text };
+  const unchanged = fixed.narration === reply.narration && fixed.visualDescription === reply.visualDescription;
+  log.info("consistency", "Fix calls", {
+    calls: fixes.length,
+    failed: failed.length,
+    edits: made.reduce((sum, { narration, visualDescription }) => sum + narration.length + visualDescription.length, 0),
+    skipped: narration.skipped + visualDescription.skipped,
+  });
+  if (limited.aborted) reviewTimedOut("fix", reviewer.settings);
+  const error = unchanged ? failed[0] : usable(fixed.narration) ? undefined : new Error("unusable fix");
+  if (error) {
     log.warning("consistency", "Reply kept unfixed", { flagged, ...(limited.aborted ? { type: "time limit", ms: FIX_LIMIT.ms } : errorType(error)) });
-    if (limited.aborted) reviewTimedOut("fix", reviewer.settings);
     return { ...kept, checked: { model, scores, outcome: "fix failed" } };
   }
+  // No edits is the reviewer judging the flag a false alarm, which the log tells apart from a fix.
+  return { ...fixed, checked: { model, scores, outcome: unchanged ? "not a slip" : "fixed" } };
 }
 
 const Edit = z.object({ old: z.string().min(1), new: z.string() });
 const FixReply = z.object({ narration_edits: z.array(Edit), visual_description_edits: z.array(Edit) });
 
-/** The reply with each quoted edit made. An edit whose quote isn't in the text fails the fix, as it can't be placed. */
+type Edits = { narration: z.infer<typeof Edit>[]; visualDescription: z.infer<typeof Edit>[] };
+const changes = ({ narration, visualDescription }: Edits) => [...narration, ...visualDescription].some(({ old, new: text }) => old !== text);
+
+/** The text with each quoted edit made, and how many were skipped as an earlier edit had changed their quote. */
 function edited(text: string, edits: z.infer<typeof Edit>[]) {
-  return edits.reduce((done, { old, new: replacement }) => {
-    if (!done.includes(old)) throw new Error("edit not found");
-    return done.replace(old, () => replacement);
+  let skipped = 0;
+  const done = edits.reduce((done, { old, new: replacement }) => {
+    if (done.includes(old)) return done.replace(old, () => replacement);
+    skipped++;
+    return done;
   }, text);
+  return { text: done, skipped };
 }
 
-async function fixReply(reviewer: TextProvider, reply: ReplyToCheck, flagged: Partial<Record<Name, Record<string, unknown>>>, signal: AbortSignal) {
+/** One flagged question's fix, as edits. An edit whose quote isn't in the reply fails it, as it can't be placed. */
+async function fixReply(
+  reviewer: TextProvider,
+  reply: ReplyToCheck,
+  flagged: Partial<Record<Name, Record<string, unknown>>>,
+  signal: AbortSignal,
+): Promise<Edits> {
   const prompt: Prompt = [
     {
       role: "system",
@@ -220,7 +253,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(FixRepl
   // cousin", from a fact sent about someone else; the reply is kept unfixed instead.
   const { narration_edits, visual_description_edits } = await askForJson(reviewer, prompt, FixReply, "The reviewer refused to fix the reply.", signal, {
     lessThinking: slowReviewer.steps,
-    thinkingBudget: fixThinking(Object.keys(flagged).length),
+    thinkingBudget: FIX_THINKING,
     thinkingMs: FIX_THINKING_MS,
     reviewer: true,
     hurried: false,
@@ -231,5 +264,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(FixRepl
   const kept = narration_edits.filter((edit) => !undoes(edit));
   if (kept.length < narration_edits.length)
     log.info("consistency", "Fix edits undoing the player's move dropped", { edits: narration_edits.length - kept.length });
-  return { narration: edited(reply.narration, kept), visualDescription: edited(reply.visualDescription, visual_description_edits) };
+  const placed = (text: string, edits: z.infer<typeof Edit>[]) => edits.every(({ old }) => text.includes(old));
+  if (!placed(reply.narration, kept) || !placed(reply.visualDescription, visual_description_edits)) throw new Error("edit not found");
+  return { narration: kept, visualDescription: visual_description_edits };
 }

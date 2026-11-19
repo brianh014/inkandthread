@@ -35,6 +35,14 @@ test("an everyday word the secrets happen to hold isn't taken for something the 
   expect(unknownWords(choices, secret, "Tamsin rides ahead.")).toEqual([[], [], ["chimney"]]);
 });
 
+test("a Choice copying four words in a row from the secrets is caught, unless the player has read them too or they are all everyday words", () => {
+  const secret = { ...state, plotThreads: ["Nobody can yet tell whose side the lie falls on, as it is not so simple."] };
+  const choices = ["I find out whose side the lie falls on.", "I ask Tamsin whose side she is on.", "I tell her it is not so."];
+  expect(unknownWords(choices, secret, "Tamsin rides ahead.")).toEqual([["whose side the lie", "side the lie falls", "the lie falls on"], [], []]);
+  // Read by the player too, it's theirs to say.
+  expect(unknownWords(choices, secret, "Tamsin asks: whose side does the lie fall on? She wonders whose side the lie falls on.")).toEqual([[], [], []]);
+});
+
 test("a day or month is never taken for a made-up name, nor an everyday word the secrets hold for one", () => {
   const secret = { ...state, plotThreads: ["By Sunday the honest clerk has written the ledger out in March."] };
   const choices = ["I wait until Sunday, then go.", "I ask for an honest answer, written down.", "I ride north before March."];

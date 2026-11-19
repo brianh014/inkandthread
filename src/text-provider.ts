@@ -153,6 +153,8 @@ const LEVELS = ["low", "medium", "high"];
 /** `steps` levels below `level`, and never below Low. The model's own level is taken as one that thinks too long, so it goes a step below Medium. */
 export const lowerThinking = (level: string, steps: number) => LEVELS[Math.max(0, (level === "default" ? 1 : LEVELS.indexOf(level)) - steps)]!;
 // Each call's lines share its number, as calls run at once (State Upkeep, pictures) can't be paired with their prompts by order.
+// Led by when this server started, so a log spanning a restart never repeats one.
+const RUN = Date.now().toString(36).slice(-5);
 let calls = 0;
 
 export function textProvider(
@@ -220,7 +222,10 @@ export function textProvider(
     return takes ?? false;
   }
 
-  const once: TextProvider = async (prompt, { call, schema, picture, lessThinking = 0, thinkingBudget, thinkingMs, onText, onGeneration, onUsage, signal }) => {
+  const once: TextProvider = async (
+    prompt,
+    { call, schema, picture, lessThinking = 0, thinkingBudget, thinkingMs, onText, onGeneration, onUsage, onCall, signal },
+  ) => {
     const {
       textBaseUrl,
       textApiKey,
@@ -252,7 +257,8 @@ export function textProvider(
       return short;
     };
     // Story in log is the one place a log holds story text, as the player chose it for debugging. Never the key, should the text hold it.
-    const named = { ...(call && { call }), id: ++calls };
+    const named = { ...(call && { call }), id: `${RUN}-${++calls}` };
+    onCall?.(named.id);
     if (chosen.storyInLog) log.story("text", "Prompt text", { ...named, prompt: prompt.map(({ role, content }) => ({ role, content: unkeyed(content) })) });
     const failure = (error: ProviderError | undefined, status: number) => {
       if (isRefusal(error)) return new ContentRefused();
@@ -331,12 +337,12 @@ export function textProvider(
           withThinking = false;
           response = await send(useSchema, askUsage);
           if (response.ok) {
-            log.warning("text", "Thinking level refused", { model: textModel, thinking: asked, status });
+            log.warning("text", "Thinking level refused", { ...named, model: textModel, thinking: asked, status });
             thinks.set(modelKey, false);
           }
         } else if (response.ok && textThinking !== asked) {
           lowestTaken.set(modelKey, LEVELS.indexOf(textThinking));
-          log.warning("text", "Thinking level raised", { model: textModel, refused: asked, sent: textThinking, status });
+          log.warning("text", "Thinking level raised", { ...named, model: textModel, refused: asked, sent: textThinking, status });
         }
         seen.thinking = textThinking;
       }
@@ -346,15 +352,15 @@ export function textProvider(
         await response.body?.cancel();
         response = await send(useSchema, false);
         if (response.ok) {
-          log.warning("text", "Usage ask refused", { model: textModel });
+          log.warning("text", "Usage ask refused", { ...named, model: textModel });
           usageRefused.add(url);
         }
       }
       // A listing can claim schema support that the routed provider then rejects, and that must not fail every Turn.
       if (useSchema && (response.status === 400 || response.status === 404)) {
-        log.warning("text", "Schema mode rejected", { model: textModel, status: response.status });
+        log.warning("text", "Schema mode rejected", { ...named, model: textModel, status: response.status });
         const detail = await response.text();
-        log.verbose("text", "Schema mode rejection", () => ({ detail: redacted(detail) }));
+        log.verbose("text", "Schema mode rejection", () => ({ ...named, detail: redacted(detail) }));
         schemaSupport.set(`${url} ${textModel}`, false);
         seen.schema = false;
         response = await send(false, false);
@@ -399,7 +405,7 @@ export function textProvider(
         // and never answered, and a stop by length cut fixes at 9 to 12 s that had time left to answer.
         const ms = thoughtFrom === undefined ? 0 : Date.now() - thoughtFrom;
         if (thinkingBudget && !budget && thinkingMs && !reply && ms > thinkingMs) {
-          log.info("text", "Thinking budget reached", { model: textModel, budget: thinkingBudget, thoughtChars: thought, ms });
+          log.info("text", "Thinking budget reached", { ...named, model: textModel, budget: thinkingBudget, thoughtChars: thought, ms });
           throw new ThinkingBudgetReached(THOUGHT_TOO_LONG);
         }
         const text = delta?.content ?? message?.content;
@@ -428,7 +434,7 @@ export function textProvider(
       // Usage comes in the last chunk, so a reply cut off, refused or stopped part-way has none, though it's billed. OpenRouter keeps it by the reply's id.
       if (seen.usage) onUsage?.(seen.usage as TextUsage);
       else if (openRouter && onUsage && typeof seen.generation === "string")
-        void generationUsage(url, seen.generation, headers).then((found) => found && onUsage(found));
+        void generationUsage(url, seen.generation, headers, named).then((found) => found && onUsage(found));
       if (chosen.storyInLog && reply) log.story("text", "Text reply text", { text: unkeyed(reply) });
     }
   };
@@ -436,11 +442,19 @@ export function textProvider(
   // mostly isn't stuck. Never one that streamed something, which may be a model stuck mid-reply.
   return async (prompt, request) => {
     const started = Date.now();
+    let id: string | undefined;
     try {
-      return await once(prompt, request);
+      return await once(prompt, {
+        ...request,
+        onCall: (each) => {
+          id = each;
+          request.onCall?.(each);
+        },
+      });
     } catch (cause) {
       if (!(cause instanceof SilentFromStart) || request.signal.aborted) throw cause;
-      log.warning("text", "Silent reply asked again", { model: settings.read().textModel, ms: Date.now() - started });
+      const call = request.call;
+      log.warning("text", "Silent reply asked again", { ...(call && { call }), id, model: settings.read().textModel, ms: Date.now() - started });
       return once(prompt, request);
     }
   };
@@ -453,7 +467,7 @@ type Generation = { total_cost?: number; native_tokens_prompt?: number; native_t
  * appear, so it asks a few times. Never throws, as only Usage waits on it.
  * shortcut: the fields are as OpenRouter's /generation docs give them, unchecked against a real reply; if a cut-off reply shows no cost, look there.
  */
-async function generationUsage(url: string, id: string, headers: Record<string, string>): Promise<TextUsage | undefined> {
+async function generationUsage(url: string, id: string, headers: Record<string, string>, named: object): Promise<TextUsage | undefined> {
   for (const wait of [2_000, 5_000, 15_000]) {
     // Unref'd, so a lookup still waiting never holds the app (or a test run) open.
     await new Promise((done) => setTimeout(done, wait).unref());
@@ -469,7 +483,7 @@ async function generationUsage(url: string, id: string, headers: Record<string, 
         cost: data.total_cost,
       };
     } catch (error) {
-      log.verbose("text", "Reply usage not found yet", () => ({ generation: id, ...errorFields(error) }));
+      log.verbose("text", "Reply usage not found yet", () => ({ ...named, generation: id, ...errorFields(error) }));
     }
   }
   return undefined;

@@ -82,6 +82,8 @@ export type TextProvider = (
     onText: (text: string) => void;
     onGeneration?: (id: string) => void;
     onUsage?: (usage: TextUsage) => void;
+    /** Hears the id this call's log lines carry, before it is sent, so a line about its reply can name it too. */
+    onCall?: (id: string) => void;
     signal: AbortSignal;
   },
 ) => Promise<string>;
@@ -797,6 +799,7 @@ async function narrate(
     if (narrationSent > 0) emit("restart", { reason: retry });
     narrationSent = 0;
     let generation: string | undefined;
+    let id: string | undefined;
     let partial = "";
     const runaway = new AbortController();
     // A model asked to hold its narration for the roll mostly writes it anyway, which is thrown away, so the reply stops at the rating.
@@ -832,7 +835,8 @@ async function narrate(
           schema: check || !rollCheck ? schemas.noCheck : schemas.any,
           call: kind,
           onText,
-          onGeneration: (id) => (generation = id),
+          onGeneration: (each) => (generation = each),
+          onCall: (each) => (id = each),
           signal: AbortSignal.any([signal, runaway.signal, early.signal]),
         },
         input,
@@ -1137,7 +1141,7 @@ async function narrate(
       }));
       return messages;
     } catch (cause) {
-      retry = `${retryIfInvalid(cause, attempt, input, generation)}, so the Narrator is writing it again (try ${attempt + 1} of ${MAX_ATTEMPTS}).`;
+      retry = `${retryIfInvalid(cause, attempt, input, { id, generation })}, so the Narrator is writing it again (try ${attempt + 1} of ${MAX_ATTEMPTS}).`;
       const reason = whyInvalid(cause as InvalidResponse);
       why = reason === OVERTHOUGHT ? [] : [couldNotUse(reason)];
     }
@@ -1344,11 +1348,14 @@ const couldNotUse = (reason: string): Prompt[number] => ({
   content: `The reply you just wrote to this couldn't be used: ${reason}. Write that reply again, fixing that.`,
 });
 
+/** The ids a failed call's log lines carry: the app's own, and the provider's when it sent one. */
+type CallIds = { id?: string; generation?: string };
+
 /** Returns, if another attempt should run, why it's needed in the player's words. Anything but an invalid reply goes on up. */
-function retryIfInvalid(cause: unknown, attempt: number, input: string, generation: string | undefined, by = "Narrator") {
+function retryIfInvalid(cause: unknown, attempt: number, input: string, { id, generation }: CallIds, by = "Narrator") {
   if (!(cause instanceof InvalidResponse)) throw cause;
   const reason = whyInvalid(cause);
-  log.warning("turn", `Unusable ${by} reply`, { attempt, of: MAX_ATTEMPTS, reason, generation });
+  log.warning("turn", `Unusable ${by} reply`, { attempt, of: MAX_ATTEMPTS, reason, id, generation });
   if (attempt === MAX_ATTEMPTS) {
     // Told plainly as a block, with the move kept to change, as a provider's own refusal is.
     if (reason === DECLINED) throw new TurnFailed(DECLINED_MESSAGE, "refused", input, { cause: new Error(reason) });
@@ -1447,6 +1454,7 @@ export async function askForJson<T>(
   }: { call: string; picture?: boolean; lessThinking?: number; thinkingBudget?: number; thinkingMs?: number; reviewer?: boolean; hurried?: boolean },
 ) {
   let generation: string | undefined;
+  let id: string | undefined;
   let lessThinking = fewer;
   let asked = prompt;
   for (let attempt = 1; ; attempt++) {
@@ -1458,14 +1466,15 @@ export async function askForJson<T>(
       thinkingBudget,
       thinkingMs,
       onText: () => {},
-      onGeneration: (id: string) => (generation = id),
+      onGeneration: (each: string) => (generation = each),
+      onCall: (each: string) => (id = each),
       signal,
     };
     try {
       return parseReply(await askNarrator(textProvider, asked, request, "", refusal), schema);
     } catch (cause) {
       if (!hurried && cause instanceof InvalidResponse && cause.cause === OVER_BUDGET) throw new ThinkingBudgetReached(OVER_BUDGET);
-      retryIfInvalid(cause, attempt, "", generation, reviewer ? "reviewer" : "Narrator");
+      retryIfInvalid(cause, attempt, "", { id, generation }, reviewer ? "reviewer" : "Narrator");
       const reason = whyInvalid(cause as InvalidResponse);
       // The same level would most likely think past the limit again.
       if (reason === OVERTHOUGHT) lessThinking++;

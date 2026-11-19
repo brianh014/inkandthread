@@ -265,11 +265,13 @@ const isNoteAboutTurn = (narration: string) => {
 const FIELD_LINE = new RegExp(String.raw`^\s*"?(?:${Object.keys(ChoicesShape.shape).join("|")})"?\s*:`, "m");
 // A reply also once ended its narration with its JSON's closing brace and a tool-call tag, as "}</arg_value>".
 const JSON_TAIL = /\s*\}?(?:\s*<\/\w+>)*\s*$/;
+// And once on a speaker tag with no words, which the tidying of marks keeps at the very end, as a tag still streaming.
+const DANGLING_TAG = /\s*\n[ \t]*\[[^[\]\n]+\]:[ \t]*$/;
 const withoutFields = (narration: string) => {
   const at = narration.search(FIELD_LINE);
   const story = at < 0 ? narration : narration.slice(0, at);
   // Whole JSON is left for isJsonObject to refuse.
-  return story.trimStart().startsWith("{") ? story.trimEnd() : story.replace(JSON_TAIL, "");
+  return story.trimStart().startsWith("{") ? story.trimEnd() : story.replace(JSON_TAIL, "").replace(DANGLING_TAG, "");
 };
 // A model once put its Check request in narration, which was saved as the story.
 const JSON_NARRATION = "JSON for narration";

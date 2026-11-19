@@ -457,8 +457,8 @@ async function streamTurn(
         narration += data.text;
         show(narration, retry);
       }
-      // A fixed reply, shown in place of the streamed one, with nothing said.
-      if (event === "revise") {
+      // A fixed reply, or the final one, shown in place of the streamed one, with nothing said.
+      if (event === "revise" || event === "reply") {
         narration = data.text;
         show(narration, retry);
       }

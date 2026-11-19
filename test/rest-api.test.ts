@@ -2172,7 +2172,7 @@ test("a stream of a replacement follows the Turn's contract, restarting after an
   });
 
   const events = await turnEvents(response);
-  expect(events.map(({ event }) => event)).toEqual(["narration", "restart", "done"]);
+  expect(events.map(({ event }) => event)).toEqual(["narration", "restart", "reply", "done"]);
   // The player is told why the text went, without any of the reply.
   expect(events[1]!.data).toEqual({ reason: "The last reply came back garbled, so the Narrator is writing it again (try 2 of 3)." });
   expect(events.at(-1)!.data).toEqual({ messages: [{ id: 3, role: "narrator", text: "Snow." }] });
@@ -2336,7 +2336,7 @@ test("an action rated None streams and finishes the Turn with no roll, while a r
     body: JSON.stringify({ input: "I wave." }),
   });
   const events = await turnEvents(response);
-  expect(events.map(({ event }) => event)).toEqual(["narration", "done"]);
+  expect(events.map(({ event }) => event)).toEqual(["narration", "reply", "done"]);
   expect(events[0]!.data).toEqual({ text: "Sam waves back." });
 
   await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });

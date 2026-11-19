@@ -134,7 +134,7 @@ test("a reply in another key order shows no narration until done, as it could st
 
   const events = await turnEvents(await streamTurn(id, "I leap the gap."));
 
-  expect(events.map(({ event }) => event)).toEqual(["narration", "done"]);
+  expect(events.map(({ event }) => event)).toEqual(["narration", "reply", "done"]);
   expect(events[0]!.data).toEqual({ text: "The tide rises." });
 });
 

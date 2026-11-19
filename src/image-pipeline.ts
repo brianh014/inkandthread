@@ -45,7 +45,7 @@ export type EarlyImage = { prompt: string; bytes?: Uint8Array<ArrayBuffer> };
  * At most one image draws per Save. Portraits and Redraws go first, so a Scene Image can use them, and all of them wait
  * their turn, as each was asked for once. Of the scenes only the newest waits, so a run of quick Turns pays for two images.
  */
-type Work = { running?: Job & { controller: AbortController }; queue: Job[]; waiting?: Job };
+type Work = { running?: Job & { controller: AbortController }; queue: Job[]; waiting?: Job; drained?: Promise<void> };
 /** What one image of a moment is drawn from, with `description` as the prompt before its marks are expanded. */
 type Moment = Pick<Scene, "description" | "npcs" | "wearing">;
 
@@ -473,7 +473,7 @@ export function imagePipeline(
     add(jobs);
     if (busy || (jobs.queue.length === 0 && !jobs.waiting)) return;
     work.set(id, jobs);
-    void drain(id, jobs);
+    jobs.drained = drain(id, jobs);
   }
 
   /**
@@ -605,6 +605,9 @@ export function imagePipeline(
       requestFailures.delete(id);
       return failure;
     },
+
+    /** Settles once the Save has no picture left to draw, for the log's follow-up times. */
+    drawn: (id: string) => work.get(id)?.drained ?? Promise.resolve(),
 
     /** How many requested images are on the way. */
     drawing(id: string) {

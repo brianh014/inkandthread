@@ -22,7 +22,7 @@ afterEach(async () => {
 });
 
 /** A server whose Narrator and reviewer each follow a script. The reviewer is the Narrator's model, as by default. */
-function play(narrator: (string | Error)[], reviewer: (string | Error)[], stalled = false) {
+function play(narrator: (string | Error)[], reviewer: (string | Error | Promise<string>)[], stalled = false) {
   const settings = settingsStore(join(dirname(savesDir), "settings.json"));
   settings.update({ textModel: "narrator/model" });
   const told = scriptedTextProvider(...narrator);
@@ -89,6 +89,72 @@ test("a failed State Upkeep keeps the Narrator's state, and the Turn is saved", 
   expect(store().latestState(id).inventory.carrying).toEqual(["a key"]);
   expect(store().latestState(id).scene.location).toBe("The library");
   expect(log).toContain("State Upkeep skipped");
+});
+
+/** A streamed Turn, read event by event, so a test can act while it's still running. */
+async function streamedTurn(id: string, input = "I walk home and hang up my coat.") {
+  const response = await fetch(new URL(`/saves/${id}/turns`, server.url), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    body: JSON.stringify({ input }),
+  });
+  const reader = response.body!.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  return async function next() {
+    for (;;) {
+      const end = buffer.indexOf("\n\n");
+      if (end >= 0) {
+        const block = buffer.slice(0, end);
+        buffer = buffer.slice(end + 2);
+        const [, event, data] = block.match(/^event: (.+)\ndata: (.+)$/)!;
+        return { event: event!, data: JSON.parse(data!) };
+      }
+      const { value, done } = await reader.read();
+      if (done) return undefined;
+      buffer += value;
+    }
+  };
+}
+
+test("the reply's final text reaches the player while State Upkeep runs, and the next move waits for it", async () => {
+  let upkeepDone = false;
+  let finishUpkeep = (_reply: string) => {};
+  const held = new Promise<string>((resolve) => {
+    finishUpkeep = resolve;
+  }).finally(() => {
+    upkeepDone = true;
+  });
+  play([narration("Ash walks home.")], [held]);
+  const id = createSave();
+  const next = await streamedTurn(id);
+
+  let event = await next();
+  while (event && event.event !== "reply") event = await next();
+  expect(event?.data).toEqual({ text: "Ash walks home." });
+  expect(upkeepDone).toBe(false);
+  expect((await turn(id, "I sleep.")).status).toBe(409);
+
+  finishUpkeep(upkept({ op: "set_scene", location: "Ash's flat", visible_cast: [] }));
+  expect((await next())?.event).toBe("done");
+  expect(store().latestState(id).scene.location).toBe("Ash's flat");
+});
+
+test("a Stop once the reply is shown keeps the reply, skipping only the State Upkeep still running", async () => {
+  play([narration("Ash walks home.", { op: "add_item", slot: "carrying", item: "a key" })], [], true);
+  const id = createSave();
+  const next = await streamedTurn(id);
+
+  let event = await next();
+  while (event && event.event !== "reply") event = await next();
+  await fetch(new URL(`/saves/${id}/turn`, server.url), { method: "DELETE" });
+
+  expect((await next())?.event).toBe("done");
+  expect(
+    store()
+      .messages(id)
+      .map(({ text }) => text),
+  ).toEqual(["I walk home and hang up my coat.", "Ash walks home."]);
+  expect(store().latestState(id).inventory.carrying).toEqual(["a key"]);
 });
 
 test("State Upkeep that runs past its time limit keeps the Narrator's state, and the Turn is saved", async () => {

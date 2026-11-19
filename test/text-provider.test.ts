@@ -168,7 +168,7 @@ test("a Check request shows no narration, and the result narration streams after
 
   const events = await turnEvents(await streamTurn(id, "I leap the gap."));
 
-  expect(events.map(({ event }) => event)).toEqual(["narration", "done"]);
+  expect(events.map(({ event }) => event)).toEqual(["narration", "reply", "done"]);
   expect(events[0]!.data).toEqual({ text: "You land." });
   expect(JSON.stringify(provider.requests[1]!.body.messages.at(-1))).toContain("The Check is resolved");
 });
@@ -183,7 +183,8 @@ test("narration written before the reply shows it is not a Check request is neve
 
   const events = await turnEvents(await streamTurn(id, "I leap the gap."));
 
-  expect(events.map(({ event }) => event)).toEqual(["done"]);
+  // Only the result's final text, once it's checked.
+  expect(events.map(({ event }) => event)).toEqual(["reply", "done"]);
   expect((await storedMessages(id)).at(-1)!.text).toBe("You land.");
 });
 
@@ -194,7 +195,7 @@ test("a retry tells the client to discard the narration of the failed attempt", 
 
   const events = await turnEvents(await streamTurn(id, "I unlock the door."));
 
-  expect(events.map(({ event }) => event)).toEqual(["narration", "restart", "narration", "done"]);
+  expect(events.map(({ event }) => event)).toEqual(["narration", "restart", "narration", "reply", "done"]);
   expect(events[2]!.data).toEqual({ text: "The door stays shut." });
   expect((await storedMessages(id)).map(({ text }) => text)).toEqual(["I unlock the door.", "The door stays shut."]);
 });
@@ -205,7 +206,7 @@ test("a reply that turns into a Check request after narration began restarts the
 
   const events = await turnEvents(await streamTurn(id, "I leap."));
 
-  expect(events.map(({ event }) => event)).toEqual(["narration", "restart", "narration", "done"]);
+  expect(events.map(({ event }) => event)).toEqual(["narration", "restart", "narration", "reply", "done"]);
 });
 
 test("escapes and multi-byte characters split across network reads reach the client intact", async () => {

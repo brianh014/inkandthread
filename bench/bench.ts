@@ -39,7 +39,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 42;
+const BENCH_ITERATION = 43;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 30;
@@ -201,6 +201,8 @@ const HEADLINE = [
   "consistency.fix failed",
   "coverage.fired",
   "timing.firstText.median",
+  "timing.reply.median",
+  "timing.reply.max",
   "timing.turn.median",
   "timing.turn.max",
   "timing.upkeep.median",
@@ -387,8 +389,11 @@ type Step = {
   input: string;
   ok: boolean;
   status: number;
+  /** Until the next move can be sent: the reply, its State Upkeep and Choices. Pictures and World Moves On run on. */
   ms: number;
   firstText?: number;
+  /** Until the reply's final text was shown, before its follow-ups. */
+  reply?: number;
   hidden: string[];
   offered?: string[];
   /** The reply a bench action wrote, so the transcript can mark it as the bench's. */
@@ -502,6 +507,7 @@ async function play(
     const before = saves.latestState(id);
     const started = performance.now();
     let firstText: number | undefined;
+    let reply: number | undefined;
     let ok = false;
     let status = 0;
     // A request that dies, such as a provider that never answers past fetch's own time limit, is a failed step, not the end of the play.
@@ -525,6 +531,7 @@ async function play(
           for (const block of blocks) {
             const event = block.match(/^event: (.+)$/m)?.[1];
             if (event === "narration") firstText ??= performance.now() - started;
+            if (event === "reply") reply = performance.now() - started;
             if (event === "error") {
               ok = false;
               status = (JSON.parse(block.match(/^data: (.+)$/m)?.[1] ?? "{}") as { status?: number }).status ?? 0;
@@ -537,7 +544,17 @@ async function play(
       ok = false;
       status = 0;
     }
-    const step: Step = { round, action, input, ok, status, ms: performance.now() - started, firstText, hidden: hiddenChanges(before, saves.latestState(id)) };
+    const step: Step = {
+      round,
+      action,
+      input,
+      ok,
+      status,
+      ms: performance.now() - started,
+      firstText,
+      reply,
+      hidden: hiddenChanges(before, saves.latestState(id)),
+    };
     steps.push(step);
     process.stdout.write(`  play ${index} round ${round} ${action}: ${ok ? "ok" : `failed (${status})`} in ${(step.ms / 1000).toFixed(1)} s\n`);
     return step;
@@ -655,6 +672,10 @@ async function play(
   timing(
     "firstText",
     played.flatMap(({ firstText }) => (firstText === undefined ? [] : [firstText])),
+  );
+  timing(
+    "reply",
+    played.flatMap(({ reply }) => (reply === undefined ? [] : [reply])),
   );
   timing(
     "turn",
@@ -1108,6 +1129,7 @@ function table() {
   const columns = [
     "cost.perRound",
     "timing.firstText.median",
+    "timing.reply.median",
     "timing.turn.median",
     "checks.asked",
     "ops.resolve_plot_thread",

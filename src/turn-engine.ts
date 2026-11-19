@@ -77,7 +77,11 @@ export type TextProvider = (
   },
 ) => Promise<string>;
 
-export type TurnEvents = (event: "narration" | "restart" | "revise", data: object) => void;
+/** `reply` carries the reply's final text, sent before its follow-ups (State Upkeep, Choices) run, and never changed after. */
+export type TurnEvents = (event: "narration" | "restart" | "revise" | "reply", data: object) => void;
+
+/** When a reply's work began, and how long each follow-up took once the reply was shown, for the Server Log. */
+type FollowUpTimes = { started: number; upkeep?: number; choices?: number };
 
 export class ContentRefused extends Error {}
 /** A failure whose message is fit to show the player. */
@@ -443,6 +447,7 @@ type Narrated = {
   counted?: (turn: NarratorTurn) => void;
   /** The open threads a committed reply asked to close, for World Moves On to weigh. */
   askClose?: (threads: string[], rewrites: (readonly [string, string])[]) => void;
+  times: FollowUpTimes;
 };
 
 /** The prompt for a Turn's reply, and the Scene Memory due alongside it. Settings are read once, so the whole prompt comes from one copy. */
@@ -504,6 +509,18 @@ export async function worldMoved(id: string, signal: AbortSignal) {
   signal.throwIfAborted();
 }
 
+/** Logs once a committed reply's pictures and any World Moves On are done, with each follow-up's time. Never throws, as the Turn is saved. */
+function followedUp(id: string, kind: string, images: ImagePipeline, times: FollowUpTimes) {
+  const from = Date.now();
+  const since = () => Date.now() - from;
+  const took = (work: Promise<unknown>) => work.then(since, since);
+  const move = moving.get(id);
+  // shortcut: waits for every picture the Save has queued, a later Turn's too if the player moves on first; time per Turn if that muddles the log.
+  void Promise.all([took(Promise.resolve().then(() => images.drawn(id))), move && took(move)]).then(([pictures, worldMoved]) =>
+    log.info("turn", "Follow-ups done", { save: id, kind, ms: Date.now() - times.started, upkeep: times.upkeep, choices: times.choices, pictures, worldMoved }),
+  );
+}
+
 /** What a World Change needs: the Narrator, the reviewer and the pictures a change can restyle. */
 type WorldContext = { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline; reviewProvider?: TextProvider; consistency?: Consistency };
 
@@ -555,6 +572,7 @@ export async function playTurn(
   emit: TurnEvents = () => {},
   mayCheck = true,
 ) {
+  const times = { started: Date.now() };
   await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.latestState(id));
   const basedOn = saves.latestMessageId(id);
   const state = saves.latestState(id);
@@ -596,6 +614,7 @@ export async function playTurn(
     // Only what the player did counts, so not the opening or a Continue, which have nothing to check.
     counted: kind === "turn" && !isContinueInput(input) ? (turn) => usage?.turn(id, model, turn) : undefined,
     askClose: (threads, rewrites) => askToClose(id, threads, rewrites),
+    times,
   });
   const replies = messages.filter(({ role }) => role === "narrator").length + 1;
   if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies)) {
@@ -603,6 +622,7 @@ export async function playTurn(
     const move = moveWorldOn(textProvider, settings, saves, id, AbortSignal.timeout(MOVE_LIMIT.ms)).finally(() => moving.delete(id));
     moving.set(id, move);
   }
+  followedUp(id, kind, images, times);
   return played;
 }
 
@@ -622,6 +642,7 @@ export async function replaceResponse(
   signal: AbortSignal,
   emit: TurnEvents = () => {},
 ) {
+  const times = { started: Date.now() };
   await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.turnToReplace(id, messageId).state);
   const { input, narration, check, state, messages, sceneImage, journalEdits } = saves.turnToReplace(id, messageId);
   // The old picture goes with its response, so the new one always gets its own, whatever the Narrator decides.
@@ -636,7 +657,7 @@ export async function replaceResponse(
     picture: images.ready(),
   });
   const kind = feedback === undefined ? "regenerate" : "rewrite";
-  return narrate(textProvider, signal, emit, {
+  const replaced = await narrate(textProvider, signal, emit, {
     kind,
     prompt: [...prompt, ...replacementInstruction(feedback === undefined ? undefined : { narration, feedback }, hadPicture && images.ready())],
     input: feedback ?? "",
@@ -661,7 +682,10 @@ export async function replaceResponse(
       if (hadPicture && !scene.description && sceneImage) log.warning("turn", "Replacement drawn from the old image's prompt", { message: replacement });
       images.sceneChanged(id, replacement, hadPicture ? { ...scene, changed: true, description } : scene);
     },
+    times,
   });
+  followedUp(id, kind, images, times);
+  return replaced;
 }
 
 /** An Edit: the player's words replace the latest response's, and the Narrator brings the state in line with them. The picture and any Check stay. */
@@ -674,6 +698,7 @@ export async function editResponse(
   signal: AbortSignal,
   emit: TurnEvents = () => {},
 ) {
+  const times = { started: Date.now() };
   await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.turnToReplace(id, messageId).state);
   const { input, state, messages, journalEdits } = saves.turnToReplace(id, messageId);
   const { prompt, memory, playMode } = turnPrompt(saves, settings, id, signal, textProvider, {
@@ -684,7 +709,7 @@ export async function editResponse(
     // No picture is drawn, so the Narrator needn't write a prompt for one.
     picture: false,
   });
-  return narrate(textProvider, signal, emit, {
+  const done = await narrate(textProvider, signal, emit, {
     kind: "edit",
     prompt: [...prompt, editInstruction(text)],
     input: text,
@@ -702,7 +727,10 @@ export async function editResponse(
     commit: (narration, _check, advance, choices) => saves.editTurn(id, messageId, narration, advance, choices),
     // Only portraits for anyone new, as the Scene Image stays.
     committed: (edited, scene) => images.sceneChanged(id, edited, { ...scene, changed: false }),
+    times,
   });
+  followedUp(id, "edit", images, times);
+  return done;
 }
 
 async function narrate(
@@ -732,6 +760,7 @@ async function narrate(
     committed,
     counted,
     askClose,
+    times,
   }: Narrated,
 ) {
   const schemas = SCHEMAS[playMode];
@@ -909,6 +938,21 @@ async function narrate(
           log.info("turn", "Journal entries naming secrets dropped", { attempt, generation, operations: state_operations.length - read.length });
         state_operations = read;
       }
+      // The text is final here, so the player reads it while the follow-ups below run, and nothing after changes it.
+      emit("reply", { text: narration });
+      const shown = Date.now();
+      log.info("turn", "Reply shown", { kind, attempts: attempt, ms: shown - times.started });
+      // A Stop once the reply is shown skips only the follow-ups left, as the player has read it.
+      const followUp = <T>(name: "upkeep" | "choices", work: Promise<T> | T): Promise<T | undefined> =>
+        Promise.resolve(work)
+          .catch((error: unknown) => {
+            if (!signal.aborted) throw error;
+            log.info("turn", "Follow-up stopped, reply kept", { followUp: name });
+            return undefined;
+          })
+          .finally(() => {
+            times[name] = Date.now() - shown;
+          });
       const timed = state_operations.some(({ op }) => op === "set_story_time");
       const alone = () =>
         writeChoices(textProvider, narration, signal, previous, plainMessage({ role: "player", text: upkeep?.input ?? input }).text).then((written) =>
@@ -918,20 +962,26 @@ async function narrate(
       // Side by side, as neither needs the other, so a slow reviewer holds the Choices back once, not twice.
       const [upkept, offered] = await Promise.all([
         // Held to the fix's cut as the Narrator's are, as Upkeep's npc_learns can carry what the fix took out.
-        upkeep
-          ? upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal, timed).then((ops) => ops && withoutCut(ops, cut))
-          : undefined,
-        choices && upkeep && seen !== undefined
-          ? (() => {
-              const kept = knownChoices(choices, narrated.next, seen(), narration);
-              // Asked for alone, as a lone Choice left after dropping leaks lost a play its clue.
-              if (kept.length >= 2) return kept;
-              log.info("turn", "Too few Choices kept", { attempt, generation, kept: kept.length });
-              return alone().then((written) => written ?? kept);
-            })()
-          : unchosen
-            ? alone()
-            : choices,
+        followUp(
+          "upkeep",
+          upkeep
+            ? upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal, timed).then((ops) => ops && withoutCut(ops, cut))
+            : undefined,
+        ),
+        followUp(
+          "choices",
+          choices && upkeep && seen !== undefined
+            ? (() => {
+                const kept = knownChoices(choices, narrated.next, seen(), narration);
+                // Asked for alone, as a lone Choice left after dropping leaks lost a play its clue.
+                if (kept.length >= 2) return kept;
+                log.info("turn", "Too few Choices kept", { attempt, generation, kept: kept.length });
+                return alone().then((written) => written ?? kept);
+              })()
+            : unchosen
+              ? alone()
+              : choices,
+        ),
       ]);
       const dropped = !!unplaced && !upkept;
       if (dropped) log.warning("turn", "Picture dropped without set_scene", { attempt, generation });

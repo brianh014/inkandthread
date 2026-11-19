@@ -75,7 +75,8 @@ test("narration builds up as it streams, and the committed Messages finish the T
 
   const { result, shown } = await play(id, "I wade forward.");
 
-  expect(shown).toEqual(["The tide ", "The tide rises."]);
+  // The last is the final text, shown before its follow-ups run.
+  expect(shown).toEqual(["The tide ", "The tide rises.", "The tide rises."]);
   expect(result).toEqual({
     messages: [
       { id: 1, role: "player", text: "I wade forward." },
@@ -84,13 +85,13 @@ test("narration builds up as it streams, and the committed Messages finish the T
   });
 });
 
-test("a Turn with no narration events still finishes from its committed Messages", async () => {
+test("a reply that never streamed is shown whole once final, and finishes from its committed Messages", async () => {
   start(reply("The tide rises."));
   const id = await app.createSave();
 
   const { result, shown } = await play(id, "I wade forward.");
 
-  expect(shown).toEqual([]);
+  expect(shown).toEqual(["The tide rises."]);
   expect(result).toMatchObject({ messages: [{ role: "player" }, { text: "The tide rises." }] });
 });
 
@@ -105,7 +106,7 @@ test("a restart discards the narration shown so far", async () => {
 
   const { shown } = await play(id, "I wade forward.");
 
-  expect(shown).toEqual(["The wrong tide", "", "The ", "The tide."]);
+  expect(shown).toEqual(["The wrong tide", "", "The ", "The tide.", "The tide."]);
 });
 
 test("a refusal gives back the server's message and the player's text", async () => {
@@ -258,7 +259,7 @@ test("a replacement streams, and finishes with only the new Narrator Message", a
 
   const { result, shown } = await replace(id, 2, "");
 
-  expect(shown).toEqual(["Sn", "Snow."]);
+  expect(shown).toEqual(["Sn", "Snow.", "Snow."]);
   expect(result).toEqual({ messages: [{ id: 3, role: "narrator", text: "Snow." }] });
 });
 

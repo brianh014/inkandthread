@@ -857,7 +857,7 @@ async function narrate(
       let rewrites: (readonly [string, string])[] = [];
       // Later replies copy marks like these, so they never reach a Save.
       const cleaned = withoutFields(withoutStrayMarks(response.narration as string));
-      let narration = edited ?? withoutBareSpeech(cleaned);
+      let narration = edited ?? withoutBareSpeech(cleaned, pcName);
       if (narration !== cleaned && edited === undefined)
         log.info("turn", "Bare speech dropped", { attempt, generation, lines: lineCount(cleaned) - lineCount(narration) });
       // The last attempt keeps such a reply, as losing the Turn costs more than a long speech.
@@ -918,7 +918,7 @@ async function narrate(
           signal,
         );
         checked = result.checked;
-        narration = withoutBareSpeech(withoutStrayMarks(result.narration));
+        narration = withoutBareSpeech(withoutStrayMarks(result.narration), pcName);
         description = result.visualDescription;
         // Nothing tells the player, but the fixed reply takes the streamed one's place.
         if (narration !== told) emit("revise", { text: narration });
@@ -1022,9 +1022,10 @@ async function narrate(
           });
           repeated = repeats;
           ignored = harmless;
-          // Kept when cut to a fifth of the last, as an 80-round story's became "(see journal)" and would have lost the whole story.
+          // Kept when cut below two-fifths of the last, as replies that started the story again cut it to 36-39% (bench logs),
+          // while sound ones, shortening one past its 500 words, kept half.
           const words = { was: countWords(next.summary), now: countWords(summary) };
-          if (words.now * 5 < words.was) log.warning("turn", "Summary kept", words);
+          if (words.now * 5 < words.was * 2) log.warning("turn", "Summary kept", words);
           // Written before the fix, so it may tell what the fix took out.
           else if (cut.some((word) => wholeWord(word, "iu").test(summary))) log.info("turn", "Summary kept after a fix", words);
           else if (summary.trim()) next.summary = summary.trim();
@@ -1177,12 +1178,25 @@ export const speechOutsideLines = (narration: string) =>
     // Speech ends on its own punctuation inside the quote, which a sign or a title, such as "THE RED LION". doesn't.
     .some((line) => !line.startsWith("[") && /(^|[\s(—-])(“[^”]{2,}[.,!?…—-]”|"[^"]{2,}[.,!?…—-]"|['‘]\p{Lu}[^'‘’]*[.,!?…—-]['’](?!\p{L}))/u.test(line));
 /**
- * The narration without its lines that are only quoted speech: everyone else speaks on a [Name]: line, so such a line is the PC's,
- * which GLM wrote in half the Turns of an 80-round play despite the rule, adding arguments the player never gave.
- * shortcut: a note or letter quoted whole on its own line goes too; tell it apart if one is seen.
+ * The narration without the PC's lines that are only quoted speech, which GLM wrote in half the Turns of an 80-round play despite
+ * the rule, adding arguments the player never gave. Only after a paragraph whose last sentence opens on the PC, as 7 of 8 such
+ * lines dropped by any paragraph were an NPC's, clues among them.
+ * shortcut: a note or letter quoted whole after the PC's paragraph goes too; tell it apart if one is seen.
  */
-export const withoutBareSpeech = (narration: string) =>
-  narration.replace(/(^|\n)[ \t]*(“[^”\n]*[.,!?…—-]”|"[^"\n]*[.,!?…—-]")[ \t]*(?=\n|$)\n*/g, "$1").trimEnd();
+export const withoutBareSpeech = (narration: string, pc: string) => {
+  const pcs = new RegExp(`^(${[...nameForms(pc), "you"].map(RegExp.escape).join("|")})(?![\\p{L}\\p{N}])`, "iu");
+  return narration
+    .replace(/(^|\n)[ \t]*(“[^”\n]*[.,!?…—-]”|"[^"\n]*[.,!?…—-]")[ \t]*(?=\n|$)\n*/g, (line, start: string, _speech, at: number) => {
+      const before = narration.slice(0, at).trimEnd();
+      const last =
+        before
+          .slice(before.lastIndexOf("\n") + 1)
+          .split(/(?<=[.!?…])\s+/)
+          .at(-1) ?? "";
+      return pcs.test(last) ? start : line;
+    })
+    .trimEnd();
+};
 const lineCount = (text: string) => text.split("\n").filter((line) => line.trim()).length;
 const TAG_WITHOUT_BRACKET = "a speaker tag without its [";
 const PC_LINE = "a spoken line for the PC";

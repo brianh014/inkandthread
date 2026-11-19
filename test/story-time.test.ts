@@ -33,6 +33,24 @@ test("a new day with no date, or a first Story Time with none, is ignored and ch
   }
 });
 
+test("time moving back within the same day is ignored, as a reply that did so had started the story again", () => {
+  const evening = at({ ...DUSK, timeOfDay: "early evening" });
+  for (const operation of [set(0, null, "mid-morning"), set(0, "3rd of Lowtide", "late afternoon")]) {
+    const { next, ignored } = applyOperations(evening, [operation]);
+    expect(next.storyTime).toEqual(evening.storyTime);
+    expect(ignored).toEqual([{ op: "set_story_time", reason: "earlier than now" }]);
+  }
+  for (const [from, to] of [
+    ["late afternoon", "ten past eight at night"],
+    ["night", "midnight"],
+    ["dawn", "mid-morning"],
+    ["morning", "afternoon"],
+  ]) {
+    expect(applyOperations(at({ ...DUSK, timeOfDay: from! }), [set(0, null, to!)]).next.storyTime?.timeOfDay).toBe(to!);
+  }
+  expect(applyOperations(evening, [set(1, "4th of Lowtide", "mid-morning")]).next.storyTime?.timeOfDay).toBe("mid-morning");
+});
+
 test("a Save from before Story Time starts counting from day 1", () => {
   expect(applyOperations(at(null), [set(0, "3rd of Lowtide", "dusk")]).next.storyTime).toEqual({ day: 1, date: "3rd of Lowtide", timeOfDay: "dusk" });
 });

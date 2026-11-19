@@ -1480,10 +1480,31 @@ test("a reply changes a record once, so a chain of rewrites keeps only its first
   expect(withoutLoop([...chain, fact], 30)).toEqual([first, fact]);
 });
 
-test("a line that is only quoted speech, with no speaker, is dropped, and speaker lines and speech in the prose are kept", () => {
+test("a line that is only quoted speech after the PC's paragraph is dropped, and speaker lines and speech in the prose are kept", () => {
   const reply =
     'Wren rides up beside Tamsin.\n\n"I know it\'s the boy. Leave him to me."\n\n[Tamsin]: "Is that so?"\n\n“Fine,” she said.\n\nA sign reads\n"THE RED LION"';
-  expect(withoutBareSpeech(reply)).toBe('Wren rides up beside Tamsin.\n\n[Tamsin]: "Is that so?"\n\n“Fine,” she said.\n\nA sign reads\n"THE RED LION"');
+  expect(withoutBareSpeech(reply, "Wren Hale")).toBe(
+    'Wren rides up beside Tamsin.\n\n[Tamsin]: "Is that so?"\n\n“Fine,” she said.\n\nA sign reads\n"THE RED LION"',
+  );
+});
+
+test("a bare quoted line after someone else's paragraph is kept, as models write NPC speech that way too", () => {
+  const reply =
+    'Wren waits.\n\nShe sets the paper on the counter, flat.\n\n"He was on the harbour steps on Sunday night."\n\nPrice nods. Wren turns to him.\n\n"Then he lied."';
+  expect(withoutBareSpeech(reply, "Wren Hale")).toBe(
+    'Wren waits.\n\nShe sets the paper on the counter, flat.\n\n"He was on the harbour steps on Sunday night."\n\nPrice nods. Wren turns to him.',
+  );
+});
+
+test("a summary cut to under two-fifths of the last is not taken, as a reply that did so had started the story again", async () => {
+  const reply = (summary: string) => [delta(JSON.stringify({ check: null, narration: "The tide rises.", state_operations: [], summary })), "data: [DONE]\n\n"];
+  play([reply("one two three four five six seven eight nine ten"), reply("one two three")]);
+  const id = await app.createSave();
+  await streamTurn(id, "I wait.").then(turnEvents);
+
+  const log = await logOf(() => streamTurn(id, "I wait again.").then(turnEvents));
+
+  expect(log).toMatch(/Summary kept .*"was":10,"now":3/);
 });
 
 test("an opening must bring on each Important Character its Starting Hook names, by full name or a part of it", () => {

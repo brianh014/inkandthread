@@ -417,11 +417,27 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       // A new day kept on the old date would put the story on the wrong day, so it waits for a Turn that names one.
       const date = operation.date ?? (days_passed === 0 ? state.storyTime?.date : undefined);
       if (date === undefined) return "no date";
+      // Never back within a day, as a reply that did so had started the story over from its first morning.
+      const [was, now] = [dayPart(state.storyTime?.timeOfDay), dayPart(time_of_day)];
+      if (days_passed === 0 && date === state.storyTime?.date && was !== undefined && now !== undefined && now < was) return "earlier than now";
       state.storyTime = { day: (state.storyTime?.day ?? 1) + days_passed, date, timeOfDay: time_of_day };
       return;
     }
   }
 }
+
+// First match wins, so "afternoon" isn't read as "noon" nor "midnight" as "night".
+const DAY_PARTS: [RegExp, number][] = [
+  [/midnight/i, 7],
+  [/afternoon/i, 4],
+  [/evening|dusk|sunset/i, 5],
+  [/night/i, 6],
+  [/noon|midday/i, 3],
+  [/dawn|sunrise|daybreak|early morning/i, 1],
+  [/morning/i, 2],
+];
+/** Where in the day a time of day falls, in order, or undefined for words that don't say. */
+const dayPart = (timeOfDay = "") => DAY_PARTS.find(([words]) => words.test(timeOfDay))?.[1];
 
 const isRepeat = ({ pcKnown, looseEnds }: State, operation: StateOperation) =>
   (operation.op === "add_known_fact" && pcKnown.facts.includes(operation.fact)) ||

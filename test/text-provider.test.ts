@@ -1,6 +1,7 @@
 import { messageBeats } from "../src/web/chat-style";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
+import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
 import { introduce } from "../src/state-applier";
 import { textProvider } from "../src/text-provider";
@@ -777,7 +778,8 @@ test("a reply that updates one Plot Thread twice is written again, and one that 
   const update = (replacement: string) => ({ op: "update_plot_thread", thread: "The duke plots.", replacement });
   const resolve = { op: "resolve_plot_thread", thread: "The duke plots." };
   play([narrated("He sits.", update("The duke waits."), update("The duke strikes.")), narrated("He sits.", update("The duke waits."), resolve)]);
-  const id = await app.createSave();
+  // With the thread there, as a rewrite that matches none is ignored rather than added.
+  const id = saveStore(join(folder.path, "Saves")).create({ worldBrief: "A drowned city", pc: { name: "Ash" }, opening: { plotThreads: ["The duke plots."] } });
 
   expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
 

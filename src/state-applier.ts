@@ -383,12 +383,13 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const { thread, wait, resolved } = namedThread(state, operation.thread, threads);
       // Closed earlier in this reply, so a rewrite mustn't open it again.
       if (resolved) return;
-      // A thread that matches none would be added, so it meets the same limit.
-      if (wait || (thread === undefined && state.plotThreads.length >= MAX_PLOT_THREADS)) {
+      // Not added, as a Turn adds no thread: World Moves On does. A DeepSeek Turn's unmatched rewrites took three threads to six.
+      if (wait) {
         threads.waiting.push(operation.replacement);
         return "full";
       }
-      replaceOnce(state.plotThreads, thread ?? operation.thread, operation.replacement);
+      if (thread === undefined) return "matches no thread";
+      replaceOnce(state.plotThreads, thread, operation.replacement);
       if (thread !== undefined && thread !== operation.replacement) threads.became.set(thread, operation.replacement);
       return;
     }
@@ -429,7 +430,8 @@ const isRepeat = ({ pcKnown, looseEnds }: State, operation: StateOperation) =>
 // None of these contradict the narration, so they aren't worth a whole response. Someone nameless is added once they're named.
 const IGNORABLE: StateOperation["op"][] = ["resolve_loose_end", "add_known_npc", "set_known_npc_summary", "set_story_time", "npc_learns"];
 // A full list of Plot Threads is the Narrator's to tidy later, not worth a whole response.
-const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }) => IGNORABLE.includes(op) || reason === "already there" || reason === "full";
+const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }) =>
+  IGNORABLE.includes(op) || reason === "already there" || reason === "full" || reason === "matches no thread";
 
 /** Applies operations in order, so each is judged against the ones before it, except that a Plot Thread change refused as full is tried once more at the end. */
 export function applyOperations(state: State, operations: StateOperation[]) {

@@ -76,8 +76,9 @@ for (const [name, list, operation] of [
     expect(rewrite(stateWith("a", "b", "c"), "b", "B")).toEqual(["a", "B", "c"]);
   });
 
-  test(`rewriting a ${name} that isn't there adds the new one, so a miscopied one doesn't cost the Turn`, () => {
-    expect(rewrite(stateWith("a"), "a with a typo", "B")).toEqual(["a", "B"]);
+  // A Turn adds no Plot Thread, and an unmatched rewrite added them: a DeepSeek Turn's eight rewrites took three threads to six.
+  test(`rewriting a ${name} that isn't there ${list === "facts" ? "adds the new one" : "changes nothing"}, and doesn't cost the Turn`, () => {
+    expect(rewrite(stateWith("a"), "a with a typo", "B")).toEqual(list === "facts" ? ["a", "B"] : ["a"]);
   });
 
   test(`two versions of a ${name} merge into one`, () => {
@@ -137,8 +138,8 @@ test("a thread sharing only a name with one in the list, or matching two equally
   ]);
 
   expect(ignored).toEqual([
-    { op: "update_plot_thread", reason: "full" },
-    { op: "update_plot_thread", reason: "full" },
+    { op: "update_plot_thread", reason: "matches no thread" },
+    { op: "update_plot_thread", reason: "matches no thread" },
   ]);
   expect(next.plotThreads).toEqual(state.plotThreads);
 });

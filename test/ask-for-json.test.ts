@@ -29,6 +29,15 @@ test("a retry tells the model why its last reply couldn't be used, after the pro
   expect(note).not.toContain("far too long");
 });
 
+test("a retry's reason for a fault of the whole reply has no empty path before it", async () => {
+  const Whole = z.object({ text: z.string() }).refine(({ text }) => text.length <= 5, "over 5 letters");
+  const { provider, tries } = scripted(JSON.stringify({ text: "far too long" }), JSON.stringify({ text: "short" }));
+
+  await askForJson(provider, [{ role: "user", content: "Hi" }], Whole, "refused", new AbortController().signal, { call: "test" });
+
+  expect(tries[1]!.prompt.at(-1)!.content).toContain("couldn't be used: over 5 letters.");
+});
+
 test("a reply that thought too long is asked again a Thinking level lower each time", async () => {
   const overthought = () => new ThoughtTooLong("thought too long");
   const { provider, tries } = scripted(overthought(), overthought(), JSON.stringify({ text: "ok" }));

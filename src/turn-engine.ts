@@ -1328,7 +1328,9 @@ const refusalText = (refusals: Refusal[]) => refusals.map(({ op, reason }) => `$
 function whyInvalid({ cause }: InvalidResponse) {
   if (typeof cause === "string") return cause;
   // A custom check's message is the app's own fixed words, never the reply's, so it may name what failed.
-  if (cause instanceof z.ZodError) return cause.issues.map(({ path, code, message }) => `${path.join(".")}: ${code === "custom" ? message : code}`).join(", ");
+  // No path for a fault of the whole reply, as its empty one printed ": : ".
+  if (cause instanceof z.ZodError)
+    return cause.issues.map(({ path, code, message }) => `${path.length > 0 ? `${path.join(".")}: ` : ""}${code === "custom" ? message : code}`).join(", ");
   if (Array.isArray(cause)) return `refused operations: ${refusalText(cause)}`;
   // Not the parser's message, which quotes the reply.
   return cause instanceof SyntaxError ? "not JSON" : "a Check request where none is allowed";

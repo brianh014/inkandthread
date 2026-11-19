@@ -90,6 +90,8 @@ test("a reply without three different Choices keeps its story, and the Choices a
 
   expect(response.status).toBe(201);
   expect(prompts).toHaveLength(4);
+  // With the player's move as well as the reply, as Choices written from the reply alone were the weakest of a run.
+  expect(prompts[2]!.at(-1)!.content).toContain("I look around.");
   expect(((await response.json()) as { messages: object[] }).messages.at(-1)).toMatchObject({ role: "narrator", text: "Missing." });
   expect(await latestChoices(id)).toEqual(CHOICES);
 });

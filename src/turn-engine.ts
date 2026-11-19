@@ -26,12 +26,12 @@ import type { NarratorTurn, UsageStore } from "./usage-store";
 import { applyOperations, findPerson, givenName, introduce, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
 import { type Checked, type Consistency, checkConsistency, replyToCheck } from "./consistency";
 import { countWords, withinLimit } from "./limits";
-import { knownChoices, writeChoices } from "./known-choices";
+import { knownChoices, withoutUnread, writeChoices } from "./known-choices";
 import { wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
-import { MOVE_LIMIT, moveDue, moveWorldOn } from "./world-moves-on";
+import { MOVE_LIMIT, moveDue, moveWorldOn, turnThreadChanges } from "./world-moves-on";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
 const moving = new Map<string, Promise<void>>();
@@ -104,8 +104,25 @@ export class TurnFailed extends Error {
 // A Turn no longer adds a Plot Thread, which is World Moves On's: Turns added threads that restated what the PC knew or were
 // the PC's own goals. A model that still sends one has it dropped, not the reply.
 const RETIRED = ["set_summary", "add_plot_thread"];
-const withoutRetired = (operations: unknown) =>
-  Array.isArray(operations) ? operations.filter((operation) => !RETIRED.includes((operation as { op?: string })?.op ?? "")) : operations;
+// DeepSeek filled its operations with placeholders, such as resolving a thread named "x", "none" or "", which failed whole Turns,
+// and saved an item named "x" and a known fact that was only a name, such as "Silas Grout", to the Journal.
+const PLACEHOLDER = /^[\s_]*(?:none|nonexistent|unused|placeholder|n\/a|null|\p{L})?[\s_]*$/iu;
+export const isJunk = (operation: Record<string, unknown>) =>
+  Object.values(operation).some((value) => typeof value === "string" && PLACEHOLDER.test(value)) ||
+  (operation.op === "add_known_fact" && typeof operation.fact === "string" && /^\p{Lu}\p{L}*(?:\s+\p{Lu}\p{L}*)+$/u.test(operation.fact.trim()));
+/**
+ * The operations without retired ones and placeholders. A reply's resolves go too when it resolves more than one thread, as
+ * DeepSeek wiped every open thread at once, early and again later, with nothing ended; World Moves On removes what play has ended.
+ */
+export const usableOperations = (operations: unknown) => {
+  if (!Array.isArray(operations)) return operations;
+  const usable = operations.filter((operation) => !RETIRED.includes(operation?.op ?? "") && !(operation && typeof operation === "object" && isJunk(operation)));
+  const resolves = usable.filter(({ op }) => op === "resolve_plot_thread").length;
+  const kept = resolves > 1 ? usable.filter(({ op }) => op !== "resolve_plot_thread") : usable;
+  const dropped = operations.length - kept.length;
+  if (dropped > 0) log.info("turn", "Operations dropped", { placeholders: operations.length - usable.length, resolves: resolves > 1 ? resolves : 0 });
+  return kept;
+};
 const TurnOperation = z.discriminatedUnion(
   "op",
   StateOperation.options.filter(({ shape }) => !RETIRED.includes(shape.op.value)) as unknown as typeof StateOperation.options,
@@ -135,7 +152,7 @@ function withoutLoop(operations: TurnOperation[], limit: number) {
 const FinishedTurn = z.object({
   // Whether it has words is checked once it's parsed, so a Check's result without any is told as declined.
   narration: z.string().trim().min(1),
-  state_operations: z.preprocess(withoutRetired, z.array(TurnOperation).default([])),
+  state_operations: z.preprocess(usableOperations, z.array(TurnOperation).default([])),
   people: z.array(Person).catch([]),
   summary: z.string().catch(""),
   recent_summary: z.string().nullish().catch(""),
@@ -212,7 +229,7 @@ const ResponseShape = z.object({
 });
 // Last, so the narration streams first. Only sent in Choices mode, and its rule is beside it, as a rule mid-prompt gets ignored.
 export const CHOICES_RULE =
-  "exactly three things the PC might say or do next, each one first-person sentence of at most 25 words, built only from what the PC knows and fitting what they now hold, wear and have just done, and each taking a clearly different approach, at least one of them moving the story on toward what comes next that the PC knows of, such as setting out, acting on a plan, facing what waits or taking up what someone offers or the PC wants. Never hint at risk, difficulty, dice or a Check";
+  "exactly three things the PC might say or do next, each one first-person sentence of at most 25 words, built only on what the replies show has happened and the PC knows, naming no event, place or thing they don't show, fitting what they now hold, wear and have just done, and each taking a clearly different approach, at most one of them only watching, waiting or carrying word to someone and at least one of them moving the story on toward what comes next that the PC knows of, such as setting out, acting on a plan, facing what waits or taking up what someone offers or the PC wants. Never hint at risk, difficulty, dice or a Check";
 const ChoicesShape = ResponseShape.extend({ choices: z.array(z.string()).describe(CHOICES_RULE) });
 // Once a Check is rolled, or none can be, the schema itself forbids one and asks for the story, as the prompt's "Do not request another check" was ignored three times running.
 const SCHEMAS = {
@@ -712,10 +729,13 @@ async function narrate(
       const { people, summary, recent_summary, scene_changed, visual_description, chapter_ends } = response;
       // Written again while tries remain, as a model in a loop mostly isn't the next time; the last try keeps the reply without the loop.
       const operationLimit = MAX_OPERATIONS * (kind === "opening" ? 2 : 1);
-      const state_operations = withoutLoop(response.state_operations, operationLimit);
+      let state_operations = withoutLoop(response.state_operations, operationLimit);
       const looping = state_operations.length < response.state_operations.length ? LOOPING : undefined;
       // Later replies copy marks like these, so they never reach a Save.
-      let narration = edited ?? withoutFields(withoutStrayMarks(response.narration as string));
+      const cleaned = withoutFields(withoutStrayMarks(response.narration as string));
+      let narration = edited ?? withoutBareSpeech(cleaned);
+      if (narration !== cleaned && edited === undefined)
+        log.info("turn", "Bare speech dropped", { attempt, generation, lines: lineCount(cleaned) - lineCount(narration) });
       // The last attempt keeps such a reply, as losing the Turn costs more than a long speech.
       // A picture without set_scene would be drawn from the last scene's place and people, which may have moved on. State Upkeep
       // brings the scene up to date, so with it the picture is kept; without it the reply is written again, then the picture dropped.
@@ -749,6 +769,8 @@ async function narrate(
       const clashesBefore = attempt < MAX_ATTEMPTS ? introducedBefore.refused : [];
       if (clashesBefore.length > 0 || narrated.refused.length > 0) throw new InvalidResponse(undefined, { cause: [...clashesBefore, ...narrated.refused] });
       let description = withoutJsonTail(visual_description ?? "");
+      // The long words a consistency fix took out of the reply.
+      let cut: string[] = [];
       let checked: Checked | undefined;
       if (consistency?.enabled()) {
         const told = narration;
@@ -762,12 +784,32 @@ async function narrate(
           narration,
           visualDescription: description,
         });
-        const result = await checkConsistency(consistency, upkeep?.provider, reply, (text) => usableFix(withoutStrayMarks(text), pcName, told, check), signal);
+        const result = await checkConsistency(
+          consistency,
+          upkeep?.provider,
+          reply,
+          (text) => usableFix(withoutStrayMarks(text), pcName, told, check) && !repeatsPrevious(text, told, previous),
+          signal,
+        );
         checked = result.checked;
-        narration = withoutStrayMarks(result.narration);
+        narration = withoutBareSpeech(withoutStrayMarks(result.narration));
         description = result.visualDescription;
         // Nothing tells the player, but the fixed reply takes the streamed one's place.
         if (narration !== told) emit("revise", { text: narration });
+        cut = cutWords(told, narration);
+        const kept = withoutCut(state_operations, cut);
+        if (kept.length < state_operations.length)
+          log.info("turn", "What was learned of a fixed slip dropped", { attempt, generation, operations: state_operations.length - kept.length });
+        state_operations = kept;
+      }
+      const threads = turnThreadChanges(state_operations, before, pcName, narration);
+      if (threads.kept.length < state_operations.length) log.info("turn", "Thread changes dropped", { attempt, generation, ...threads.dropped });
+      state_operations = threads.kept;
+      if (seen) {
+        const read = withoutUnread(state_operations, narrated.next, `${seen()}\n${narration}`);
+        if (read.length < state_operations.length)
+          log.info("turn", "Journal entries naming secrets dropped", { attempt, generation, operations: state_operations.length - read.length });
+        state_operations = read;
       }
       const timed = state_operations.some(({ op }) => op === "set_story_time");
       // Side by side, as neither needs the other, so a slow reviewer holds the Choices back once, not twice.
@@ -776,7 +818,10 @@ async function narrate(
         choices && upkeep && seen !== undefined
           ? knownChoices(upkeep, choices, narrated.next, seen(), narration, signal)
           : unchosen
-            ? writeChoices(textProvider, narration, signal)
+            ? writeChoices(textProvider, narration, signal, previous, plainMessage({ role: "player", text: upkeep?.input ?? input }).text).then((written) =>
+                // Held to what the PC knows, as the Choices the reply came with are.
+                written && upkeep && seen !== undefined ? knownChoices(upkeep, written, narrated.next, seen(), narration, signal) : written,
+              )
             : choices,
       ]);
       const dropped = !!unplaced && !upkept;
@@ -810,6 +855,8 @@ async function narrate(
           // Kept when cut to a fifth of the last, as an 80-round story's became "(see journal)" and would have lost the whole story.
           const words = { was: countWords(next.summary), now: countWords(summary) };
           if (words.now * 5 < words.was) log.warning("turn", "Summary kept", words);
+          // Written before the fix, so it may tell what the fix took out.
+          else if (cut.some((word) => wholeWord(word, "iu").test(summary))) log.info("turn", "Summary kept after a fix", words);
           else if (summary.trim()) next.summary = summary.trim();
           if (recent_summary?.trim()) next.recentSummary = recent_summary.trim();
           if (memory) next.sceneMemories.push(memory);
@@ -874,6 +921,34 @@ async function narrate(
   }
 }
 
+const longWords = (text: string) => new Set(text.toLowerCase().match(/\p{L}{6,}/gu) ?? []);
+/** The long words a fix took out of the reply, which what the PC learns in that Turn mustn't keep. */
+export const cutWords = (told: string, fixed: string) => {
+  const kept = longWords(fixed);
+  return [...longWords(told)].filter((word) => !kept.has(word));
+};
+// What the PC or someone else learns from the reply, which the Narrator wrote before the fix.
+const LEARNED: StateOperation["op"][] = ["add_known_fact", "npc_learns", "add_loose_end", "set_known_npc_summary"];
+/**
+ * The operations without what the PC or an NPC learns that names a word a fix took out, as a fix cut an admission from the reply
+ * and the known facts kept it, and later Choices were built on it.
+ */
+export const withoutCut = <Operation extends StateOperation>(operations: Operation[], cut: string[]) =>
+  operations.filter(
+    (operation) =>
+      !LEARNED.includes(operation.op) ||
+      !cut.some((word) =>
+        wholeWord(word, "iu").test(
+          Object.values(operation)
+            .filter((value) => typeof value === "string")
+            .join(" "),
+        ),
+      ),
+  );
+/** Whether a fix put in a sentence of eight words or more copied from the previous reply, as one swapped an earned admission for a speech already made. */
+export const repeatsPrevious = (fixed: string, told: string, previous: string) =>
+  fixed.split(/(?<=[.!?…]["”]?)\s+/).some((sentence) => countWords(sentence) >= 8 && !told.includes(sentence) && previous.includes(sentence));
+
 /** Whether a fix passes what a Narrator reply must. It may run a little longer than the reply it fixes. */
 export function usableFix(text: string, pcName: string, told: string, check?: Check) {
   return (
@@ -882,6 +957,8 @@ export function usableFix(text: string, pcName: string, told: string, check?: Ch
     !FIELD_LINE.test(text) &&
     !(check && declined(text)) &&
     ![PC_LINE, TAG_WITHOUT_BRACKET].includes(spokenLineFault(text, pcName) ?? "") &&
+    // A fix changes the fewest words, and one that cut a passage to a third erased the clue a high roll had found.
+    countWords(text) * 5 >= countWords(told) * 4 &&
     withinLimit(text, Math.max(REPLY_WORDS, countWords(told)))
   );
 }
@@ -915,6 +992,14 @@ export const speechOutsideLines = (narration: string) =>
     .map((line) => line.trim())
     // Speech ends on its own punctuation inside the quote, which a sign or a title, such as "THE RED LION". doesn't.
     .some((line) => !line.startsWith("[") && /(^|[\s(—-])(“[^”]{2,}[.,!?…—-]”|"[^"]{2,}[.,!?…—-]"|['‘]\p{Lu}[^'‘’]*[.,!?…—-]['’](?!\p{L}))/u.test(line));
+/**
+ * The narration without its lines that are only quoted speech: everyone else speaks on a [Name]: line, so such a line is the PC's,
+ * which GLM wrote in half the Turns of an 80-round play despite the rule, adding arguments the player never gave.
+ * shortcut: a note or letter quoted whole on its own line goes too; tell it apart if one is seen.
+ */
+export const withoutBareSpeech = (narration: string) =>
+  narration.replace(/(^|\n)[ \t]*(“[^”\n]*[.,!?…—-]”|"[^"\n]*[.,!?…—-]")[ \t]*(?=\n|$)\n*/g, "$1").trimEnd();
+const lineCount = (text: string) => text.split("\n").filter((line) => line.trim()).length;
 const TAG_WITHOUT_BRACKET = "a speaker tag without its [";
 const PC_LINE = "a spoken line for the PC";
 

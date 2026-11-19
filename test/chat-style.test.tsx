@@ -85,6 +85,11 @@ test("a colon in narration doesn't make a speaker", () => {
   }
 });
 
+test("a picture's [Name: looks] mark written into narration shows as the name alone", () => {
+  expect(narrator("[Harriet Vell: a tall woman in a black dress] stands in the doorway.")).toEqual([{ text: "Harriet Vell stands in the doorway." }]);
+  expect(narrator("She turns to [Kit: a wiry lad] and waits.")).toEqual([{ text: "She turns to Kit and waits." }]);
+});
+
 test("text with no spoken lines is plain narration", () => {
   expect(narrator("The tide rises.\n\nNobody speaks.")).toEqual([{ text: "The tide rises." }, { text: "Nobody speaks." }]);
 });

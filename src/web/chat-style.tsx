@@ -81,6 +81,8 @@ export const withoutStrayMarks = (text: string) =>
     // streaming its words isn't hidden.
     .replace(/^([ \t]*\[[^[\]\n]+\]:)[ \t]*\r?\n(?:[ \t]*\r?\n)*[ \t]*(?=["“])/gm, "$1 ")
     .replace(/^[ \t]*\[[^[\]\n]+\]:[ \t]*\r?\n/gm, "")
+    // A picture's [Name: looks] mark, which DeepSeek once wrote into the story as its own line, keeps only the name.
+    .replace(/\[([^[\]:\n]+?):[ \t]*[^[\]\n"“]+\](?![ \t]*:)/g, "$1")
     // Prose has two or more words in lower case; a name such as "Jan van Dijk" has at most one, so it stays.
     .replace(/^([ \t]*)\[([^[\]\n]*?\s\p{Ll}[^[\]\n]*?\s\p{Ll}[^[\]\n]*)\][ \t]*$/gmu, "$1$2");
 

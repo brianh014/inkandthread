@@ -397,7 +397,8 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const { thread, wait, resolved } = namedThread(state, operation.thread, threads);
       if (wait) return "full";
       if (resolved) return;
-      if (thread === undefined || !take(state.plotThreads, thread)) return "not there";
+      // Ignored, not refused, as DeepSeek resolved threads long gone, which failed whole Turns.
+      if (thread === undefined || !take(state.plotThreads, thread)) return "matches no thread";
       threads.became.set(thread, null);
       return;
     }

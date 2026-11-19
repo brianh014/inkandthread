@@ -29,8 +29,8 @@ const play = (...replies: (string | Error)[]) => {
 
 const SECRET = "ZQX-SECRET";
 const THREAD = `${SECRET} a plot.`;
-const MISSING = "Where is Renata?";
-const SOCIAL = "The Summer Social is on Friday.";
+const MISSING = "Where is the missing guide?";
+const SOCIAL = "The summer social is on the last day.";
 const ASK_TO_FILL = "fill it now";
 const add = (loose_end: string): StateOperation => ({ op: "add_loose_end", loose_end });
 const resolve = (loose_end: string): StateOperation => ({ op: "resolve_loose_end", loose_end });
@@ -73,7 +73,7 @@ test("resolve_loose_end takes out the exact item", () => {
 });
 
 test("resolve_loose_end on an item not in the list is ignored with a reason, and changes nothing", () => {
-  const { next, refused, ignored } = applyOperations(withEnds(SOCIAL), [resolve("Where is Renata")]);
+  const { next, refused, ignored } = applyOperations(withEnds(SOCIAL), [resolve("Where is the guide")]);
 
   expect(next.looseEnds).toEqual([SOCIAL]);
   expect(refused).toEqual([]);

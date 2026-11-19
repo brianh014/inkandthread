@@ -5,7 +5,7 @@ import { activateLore, wholeWord } from "./lore-activation";
 import { LORE_TOKEN_BUDGET, type Prompt } from "./prompt-assembler";
 import type { SaveStore } from "./save-store";
 import type { SettingsStore } from "./settings-store";
-import { ListChange, changeList, type State } from "./state-applier";
+import { ListChange, changeList, type State, type StateOperation } from "./state-applier";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
 /** Replies between moves when nothing else calls for one, as a long scene in one place would otherwise never let the world act. */
@@ -31,14 +31,10 @@ While the PC was busy, the people behind each thread went on with their own plan
 Each change has old, copied exactly from plot_threads or null to add one, and new, the thread's text or null to remove it. If nothing needs to change, give an empty list.`;
 
 /**
- * The world moving on: one Narrator call at a natural pause, after the Turn is saved, that moves each Plot Thread on by what its
- * people did out of the PC's sight. It applies as a hidden World Change to the next Message, and any failure leaves the world as it
- * was. Logs counts only, as the reply holds the hidden world.
+ * The checks a thread rewrite must pass, whether World Moves On or a Turn wrote it: that it keeps the names the thread held, and
+ * that it isn't the scene in play told as what its people did out of sight. `named` gives the people a thread names.
  */
-export async function moveWorldOn(textProvider: TextProvider, settings: SettingsStore, saves: SaveStore, id: string, signal: AbortSignal) {
-  const basedOn = saves.latestMessageId(id);
-  const state = saves.latestState(id);
-  const { plotThreads } = state;
+export function threadGuards(state: State, pcName: string) {
   // Names a rewrite must keep, as moves kept a thread's surface and dropped who was behind it and what it hid, in every bench run
   // despite the rule. One the PC has learned may go, as play has revealed it. shortcut: names only; a secret with no name in it isn't checked.
   // Each person or place is all the names it goes by, so a rewrite that keeps "Thorne" keeps "Reverend Amos Thorne". The
@@ -57,7 +53,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     text === null ||
     people.every((names) => !names.some((name) => mentions(old, name, "u")) || names.some((name) => mentions(text, name) || mentions(state.summary, name)));
   const allNames = (name: string) => [name, ...name.split(" ").filter((part) => part.length > 2 && /^\p{Lu}/u.test(part))];
-  const pc = allNames(saves.read(id).pc.name);
+  const pc = allNames(pcName);
   const cast = state.scene.visibleCast.flatMap(allNames);
   // The thread of someone with the PC, rewritten with the PC in it, is the scene in play told as what they did out of sight, as
   // "Anselm is standing in Mara's room now", which the rule against it didn't stop on GLM or DeepSeek. The PC's name is matched
@@ -65,6 +61,20 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   // shortcut: by names; a retelling that leaves the PC unnamed, or a fair rewrite that names them, isn't told apart.
   const retells = ({ old, new: text }: z.infer<typeof ListChange>) =>
     old !== null && text !== null && cast.some((name) => mentions(old, name)) && pc.some((name) => mentions(text, name, "u"));
+  const named = (thread: string) => people.filter((names) => names.some((name) => mentions(thread, name, "u")));
+  return { keepsNames, retells, named, mentions };
+}
+
+/**
+ * The world moving on: one Narrator call at a natural pause, after the Turn is saved, that moves each Plot Thread on by what its
+ * people did out of the PC's sight. It applies as a hidden World Change to the next Message, and any failure leaves the world as it
+ * was. Logs counts only, as the reply holds the hidden world.
+ */
+export async function moveWorldOn(textProvider: TextProvider, settings: SettingsStore, saves: SaveStore, id: string, signal: AbortSignal) {
+  const basedOn = saves.latestMessageId(id);
+  const state = saves.latestState(id);
+  const { plotThreads } = state;
+  const { keepsNames, retells } = threadGuards(state, saves.read(id).pc.name);
   // Why a change can't be used, named so the log and the request to write it again both say which.
   const fault = (change: z.infer<typeof ListChange>, index: number, all: z.infer<typeof ListChange>[]) => {
     if (change.old !== null && !plotThreads.includes(change.old)) return "a change misquotes a thread";
@@ -96,6 +106,11 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     if (plot_threads.length === 0 || kept.length > 0 || faults.length === 0) return;
     for (const message of new Set(faults)) context.addIssue({ code: "custom", message });
   });
+  const latestReplies = saves
+    .messages(id)
+    .filter(({ role }) => role === "narrator")
+    .slice(-2)
+    .map(({ text }) => text);
   const prompt: Prompt = [
     {
       role: "system",
@@ -110,13 +125,13 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
         // Without these a move broke the setting's own facts, such as what a place has.
         world_rules: state.worldRules,
         // Without these a move reinvented who was behind a thread, against the world.
-        lore: activateLore(state.worldBible, plotThreads.join("\n"), LORE_TOKEN_BUDGET).map(({ title, content }) => ({ title, content })),
+        // Named by the story too, as with every thread resolved a move had no lore and added one with a culprit the world never had.
+        lore: activateLore(state.worldBible, [...plotThreads, state.summary, ...latestReplies].join("\n"), LORE_TOKEN_BUDGET).map(({ title, content }) => ({
+          title,
+          content,
+        })),
         summary: state.summary,
-        latest_replies: saves
-          .messages(id)
-          .filter(({ role }) => role === "narrator")
-          .slice(-2)
-          .map(({ text }) => text),
+        latest_replies: latestReplies,
         story_time: state.storyTime,
         location: state.scene.location,
         // Without it a move retold the scene in play as what its people did, such as someone "standing in her room now".
@@ -144,4 +159,32 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
   } catch (error) {
     log.warning("world", "World didn't move on", { save: id, ...errorType(error) });
   }
+}
+
+/**
+ * A Turn's own thread changes, held to World Moves On's checks, as Turns rewrote a thread as the scene in play (losing what it hid)
+ * and resolved threads whose people were nowhere in the reply, which then never came back. A resolve stands only when the reply
+ * names someone the thread names; one that ends out of sight is World Moves On's to make.
+ */
+export function turnThreadChanges<Operation extends StateOperation>(operations: Operation[], state: State, pcName: string, narration: string) {
+  const { keepsNames, retells, named, mentions } = threadGuards(state, pcName);
+  const fault = (operation: Operation) => {
+    if (operation.op === "update_plot_thread") {
+      const change = { old: operation.thread, new: operation.replacement };
+      if (!keepsNames(change)) return "a rewrite drops someone the thread named";
+      if (retells(change)) return "a rewrite retells the scene in play";
+    }
+    if (operation.op === "resolve_plot_thread") {
+      const people = named(operation.thread);
+      if (people.length > 0 && !people.some((names) => names.some((name) => mentions(narration, name, "u"))))
+        return "a resolve of a thread whose people the reply never names";
+    }
+    return null;
+  };
+  const faults = operations.map(fault);
+  const reasons = faults.filter((reason) => reason !== null);
+  return {
+    kept: operations.filter((_, index) => faults[index] === null),
+    dropped: Object.fromEntries([...new Set(reasons)].map((reason) => [reason, reasons.filter((each) => each === reason).length])),
+  };
 }

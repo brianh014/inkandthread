@@ -5,7 +5,19 @@ import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
 import { introduce } from "../src/state-applier";
 import { textProvider } from "../src/text-provider";
-import { peopleLeftOut, speechOutsideLines, spokenLineFault, usableChoices, withoutJsonTail } from "../src/turn-engine";
+import {
+  peopleLeftOut,
+  speechOutsideLines,
+  spokenLineFault,
+  cutWords,
+  repeatsPrevious,
+  usableChoices,
+  usableFix,
+  usableOperations,
+  withoutBareSpeech,
+  withoutCut,
+  withoutJsonTail,
+} from "../src/turn-engine";
 import { delta, fakeOpenAi, logOf, scriptedDice, startApp, tempFolder, turnEvents } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -1262,6 +1274,64 @@ test("speech left in the prose is found, but never a speaker line, an apostrophe
   expect(speechOutsideLines("[Tamsin]: 'Thirty years.'")).toBe(false);
   expect(speechOutsideLines("Wren's satchel was heavy. The camels' hooves rang.")).toBe(false);
   expect(speechOutsideLines("She called it 'the old road' once.")).toBe(false);
+});
+
+test("after a fix, what the PC learns of words the fix took out is dropped, and the rest kept", () => {
+  const told = "Thorne sighed. He admitted he paid the constable thirty pounds.";
+  const fixed = "Thorne sighed. He said nothing more.";
+  const operations = [
+    { op: "add_known_fact", fact: "Thorne admitted paying the constable." },
+    { op: "npc_learns", name: "Thorne", fact: "Nell heard his admission about the constable." },
+    { op: "add_loose_end", loose_end: "Thorne is hiding something." },
+    { op: "set_scene", location: "The lane", visible_cast: [] },
+  ] as Parameters<typeof withoutCut>[0];
+  expect(withoutCut(operations, cutWords(told, fixed))).toEqual(operations.slice(2));
+  expect(cutWords(told, told)).toEqual([]);
+});
+
+test("a fix that cuts more than a fifth of the reply isn't used, as one erased a clue a high roll had found", () => {
+  const told = "She lifts the glass. Inside the tube a slip of paper lies curled, with dates in Crane's hand. Kit pockets the tide pad.";
+  expect(usableFix("She lifts the glass. It holds nothing.", "Nell", told)).toBe(false);
+  expect(usableFix("She lifts the glass. Inside the tube a slip of paper lies curled, with dates in his hand. Kit pockets the tide pad.", "Nell", told)).toBe(
+    true,
+  );
+});
+
+test("a fix that copies a long sentence of the previous reply isn't used", () => {
+  const previous = "I gave him back as good, and we shook hands after, in front of everyone.";
+  expect(repeatsPrevious(`He sighed. ${previous}`, "He sighed. He told me the truth.", previous)).toBe(true);
+  expect(repeatsPrevious("He sighed. He said no more.", "He sighed. He told me the truth.", previous)).toBe(false);
+  // Already in the reply before the fix, so the fix didn't copy it.
+  expect(repeatsPrevious(`He sighed. ${previous}`, `He sighed. ${previous} Then more.`, previous)).toBe(false);
+});
+
+test("placeholder operations, a known fact that is only a name, and a reply's resolves of more than one thread are dropped", () => {
+  const kept = [
+    { op: "add_item", slot: "carrying", item: "a brass key" },
+    { op: "add_known_fact", fact: "Grout moved the tomb aside." },
+  ];
+  const junk = [
+    { op: "resolve_plot_thread", thread: "x" },
+    { op: "remove_lore_entry", title: "__none__" },
+    { op: "remove_lore_entry", title: "nonexistent" },
+    { op: "remove_lore_entry", title: "unused" },
+    { op: "remove_lore_entry", title: " " },
+    { op: "add_item", slot: "carrying", item: "x" },
+    { op: "add_known_fact", fact: "Silas Grout" },
+  ];
+  expect(usableOperations([...kept, ...junk])).toEqual(kept);
+  const two = [
+    { op: "resolve_plot_thread", thread: "One thread." },
+    { op: "resolve_plot_thread", thread: "Another thread." },
+  ];
+  expect(usableOperations([...kept, ...two])).toEqual(kept);
+  expect(usableOperations([...kept, two[0]])).toEqual([...kept, two[0]]);
+});
+
+test("a line that is only quoted speech, with no speaker, is dropped, and speaker lines and speech in the prose are kept", () => {
+  const reply =
+    'Wren rides up beside Tamsin.\n\n"I know it\'s the boy. Leave him to me."\n\n[Tamsin]: "Is that so?"\n\n“Fine,” she said.\n\nA sign reads\n"THE RED LION"';
+  expect(withoutBareSpeech(reply)).toBe('Wren rides up beside Tamsin.\n\n[Tamsin]: "Is that so?"\n\n“Fine,” she said.\n\nA sign reads\n"THE RED LION"');
 });
 
 test("an opening must bring on each Important Character its Starting Hook names, by full name or a part of it", () => {

@@ -5,7 +5,7 @@ import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
 import { openingState, type WorldEdit } from "../src/state-applier";
 import { journalChange } from "../src/prompt-assembler";
-import { MOVE_EVERY, moveDue } from "../src/world-moves-on";
+import { MOVE_EVERY, moveDue, turnThreadChanges } from "../src/world-moves-on";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -92,6 +92,53 @@ test("at a change of place the world moves on out of sight, and the next Turn re
   expect(store().latestState(id).plotThreads).toEqual(["The thief has robbed the library and hides the books on a barge."]);
   expect(log).toContain('"threads":1,"added":0,"removed":0');
   expect(log).not.toContain("barge");
+});
+
+test("with no thread open, a move still reads the Lore Entries the story names, so a thread it adds keeps to the world", async () => {
+  const told = play(
+    narration(
+      "Ash catches the thief where a gull nests on the dome.",
+      { op: "resolve_plot_thread", thread: "A thief plans to rob the library at the next high tide." },
+      { op: "set_scene", location: "The dome", visible_cast: [] },
+    ),
+    moved(),
+    narration("Ash looks out over the city."),
+  );
+  const id = createSave();
+
+  expect((await turn(id, "I climb to the dome.")).ok).toBe(true);
+  // The next Turn waits for the move.
+  expect((await turn(id, "I look out.")).ok).toBe(true);
+
+  expect(told.prompts[1]!.at(-1)!.content).toContain("Gulls nest");
+});
+
+test("a Turn's thread rewrite that drops a name or retells the scene, or a resolve of a thread whose people the reply never names, is dropped", () => {
+  const state = {
+    ...openingState,
+    npcs: [
+      { name: "Grout", appearance: "" },
+      { name: "Kit", appearance: "" },
+    ],
+    scene: { location: "The shed", visibleCast: ["Kit"] },
+    plotThreads: ["Grout hides the ledger.", "Kit fears Grout.", "Kit owes rent."],
+  };
+  const operations = [
+    { op: "update_plot_thread", thread: "Grout hides the ledger.", replacement: "Someone hides the ledger." },
+    { op: "update_plot_thread", thread: "Kit fears Grout.", replacement: "Kit waits with Ash at the shed door, fearing Grout." },
+    { op: "resolve_plot_thread", thread: "Grout hides the ledger." },
+    { op: "resolve_plot_thread", thread: "Kit owes rent." },
+    { op: "update_plot_thread", thread: "Kit owes rent.", replacement: "Kit owes two weeks' rent." },
+  ] as Parameters<typeof turnThreadChanges>[0];
+
+  const { kept, dropped } = turnThreadChanges(operations, state, "Ash", "Kit counts his coins.");
+
+  expect(kept).toEqual(operations.slice(3));
+  expect(dropped).toEqual({
+    "a rewrite drops someone the thread named": 1,
+    "a rewrite retells the scene in play": 1,
+    "a resolve of a thread whose people the reply never names": 1,
+  });
 });
 
 test("a move that misquotes a thread, or fails, leaves the world as it was and the next Turn plays", async () => {

@@ -17,6 +17,23 @@ test("each mark becomes the Narrator's own phrase, beside what they do, and says
   });
 });
 
+test("a sentence the Narrator repeats goes in once", () => {
+  const likeness = "The people are the same people.";
+  const looped = `[Hesper: a tall woman] waves. Fog fills the yard. {${likeness}} ${likeness} ${likeness}`;
+  expect(expandMarks(looped, npcs, pc, ["Hesper"]).prompt).toBe(`the person from image 1, a tall woman, waves. Fog fills the yard. ${likeness}`);
+});
+
+test("anything written after the closing likeness sentence is cut", () => {
+  expect(expandMarks("[Hesper: a tall woman] waves. {The people are the same people.} Fill in all fields.", npcs, pc, ["Hesper"]).prompt).toBe(
+    "the person from image 1, a tall woman, waves. The people are the same people.",
+  );
+});
+
+test("JSON written after the likeness sentence is cut", () => {
+  const prompt = '[Hesper: a tall woman] waves. {The people are the same people.}\n{"location":"The net loft","visibleCast":["Hesper"]}';
+  expect(expandMarks(prompt, npcs, pc, ["Hesper"]).prompt).toBe("the person from image 1, a tall woman, waves. The people are the same people.");
+});
+
 test("the PC can be marked by their first name", () => {
   expect(expandMarks("[Ash] sits", npcs, pc).pictured).toEqual([null]);
 });

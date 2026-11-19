@@ -173,6 +173,7 @@ test("an operation State Upkeep may not give, or a broken one, is dropped and th
         { op: "add_plot_thread", thread: "The tide rises." },
         { op: "set_scene", location: "x", visible_cast: [] },
         { op: "remove_item", item: "" },
+        { op: "add_item", slot: "carrying", item: "x" },
         { op: "add_item", slot: "carrying", item: "a key" },
       ),
     ],
@@ -187,7 +188,7 @@ test("an operation State Upkeep may not give, or a broken one, is dropped and th
   expect(state.scene.location).toBe("The library");
   expect(state.inventory.carrying).toEqual(["a key"]);
   expect(upkeep.prompts.length).toBe(1);
-  expect(log).toContain('"operations":["add_item"],"dropped":3');
+  expect(log).toContain('"operations":["add_item"],"dropped":4');
 });
 
 test("State Upkeep never changes a Plot Thread, which is World Moves On's", async () => {

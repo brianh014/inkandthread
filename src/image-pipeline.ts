@@ -114,6 +114,11 @@ export function pcLooks({ name, physicalTraits = "" }: Save["pc"], wearing: stri
 export function expandMarks(text: string, npcs: Npc[], pcName: string, referenced: Pictured = []) {
   const pictured: Pictured = [];
   const prompt = text
+    // JSON in braces, as DeepSeek once put the scene's fields after the likeness sentence, isn't a likeness sentence.
+    .replace(/\s*\{[^{}]*"\s*:[^{}]*(?:\}|$)/g, "")
+    // The likeness sentence ends the prompt, and the few words DeepSeek wrote after it were stray, such as "Fill in all fields."
+    // shortcut: four words or fewer, as a whole sentence after the braces can still be the scene's; cut more if longer strays show.
+    .replace(/(\{[^{}]*\})\s*(?:\S+\s*){1,4}$/, "$1")
     // An unclosed brace at the end counts too, as models sometimes leave the closing one off.
     .replace(/\s*\{([^{}]*)(?:\}|$)/g, (_, likeness: string) => (referenced.length > 0 ? ` ${likeness.trim()}` : ""))
     .replace(/\[([^[\]:]+)(?::([^[\]]*))?\]/g, (_, mark: string, phrase: string | undefined, at: number, whole: string) => {
@@ -130,7 +135,9 @@ export function expandMarks(text: string, npcs: Npc[], pcName: string, reference
       const readsOn = /^\s*[a-z]/i.test(whole.slice(at + _.length));
       return brief ? `the person from image ${image}, ${brief}${readsOn ? "," : ""}` : `the person from image ${image}`;
     });
-  return { prompt, pictured };
+  // A DeepSeek prompt ended with its likeness sentence some sixty times over.
+  const sentences = prompt.split(/(?<=[.!?])\s+/);
+  return { prompt: sentences.filter((sentence, at) => sentences.indexOf(sentence) === at).join(" "), pictured };
 }
 
 const NOT_A_NAME = new Set([

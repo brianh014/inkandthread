@@ -190,7 +190,10 @@ test("State Upkeep's thinking is cut early enough that its hurried second try ha
     const ms = calls === 1 ? thinkingMs : UPKEEP_LIMIT.ms / 3;
     await new Promise((resolve, reject) => {
       const timer = setTimeout(resolve, ms);
-      signal.addEventListener("abort", () => (clearTimeout(timer), reject(signal.reason)));
+      signal.addEventListener("abort", () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+      });
     });
     if (calls === 1) throw new ThinkingBudgetReached("over");
     return upkept({ op: "add_item", slot: "carrying", item: "a key" });

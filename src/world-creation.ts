@@ -818,10 +818,19 @@ export async function applyWorldChange(
     signal,
     mayKeep,
   );
+  // What a change only adds to the summary is a known fact too, as the next Turn rewrites the summary: a cutter the player
+  // anchored offshore was written there alone, dropped a Turn later, and never reached the page.
+  // shortcut: only when it keeps every old sentence and writes no fact, so a rewrite or a fact of the same news isn't doubled.
+  const sentences = (text: string) => text.split(/(?<=[.!?])\s+/).filter(Boolean);
+  const old = sentences(before.summary);
+  const news =
+    summary === null || facts.length > 0 || !old.every((sentence) => summary.includes(sentence))
+      ? []
+      : sentences(summary).filter((sentence) => !old.includes(sentence));
   const journal: WorldEdit[] = [
     ...(world_brief === null ? [] : [{ edit: "worldBrief" as const, text: world_brief }]),
     ...(summary === null ? [] : [{ edit: "summary" as const, text: summary }]),
-    ...facts.map((fact) => ({ edit: "fact" as const, ...fact })),
+    ...[...facts, ...news.map((sentence) => ({ old: null, new: sentence }))].map((fact) => ({ edit: "fact" as const, ...fact })),
     ...npc_summaries.map(({ name, summary }) => ({ edit: "npcSummary" as const, name, text: summary })),
     ...(inventory === null ? [] : [{ edit: "inventory" as const, ...inventory }]),
     ...(status === null ? [] : [{ edit: "status" as const, ...status }]),
@@ -840,6 +849,7 @@ export async function applyWorldChange(
     rules: update.world_rules.length,
     threads: update.plot_threads.length,
     journal: journal.length,
+    news: news.length,
     looks: looks.length,
   }));
 }

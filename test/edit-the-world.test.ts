@@ -529,6 +529,16 @@ test("a World Change can change the Journal's text as well as the hidden world",
   expect(plotThreads[0]).toBe("A new plot.");
 });
 
+test("news a World Change only adds to the summary is kept as a known fact too, as the next Turn rewrites the summary", async () => {
+  play(update({ summary: "It began to rain. A grey ship anchored off the harbour." }));
+  const id = createSave();
+
+  const log = await logged(async () => expect((await change(id, "a ship anchors off the harbour")).status).toBe(200));
+
+  expect(facts(id)).toEqual([...KNOWN.facts, "A grey ship anchored off the harbour."]);
+  expect(log).toContain('"news":1');
+});
+
 test("a World Change that only changes the Journal counts as a change", async () => {
   play(update({ world_brief: "A drowned city." }));
   const id = createSave();

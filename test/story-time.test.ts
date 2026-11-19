@@ -33,6 +33,12 @@ test("a new day with no date, or a first Story Time with none, is ignored and ch
   }
 });
 
+test("a time of day that repeats the date keeps only the time", () => {
+  const date = "Tuesday, 16th October 1894";
+  expect(applyOperations(at(DUSK), [set(1, date, "mid-morning, Tuesday 16th October")]).next.storyTime?.timeOfDay).toBe("mid-morning");
+  expect(applyOperations(at(DUSK), [set(1, date, "Tuesday morning")]).next.storyTime?.timeOfDay).toBe("Tuesday morning");
+});
+
 test("time moving back within the same day is ignored, as a reply that did so had started the story again", () => {
   const evening = at({ ...DUSK, timeOfDay: "early evening" });
   for (const operation of [set(0, null, "mid-morning"), set(0, "3rd of Lowtide", "late afternoon")]) {

@@ -812,6 +812,13 @@ test("a speaker tag with no colon before its quote is saved as [Name]:, and show
   expect(messageBeats({ role: "narrator", text: "[Later] The door is shut." })).toEqual([{ text: "[Later] The door is shut." }]);
 });
 
+test("a literal backslash-n in a reply is a paragraph break, not text the player reads", () => {
+  expect(messageBeats({ role: "narrator", text: '[Dacre]: "A telegraph came.\\n\\nHe let that stand.' })).toEqual([
+    { speaker: "Dacre", text: '"A telegraph came.' },
+    { text: "He let that stand." },
+  ]);
+});
+
 test("a speaker written without brackets is saved as [Name]:, so later replies copy that", async () => {
   play([narrated('She sits.\n\nNadia: "I saw him."\n\nSign: “Closed”\n\nThen: nothing.')]);
   const id = await app.createSave();

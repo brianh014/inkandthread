@@ -71,6 +71,8 @@ export const readable = (messages: Message[]) =>
 // shortcut: a bare name is any capitalized words before a colon and a quote, so "Sign: “Closed”" gets a speaker and "Jan van Dijk" doesn't, match against the state's names if that shows up.
 export const withoutStrayMarks = (text: string) =>
   text
+    // A model's escaped line break, which GLM wrote into a speech, reaching the reader as "\n\n".
+    .replace(/(?:\\r)?\\n/g, "\n")
     .replace(/^[ \t]*>[ \t]*/gm, "")
     .replace(/^([ \t]*)\[([^[\]:\n]+?)[ \t]*:[ \t]*(?:""|“”)?[ \t]*\][ \t]*:?[ \t]*(?=["“])/gm, "$1[$2]: ")
     // `[Name] "…"`, with no colon, which a model then wrote all through an 80-round story.

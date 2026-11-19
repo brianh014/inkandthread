@@ -420,10 +420,18 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       // Never back within a day, as a reply that did so had started the story over from its first morning.
       const [was, now] = [dayPart(state.storyTime?.timeOfDay), dayPart(time_of_day)];
       if (days_passed === 0 && date === state.storyTime?.date && was !== undefined && now !== undefined && now < was) return "earlier than now";
-      state.storyTime = { day: (state.storyTime?.day ?? 1) + days_passed, date, timeOfDay: time_of_day };
+      state.storyTime = { day: (state.storyTime?.day ?? 1) + days_passed, date, timeOfDay: withoutDate(time_of_day, date) };
       return;
     }
   }
+}
+
+/** The time of day without the parts that only repeat the date, as "mid-morning, Tuesday 16th October" showed the date twice. */
+function withoutDate(timeOfDay: string, date: string) {
+  const words = (text: string) => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  const inDate = new Set(words(date));
+  const parts = timeOfDay.split(/\s*,\s*/).filter((part) => !words(part).every((word) => inDate.has(word)));
+  return parts.length > 0 ? parts.join(", ") : timeOfDay;
 }
 
 // First match wins, so "afternoon" isn't read as "noon" nor "midnight" as "night".

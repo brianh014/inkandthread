@@ -977,10 +977,10 @@ async function narrate(
           choices && upkeep && seen !== undefined
             ? (() => {
                 const kept = knownChoices(choices, narrated.next, seen(), narration);
-                // Asked for alone, as a lone Choice left after dropping leaks lost a play its clue.
-                if (kept.length >= 2) return kept;
+                // Asked for alone, as a lone Choice left after dropping leaks lost a play its clue, and two were left in four rounds.
+                if (kept.length >= 3) return kept;
                 log.info("turn", "Too few Choices kept", { attempt, generation, kept: kept.length });
-                return alone().then((written) => written ?? kept);
+                return alone().then((written) => (written && written.length >= kept.length ? written : kept));
               })()
             : unchosen
               ? alone()

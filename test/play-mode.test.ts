@@ -97,11 +97,11 @@ test("a reply without three different Choices keeps its story, and the Choices a
   expect(await latestChoices(id)).toEqual(CHOICES);
 });
 
-test("when fewer than two Choices are left once those built on the unknown are dropped, the Choices are asked for alone", async () => {
+test("when fewer than three Choices are left once those built on the unknown are dropped, the Choices are asked for alone", async () => {
   // The reviewer answers State Upkeep with nothing.
   const reviewer: TextProvider = async () => JSON.stringify({ state_operations: [] });
   const script = scriptedTextProvider(
-    withChoices("The tide rises.", ["I ride for Qasr.", "I ask Zorel the way.", "I wade on."]),
+    withChoices("The tide rises.", ["I ride for Qasr.", "I climb the wall.", "I wade on."]),
     JSON.stringify({ choices: CHOICES }),
   );
   app = startApp(savesDir, script.textProvider, undefined, undefined, undefined, undefined, undefined, reviewer);

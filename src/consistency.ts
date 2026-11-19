@@ -46,8 +46,11 @@ export const CUT_OFFS: Record<string, Record<Name, number>> = { "liquid/d1.2": {
 export const FIX_LIMIT = { ms: 25_000 };
 // Thinking tokens a fix may spend, sent where the provider takes a budget, as Low alone has no ceiling (over 2,300 tokens on hard
 // ones), while none at all left real slips in. By the questions flagged, as at 1,000 for any fix all ten with two or three were cut
-// and four of ten with one; at most 2,000, as the time stop (10 ms a token) must leave the fix's 25 s room to answer.
+// and four of ten with one; at most 2,000.
 const fixThinking = (questions: number) => Math.min(1_000 + 500 * questions, 2_000);
+// Where the budget can't be sent, thinking stops 15 s from its first token, as a stop by length cut sound fixes at 9 to 12 s;
+// that leaves FIX_LIMIT 10 s to answer, which took up to 7.6 s after thinking on a slow stream (0.5.0.39 bench).
+const FIX_THINKING_MS = 15_000;
 // A score at which an unchanged fix is asked again, as the slips scored this high on the bench were mostly real.
 const SURE_SLIP = 0.7;
 export const cutOffs = (model: string) => CUT_OFFS[model] ?? CUT_OFFS["liquid/d1.2"]!;
@@ -218,6 +221,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(FixRepl
   const { narration_edits, visual_description_edits } = await askForJson(reviewer, prompt, FixReply, "The reviewer refused to fix the reply.", signal, {
     lessThinking: slowReviewer.steps,
     thinkingBudget: fixThinking(Object.keys(flagged).length),
+    thinkingMs: FIX_THINKING_MS,
     reviewer: true,
     hurried: false,
   });

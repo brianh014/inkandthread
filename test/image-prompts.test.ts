@@ -27,6 +27,14 @@ test("anything written after the closing likeness sentence is cut", () => {
   expect(expandMarks("[Hesper: a tall woman] waves. {The people are the same people.} Fill in all fields.", npcs, pc, ["Hesper"]).prompt).toBe(
     "the person from image 1, a tall woman, waves. The people are the same people.",
   );
+  // However long, and with a brace of its own, as notes on the reply's fields and its length were drawn.
+  for (const stray of [
+    " | hidden_information: secret plot content | false | context=benign_fiction",
+    " → make it ≤150 words: adjust.} → The prompt above is too long; trim.",
+  ])
+    expect(expandMarks(`[Hesper: a tall woman] waves. {The people are the same people.}${stray}`, npcs, pc, ["Hesper"]).prompt).toBe(
+      "the person from image 1, a tall woman, waves. The people are the same people.",
+    );
 });
 
 test("JSON written after the likeness sentence is cut", () => {
@@ -59,11 +67,11 @@ test("part of a name finds someone only when it can mean nobody else", () => {
 });
 
 test("a person named without a mark is marked, so their portrait goes in and their name never reaches the model", () => {
-  const written = "Ash Vane, a short man, waves at Hesper. Hesper's boat bobs. {Keep each face.} Ashore, [Orin: an old man] naps by Orin.";
+  const written = "Ash Vane, a short man, waves at Hesper. Hesper's boat bobs. Ashore, [Orin: an old man] naps by Orin. {Keep each face.}";
   const marked = markNames(written, npcs, pc);
-  expect(marked).toBe("[Ash Vane], a short man, waves at [Hesper]. Hesper's boat bobs. {Keep each face.} Ashore, [Orin: an old man] naps by [Orin].");
+  expect(marked).toBe("[Ash Vane], a short man, waves at [Hesper]. Hesper's boat bobs. Ashore, [Orin: an old man] naps by [Orin]. {Keep each face.}");
   expect(expandMarks(marked, npcs, pc, [null, "Hesper"]).prompt).toBe(
-    "the person from image 1, a short man, waves at the person from image 2. Hesper's boat bobs. Keep each face. Ashore, an old man naps by the same person.",
+    "the person from image 1, a short man, waves at the person from image 2. Hesper's boat bobs. Ashore, an old man naps by the same person. Keep each face.",
   );
   expect(markNames("Vane nods", npcs, pc)).toBe("[Vane] nods");
   // An article, a title or a place in someone's name is no name of its own.

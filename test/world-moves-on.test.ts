@@ -185,7 +185,7 @@ test("a Turn's thread rewrite that drops a name or retells the scene, or a resol
     { op: "update_plot_thread", thread: "Kit owes rent.", replacement: "Kit owes two weeks' rent." },
   ] as Parameters<typeof turnThreadChanges>[0];
 
-  const { kept, dropped } = turnThreadChanges(operations, state, "Ash", "Kit counts his coins.");
+  const { kept, dropped } = turnThreadChanges(operations, state, "Ash", "Kit counts his coins.", { opening: [], seen: "" });
 
   expect(kept).toEqual(operations.slice(4));
   expect(dropped).toEqual({
@@ -204,7 +204,7 @@ test("a rewrite keeps a many-word name or Lore keyword when it keeps the word th
       { title: "The judge", keywords: ["Mr Pell", "judge"], content: "", alwaysOn: false },
     ],
   };
-  const { keepsNames } = threadGuards(state, "Ash");
+  const { keepsNames } = threadGuards(state, "Ash", { opening: [], seen: "" });
   const old = "Mr Pell means to burn Orrin's mill.";
 
   expect(keepsNames({ old, new: "Pell means to burn Orrin's place before the hearing." })).toBe(true);
@@ -212,14 +212,21 @@ test("a rewrite keeps a many-word name or Lore keyword when it keeps the word th
   expect(keepsNames({ old, new: "Mr Kell means to burn Orrin's mill." })).toBe(false);
 });
 
-test("a rewrite keeps most of what the thread hides the PC hasn't learned, not only its names", () => {
-  const state = { ...openingState, pcKnown: { facts: ["Pell keeps the mill's ledger."], npcs: [] } };
-  const { keepsSecrets } = threadGuards(state, "Ash");
-  const old = "Pell poisoned Orrin's brother on the magistrate's orders and burns the ledger tonight.";
+test("a rewrite keeps most of the secrets only the threads the story began with hold, and none of what the player has read or the Lore holds", () => {
+  const state = {
+    ...openingState,
+    pcKnown: { facts: ["Pell keeps the mill's ledger."], npcs: [] },
+    worldBible: [{ title: "Pell", keywords: ["Pell"], content: "Pell poisoned the brother.", alwaysOn: false }],
+  };
+  const story = { opening: ["Pell poisoned Orrin's brother on the magistrate's orders, and the ledger is forged."], seen: "Orrin's brother lies dead." };
+  const { dropsSecrets } = threadGuards(state, "Ash", story);
+  // As a Turn wrote it, with the scene in play in it: lantern, cobbles and shutters count for nothing.
+  const old =
+    "Pell poisoned Orrin's brother on the magistrate's orders; the ledger is forged. He swung his lantern over the wet cobbles and closed the shutters.";
 
-  expect(keepsSecrets({ old, new: "Pell, who poisoned Orrin's brother on the magistrate's orders, burned the papers." })).toBe(true);
-  expect(keepsSecrets({ old, new: "Pell burned the ledger at the mill and watches Orrin's brother." })).toBe(false);
-  expect(turnThreadChanges([{ op: "update_plot_thread", thread: old, replacement: "Pell sits by Orrin's ledger." }], state, "Ash", "").dropped).toEqual({
+  expect(dropsSecrets({ old, new: "Pell, who acted on the magistrate's orders, carried the forged ledger to the mill." })).toEqual([]);
+  expect(dropsSecrets({ old, new: "Pell carried the ledger to the mill and watches Orrin." })).toEqual(["magistrate", "orders", "forged"]);
+  expect(turnThreadChanges([{ op: "update_plot_thread", thread: old, replacement: "Pell sits by Orrin's ledger." }], state, "Ash", "", story).dropped).toEqual({
     "a rewrite drops what the thread hides": 1,
   });
 });
@@ -242,6 +249,27 @@ test("a move that misquotes a thread, or fails, leaves the world as it was and t
   expect(store().latestState(id).plotThreads).toEqual(["A thief plans to rob the library at the next high tide."]);
   expect(log).toContain("World didn't move on");
   expect(log).toContain("a change misquotes a thread");
+});
+
+test("a move whose rewrite drops what the thread hides is asked again, naming the thread and the words it left out, which the log never holds", async () => {
+  const thread = "A thief plans to rob the library at the next high tide.";
+  const told = play(
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
+    moved({ old: thread, new: "The thief waits at the dock for the tide." }),
+    moved({ old: thread, new: "The thief has robbed the library at high tide." }),
+    narration("Ash watches the barges."),
+  );
+  const id = createSave();
+
+  const log = await logOf(async () => {
+    expect((await turn(id, "I walk to the dock.")).ok).toBe(true);
+    expect((await turn(id, "I watch the barges.")).ok).toBe(true);
+  }, "info");
+
+  expect(told.prompts[2]!.at(-1)!.content).toContain(`a rewrite drops what the thread hides; the rewrite of "${thread}" leaves out library`);
+  expect(store().latestState(id).plotThreads).toEqual(["The thief has robbed the library at high tide."]);
+  expect(log).toContain("a rewrite drops what the thread hides");
+  expect(log).not.toContain("leaves out");
 });
 
 test("a move is due after hours of story time, on a new day or every few replies, even with no threads, as only a move adds them", () => {

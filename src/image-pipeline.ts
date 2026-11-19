@@ -123,9 +123,10 @@ export function expandMarks(text: string, npcs: Npc[], pcName: string, reference
   const prompt = text
     // JSON in braces, as DeepSeek once put the scene's fields after the likeness sentence, isn't a likeness sentence.
     .replace(/\s*\{[^{}]*"\s*:[^{}]*(?:\}|$)/g, "")
-    // The likeness sentence ends the prompt, and the few words DeepSeek wrote after it were stray, such as "Fill in all fields."
-    // shortcut: four words or fewer, as a whole sentence after the braces can still be the scene's; cut more if longer strays show.
-    .replace(/(\{[^{}]*\})\s*(?:\S+\s*){1,4}$/, "$1")
+    // The likeness sentence ends the prompt, and what DeepSeek wrote after it was stray, from "Fill in all fields." to a note on
+    // the prompt's length or the reply's own fields, which were drawn.
+    // shortcut: a scene sentence put after the braces is cut too; keep it if models write the likeness sentence mid-prompt.
+    .replace(/(\{[^{}]*\})[\s\S]*$/, "$1")
     // An unclosed brace at the end counts too, as models sometimes leave the closing one off.
     .replace(/\s*\{([^{}]*)(?:\}|$)/g, (_, likeness: string) => (referenced.length > 0 ? ` ${likeness.trim()}` : ""))
     .replace(/\[([^[\]:]+)(?::([^[\]]*))?\]/g, (_, mark: string, phrase: string | undefined, at: number, whole: string) => {

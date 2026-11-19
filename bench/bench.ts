@@ -39,7 +39,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 39;
+const BENCH_ITERATION = 40;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 30;
@@ -155,7 +155,7 @@ const COVERAGE: [string, string[]][] = [
   ["Known fact changed", ["ops.update_known_fact", "ops.remove_known_fact", "upkeep.update_known_fact", "upkeep.remove_known_fact"]],
   ["Known NPC summary", ["ops.set_known_npc_summary"]],
   ["Loose End added", ["ops.add_loose_end"]],
-  ["Loose End resolved", ["ops.resolve_loose_end"]],
+  ["Loose End resolved", ["ops.resolve_loose_end", "upkeep.resolve_loose_end"]],
   ["World Bible grew", ["ops.add_lore_entry"]],
   ["World Bible entry updated", ["ops.update_lore_entry"]],
   ["New NPC", ["ops.add_npc"]],

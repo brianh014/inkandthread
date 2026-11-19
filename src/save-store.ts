@@ -1074,6 +1074,12 @@ export function saveStore(savesDir: string) {
       return toState(sections);
     },
 
+    /** The state the story began from, before its first Message. */
+    opening(id: string) {
+      using db = open(id);
+      return toState(sectionsAt(db, OPENING_SNAPSHOT));
+    },
+
     revertPreview(id: string, messageId: number) {
       using db = open(id);
       return countAfter(db, messageId);

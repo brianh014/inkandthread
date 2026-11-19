@@ -14,6 +14,7 @@ export const MOVE_EVERY = 5;
 // A thread sits in every prompt, so a move keeps each one as short as the world's own. Named in the prompt, as "a sentence or two"
 // alone let rewrites grow each move until most of a run's moves were refused.
 const THREAD_WORDS = 64;
+const DROPS_SECRETS = "a rewrite drops what the thread hides";
 // A move adds a thread only while fewer than this many are open.
 const OPEN_THREADS = 3;
 // It runs while the player reads; past this, the next Turn stops waiting and the world stays where it was.
@@ -81,9 +82,10 @@ Each change has old, copied exactly from plot_threads or null to add one, and ne
 
 /**
  * The checks a thread rewrite must pass, whether World Moves On or a Turn wrote it: that it keeps the names the thread held, and
- * that it isn't the scene in play told as what its people did out of sight. `named` gives the people a thread names.
+ * that it isn't the scene in play told as what its people did out of sight. `named` gives the people a thread names. `story`
+ * holds the threads the story began with and all the player has read.
  */
-export function threadGuards(state: State, pcName: string) {
+export function threadGuards(state: State, pcName: string, story: { opening: string[]; seen: string }) {
   // Names a rewrite must keep, as moves kept a thread's surface and dropped who was behind it and what it hid, in every bench run
   // despite the rule. One the PC has learned may go, as play has revealed it. shortcut: names only; a secret with no name in it isn't checked.
   // Each person or place is all the names it goes by, so a rewrite that keeps "Thorne" keeps "Reverend Amos Thorne". The
@@ -101,14 +103,21 @@ export function threadGuards(state: State, pcName: string) {
     old === null ||
     text === null ||
     people.every((names) => !names.some((name) => mentions(old, name, "u")) || names.some((name) => mentions(text, name) || mentions(state.summary, name)));
-  // And three in five of its long plain words the PC hasn't learned, as a rewrite kept every name and dropped that a killing was
-  // done on someone's orders: it kept four of seven, and the fair rewrites of that bench run two in three or more.
-  // shortcut: words, not meaning, so a secret told again in new words is refused; compare by meaning if fair moves are lost.
-  const known = [state.summary, ...state.pcKnown.facts, ...Object.values(state.pcKnown.summaries ?? {})].join("\n");
-  const keepsSecrets = ({ old, new: text }: z.infer<typeof ListChange>) => {
-    if (old === null || text === null) return true;
-    const hidden = [...new Set(old.match(/(?<!\p{L})\p{Ll}{6,}/gu))].filter((word) => !EVERYDAY.has(word) && !mentions(known, word));
-    return hidden.filter((word) => mentions(text, word)).length * 5 >= hidden.length * 3;
+  // And three in five of its long plain words that only the threads keep secret, as a rewrite kept every name and dropped that a
+  // killing was done on someone's orders. Only words of the threads the story began with that are in no hidden Lore, which still
+  // holds its own, and in nothing the player has read, as Turns filled threads with the scene in play, and counting every long
+  // word refused each rewrite of two moves, a fair one that carried a ledger to someone among them.
+  // shortcut: words, not meaning, so a secret told again in new words ("passes to her" as "is hers") is refused, and a secret
+  // play added isn't kept; compare by meaning if fair moves are lost.
+  const lore = state.worldBible.filter(({ alwaysOn }) => !alwaysOn).map(({ content }) => content);
+  const opening = story.opening.join("\n");
+  const known = [story.seen, state.summary, ...state.pcKnown.facts, ...Object.values(state.pcKnown.summaries ?? {}), ...lore].join("\n");
+  /** The secret words a rewrite leaves out when it keeps too few of them, or none. */
+  const dropsSecrets = ({ old, new: text }: z.infer<typeof ListChange>) => {
+    if (old === null || text === null) return [];
+    const hidden = [...new Set(old.match(/(?<!\p{L})\p{Ll}{6,}/gu))].filter((word) => !EVERYDAY.has(word) && mentions(opening, word) && !mentions(known, word));
+    const dropped = hidden.filter((word) => !mentions(text, word));
+    return (hidden.length - dropped.length) * 5 >= hidden.length * 3 ? [] : dropped;
   };
   const pc = nameForms(pcName);
   const cast = state.scene.visibleCast.flatMap(nameForms);
@@ -119,7 +128,7 @@ export function threadGuards(state: State, pcName: string) {
   const retells = ({ old, new: text }: z.infer<typeof ListChange>) =>
     old !== null && text !== null && cast.some((name) => mentions(old, name)) && pc.some((name) => mentions(text, name, "u"));
   const named = (thread: string) => people.filter((names) => names.some((name) => mentions(thread, name, "u")));
-  return { keepsNames, keepsSecrets, retells, named, mentions };
+  return { keepsNames, dropsSecrets, retells, named, mentions };
 }
 
 /**
@@ -131,11 +140,15 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const basedOn = saves.latestMessageId(id);
   const state = saves.latestState(id);
   const { plotThreads } = state;
-  const { keepsNames, keepsSecrets, retells, named, mentions } = threadGuards(state, saves.read(id).pc.name);
+  const save = saves.read(id);
+  const messages = saves.messages(id);
+  const { keepsNames, dropsSecrets, retells, named, mentions } = threadGuards(state, save.pc.name, {
+    opening: saves.opening(id).plotThreads,
+    seen: [save.startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
+  });
   const asked = [...(closeAsked.get(id) ?? [])].filter((thread) => plotThreads.includes(thread));
   closeAsked.delete(id);
-  const latestReplies = saves
-    .messages(id)
+  const latestReplies = messages
     .filter(({ role }) => role === "narrator")
     .slice(-2)
     .map(({ text }) => text);
@@ -148,7 +161,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     if (change.new !== null && !withinLimit(change.new, THREAD_WORDS)) return `a thread runs past ${THREAD_WORDS} words`;
     if (!keepsNames(change)) return "a rewrite drops someone the thread named";
     if (retells(change)) return "a rewrite retells the scene in play";
-    if (!keepsSecrets(change)) return "a rewrite drops what the thread hides";
+    if (dropsSecrets(change).length > 0) return DROPS_SECRETS;
     // Held as a Turn's resolve is, as moves removed threads nothing had ended and added none, leaving one stale thread open.
     if (change.old !== null && change.new === null) {
       const people = named(change.old);
@@ -179,7 +192,12 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     const { kept, faults } = sorted(plot_threads);
     // Adds past the limit alone are no move rather than a fault, so they aren't asked again.
     if (plot_threads.length === 0 || kept.length > 0 || faults.length === 0) return;
-    for (const message of new Set(faults)) context.addIssue({ code: "custom", message });
+    // Which thread lost which words, said to the model alone, as the log holds only the reason.
+    const told = plot_threads
+      .filter((change, index) => fault(change, index, plot_threads) === DROPS_SECRETS)
+      .map((change) => `the rewrite of "${change.old}" leaves out ${dropsSecrets(change).join(", ")}`);
+    for (const message of new Set(faults))
+      context.addIssue({ code: "custom", message, ...(message === DROPS_SECRETS && { params: { told: told.join("; ") } }) });
   });
   const prompt: Prompt = [
     {
@@ -238,14 +256,20 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
  * and resolved threads whose people were nowhere in the reply, which then never came back. A resolve stands only when the reply
  * names someone the thread names, as World Moves On's remove must too.
  */
-export function turnThreadChanges<Operation extends StateOperation>(operations: Operation[], state: State, pcName: string, narration: string) {
-  const { keepsNames, keepsSecrets, retells, named, mentions } = threadGuards(state, pcName);
+export function turnThreadChanges<Operation extends StateOperation>(
+  operations: Operation[],
+  state: State,
+  pcName: string,
+  narration: string,
+  story: { opening: string[]; seen: string },
+) {
+  const { keepsNames, dropsSecrets, retells, named, mentions } = threadGuards(state, pcName, { ...story, seen: `${story.seen}\n${narration}` });
   const fault = (operation: Operation) => {
     if (operation.op === "update_plot_thread") {
       const change = { old: operation.thread, new: operation.replacement };
       if (!keepsNames(change)) return "a rewrite drops someone the thread named";
       if (retells(change)) return "a rewrite retells the scene in play";
-      if (!keepsSecrets(change)) return "a rewrite drops what the thread hides";
+      if (dropsSecrets(change).length > 0) return DROPS_SECRETS;
     }
     if (operation.op === "resolve_plot_thread") {
       const people = named(operation.thread);

@@ -674,23 +674,34 @@ test("a call with a thinking budget sends it to a model whose listing takes one,
   expect(log).toContain('"thinkingBudget":1000');
 });
 
-test("a model that can't take a thinking budget is stopped once its thinking passes it, and one that can is left to the provider", async () => {
+test("a model that can't take a thinking budget is stopped by time alone, from its first thinking token, and one that can is left to the provider", async () => {
   const listing = {
     data: [
       { id: "fake/model", supported_parameters: ["reasoning"], reasoning: { supports_max_tokens: true } },
       { id: "plain/model", supported_parameters: ["reasoning"] },
     ],
   };
-  const thinking = async function* () {
-    for (let at = 0; at < 40; at++) yield `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "Hmm, let me think again. " } }] })}\n\n`;
+  const hmm = `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "Hmm, let me think again. " } }] })}\n\n`;
+  // Far past the budget's length, quickly, after a wait before the first thinking token that isn't counted.
+  const long = async function* () {
+    await Bun.sleep(150);
+    for (let at = 0; at < 40; at++) yield hmm;
     yield* [delta("Done."), "data: [DONE]\n\n"];
   };
-  play([thinking, thinking], listing, scriptedDice(), true);
+  const slow = async function* () {
+    yield hmm;
+    await Bun.sleep(150);
+    yield hmm;
+    yield* [delta("Done."), "data: [DONE]\n\n"];
+  };
+  play([long, slow, slow], listing, scriptedDice(), true);
   const settings = settingsStore(join(folder.path, "settings.json"));
   settings.update({ textThinking: "low", textModel: "plain/model" });
-  const send = () => textProvider(settings)([{ role: "user", content: "Hi" }], { thinkingBudget: 100, onText: () => {}, signal: new AbortController().signal });
+  const send = () =>
+    textProvider(settings)([{ role: "user", content: "Hi" }], { thinkingBudget: 100, thinkingMs: 100, onText: () => {}, signal: new AbortController().signal });
 
   const log = await logOf(async () => {
+    expect(await send()).toBe("Done.");
     await expect(send()).rejects.toBeInstanceOf(ThinkingBudgetReached);
     settings.update({ textModel: "fake/model" });
     expect(await send()).toBe("Done.");
@@ -698,22 +709,6 @@ test("a model that can't take a thinking budget is stopped once its thinking pas
 
   expect(log).toContain("Thinking budget reached");
   expect(log).toContain('"budget":100');
-});
-
-test("a slow thinker is stopped by time as well, at 100 tokens of its budget a second, so a retry still has time to answer", async () => {
-  const slow = async function* () {
-    yield `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "Hmm." } }] })}\n\n`;
-    await Bun.sleep(150);
-    yield `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "Hmm." } }] })}\n\n`;
-    yield* [delta("Done."), "data: [DONE]\n\n"];
-  };
-  play([slow], { data: [{ id: "plain/model", supported_parameters: ["reasoning"] }] }, scriptedDice(), true);
-  const settings = settingsStore(join(folder.path, "settings.json"));
-  settings.update({ textThinking: "low", textModel: "plain/model" });
-
-  const send = textProvider(settings)([{ role: "user", content: "Hi" }], { thinkingBudget: 10, onText: () => {}, signal: new AbortController().signal });
-
-  await expect(send).rejects.toBeInstanceOf(ThinkingBudgetReached);
 });
 
 test("a reply cut by its caller's time limit is logged as a time limit, not as the client leaving", async () => {

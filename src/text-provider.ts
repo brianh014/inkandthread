@@ -217,7 +217,7 @@ export function textProvider(
     return takes ?? false;
   }
 
-  return async (prompt, { schema, picture, lessThinking = 0, thinkingBudget, onText, onGeneration, onUsage, signal }) => {
+  return async (prompt, { schema, picture, lessThinking = 0, thinkingBudget, thinkingMs, onText, onGeneration, onUsage, signal }) => {
     const {
       textBaseUrl,
       textApiKey,
@@ -261,7 +261,7 @@ export function textProvider(
     const seen: Record<string, unknown> = { model: textModel, thinking: textThinking, thinkingLimit: thinkingTokens };
     let reply = "";
     let thought = 0;
-    const sentAt = Date.now();
+    let thoughtFrom: number | undefined;
 
     const silence = new AbortController();
     let timer: Timer | undefined;
@@ -390,12 +390,12 @@ export function textProvider(
         thought += (delta?.reasoning ?? delta?.reasoning_content ?? "").length;
         // About four characters a token, as estimateTokens counts.
         if (thought / 4 > thinkingTokens) throw new ThoughtTooLong(THOUGHT_TOO_LONG);
-        // A budget the model can't take is kept here, as reviewers without one thought 12,000 characters and more and never answered.
-        // By time too, at 100 tokens a second, as a reviewer thinking 50 a second reached a fix's 1,000 only 17 to 21 s into its
-        // 25 s, too late to answer; finished fixes took at most 6.4 s on that run.
-        const thinkingMs = Date.now() - sentAt;
-        if (thinkingBudget && !budget && (thought / 4 > thinkingBudget || (thought > 0 && !reply && thinkingMs > thinkingBudget * 10))) {
-          log.info("text", "Thinking budget reached", { model: textModel, budget: thinkingBudget, thoughtChars: thought, ms: thinkingMs });
+        if (thought > 0) thoughtFrom ??= Date.now();
+        // A budget the model can't take is kept here by time alone, as reviewers without one thought 12,000 characters and more
+        // and never answered, and a stop by length cut fixes at 9 to 12 s that had time left to answer.
+        const ms = thoughtFrom === undefined ? 0 : Date.now() - thoughtFrom;
+        if (thinkingBudget && !budget && thinkingMs && !reply && ms > thinkingMs) {
+          log.info("text", "Thinking budget reached", { model: textModel, budget: thinkingBudget, thoughtChars: thought, ms });
           throw new ThinkingBudgetReached(THOUGHT_TOO_LONG);
         }
         const text = delta?.content ?? message?.content;

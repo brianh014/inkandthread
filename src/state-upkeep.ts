@@ -50,8 +50,10 @@ const RULES = { withTime: rules(true), withoutTime: rules(false) };
 // reviewer could hold them for 30 s or more, the Turn keeps the Narrator's own state. Exported only so a test can shorten it.
 export const UPKEEP_LIMIT = { ms: 15_000 };
 // Thinking tokens Upkeep may spend, sent where the provider takes a budget: 1,000, which 44 of 52 finished Upkeeps by DeepSeek at
-// Low stayed within over three bench runs, as 600 stopped 34 of 35; its time stop at 10 s leaves UPKEEP_LIMIT room for the answer.
+// Low stayed within over three bench runs, as 600 stopped 34 of 35. Where it can't be sent, thinking stops 9 s from its first
+// token, leaving UPKEEP_LIMIT 6 s for the answer, which took at most 2.8 s after thinking on the 0.5.0.39 bench.
 const UPKEEP_THINKING = 1_000;
+const UPKEEP_THINKING_MS = 9_000;
 
 /**
  * Thinking levels below Review thinking that reviews are sent at, raised each time one runs out of time, as a reviewer on a slow
@@ -129,7 +131,7 @@ export async function upkeepOperations(
       timed ? REPLY.withoutTime : REPLY.withTime,
       "The reviewer refused to keep the state.",
       limited,
-      { lessThinking: slowReviewer.steps, thinkingBudget: UPKEEP_THINKING, reviewer: true },
+      { lessThinking: slowReviewer.steps, thinkingBudget: UPKEEP_THINKING, thinkingMs: UPKEEP_THINKING_MS, reviewer: true },
     );
     const kept = given.filter((operation) => operation !== null);
     log.info("turn", "State Upkeep", () => ({ model, operations: kept.map(({ op }) => op), dropped: given.length - kept.length, ms: Date.now() - started }));

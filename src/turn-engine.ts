@@ -66,9 +66,10 @@ export type TextProvider = (
     lessThinking?: number;
     /**
      * Tokens of thinking, sent in place of the level to a model whose provider takes a budget, for a call with a hard time limit.
-     * For any other model, the stream is stopped once its thinking passes it, with ThinkingBudgetReached.
+     * For any other model, the stream is stopped with ThinkingBudgetReached once it has thought for `thinkingMs` from its first thinking token.
      */
     thinkingBudget?: number;
+    thinkingMs?: number;
     onText: (text: string) => void;
     onGeneration?: (id: string) => void;
     onUsage?: (usage: TextUsage) => void;
@@ -418,6 +419,8 @@ type Narrated = {
   previous?: string;
   /** All the player has read so far, the Starting Hook and the Messages, so a Choice is never built on what the PC hasn't. Built only when asked, as a long story's is large. */
   seen?: () => string;
+  /** The Plot Threads the story began with, whose secrets a thread rewrite must keep. */
+  opening?: () => string[];
   /** For the opening, the Important Characters its Starting Hook names, whom it must bring on, as an opening that skipped them left the plot they seed unplayed. */
   mustMeet?: string[];
   /** The player's own words for an Edit, which stand in for whatever narration the reply holds. */
@@ -565,6 +568,7 @@ export async function playTurn(
     consistency,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
+    opening: () => saves.opening(id).plotThreads,
     mustMeet:
       kind === "opening"
         ? (saves.read(id).importantCharacters ?? []).map(({ name }) => name).filter((name) => (saves.read(id).startingHook ?? "").includes(name))
@@ -630,6 +634,7 @@ export async function replaceResponse(
     consistency,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
+    opening: () => saves.opening(id).plotThreads,
     check,
     memory,
     playMode,
@@ -676,6 +681,7 @@ export async function editResponse(
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
+    opening: () => saves.opening(id).plotThreads,
     narration: text,
     memory,
     playMode,
@@ -701,6 +707,7 @@ async function narrate(
     consistency,
     previous = "",
     seen,
+    opening,
     mustMeet = [],
     narration: edited,
     check: storedCheck,
@@ -877,11 +884,12 @@ async function narrate(
           log.info("turn", "What was learned of a fixed slip dropped", { attempt, generation, operations: state_operations.length - kept.length });
         state_operations = kept;
       }
-      const threads = turnThreadChanges(state_operations, before, pcName, narration);
+      const story = seen?.() ?? "";
+      const threads = turnThreadChanges(state_operations, before, pcName, narration, { opening: opening?.() ?? [], seen: story });
       if (threads.kept.length < state_operations.length) log.info("turn", "Thread changes dropped", { attempt, generation, ...threads.dropped });
       state_operations = threads.kept;
       if (seen) {
-        const read = withoutUnread(state_operations, narrated.next, `${seen()}\n${narration}`);
+        const read = withoutUnread(state_operations, narrated.next, `${story}\n${narration}`);
         if (read.length < state_operations.length)
           log.info("turn", "Journal entries naming secrets dropped", { attempt, generation, operations: state_operations.length - read.length });
         state_operations = read;
@@ -1123,6 +1131,12 @@ function whyInvalid({ cause }: InvalidResponse) {
   return cause instanceof SyntaxError ? "not JSON" : "a Check request where none is allowed";
 }
 
+/** What a check says to the model alone, in its issue's `params.told`, as it may quote the story, which the log must not hold. */
+const toldModel = (cause: unknown): string[] =>
+  cause instanceof InvalidResponse && cause.cause instanceof z.ZodError
+    ? cause.cause.issues.flatMap((issue) => (issue.code === "custom" && typeof issue.params?.told === "string" ? [issue.params.told] : []))
+    : [];
+
 /** What a player is told of an invalid reply, never quoting it, as a reply may hold secrets. */
 function playerReason({ cause }: InvalidResponse) {
   if (cause === TAG_WITHOUT_BRACKET) return "A spoken line in the last reply was missing its speaker";
@@ -1239,9 +1253,10 @@ export async function askForJson<T>(
     picture = false,
     lessThinking: fewer = 0,
     thinkingBudget,
+    thinkingMs,
     reviewer = false,
     hurried = true,
-  }: { picture?: boolean; lessThinking?: number; thinkingBudget?: number; reviewer?: boolean; hurried?: boolean } = {},
+  }: { picture?: boolean; lessThinking?: number; thinkingBudget?: number; thinkingMs?: number; reviewer?: boolean; hurried?: boolean } = {},
 ) {
   let generation: string | undefined;
   let lessThinking = fewer;
@@ -1252,6 +1267,7 @@ export async function askForJson<T>(
       picture,
       lessThinking,
       thinkingBudget,
+      thinkingMs,
       onText: () => {},
       onGeneration: (id: string) => (generation = id),
       signal,
@@ -1264,7 +1280,7 @@ export async function askForJson<T>(
       const reason = whyInvalid(cause as InvalidResponse);
       // The same level would most likely think past the limit again.
       if (reason === OVERTHOUGHT) lessThinking++;
-      else asked = [...prompt, couldNotUse(reason)];
+      else asked = [...prompt, couldNotUse([reason, ...toldModel(cause)].join("; "))];
     }
   }
 }

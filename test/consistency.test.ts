@@ -26,6 +26,8 @@ afterEach(async () => {
   folder.remove();
 });
 
+// The reviewer's settings, for a fix called directly: what a time-out reads Review thinking from.
+const REVIEW = { read: () => ({ reviewThinking: "high" }) } as never;
 const ON: SettingsChange = { textModel: "narrator/model", consistencyEnabled: true, consistencyModel: "openai/gpt-6-luna-decisions" };
 
 /** A decision model that gives each question the score `scores` names, or 0.02, and records what it was sent. */
@@ -183,15 +185,19 @@ test("a fix that runs past its time limit keeps the reply as the Narrator wrote 
     visualDescription: "",
   };
   try {
-    const checked = await checkConsistency(
-      { decide: decisions({ continuity: 0.99 }).decide, enabled: () => true, logOnly: false },
-      stalled,
-      reply,
-      () => true,
-      new AbortController().signal,
-    );
-    expect(checked.narration).toBe("Six men.");
-    expect(checked.checked.outcome).toBe("fix failed");
+    let checked: Awaited<ReturnType<typeof checkConsistency>> | undefined;
+    const log = await logOf(async () => {
+      checked = await checkConsistency(
+        { decide: decisions({ continuity: 0.99 }).decide, enabled: () => true, logOnly: false },
+        { provider: stalled, settings: REVIEW },
+        reply,
+        () => true,
+        new AbortController().signal,
+      );
+    }, "info");
+    expect(checked!.narration).toBe("Six men.");
+    expect(checked!.checked.outcome).toBe("fix failed");
+    expect(log).toContain('"type":"time limit"');
   } finally {
     FIX_LIMIT.ms = limit;
   }
@@ -200,12 +206,14 @@ test("a fix that runs past its time limit keeps the reply as the Narrator wrote 
 test("the fix asks at Review thinking, and once more when it changes nothing of a slip scored high", async () => {
   CUT_OFFS["liquid/d1.2"]!.continuity = 0.5;
   const asked: (number | undefined)[] = [];
+  const budgets: (number | undefined)[] = [];
   const replies = [
     { narration_edits: [{ old: "Six", new: "Six" }], visual_description_edits: [] },
     { narration_edits: [{ old: "Six men", new: "Five men" }], visual_description_edits: [] },
   ];
-  const reviewer = async (_prompt: unknown, { lessThinking }: { lessThinking?: number }) => {
+  const reviewer = async (_prompt: unknown, { lessThinking, thinkingBudget }: { lessThinking?: number; thinkingBudget?: number }) => {
     asked.push(lessThinking);
+    budgets.push(thinkingBudget);
     return JSON.stringify(replies[asked.length - 1]);
   };
   const reply = {
@@ -228,7 +236,7 @@ test("the fix asks at Review thinking, and once more when it changes nothing of 
   const log = await logOf(async () => {
     fixed = await checkConsistency(
       { decide: decisions({ continuity: 0.99 }).decide, enabled: () => true, logOnly: false },
-      reviewer,
+      { provider: reviewer, settings: REVIEW },
       reply,
       () => true,
       new AbortController().signal,
@@ -237,6 +245,7 @@ test("the fix asks at Review thinking, and once more when it changes nothing of 
   expect(fixed!.narration).toBe("Five men.");
   expect(fixed!.checked.outcome).toBe("fixed");
   expect(asked).toEqual([0, 0]);
+  expect(budgets).toEqual([1000, 1000]);
   expect(log).toContain("Empty fix asked again");
 });
 
@@ -251,7 +260,7 @@ test("the fix is shown the Turn's Check, to keep what it decided", async () => {
   const reply = { previous: "A door.", input: "I pick it.", timeBefore: null, timeAfter: null, pc: "Ash", pcLooks: "", wearing: [], cast: [], facts: [] };
   await checkConsistency(
     { decide: decisions({ continuity: 0.99 }).decide, enabled: () => true, logOnly: false },
-    reviewer,
+    { provider: reviewer, settings: REVIEW },
     { ...reply, summary: "", memories: [], knows: {}, narration: "It holds.", visualDescription: "", check } as never,
     () => true,
     new AbortController().signal,

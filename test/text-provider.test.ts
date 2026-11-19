@@ -647,6 +647,48 @@ test("a call asked for less thinking is sent a lower level, never below Low, and
   ]);
 });
 
+test("a call with a thinking budget sends it to a model whose listing takes one, and the level to one that doesn't", async () => {
+  const listing = {
+    data: [
+      { id: "fake/model", supported_parameters: ["reasoning"], reasoning: { supports_max_tokens: true } },
+      { id: "plain/model", supported_parameters: ["reasoning"] },
+    ],
+  };
+  const said = [delta("Hello."), "data: [DONE]\n\n"];
+  play([said, said, said], listing, scriptedDice(), true);
+  const settings = settingsStore(join(folder.path, "settings.json"));
+  settings.update({ textThinking: "low" });
+  const send = (thinkingBudget?: number) =>
+    textProvider(settings)([{ role: "user", content: "Hi" }], { thinkingBudget, onText: () => {}, signal: new AbortController().signal });
+
+  const log = await logOf(async () => {
+    await send(1000);
+    await send();
+    settings.update({ textModel: "plain/model" });
+    await send(1000);
+  }, "info");
+
+  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([{ max_tokens: 1000 }, { effort: "low" }, { effort: "low" }]);
+  expect(log).toContain('"thinkingBudget":1000');
+});
+
+test("a reply cut by its caller's time limit is logged as a time limit, not as the client leaving", async () => {
+  play([
+    async function* () {
+      await Bun.sleep(200);
+      yield* narrated("Late.");
+    },
+  ]);
+  const log = await logOf(async () => {
+    await textProvider(settingsStore(join(folder.path, "settings.json")))([{ role: "user", content: "Hi" }], {
+      onText: () => {},
+      signal: AbortSignal.timeout(20),
+    }).catch(() => {});
+  }, "info");
+
+  expect(log).toContain('"failed":"time limit"');
+});
+
 test("a model that refuses Low is sent the next level up instead, and isn't sent Low again", async () => {
   const thinking = { data: [{ id: "fake/model", supported_parameters: ["reasoning"] }] };
   const said = [delta("Hello."), "data: [DONE]\n\n"];

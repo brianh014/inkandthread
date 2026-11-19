@@ -5,7 +5,7 @@ import { errorType, log } from "./logger";
 import { wholeWord } from "./lore-activation";
 import type { Prompt } from "./prompt-assembler";
 import { nameForms, type State, type StoryTime } from "./state-applier";
-import { reviewTimedOut, slowReviewer } from "./state-upkeep";
+import { reviewTimedOut, slowReviewer, type Upkeep } from "./state-upkeep";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
 const noul = (instructions: string, yes: string, no: string): Question => ({ type: "noul", instructions, criteria: { true: yes, false: no } });
@@ -41,9 +41,12 @@ export type Name = keyof typeof QUESTIONS;
 // scripts/consistency-cases when players use it. Exported only so a test can set one as if tuned.
 export const CUT_OFFS: Record<string, Record<Name, number>> = { "liquid/d1.2": { time: 0.6, continuity: 0.2, description: 0.3, past: 0.2 } };
 // A fix that asks again can take 45 s, holding back the choices; past this the reply is kept as the Narrator wrote it.
-// 15 s, as 8 s cut off fixes that were still working, and 12 s cut off a reviewer at Low a third of the time on a slow provider.
-// Exported only so a test can shorten it.
-export const FIX_LIMIT = { ms: 15_000 };
+// 25 s, as 15 s cut off 22 of 28 fixes by DeepSeek at Low: finished fixes thought up to 1,010 tokens and answered in under 100,
+// which a provider streaming 50 tokens a second needs about 22 s for. Exported only so a test can shorten it.
+export const FIX_LIMIT = { ms: 25_000 };
+// Thinking tokens a fix may spend, sent where the provider takes a budget: the most a finished fix used on the bench, as Low
+// alone has no ceiling (over 2,300 tokens on hard ones), while none at all left real slips in.
+const FIX_THINKING = 1_000;
 // A score at which an unchanged fix is asked again, as the slips scored this high on the bench were mostly real.
 const SURE_SLIP = 0.7;
 export const cutOffs = (model: string) => CUT_OFFS[model] ?? CUT_OFFS["liquid/d1.2"]!;
@@ -129,7 +132,7 @@ export function slices(reply: ReplyToCheck): Partial<Record<Name, Record<string,
  */
 export async function checkConsistency(
   { decide, logOnly }: Consistency,
-  reviewer: TextProvider | undefined,
+  reviewer: Pick<Upkeep, "provider" | "settings"> | undefined,
   reply: ReplyToCheck,
   usable: (narration: string) => boolean,
   signal: AbortSignal,
@@ -155,10 +158,10 @@ export async function checkConsistency(
   try {
     const toFix = Object.fromEntries(asked.filter(([name]) => flagged.includes(name)));
     const unchanged = ({ narration, visualDescription }: typeof kept) => narration === reply.narration && visualDescription === reply.visualDescription;
-    let fixed = await fixReply(reviewer, reply, toFix, limited);
+    let fixed = await fixReply(reviewer.provider, reply, toFix, limited);
     // Asked once more, as on the bench most fixes of a slip scored this high that came back unchanged had left a real slip in.
     if (unchanged(fixed) && flagged.some((name) => (scores[name] ?? 0) >= SURE_SLIP)) {
-      fixed = await fixReply(reviewer, reply, toFix, limited);
+      fixed = await fixReply(reviewer.provider, reply, toFix, limited);
       log.info("consistency", "Empty fix asked again", { flagged: flagged.length, fixed: unchanged(fixed) ? 0 : 1 });
     }
     if (!usable(fixed.narration)) throw new Error("unusable fix");
@@ -166,8 +169,8 @@ export async function checkConsistency(
     return { ...fixed, checked: { model, scores, outcome: unchanged(fixed) ? "not a slip" : "fixed" } };
   } catch (error) {
     if (signal.aborted) throw error;
-    log.warning("consistency", "Reply kept unfixed", { flagged, ...errorType(error) });
-    if (limited.aborted) reviewTimedOut("fix");
+    log.warning("consistency", "Reply kept unfixed", { flagged, ...(limited.aborted ? { type: "time limit", ms: FIX_LIMIT.ms } : errorType(error)) });
+    if (limited.aborted) reviewTimedOut("fix", reviewer.settings);
     return { ...kept, checked: { model, scores, outcome: "fix failed" } };
   }
 }
@@ -210,6 +213,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(FixRepl
   // At Review thinking, as a level below left real slips in; a reviewer that runs past FIX_LIMIT is lowered by slowReviewer.
   const { narration_edits, visual_description_edits } = await askForJson(reviewer, prompt, FixReply, "The reviewer refused to fix the reply.", signal, {
     lessThinking: slowReviewer.steps,
+    thinkingBudget: FIX_THINKING,
   });
   return { narration: edited(reply.narration, narration_edits), visualDescription: edited(reply.visualDescription, visual_description_edits) };
 }

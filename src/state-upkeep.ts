@@ -4,6 +4,7 @@ import { errorType, log } from "./logger";
 import { plainMessage, type Prompt } from "./prompt-assembler";
 import { reviewerSettings, type TextSettings } from "./settings-store";
 import { type State, StateOperation } from "./state-applier";
+import { lowerThinking } from "./text-provider";
 import { askForJson, isJunk, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
 /**
@@ -48,6 +49,9 @@ const RULES = { withTime: rules(true), withoutTime: rules(false) };
 // The Choices and the Turn's save wait for State Upkeep, which took 1 to 5 s on the bench; past this, as a slow or retrying
 // reviewer could hold them for 30 s or more, the Turn keeps the Narrator's own state. Exported only so a test can shorten it.
 export const UPKEEP_LIMIT = { ms: 15_000 };
+// Thinking tokens Upkeep may spend, sent where the provider takes a budget: with its answer, what a provider streaming 50 tokens
+// a second fits in UPKEEP_LIMIT. Finished Upkeep thought a median 538 on the bench, and an empty one 130 to 560.
+const UPKEEP_THINKING = 600;
 
 /**
  * Thinking levels below Review thinking that reviews are sent at, raised each time one runs out of time, as a reviewer on a slow
@@ -57,8 +61,10 @@ export const UPKEEP_LIMIT = { ms: 15_000 };
  * shortcut: in memory and shared by every Save; key it by model if that misfires.
  */
 export const slowReviewer = { steps: 0 };
-export function reviewTimedOut(during: "State Upkeep" | "fix") {
-  if (slowReviewer.steps >= 2) return;
+export function reviewTimedOut(during: "State Upkeep" | "fix", settings: TextSettings) {
+  const thinking = reviewerSettings(settings).read().textThinking;
+  // Already at Low, a step lower changes nothing, so neither is taken nor logged.
+  if (slowReviewer.steps >= 2 || lowerThinking(thinking, slowReviewer.steps) === lowerThinking(thinking, slowReviewer.steps + 1)) return;
   slowReviewer.steps++;
   log.info("turn", "Review thinking lowered", { during, steps: slowReviewer.steps });
 }
@@ -123,17 +129,15 @@ export async function upkeepOperations(
       timed ? REPLY.withoutTime : REPLY.withTime,
       "The reviewer refused to keep the state.",
       limited,
-      {
-        lessThinking: slowReviewer.steps,
-      },
+      { lessThinking: slowReviewer.steps, thinkingBudget: UPKEEP_THINKING },
     );
     const kept = given.filter((operation) => operation !== null);
     log.info("turn", "State Upkeep", () => ({ model, operations: kept.map(({ op }) => op), dropped: given.length - kept.length, ms: Date.now() - started }));
     return kept as StateOperation[];
   } catch (error) {
     if (signal.aborted) throw error;
-    log.warning("turn", "State Upkeep skipped", { model, ...errorType(error) });
-    if (limited.aborted) reviewTimedOut("State Upkeep");
+    log.warning("turn", "State Upkeep skipped", { model, ...(limited.aborted ? { type: "time limit", ms: UPKEEP_LIMIT.ms } : errorType(error)) });
+    if (limited.aborted) reviewTimedOut("State Upkeep", settings);
     return undefined;
   }
 }

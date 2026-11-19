@@ -36,14 +36,16 @@ export const narration = (text: string, ...parts: object[]) =>
 export function scriptedTextProvider(...replies: (string | Error)[]) {
   const prompts: Prompt[] = [];
   const schemas: unknown[] = [];
+  const budgets: (number | undefined)[] = [];
   const textProvider: TextProvider = async (prompt, request) => {
     prompts.push(prompt);
     schemas.push(request.schema);
+    budgets.push(request.thinkingBudget);
     const reply = replies.shift() ?? new Error("Text Provider script exhausted");
     if (reply instanceof Error) throw reply;
     return reply;
   };
-  return { textProvider, prompts, schemas };
+  return { textProvider, prompts, schemas, budgets };
 }
 
 /** A real one-pixel PNG. */

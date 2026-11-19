@@ -82,7 +82,7 @@ A second AI call after each reply, on the reviewer model, that brings the scene,
 _Avoid_: State sync, bookkeeping call
 
 **World Moves On**:
-A Narrator call at a natural pause (a new place, a new day, or every fifth reply), run after the Turn is saved while the player reads, that rewrites each Plot Thread by what its people did out of the PC's sight, true to the Lore Entries it names, removes one play has brought to an end, and adds one while fewer than three remain. The next Turn waits for it. It changes only the hidden Plot Threads, so the player never sees it, only its results in play.
+A Narrator call at a natural pause (a Turn moving story time on by hours, a new day, or every fifth reply), run after the Turn is saved while the player reads, that rewrites each Plot Thread by what its people did out of the PC's sight, true to the Lore Entries it names, removes one play has brought to an end, and adds one while fewer than three remain. The next Turn waits for it. It changes only the hidden Plot Threads, so the player never sees it, only its results in play.
 _Avoid_: Off-screen turn, world tick
 
 **Consistency model**:

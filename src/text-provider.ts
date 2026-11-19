@@ -73,9 +73,15 @@ const HostList = z.object({
   }),
 });
 
-// `supported_parameters` is OpenRouter's, and a local server may put anything there or nothing.
+// `supported_parameters` and `reasoning` are OpenRouter's, and a local server may put anything there or nothing.
 const ModelList = z.object({
-  data: z.array(z.object({ id: z.string(), supported_parameters: z.array(z.string()).catch([]) })),
+  data: z.array(
+    z.object({
+      id: z.string(),
+      supported_parameters: z.array(z.string()).catch([]),
+      reasoning: z.object({ supports_max_tokens: z.boolean().catch(false) }).catch({ supports_max_tokens: false }),
+    }),
+  ),
 });
 
 // NanoGPT's detailed listing, which says which models think under `capabilities` instead.
@@ -135,7 +141,7 @@ const routing = ({ textRouting, textHost, textHostFallback }: Routing) =>
 // Never None, as with thinking off a reviewer's fixes came back empty and State Upkeep invented what the reply never showed.
 const LEVELS = ["low", "medium", "high"];
 /** `steps` levels below `level`, and never below Low. The model's own level is taken as one that thinks too long, so it goes a step below Medium. */
-const lowerThinking = (level: string, steps: number) => LEVELS[Math.max(0, (level === "default" ? 1 : LEVELS.indexOf(level)) - steps)]!;
+export const lowerThinking = (level: string, steps: number) => LEVELS[Math.max(0, (level === "default" ? 1 : LEVELS.indexOf(level)) - steps)]!;
 
 export function textProvider(
   settings: TextSettings,
@@ -145,6 +151,8 @@ export function textProvider(
   // Whether a model takes `reasoning`, by its provider's listing, or false after it refused one. Sent to a model that doesn't, on
   // OpenRouter it would leave a schema call, which requires every parameter, no host.
   const thinks = new Map<string, boolean>();
+  // Whether OpenRouter's listing says a model takes a thinking budget in tokens, which it then gets in place of a level.
+  const budgets = new Map<string, boolean>();
   // The lowest level a model took after refusing a lower one, by its index in LEVELS, so it isn't sent the refused one again.
   const lowestTaken = new Map<string, number>();
   // Servers that refused `stream_options`, so they aren't asked again until the app restarts.
@@ -158,9 +166,11 @@ export function textProvider(
     const models = await listModels(url, headers, signal, listMs);
     // Without an answer, JSON validation and retries still work, so ask again on the next call.
     if (!models) return false;
-    const params = models.find(({ id }) => id === model)?.supported_parameters ?? [];
+    const listed = models.find(({ id }) => id === model);
+    const params = listed?.supported_parameters ?? [];
     const supported = params.includes("structured_outputs");
     schemaSupport.set(`${url} ${model}`, supported);
+    budgets.set(`${url} ${model}`, !!listed?.reasoning.supports_max_tokens);
     if (!thinks.has(`${url} ${model}`)) thinks.set(`${url} ${model}`, params.includes("reasoning"));
     return supported;
   }
@@ -198,7 +208,7 @@ export function textProvider(
     return takes ?? false;
   }
 
-  return async (prompt, { schema, picture, lessThinking = 0, onText, onGeneration, onUsage, signal }) => {
+  return async (prompt, { schema, picture, lessThinking = 0, thinkingBudget, onText, onGeneration, onUsage, signal }) => {
     const {
       textBaseUrl,
       textApiKey,
@@ -254,6 +264,7 @@ export function textProvider(
     };
 
     let withThinking = false;
+    let budget: number | undefined;
     const send = async (useSchema: boolean, askUsage: boolean) => {
       heardFrom();
       log.verbose("text", "Prompt sent", () => ({ model: textModel, messages: prompt.length, chars: sent.length, schema: useSchema }));
@@ -271,7 +282,7 @@ export function textProvider(
           ...(askUsage && { stream_options: { include_usage: true } }),
           max_tokens: textMaxTokens,
           // Changes nothing in the prompt, so the provider's cache still holds. Google takes only OpenAI's own field.
-          ...(withThinking && (isGoogle(url) ? { reasoning_effort: textThinking } : { reasoning: { effort: textThinking } })),
+          ...(withThinking && (isGoogle(url) ? { reasoning_effort: textThinking } : { reasoning: budget ? { max_tokens: budget } : { effort: textThinking } })),
           ...(useSchema && { response_format: { type: "json_schema", json_schema: { name: "narrator_response", strict: true, schema } } }),
           // OpenRouter only: a strict server such as OpenAI refuses a field it does not know.
           ...(openRouter && { provider: { ...(useSchema && { require_parameters: true }), ...routing(chosen) } }),
@@ -284,6 +295,8 @@ export function textProvider(
     try {
       const useSchema = schema !== undefined && (await supportsSchema(url, textModel, headers, signal));
       withThinking = textThinking !== "default" && (await takesReasoning(url, textModel, textApiKey, headers, signal, schema !== undefined));
+      // shortcut: a refused budget goes down the level path below still sending it; drop it there if a host refuses one.
+      if (withThinking && thinkingBudget && budgets.get(modelKey)) budget = seen.thinkingBudget = thinkingBudget;
       seen.schema = useSchema;
       const askUsage = !openRouter && !usageRefused.has(url);
       let response = await send(useSchema, askUsage);
@@ -378,7 +391,9 @@ export function textProvider(
     } catch (cause) {
       // A caller that stops a reply for its own reason gives it in the app's own words: as a string, or as a stop on purpose.
       const reason = signal.reason instanceof StoppedOnPurpose ? signal.reason.why : signal.reason;
-      seen.failed = signal.aborted ? (typeof reason === "string" ? reason : "the client left") : (cause as Error).name;
+      // A caller's own time limit, as a review's, aborts with a TimeoutError, which isn't the player leaving.
+      const timedOut = reason instanceof DOMException && reason.name === "TimeoutError";
+      seen.failed = signal.aborted ? (typeof reason === "string" ? reason : timedOut ? "time limit" : "the client left") : (cause as Error).name;
       const known = cause instanceof ContentRefused || cause instanceof TextProviderFailed;
       if (known || signal.aborted || cause instanceof SyntaxError) throw cause;
       throw new TextProviderFailed(overrun.signal.aborted ? TOO_LONG : silence.signal.aborted ? STOPPED : UNREACHABLE, { cause });

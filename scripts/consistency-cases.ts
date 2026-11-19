@@ -68,7 +68,7 @@ for (const entry of cases.filter(({ id }) => !only || id.startsWith(only))) {
   const visualDescription = entry.visualDescription ?? "";
   const reply: ReplyToCheck = { ...at, timeAfter: entry.timeAfter ?? at.timeBefore, narration, visualDescription };
   const started = Date.now();
-  const result = await checkConsistency(consistency, counted, reply, (text) => usableFix(text, at.pc, narration), signal);
+  const result = await checkConsistency(consistency, { provider: counted, settings }, reply, (text) => usableFix(text, at.pc, narration), signal);
   waits.push(Date.now() - started);
   for (const [name, score] of Object.entries(result.checked.scores) as [Name, number | null][]) {
     if (score === null) continue;

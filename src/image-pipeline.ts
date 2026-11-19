@@ -68,8 +68,13 @@ export const visibleNpcs = ({ scene, npcs }: State) => scene.visibleCast.flatMap
 export function portraitsDue(before: State, after: State) {
   const { scene, pcKnown } = after;
   const due = movedScene(before, after) ? [...scene.visibleCast, ...pcKnown.npcs] : pcKnown.npcs.filter((name) => !before.pcKnown.npcs.includes(name));
-  return [...new Set(due)].flatMap((name) => after.npcs.filter((npc) => npc.name === name));
+  // Not someone named as a body, as a portrait draws them alive. shortcut: by name, as an NPC has no alive or dead; one who
+  // dies keeps their name and portrait, add a field if that misleads.
+  const bodies = [...new Set(due)].filter((name) => DEAD.test(name)).length;
+  if (bodies > 0) log.info("images", "No portrait for a body", { bodies });
+  return [...new Set(due)].filter((name) => !DEAD.test(name)).flatMap((name) => after.npcs.filter((npc) => npc.name === name));
 }
+const DEAD = /\b(body|corpse|remains)\b/i;
 
 /** Everyone whose looks a Turn changed: an NPC given new looks, and the PC, as null, when what they wear or how they look changed. */
 export function restyledBy(before: State, after: State): (Npc | null)[] {

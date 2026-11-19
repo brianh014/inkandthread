@@ -101,7 +101,7 @@ test("State Upkeep that runs past its time limit keeps the Narrator's state, and
     const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
 
     expect(store().latestState(id).inventory.carrying).toEqual(["a key"]);
-    expect(log).toContain("State Upkeep skipped");
+    expect(log).toContain('"type":"time limit"');
     // So the next review thinks a level less, rather than being cut off again.
     expect(log).toContain("Review thinking lowered");
     expect(slowReviewer.steps).toBe(1);
@@ -110,8 +110,29 @@ test("State Upkeep that runs past its time limit keeps the Narrator's state, and
   }
 });
 
+test("a time-out lowers Review thinking only while it is above Low, and logs only a lowering", async () => {
+  play([], []);
+  const settings = settingsStore(join(folder.path, "settings.json"));
+  settings.update({ reviewThinking: "medium" });
+
+  const log = await logOf(async () => {
+    reviewTimedOut("fix", settings);
+    reviewTimedOut("fix", settings);
+  }, "info");
+
+  expect(log.match(/Review thinking lowered/g)).toHaveLength(1);
+  expect(slowReviewer.steps).toBe(1);
+});
+
+test("a State Upkeep call is sent its thinking budget", async () => {
+  const { upkeep } = play([narration("Ash walks home.")], [upkept()]);
+  const id = createSave();
+  expect((await turn(id)).ok).toBe(true);
+  expect(upkeep.budgets[0]).toBe(600);
+});
+
 test("reviews lowered after a time-out stay lowered, however quick the next are, as raising them again timed out again", async () => {
-  reviewTimedOut("fix");
+  reviewTimedOut("fix", settingsStore(join(folder.path, "settings.json")));
   play([narration("Ash walks home."), narration("Ash sits."), narration("Ash sleeps.")], [upkept(), upkept(), upkept()]);
   const id = createSave();
 

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { promptStyle } from "../src/graph-builder";
-import { chestUp, expandMarks, markNames } from "../src/image-pipeline";
+import { chestUp, expandMarks, markNames, portraitsDue } from "../src/image-pipeline";
 import { assemblePrompt, IN_ITS_WORLD_AND_STYLE, REQUESTED_IMAGE_PROMPT } from "../src/prompt-assembler";
 import { applyOperations, openingState } from "../src/state-applier";
 
@@ -169,4 +169,15 @@ test("the era is set once, and a later set_era is ignored rather than failing th
   const again = applyOperations(first.next, [{ op: "set_era", era: "1870s American West" }]);
   expect(again.next.era).toBe("early medieval Arabia");
   expect(again.refused).toEqual([]);
+});
+
+test("someone the story names as a body or corpse is given no portrait, as one drawn alive", () => {
+  const living = { name: "Owen Price", appearance: "a broad constable" };
+  const dead = [
+    { name: "Tobias Crane's body", appearance: "a drowned man" },
+    { name: "The corpse", appearance: "a still form" },
+  ];
+  const after = { ...openingState, npcs: [living, ...dead], scene: { location: "The loft", visibleCast: ["Owen Price", "Tobias Crane's body", "The corpse"] } };
+
+  expect(portraitsDue(openingState, after)).toEqual([living]);
 });

@@ -64,6 +64,8 @@ export type TextProvider = (
     picture?: boolean;
     /** How many levels below the player's Thinking to ask for, after a reply thought past the limit. */
     lessThinking?: number;
+    /** Tokens of thinking, sent in place of the level to a model whose provider takes a budget, for a call with a hard time limit. */
+    thinkingBudget?: number;
     onText: (text: string) => void;
     onGeneration?: (id: string) => void;
     onUsage?: (usage: TextUsage) => void;
@@ -833,7 +835,7 @@ async function narrate(
         });
         const result = await checkConsistency(
           consistency,
-          upkeep?.provider,
+          upkeep,
           reply,
           (text) => usableFix(withoutStrayMarks(text), pcName, told, check) && !repeatsPrevious(text, told, previous),
           signal,
@@ -1172,13 +1174,21 @@ export async function askForJson<T>(
   refusal: string,
   signal: AbortSignal,
   /** `lessThinking` asks for that many levels below the player's Thinking from the first attempt. */
-  { picture = false, lessThinking: fewer = 0 } = {},
+  { picture = false, lessThinking: fewer = 0, thinkingBudget }: { picture?: boolean; lessThinking?: number; thinkingBudget?: number } = {},
 ) {
   let generation: string | undefined;
   let lessThinking = fewer;
   let asked = prompt;
   for (let attempt = 1; ; attempt++) {
-    const request = { schema: jsonSchemaOf(schema), picture, lessThinking, onText: () => {}, onGeneration: (id: string) => (generation = id), signal };
+    const request = {
+      schema: jsonSchemaOf(schema),
+      picture,
+      lessThinking,
+      thinkingBudget,
+      onText: () => {},
+      onGeneration: (id: string) => (generation = id),
+      signal,
+    };
     try {
       return parseReply(await askNarrator(textProvider, asked, request, "", refusal), schema);
     } catch (cause) {

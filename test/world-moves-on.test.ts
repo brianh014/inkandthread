@@ -60,13 +60,16 @@ const createSave = () =>
 const turn = (id: string, input: string) =>
   fetch(new URL(`/saves/${id}/turns`, server.url), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input }) });
 const moved = (...plot_threads: object[]) => JSON.stringify({ plot_threads });
+// A new day, which makes a move due.
+const nextDay = (date = "2nd of Thaw") => ({ op: "set_story_time", days_passed: 1, date, time_of_day: "dawn" });
 
-test("at a change of place the world moves on out of sight, and the next Turn reads it moved", async () => {
+test("on a new day the world moves on out of sight, and the next Turn reads it moved", async () => {
   const told = play(
     narration(
       "Ash walks to the dock.",
       { op: "add_npc", name: "Ferryman", appearance: "a stooped man in oilskins" },
       { op: "set_scene", location: "The dock", visible_cast: ["Ferryman"] },
+      nextDay(),
     ),
     moved({ old: "A thief plans to rob the library at the next high tide.", new: "The thief has robbed the library and hides the books on a barge." }),
     narration("Ash watches the barges."),
@@ -100,6 +103,7 @@ test("a move reads the Lore Entries the story names too, not only its threads', 
       "Ash catches the thief where a gull nests on the dome.",
       { op: "resolve_plot_thread", thread: "A thief plans to rob the library at the next high tide." },
       { op: "set_scene", location: "The dome", visible_cast: [] },
+      nextDay(),
     ),
     moved(),
     narration("Ash looks out over the city."),
@@ -116,7 +120,12 @@ test("a move reads the Lore Entries the story names too, not only its threads', 
 test("a Turn's resolve only asks the next move to close the thread, which the move removes or keeps", async () => {
   const THIEF = "A thief plans to rob the library at the next high tide.";
   const told = play(
-    narration("Ash catches the thief at the dock.", { op: "resolve_plot_thread", thread: THIEF }, { op: "set_scene", location: "The dock", visible_cast: [] }),
+    narration(
+      "Ash catches the thief at the dock.",
+      { op: "resolve_plot_thread", thread: THIEF },
+      { op: "set_scene", location: "The dock", visible_cast: [] },
+      nextDay(),
+    ),
     moved({ old: THIEF, new: null }),
     narration("Ash looks out over the water."),
   );
@@ -184,7 +193,7 @@ test("a rewrite keeps a many-word name or Lore keyword when it keeps the word th
 
 test("a move that misquotes a thread, or fails, leaves the world as it was and the next Turn plays", async () => {
   play(
-    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
     moved({ old: "No such thread.", new: "Something else." }),
     moved({ old: "No such thread.", new: "Something else." }),
     moved({ old: "No such thread.", new: "Something else." }),
@@ -202,11 +211,18 @@ test("a move that misquotes a thread, or fails, leaves the world as it was and t
   expect(log).toContain("a change misquotes a thread");
 });
 
-test("a move is due at a new place, a new day or every few replies, even with no threads, as only a move adds them", () => {
-  const before = { ...openingState, plotThreads: ["A thread."], scene: { location: "Here", visibleCast: [] } };
+test("a move is due after hours of story time, on a new day or every few replies, even with no threads, as only a move adds them", () => {
+  const at = (timeOfDay: string, date = "1st of Thaw") => ({ date, timeOfDay, day: 1 });
+  const before = { ...openingState, plotThreads: ["A thread."], scene: { location: "Here", visibleCast: [] }, storyTime: at("early afternoon") };
   expect(moveDue(before, before, 1)).toBe(false);
-  expect(moveDue(before, { ...before, scene: { location: "There", visibleCast: [] } }, 1)).toBe(true);
-  expect(moveDue(before, { ...before, storyTime: { date: "2nd of Thaw", timeOfDay: "dawn", day: 1 } }, 1)).toBe(true);
+  // Walking from room to room isn't a pause, as moves that often rewrote the threads out of what they hid.
+  expect(moveDue(before, { ...before, scene: { location: "There", visibleCast: [] } }, 1)).toBe(false);
+  expect(moveDue(before, { ...before, storyTime: at("mid afternoon") }, 1)).toBe(false);
+  expect(moveDue(before, { ...before, storyTime: at("evening") }, 1)).toBe(true);
+  expect(moveDue({ ...before, storyTime: at("about 9 a.m.") }, { ...before, storyTime: at("10:30 am") }, 1)).toBe(false);
+  expect(moveDue({ ...before, storyTime: at("about 9 a.m.") }, { ...before, storyTime: at("half past 2 pm") }, 1)).toBe(true);
+  expect(moveDue(before, { ...before, storyTime: at("a while later") }, 1)).toBe(false);
+  expect(moveDue(before, { ...before, storyTime: at("dawn", "2nd of Thaw") }, 1)).toBe(true);
   expect(moveDue(before, before, MOVE_EVERY)).toBe(true);
   expect(moveDue(before, { ...before, plotThreads: [] }, MOVE_EVERY)).toBe(true);
 });
@@ -221,7 +237,7 @@ test("the player's Journal edits are still settled after a move, which settles n
 
 test("a Regenerate drops the move made from the reply it replaces", async () => {
   play(
-    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
     moved({ old: "A thief plans to rob the library at the next high tide.", new: "The thief has robbed the library." }),
     narration("Ash stays in the library."),
   );
@@ -245,6 +261,7 @@ test("a move doesn't rewrite the thread of someone with the PC into an account o
       "Ash walks to the dock, where the thief is mending a net.",
       { op: "add_npc", name: "Thief", appearance: "a wiry man in a grey smock" },
       { op: "set_scene", location: "The dock", visible_cast: ["Thief"] },
+      nextDay(),
     ),
     // The scene in play, retold as what the thief did: dropped, and asked again while tries remain.
     ...Array.from({ length: 3 }, () =>
@@ -271,6 +288,7 @@ test("a move rewrites the thread of someone with the PC when it keeps to what th
       "Ash walks to the dock, where the thief is mending a net.",
       { op: "add_npc", name: "Thief", appearance: "a wiry man in a grey smock" },
       { op: "set_scene", location: "The dock", visible_cast: ["Thief"] },
+      nextDay(),
     ),
     moved({ old: "A thief plans to rob the library at the next high tide.", new: "The thief means to rob the library at tonight's tide." }),
     narration("Ash watches the barges."),
@@ -285,9 +303,9 @@ test("a move rewrites the thread of someone with the PC when it keeps to what th
 test("a move adds threads only while fewer than three are open, as an 80-round story's grew to seven that nothing ended", async () => {
   const add = (text: string) => ({ old: null, new: text });
   play(
-    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
     moved(add("The ferryman owes the thief."), add("The gulls are omens."), add("The tide is wrong.")),
-    narration("Ash watches the barges.", { op: "set_scene", location: "The quay", visible_cast: [] }),
+    narration("Ash watches the barges.", { op: "set_scene", location: "The quay", visible_cast: [] }, nextDay("3rd of Thaw")),
     // Three open now, so a move of adds alone is no move, and isn't asked again.
     moved(add("A fourth.")),
     narration("Ash goes home."),
@@ -309,7 +327,7 @@ test("a move adds threads only while fewer than three are open, as an 80-round s
 
 test("a move keeps its usable changes and drops only those that change a thread twice or misquote one", async () => {
   play(
-    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
     moved(
       { old: "A thief plans to rob the library at the next high tide.", new: "The thief waits." },
       { old: "A thief plans to rob the library at the next high tide.", new: "The thief strikes." },
@@ -330,7 +348,7 @@ test("a move keeps its usable changes and drops only those that change a thread 
 
 test("a move with no usable change is written again, saying why", async () => {
   const told = play(
-    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
     moved({ old: "A thread that isn't there.", new: "x" }),
     moved(),
     narration("Ash watches the barges."),
@@ -345,7 +363,7 @@ test("a move with no usable change is written again, saying why", async () => {
 
 test("a move that drops someone its thread named is written again, as a rewrite must keep who is behind it", async () => {
   play(
-    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
     moved({ old: "Maren the thief plans to rob the library at the next high tide.", new: "Someone has robbed the library." }),
     moved({ old: "Maren the thief plans to rob the library at the next high tide.", new: "Maren has robbed the library and hides the books on a barge." }),
     narration("Ash watches the barges."),
@@ -367,7 +385,7 @@ test("a move that drops someone its thread named is written again, as a rewrite 
 
 test("a move keeps someone when it keeps any one of their names, so a surname alone will do", async () => {
   play(
-    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }),
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
     moved({ old: "Reverend Amos Thorne plans to land brandy at the next high tide.", new: "Thorne has landed the brandy in the crypt." }),
     narration("Ash watches the barges."),
   );

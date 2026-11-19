@@ -348,6 +348,7 @@ test("the schema keeps to what strict schema modes accept, with check first", as
     "visual_description",
     "chapter_ends",
   ]);
+  expect(schema.properties.check.properties.action.description).toContain("as the player's move has the PC say or do it");
   const visit = (node: any) => {
     if (typeof node !== "object" || node === null) return;
     for (const refused of ["oneOf", "minLength", "$schema"]) expect(Object.keys(node)).not.toContain(refused);

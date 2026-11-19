@@ -1745,6 +1745,18 @@ test("inventory and status never reveal secrets or Checks", async () => {
   expect(bodies).toEqual([JSON.stringify({ wearing: [], carrying: ["lantern"] }), JSON.stringify({ health: "winded", injuries: [], conditions: [] })]);
 });
 
+test("the Narrator rates only what the player's move has the PC say or do", async () => {
+  const { app, prompts } = play(narration("Rain."));
+  const id = await app.createSave();
+
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  const [system] = contents(prompts[0]);
+  expect(system).toContain(
+    "name it as the player's move has the PC say or do it, never what someone asked of the PC or where the scene is heading, say what's at stake",
+  );
+});
+
 test("the Narrator is told to keep inventory realistic and to change it and status only in ways the server accepts", async () => {
   const { app, prompts } = play(narration("Rain."));
   const id = await app.createSave();

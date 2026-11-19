@@ -269,7 +269,9 @@ export const threadsHeld = (schema: object, threads: string[]): object =>
 const ResponseShape = z.object({
   // Stakes before difficulty, as a model that went straight to a difficulty rated even a move it called unwarned Easy.
   check: z.object({
-    action: CheckRequest.shape.action,
+    action: CheckRequest.shape.action.describe(
+      "the PC's action as the player's move has the PC say or do it, never what someone asked of the PC or where the scene is heading",
+    ),
     stakes: z.string().describe("in a few words, what could go wrong, and how anyone it touches would truly take it"),
     // The odds beside the names, as a model that wrote stakes of real harm still chose Moderate, not knowing what it meant.
     difficulty: z

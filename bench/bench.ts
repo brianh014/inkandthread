@@ -15,6 +15,12 @@
 //                                      version, score and story, to bench/charts/bench-chart.html
 // To bench a setup without editing the Settings copy: --narrator <model>, --narrator-only (no other reviewer, Consistency off),
 // --reviewer <model> and --decisions <model>. The copy's pinned provider stays, so a model it doesn't offer fails, never reroutes.
+//   --host <provider>   pins the Narrator's OpenRouter provider (DeepInfra, say) with no fallback, on the copy only. The reviewer
+//                       follows it when it is the Narrator's model; a reviewer of its own model goes unpinned, as Settings
+//                       have no host for it, and the decision model (src/decisions.ts) is never routed this way.
+//   --no-consistency    turns off only the consistency check, keeping the reviewer for State Upkeep, Choices and World Moves
+//                       On, as a control run of what the check adds; not with --narrator-only or --decisions.
+// Each result and transcript header records the host and whether the check was on.
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
@@ -228,7 +234,11 @@ type Result = {
   label: string;
   commit: string;
   provider: string;
+  /** `consistency` is "off" when the check was, as with --no-consistency or --narrator-only. */
   models: { narrator: string; reviewer: string; reviewThinking: string; consistency: string };
+  /** The OpenRouter provider the Narrator's calls were pinned to (--host or the Settings copy's own), with no fallback when `hostFallback` is false. Absent when unpinned. */
+  host?: string;
+  hostFallback?: boolean;
   /** Seeded Choices, or Free Text from a moves file, which runs compare only within. */
   mode?: string;
   /** Plays that failed and were left out, when any did; `runs` then counts only those kept. */
@@ -717,7 +727,9 @@ async function play(
   }
   flat["perRound.decisions.cost"] = decisionCost / rounds;
 
-  writeFileSync(join(folder, "transcript.md"), transcript(world, saves, id, steps));
+  const { textHost, textHostFallback, consistencyEnabled } = settings.read();
+  const setup = `Narrator host: ${textHost ? `${textHost}${textHostFallback ? ", falling back" : ", no fallback"}` : "any"}. Consistency check: ${consistencyEnabled ? "on" : "off"}.`;
+  writeFileSync(join(folder, "transcript.md"), transcript(world, saves, id, steps, setup));
   if (draw) keepPictures(saves, id, join(folder, "pictures"));
   if (keepSave) cpSync(savesDir, join(folder, "Saves"), { recursive: true });
   rmSync(savesDir, { recursive: true, force: true });
@@ -735,7 +747,7 @@ function keepPictures(saves: ReturnType<typeof saveStore>, id: string, into: str
 }
 const pictureName = (kind: string, ref: number, npc: string | null) => `${kind}-${kind === "scene" ? ref : safe(npc ?? "pc")}.png`;
 
-function transcript(world: z.infer<typeof World>, saves: ReturnType<typeof saveStore>, id: string, steps: Step[]) {
+function transcript(world: z.infer<typeof World>, saves: ReturnType<typeof saveStore>, id: string, steps: Step[], setup: string) {
   const checks = new Map(saves.checks(id).map((check) => [check.messageId, check]));
   // Judges charged the bench's own words to the Narrator, such as an Edit's line taken for a habit of its prose, so each is marked.
   const byBench: Record<string, string> = {
@@ -773,7 +785,7 @@ function transcript(world: z.infer<typeof World>, saves: ReturnType<typeof saveS
   const begun = `## World rules at the start\n\n${list(start.worldRules ?? [])}\n\n## Lore at the start (hidden)\n\n${list((start.worldBible ?? []).map(({ title, content }) => `${title}: ${content}`))}`;
   const time = end.storyTime ? `day ${end.storyTime.day}, ${end.storyTime.date}, ${end.storyTime.timeOfDay}` : "(none)";
   const ending = `## At the end\n\nStory time: ${time}\n\nSummary the Narrator reads: ${end.summary || "(none)"}\n\nPlot Threads:\n\n${list(end.plotThreads)}\n\nLoose Ends:\n\n${list(end.looseEnds)}`;
-  return `# ${world.save.title}\n\n## Plot Threads at the start (hidden)\n\n${list(world.opening.plotThreads as string[])}\n\n${begun}\n\n## The story\n\n${story.join("\n\n")}\n\n## Portrait prompts\n\n${portraits.join("\n") || "(none)"}\n\n## Hidden timeline\n\n${timeline.join("\n")}\n\n${ending}\n`;
+  return `# ${world.save.title}\n\n${setup}\n\n## Plot Threads at the start (hidden)\n\n${list(world.opening.plotThreads as string[])}\n\n${begun}\n\n## The story\n\n${story.join("\n\n")}\n\n## Portrait prompts\n\n${portraits.join("\n") || "(none)"}\n\n## Hidden timeline\n\n${timeline.join("\n")}\n\n${ending}\n`;
 }
 
 // ---- Results ----
@@ -822,7 +834,7 @@ function report(result: Result) {
   const show = (value: number | undefined, key = "") =>
     value === undefined ? "-" : Number.isInteger(value) ? String(value) : value.toFixed(key.startsWith("cost") ? 4 : 2);
   console.log(
-    `\n${result.provider} ${result.models.narrator}, reviewer ${result.models.reviewer} (${result.models.reviewThinking}), consistency ${result.models.consistency}`,
+    `\n${result.provider} ${result.models.narrator}${result.host ? ` on ${result.host}` : ""}, reviewer ${result.models.reviewer} (${result.models.reviewThinking}), consistency ${result.models.consistency}`,
   );
   console.log(
     `${result.runs} play(s) of ${result.rounds} rounds, ${result.mode ?? "choices"}, seed ${result.seed}, judged by ${result.judge?.by ?? "no one yet"}`,
@@ -836,6 +848,8 @@ function report(result: Result) {
         : "No kept result to compare with.",
     );
   else console.log(`Compared with ${relative(BENCH, kept.path)}`);
+  if (anyKept && (anyKept.result.host ?? "") !== (result.host ?? ""))
+    console.log(`Its Narrator host differs: ${anyKept.result.host || "any"} there, ${result.host || "any"} here.`);
   const base = anyKept?.result.summary;
   for (const key of HEADLINE) {
     const [low, high] = result.range[key] ?? [];
@@ -959,17 +973,23 @@ async function run() {
     settings.update({ imageProvider: "openrouter", imageModel: "fake-images", imageApiKey: "fake-key" });
   const chosen = { narrator: option("--narrator"), reviewer: option("--reviewer"), decisions: option("--decisions") };
   if (flag("--narrator-only") && (chosen.reviewer || chosen.decisions)) fail("--narrator-only can't go with --reviewer or --decisions.");
+  const noConsistency = flag("--no-consistency");
+  if (noConsistency && (flag("--narrator-only") || chosen.decisions)) fail("--no-consistency can't go with --narrator-only or --decisions.");
   if (chosen.narrator) settings.update({ textModel: chosen.narrator });
   if (flag("--narrator-only")) settings.update({ reviewOtherModel: false, consistencyEnabled: false });
   if (chosen.reviewer) settings.update({ reviewOtherModel: true, reviewModel: chosen.reviewer });
   if (chosen.decisions) settings.update({ consistencyEnabled: true, consistencyModel: chosen.decisions });
+  if (noConsistency) settings.update({ consistencyEnabled: false });
   if (fake)
     settings.update({
       textBaseUrl: "http://127.0.0.1:9/v1",
       textModel: "fake-narrator",
-      consistencyEnabled: !flag("--narrator-only"),
+      consistencyEnabled: !flag("--narrator-only") && !noConsistency,
       consistencyModel: "fake-decisions",
     });
+  // Last, as the host is kept per server address and a change of address above loads that server's own.
+  const host = option("--host");
+  if (host) settings.update({ textHost: host, textHostFallback: false });
   const all = settings.read();
   const reviewer = reviewerSettings(settings).read();
   const provider = fake ? "fake" : providerOf(all.textBaseUrl);
@@ -982,7 +1002,10 @@ async function run() {
   if (!models.narrator) fail("The Settings file names no Narrator model.");
 
   const { dollars, how } = fake ? { dollars: 0, how: "the fakes cost nothing" } : await estimate(provider, models.narrator, models.reviewer, rounds, runs);
-  console.log(`${runs} play(s) of ${rounds} rounds on ${provider} ${models.narrator}, reviewer ${models.reviewer}, consistency ${models.consistency}.`);
+  const pinned = all.textHost ? ` on ${all.textHost}${all.textHostFallback ? " (falling back)" : ""}` : "";
+  console.log(
+    `${runs} play(s) of ${rounds} rounds on ${provider} ${models.narrator}${pinned}, reviewer ${models.reviewer}, consistency ${models.consistency}.`,
+  );
   console.log(dollars === null ? `Estimated cost: ${how}.` : `Estimated cost: about $${dollars.toFixed(2)} (${how}).`);
   if (!flag("--yes") && prompt("Start? [y/N]")?.trim().toLowerCase() !== "y") fail("Not started.");
 
@@ -998,6 +1021,7 @@ async function run() {
     commit: `${commit}${dirty}`,
     provider,
     models,
+    ...(all.textHost && { host: all.textHost, hostFallback: all.textHostFallback }),
     mode: movesFile ? `free text: ${basename(movesFile)}` : "choices",
     world: basename(worldFile),
     drawn: draw && !fake,

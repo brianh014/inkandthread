@@ -27,7 +27,6 @@ import {
   type TextHost,
   type TextTest,
 } from "./api";
-import { CommandCaveats } from "./guide";
 import { ChoicesIcon } from "./icons";
 import { BookTabs, MenuRibbon, Sheet } from "./menu";
 import { UpdatesSection } from "./new-version";
@@ -879,11 +878,15 @@ export const commandLineOf = ({ textCommand }: Pick<Settings, "textCommand">) =>
 export const LockedCommand = ({ line }: { line: string }) => (
   <>
     <p>
-      The AI is a command: <code>{line}</code>. It runs a program on the computer NovelForge runs on, so only Settings opened there, at <code>127.0.0.1</code>{" "}
-      or <code>localhost</code>, can change it.
+      The AI is a command: <code>{line}</code>. Only the computer NovelForge runs on can change it.
     </p>
-    <CommandCaveats />
+    <CommandNote />
   </>
+);
+
+// The Reader's Guide gives the whole of it.
+const CommandNote = () => (
+  <p className="muted">The provider's terms and limits apply, and Usage counts calls only. See the Reader's Guide → Choosing your AI.</p>
 );
 
 /** The box for the Narrator's command, as one line, with what it does and what a player takes on with it. */
@@ -893,11 +896,8 @@ export const CommandField = ({ line, onLine }: { line: string; onLine: (line: st
       Command
       <input required spellCheck={false} placeholder="claude -p --output-format text" value={line} onChange={(e) => onLine(e.target.value)} />
     </label>
-    <p className="muted">
-      A program and its arguments, such as a provider's own command-line tool, run with no shell. NovelForge sends it the prompt on its input and reads the
-      reply from its output, which must be the reply alone. Quote an argument with spaces. As it runs a program, only Settings on this computer can change it.
-    </p>
-    <CommandCaveats />
+    <p className="muted">A program that reads the prompt and prints only the reply. Only this computer can change it.</p>
+    <CommandNote />
   </>
 );
 

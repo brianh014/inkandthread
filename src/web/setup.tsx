@@ -282,7 +282,7 @@ function Steps({ initial }: { initial: Settings }) {
                   nanogpt: "Pay as you go for many models, with one key.",
                   local:
                     "An AI on your own computer, or any other OpenAI-compatible server. Nothing leaves your computer, but a long story outgrows a 10 GB graphics card, so it suits short stories, privacy and trying things out. Ollama is at http://localhost:11434/v1, LM Studio at http://localhost:1234/v1.",
-                  command: "A program you set up, such as a provider's own command-line tool, instead of a server. We still recommend one of the others.",
+                  command: "A program you set up, such as a provider's own command-line tool, instead of a server.",
                 }[command ? "command" : textChoice]
               }
             </p>

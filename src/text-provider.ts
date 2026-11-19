@@ -132,9 +132,10 @@ const routing = ({ textRouting, textHost, textHostFallback }: Routing) =>
   textHost ? { order: [textHost], allow_fallbacks: textHostFallback } : textRouting === "default" ? {} : { sort: textRouting };
 
 /** The one Text Provider: any OpenAI-compatible server, using the Settings at the time of each call. */
-const LEVELS = ["low", "medium", "high"];
-/** `steps` levels below `level`, and never below Low. The model's own level is taken as one that thinks too long, so it goes to Low. */
-const lowerThinking = (level: string, steps: number) => LEVELS[Math.max(0, LEVELS.indexOf(level) - steps)] ?? "low";
+// "none" only ever comes of lowering, as a reviewer at Low still ran out of time, and turns thinking off where the model takes a level.
+const LEVELS = ["none", "low", "medium", "high"];
+/** `steps` levels below `level`, and never below None. The model's own level is taken as one that thinks too long, so it goes a step below Medium. */
+const lowerThinking = (level: string, steps: number) => LEVELS[Math.max(0, (level === "default" ? 2 : LEVELS.indexOf(level)) - steps)]!;
 
 export function textProvider(
   settings: TextSettings,
@@ -290,7 +291,8 @@ export function textProvider(
         response = await send(useSchema, askUsage);
         if (response.ok) {
           log.warning("text", "Thinking level refused", { model: textModel, thinking: textThinking, status });
-          thinks.set(`${url} ${textModel}`, false);
+          // A model that must think, such as one that won't take None, still takes the levels the player chooses.
+          if (textThinking !== "none") thinks.set(`${url} ${textModel}`, false);
         }
       }
       seen.thinkingSent = withThinking;

@@ -5,7 +5,7 @@ import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
 import { openingState, type WorldEdit } from "../src/state-applier";
 import { journalChange } from "../src/prompt-assembler";
-import { MOVE_EVERY, moveDue, turnThreadChanges } from "../src/world-moves-on";
+import { MOVE_EVERY, moveDue, threadGuards, turnThreadChanges } from "../src/world-moves-on";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -139,6 +139,22 @@ test("a Turn's thread rewrite that drops a name or retells the scene, or a resol
     "a rewrite retells the scene in play": 1,
     "a resolve of a thread whose people the reply never names": 1,
   });
+});
+
+test("a rewrite keeps a many-word name or Lore keyword when it keeps the word that tells it apart, but not a title alone", () => {
+  const state = {
+    ...openingState,
+    worldBible: [
+      { title: "The mill", keywords: ["mill", "Orrin's mill"], content: "", alwaysOn: false },
+      { title: "The judge", keywords: ["Mr Pell", "judge"], content: "", alwaysOn: false },
+    ],
+  };
+  const { keepsNames } = threadGuards(state, "Ash");
+  const old = "Mr Pell means to burn Orrin's mill.";
+
+  expect(keepsNames({ old, new: "Pell means to burn Orrin's place before the hearing." })).toBe(true);
+  expect(keepsNames({ old, new: "Mr Pell means to burn the mill tonight." })).toBe(false);
+  expect(keepsNames({ old, new: "Mr Kell means to burn Orrin's mill." })).toBe(false);
 });
 
 test("a move that misquotes a thread, or fails, leaves the world as it was and the next Turn plays", async () => {

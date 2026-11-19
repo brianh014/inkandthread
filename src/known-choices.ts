@@ -2,7 +2,7 @@ import { z } from "zod";
 import { errorType, log } from "./logger";
 import { wholeWord } from "./lore-activation";
 import type { Prompt } from "./prompt-assembler";
-import type { State, StateOperation } from "./state-applier";
+import { nameForms, type State, type StateOperation } from "./state-applier";
 import { slowReviewer, UPKEEP_LIMIT, type Upkeep } from "./state-upkeep";
 import { askForJson, CHOICES_RULE, jsonSchemaOf, type TextProvider, usableChoices } from "./turn-engine";
 
@@ -28,7 +28,7 @@ export function unknownWords(choices: string[], state: State, seen: string, name
     ...state.inventory.wearing,
     ...state.inventory.carrying,
   ].join("\n");
-  const unknown = [...new Set(words)].filter((word) => word.length >= 4 && !mentions(known, word));
+  const unknown = [...new Set(words)].filter((word) => word.length >= 4 && !nameForms(word).some((form) => mentions(known, form)));
   const hidden = [...state.plotThreads, ...state.worldBible.filter(({ alwaysOn }) => !alwaysOn).map(({ content }) => content)].join("\n");
   const unseen = (word: string) => !wholeWord(word, "iu").test(known);
   return choices.map((choice) => [...new Set([...unknown.filter((word) => mentions(choice, word)), ...(namesOnly ? [] : guessed(choice))])]);

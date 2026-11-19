@@ -46,6 +46,18 @@ test("a known fact, summary or Loose End naming someone or somewhere the player 
   expect(withoutUnread(operations, secret, "Tamsin rides ahead and speaks of a ledger.")).toEqual(operations.slice(2));
 });
 
+test("a Journal entry naming a many-word name or keyword is kept when the player has read the word that tells it apart", () => {
+  const judge = {
+    ...state,
+    worldBible: [...state.worldBible, { title: "The judge", keywords: ["Mr Pell", "Pell's court"], content: "", alwaysOn: false }],
+  };
+  const operations = [
+    { op: "add_known_fact", fact: "Mr Pell sits at Pell's court on Tuesday." },
+    { op: "add_loose_end", loose_end: "What Ossery saw." },
+  ] as Parameters<typeof withoutUnread>[0];
+  expect(withoutUnread(operations, judge, "Tamsin says Pell will hear the case.")).toEqual(operations.slice(0, 1));
+});
+
 test("a Choice built on what the PC hasn't learned is written again by the reviewer, and the others are kept", async () => {
   const reviewer = scriptedTextProvider(
     JSON.stringify({ choices: ["Ask Tamsin about the old hut.", "Ask Jory what scares him.", "Ride on."] }),

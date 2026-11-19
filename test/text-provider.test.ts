@@ -622,20 +622,44 @@ test("the Settings test is sent the Thinking level too, though it has no schema"
   expect(provider.requests[0]!.body.reasoning).toEqual({ effort: "medium" });
 });
 
-test("a call asked for less thinking is sent a lower level, never below Low, and the model's own level as Low", async () => {
+test("a call asked for less thinking is sent a lower level, down to None below Low, and the model's own level as a step above Low", async () => {
   const thinking = { data: [{ id: "fake/model", supported_parameters: ["reasoning"] }] };
   const said = [delta("Hello."), "data: [DONE]\n\n"];
-  play([said, said, said], thinking, scriptedDice(), true);
+  play([said, said, said, said, said], thinking, scriptedDice(), true);
   const settings = settingsStore(join(folder.path, "settings.json"));
   const send = (lessThinking: number) =>
     textProvider(settings)([{ role: "user", content: "Hi" }], { lessThinking, onText: () => {}, signal: new AbortController().signal });
   settings.update({ textThinking: "high" });
   await send(1);
   await send(5);
+  settings.update({ textThinking: "low" });
+  await send(1);
   settings.update({ textThinking: "default" });
   await send(1);
+  await send(2);
 
-  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([{ effort: "medium" }, { effort: "low" }, { effort: "low" }]);
+  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([
+    { effort: "medium" },
+    { effort: "none" },
+    { effort: "none" },
+    { effort: "low" },
+    { effort: "none" },
+  ]);
+});
+
+test("a model that refuses None is sent without a level that once, and still takes the levels the player chooses", async () => {
+  const thinking = { data: [{ id: "fake/model", supported_parameters: ["reasoning"] }] };
+  const said = [delta("Hello."), "data: [DONE]\n\n"];
+  const refused = new Response(JSON.stringify({ error: { message: "Reasoning is mandatory" } }), { status: 400 });
+  play([refused, said, said], thinking, scriptedDice(), true);
+  const settings = settingsStore(join(folder.path, "settings.json"));
+  settings.update({ textThinking: "low" });
+  const send = (lessThinking: number) =>
+    textProvider(settings)([{ role: "user", content: "Hi" }], { lessThinking, onText: () => {}, signal: new AbortController().signal });
+  await send(1);
+  await send(0);
+
+  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([{ effort: "none" }, undefined, { effort: "low" }]);
 });
 
 test("a local server is never sent reasoning, even with a level kept from another provider", async () => {

@@ -3,7 +3,7 @@ import type { DecisionProvider, Question } from "./decisions";
 import { errorType, log } from "./logger";
 import { wholeWord } from "./lore-activation";
 import type { Prompt } from "./prompt-assembler";
-import type { State, StoryTime } from "./state-applier";
+import { nameForms, type State, type StoryTime } from "./state-applier";
 import { reviewTimedOut, slowReviewer } from "./state-upkeep";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
@@ -96,11 +96,7 @@ export function replyToCheck(
     // The newest few, as a decision model grows unreliable on a long slice.
     memories: before.sceneMemories.slice(-3).map(({ text }) => text),
     // Everyone the reply names, as someone arriving in it is in no cast yet; by any part of their name, as replies shorten them.
-    knows: Object.fromEntries(
-      Object.entries(before.npcKnows).filter(([name]) =>
-        [name, ...name.split(" ").filter((part) => part.length > 2 && /^\p{Lu}/u.test(part))].some((part) => wholeWord(part, "u").test(reply.narration)),
-      ),
-    ),
+    knows: Object.fromEntries(Object.entries(before.npcKnows).filter(([name]) => nameForms(name).some((part) => wholeWord(part, "u").test(reply.narration)))),
   };
 }
 

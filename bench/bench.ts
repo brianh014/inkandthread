@@ -32,13 +32,14 @@ import { textProvider } from "../src/text-provider";
 import { VERSION } from "../src/updater";
 import { askForJson, jsonSchemaOf, type TextProvider } from "../src/turn-engine";
 import { chartPage } from "./chart";
+import { resultFiles } from "./result-files";
 
 const BENCH = import.meta.dir;
 // The world a run plays without --world. Results from before it had a name of its own recorded it as "world.json".
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 30;
+const BENCH_ITERATION = 31;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 30;
@@ -294,17 +295,7 @@ const ROUGH = { narrator: { in: 30_000, out: 2_500 }, reviewer: { in: 5_000, out
 
 /** Every run's result, kept and recent, newest first. */
 function allResults() {
-  const found: { path: string; result: Result }[] = [];
-  const walk = (folder: string) => {
-    if (!existsSync(folder)) return;
-    for (const entry of readdirSync(folder, { withFileTypes: true })) {
-      const path = join(folder, entry.name);
-      if (entry.isDirectory()) walk(path);
-      else if (entry.name.endsWith(".json")) found.push({ path, result: JSON.parse(readFileSync(path, "utf8")) as Result });
-    }
-  };
-  walk(RESULTS);
-  walk(RUNS);
+  const found = resultFiles(RESULTS, RUNS).map((path) => ({ path, result: JSON.parse(readFileSync(path, "utf8")) as Result }));
   // A kept run is listed once, as kept; results are walked first.
   const unique = found.filter(({ result }, at) => found.findIndex((other) => other.result.date === result.date) === at);
   return unique.toSorted((a, b) => b.result.date.localeCompare(a.result.date));

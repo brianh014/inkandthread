@@ -652,3 +652,15 @@ export function givenName(name: string) {
   if (words.some((word, at) => at > 0 && /^\p{Ll}/u.test(word) && !PARTICLES.has(word))) return undefined;
   return words.map((word) => word.toLowerCase().replace(/\.$/, "")).find((word) => !TITLES.has(word));
 }
+
+/**
+ * A name and each word of it that tells it apart, so "Dacre" names Mr Dacre and "Crane" names Crane's cottage, as a phrase
+ * matched whole dropped writing that shortened it. A word counts if capitalised, past two letters and not a title.
+ */
+export const nameForms = (name: string) => [
+  name,
+  ...name
+    .split(" ")
+    .map((part) => part.replace(/['’]s$/u, ""))
+    .filter((part) => part.length > 2 && /^\p{Lu}/u.test(part) && !TITLES.has(part.toLowerCase().replace(/\.$/, ""))),
+];

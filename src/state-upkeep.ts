@@ -51,7 +51,8 @@ export const UPKEEP_LIMIT = { ms: 15_000 };
 
 /**
  * Thinking levels below Review thinking that reviews are sent at, raised each time one runs out of time, as a reviewer on a slow
- * model or provider was cut off a third of the time on the bench, and a review cut off does nothing. Never below Low, and a State
+ * model or provider was cut off a third of the time on the bench, and a review cut off does nothing. Down to None, thinking off, as a
+ * reviewer already at Low still ran out of time on most fixes. A State
  * Upkeep done in under half its time three times running raises it a step again, so one stall doesn't lower reviews for good.
  * shortcut: in memory and shared by every Save; key it by model if that misfires.
  */

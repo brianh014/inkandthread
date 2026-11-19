@@ -5,7 +5,7 @@ import { activateLore, wholeWord } from "./lore-activation";
 import { LORE_TOKEN_BUDGET, type Prompt } from "./prompt-assembler";
 import type { SaveStore } from "./save-store";
 import type { SettingsStore } from "./settings-store";
-import { ListChange, changeList, type State, type StateOperation } from "./state-applier";
+import { ListChange, changeList, nameForms, type State, type StateOperation } from "./state-applier";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
 /** Replies between moves when nothing else calls for one, as a long scene in one place would otherwise never let the world act. */
@@ -40,10 +40,10 @@ export function threadGuards(state: State, pcName: string) {
   // Each person or place is all the names it goes by, so a rewrite that keeps "Thorne" keeps "Reverend Amos Thorne". The
   // always-on setting isn't one, or naming the city would bind every rewrite.
   const people = [
-    ...state.npcs.map(({ name }) => [name, ...name.split(" ").filter((part) => part.length > 2 && /^\p{Lu}/u.test(part))]),
+    ...state.npcs.map(({ name }) => nameForms(name)),
     ...state.worldBible
       .filter(({ alwaysOn }) => !alwaysOn)
-      .map(({ keywords }) => keywords.filter((word) => /^\p{Lu}/u.test(word)))
+      .map(({ keywords }) => keywords.filter((word) => /^\p{Lu}/u.test(word)).flatMap(nameForms))
       .filter((names) => names.length > 0),
   ];
   const mentions = (text: string, name: string, flags = "iu") => wholeWord(name, flags).test(text);
@@ -52,9 +52,8 @@ export function threadGuards(state: State, pcName: string) {
     old === null ||
     text === null ||
     people.every((names) => !names.some((name) => mentions(old, name, "u")) || names.some((name) => mentions(text, name) || mentions(state.summary, name)));
-  const allNames = (name: string) => [name, ...name.split(" ").filter((part) => part.length > 2 && /^\p{Lu}/u.test(part))];
-  const pc = allNames(pcName);
-  const cast = state.scene.visibleCast.flatMap(allNames);
+  const pc = nameForms(pcName);
+  const cast = state.scene.visibleCast.flatMap(nameForms);
   // The thread of someone with the PC, rewritten with the PC in it, is the scene in play told as what they did out of sight, as
   // "Anselm is standing in Mara's room now", which the rule against it didn't stop on GLM or DeepSeek. The PC's name is matched
   // with its capital, so a name that is also a word, such as Ash, isn't taken for it.

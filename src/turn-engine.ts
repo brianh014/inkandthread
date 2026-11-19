@@ -23,7 +23,7 @@ import {
 import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } from "./save-store";
 import type { SettingsStore } from "./settings-store";
 import type { NarratorTurn, UsageStore } from "./usage-store";
-import { applyOperations, findPerson, givenName, introduce, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
+import { applyOperations, findPerson, givenName, introduce, nameForms, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
 import { type Checked, type Consistency, checkConsistency, replyToCheck } from "./consistency";
 import { countWords, withinLimit } from "./limits";
 import { knownChoices, withoutUnread, writeChoices } from "./known-choices";
@@ -981,9 +981,7 @@ const LEFT_OUT = "an opening that leaves out someone its Starting Hook names";
 
 /** Who of `people` the narration never names, by their full name or any capitalised part of it, such as a surname. */
 export const peopleLeftOut = (narration: string, people: string[]) =>
-  people.filter(
-    (name) => ![name, ...name.split(" ").filter((part) => part.length > 2 && /^\p{Lu}/u.test(part))].some((part) => wholeWord(part, "u").test(narration)),
-  );
+  people.filter((name) => !nameForms(name).some((part) => wholeWord(part, "u").test(narration)));
 
 /** Whether a line of prose, not a [Name]: line, holds quoted speech, as in 'Come here,' she said. An apostrophe isn't a quote. */
 export const speechOutsideLines = (narration: string) =>

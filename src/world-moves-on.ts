@@ -177,6 +177,9 @@ export function turnThreadChanges<Operation extends StateOperation>(operations: 
       const people = named(operation.thread);
       if (people.length > 0 && !people.some((names) => names.some((name) => mentions(narration, name, "u"))))
         return "a resolve of a thread whose people the reply never names";
+      // A thread the Turn also rewrites was meant to go on.
+      if (operations.some((other) => other.op === "update_plot_thread" && other.thread === operation.thread))
+        return "a resolve of a thread the Turn also rewrites";
     }
     return null;
   };

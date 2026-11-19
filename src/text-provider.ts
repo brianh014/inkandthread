@@ -145,6 +145,8 @@ export function textProvider(
   // Whether a model takes `reasoning`, by its provider's listing, or false after it refused one. Sent to a model that doesn't, on
   // OpenRouter it would leave a schema call, which requires every parameter, no host.
   const thinks = new Map<string, boolean>();
+  // The lowest level a model took after refusing a lower one, by its index in LEVELS, so it isn't sent the refused one again.
+  const lowestTaken = new Map<string, number>();
   // Servers that refused `stream_options`, so they aren't asked again until the app restarts.
   const usageRefused = new Set<string>();
 
@@ -208,10 +210,12 @@ export function textProvider(
       pictureThinkingTokens,
       ...chosen
     } = settings.read();
-    const textThinking = lessThinking ? lowerThinking(chosenThinking, lessThinking) : chosenThinking;
     const thinkingTokens = picture ? pictureThinkingTokens : textThinkingTokens;
     if (!textModel) throw new TextProviderFailed("No text model is set, so choose one in Settings");
     const url = textBaseUrl.replace(/\/$/, "");
+    const modelKey = `${url} ${textModel}`;
+    const lowered = lessThinking ? lowerThinking(chosenThinking, lessThinking) : chosenThinking;
+    let textThinking = LEVELS.includes(lowered) ? LEVELS[Math.max(LEVELS.indexOf(lowered), lowestTaken.get(modelKey) ?? 0)]! : lowered;
     const openRouter = url.includes("openrouter.ai");
     // shortcut: https stands for a hosted API, as local servers run on http; a self-hosted server behind https that loads models
     // slowly gets the hosted limit too, give it a setting if a player hits that.
@@ -284,16 +288,32 @@ export function textProvider(
       const askUsage = !openRouter && !usageRefused.has(url);
       let response = await send(useSchema, askUsage);
       // Tried first, as a host or model that won't take the level would otherwise be read below as refusing the schema, which then goes for good.
-      if (withThinking && (response.status === 400 || response.status === 404)) {
-        await response.body?.cancel();
-        withThinking = false;
+      const refused = () => response.status === 400 || response.status === 404;
+      if (withThinking && refused()) {
         const status = response.status;
-        response = await send(useSchema, askUsage);
-        if (response.ok) {
-          log.warning("text", "Thinking level refused", { model: textModel, thinking: textThinking, status });
-          // A model that must think, such as one that won't take None, still takes the levels the player chooses.
-          if (textThinking !== "none") thinks.set(`${url} ${textModel}`, false);
+        const asked = textThinking;
+        // A model that must think refuses None, and sent no level at all it thinks at its own length, so a lowered call first
+        // tries the levels above, up to the player's own.
+        const top = chosenThinking === "default" ? 2 : LEVELS.indexOf(chosenThinking);
+        for (let at = LEVELS.indexOf(textThinking) + 1; refused() && at > 0 && at <= top; at++) {
+          await response.body?.cancel();
+          textThinking = LEVELS[at]!;
+          response = await send(useSchema, askUsage);
         }
+        if (refused()) {
+          await response.body?.cancel();
+          withThinking = false;
+          response = await send(useSchema, askUsage);
+          if (response.ok) {
+            log.warning("text", "Thinking level refused", { model: textModel, thinking: asked, status });
+            // A model that must think, such as one that won't take None, still takes the levels the player chooses.
+            if (asked !== "none") thinks.set(modelKey, false);
+          }
+        } else if (response.ok && textThinking !== asked) {
+          lowestTaken.set(modelKey, LEVELS.indexOf(textThinking));
+          log.warning("text", "Thinking level raised", { model: textModel, refused: asked, sent: textThinking, status });
+        }
+        seen.thinking = textThinking;
       }
       seen.thinkingSent = withThinking;
       // A tally must never fail a Turn, so a server that won't take the ask for usage is sent the prompt without it.

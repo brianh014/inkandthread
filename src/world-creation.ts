@@ -556,7 +556,11 @@ ${imageInstructions(context)}`,
   try {
     if (!edit) return (await askForJson(context.textProvider, prompt, whole, REFUSAL, signal, { picture: true })).text;
     const { keep, changes } = await askForJson(context.textProvider, prompt, edited, REFUSAL, signal, { picture: true });
-    return `${keep.trim()} ${changes.trim()}`;
+    // The Art Style in code, last so the face stays up front, as edits without it came out as photographs.
+    return [keep, changes, ask.artStyle]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(" ");
   } catch (error) {
     if (signal.aborted) throw error;
     // No template drawn in its place, as one drew a poor picture the player paid for. They can try again instead.

@@ -113,7 +113,7 @@ test("with no thread open, a move still reads the Lore Entries the story names, 
   expect(told.prompts[1]!.at(-1)!.content).toContain("Gulls nest");
 });
 
-test("a Turn's thread rewrite that drops a name or retells the scene, or a resolve of a thread whose people the reply never names, is dropped", () => {
+test("a Turn's thread rewrite that drops a name or retells the scene, or a resolve of a thread whose people the reply never names or the Turn also rewrites, is dropped", () => {
   const state = {
     ...openingState,
     npcs: [
@@ -133,11 +133,12 @@ test("a Turn's thread rewrite that drops a name or retells the scene, or a resol
 
   const { kept, dropped } = turnThreadChanges(operations, state, "Ash", "Kit counts his coins.");
 
-  expect(kept).toEqual(operations.slice(3));
+  expect(kept).toEqual(operations.slice(4));
   expect(dropped).toEqual({
     "a rewrite drops someone the thread named": 1,
     "a rewrite retells the scene in play": 1,
     "a resolve of a thread whose people the reply never names": 1,
+    "a resolve of a thread the Turn also rewrites": 1,
   });
 });
 

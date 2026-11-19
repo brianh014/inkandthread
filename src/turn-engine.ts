@@ -783,6 +783,7 @@ async function narrate(
           pcTraits,
           narration,
           visualDescription: description,
+          check,
         });
         const result = await checkConsistency(
           consistency,

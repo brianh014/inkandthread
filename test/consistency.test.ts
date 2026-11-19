@@ -230,6 +230,25 @@ test("the fix asks the reviewer to think a level below Review thinking, from its
   expect(asked).toEqual([1]);
 });
 
+test("the fix is shown the Turn's Check, to keep what it decided", async () => {
+  CUT_OFFS["liquid/d1.2"]!.continuity = 0.9;
+  let sent = "";
+  const reviewer = async (prompt: { content: string }[]) => {
+    sent = prompt.at(-1)!.content;
+    return JSON.stringify({ narration_edits: [], visual_description_edits: [] });
+  };
+  const check = { action: "Pick the lock", difficulty: "hard", roll: 1, outcome: "failure", degree: "critical" };
+  const reply = { previous: "A door.", input: "I pick it.", timeBefore: null, timeAfter: null, pc: "Ash", pcLooks: "", wearing: [], cast: [], facts: [] };
+  await checkConsistency(
+    { decide: decisions({ continuity: 0.99 }).decide, enabled: () => true, logOnly: false },
+    reviewer,
+    { ...reply, summary: "", memories: [], knows: {}, narration: "It holds.", visualDescription: "", check } as never,
+    () => true,
+    new AbortController().signal,
+  );
+  expect(JSON.parse(sent).check_result).toEqual({ action: "Pick the lock", outcome: "failure", degree: "critical" });
+});
+
 test("a reply no question answered is logged as unanswered, not passed", async () => {
   const unanswered: DecisionProvider = async () => ({ answers: {}, model: "liquid/d1.2" });
   const reply = {

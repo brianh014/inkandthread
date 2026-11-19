@@ -182,8 +182,10 @@ test("an Update's portrait prompt is a short edit of the old portrait: the same 
   });
   const { written, prompts } = write({ ...portrait, was: "A tall woman in a green shirt." }, "prose", reply);
 
-  // The person first, as the text model ignored the order it was given, and nothing added that the model didn't write.
-  expect(await written).toBe("The same woman with her face preserved. She is wearing an oilskin coat. Standing in front of a plain neutral background.");
+  // The person first, as the text model ignored the order it was given, and the Art Style last, as an edit without it came out a photograph.
+  expect(await written).toBe(
+    "The same woman with her face preserved. She is wearing an oilskin coat. Standing in front of a plain neutral background. Ink wash: loose black brushwork",
+  );
   const system = prompts[0]![0]!.content;
   expect(system).toContain("The image model is given the portrait that was describes, and edits it.");
   expect(system).toContain("the same person with their face preserved");

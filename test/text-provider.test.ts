@@ -647,19 +647,23 @@ test("a call asked for less thinking is sent a lower level, down to None below L
   ]);
 });
 
-test("a model that refuses None is sent without a level that once, and still takes the levels the player chooses", async () => {
+test("a model that refuses None is sent the next level up instead, and isn't sent None again", async () => {
   const thinking = { data: [{ id: "fake/model", supported_parameters: ["reasoning"] }] };
   const said = [delta("Hello."), "data: [DONE]\n\n"];
   const refused = new Response(JSON.stringify({ error: { message: "Reasoning is mandatory" } }), { status: 400 });
-  play([refused, said, said], thinking, scriptedDice(), true);
+  play([refused, said, said, said], thinking, scriptedDice(), true);
   const settings = settingsStore(join(folder.path, "settings.json"));
   settings.update({ textThinking: "low" });
-  const send = (lessThinking: number) =>
-    textProvider(settings)([{ role: "user", content: "Hi" }], { lessThinking, onText: () => {}, signal: new AbortController().signal });
-  await send(1);
-  await send(0);
+  const provide = textProvider(settings);
+  const send = (lessThinking: number) => provide([{ role: "user", content: "Hi" }], { lessThinking, onText: () => {}, signal: new AbortController().signal });
+  const log = await logOf(async () => {
+    await send(1);
+    await send(1);
+    await send(0);
+  });
 
-  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([{ effort: "none" }, undefined, { effort: "low" }]);
+  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([{ effort: "none" }, { effort: "low" }, { effort: "low" }, { effort: "low" }]);
+  expect(log).toContain("Thinking level raised");
 });
 
 test("a local server is never sent reasoning, even with a level kept from another provider", async () => {

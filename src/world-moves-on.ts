@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { withinLimit } from "./limits";
 import { errorType, log } from "./logger";
-import { activateLore, threadPeople } from "./lore-activation";
+import { activateLore, wholeWord } from "./lore-activation";
 import { LORE_TOKEN_BUDGET, type Prompt } from "./prompt-assembler";
 import type { SaveStore } from "./save-store";
 import type { SettingsStore } from "./settings-store";
-import { closestThread, type ListChange, type State, type StateOperation } from "./state-applier";
+import { closestThread, type ListChange, nameForms, type State, type StateOperation } from "./state-applier";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
 /** Replies between moves when nothing else calls for one, as a long scene in one place would otherwise never let the world act. */
@@ -79,6 +79,23 @@ Each change has thread, a truth copied exactly from plot_threads or null to add 
 
 const ThreadMove = z.object({ thread: z.string().min(1).nullable(), truth: z.string().trim().min(1).nullable(), now: z.string().trim().min(1).nullable() });
 type ThreadMove = z.infer<typeof ThreadMove>;
+
+/**
+ * Who each thread names, for the checks on ending one: each person or place is all the names it goes by, so a thread naming
+ * "Thorne" is about "Reverend Amos Thorne". The always-on setting isn't one, or naming the city would tie every thread to it.
+ */
+export function threadPeople(state: State) {
+  const people = [
+    ...state.npcs.map(({ name }) => nameForms(name)),
+    ...state.worldBible
+      .filter(({ alwaysOn }) => !alwaysOn)
+      .map(({ keywords }) => keywords.filter((word) => /^\p{Lu}/u.test(word)).flatMap(nameForms))
+      .filter((names) => names.length > 0),
+  ];
+  const mentions = (text: string, name: string, flags = "iu") => wholeWord(name, flags).test(text);
+  const named = (thread: string) => people.filter((names) => names.some((name) => mentions(thread, name, "u")));
+  return { named, mentions };
+}
 
 /**
  * The world moving on: one Narrator call at a natural pause, after the Turn is saved, that moves each Plot Thread's now on by what

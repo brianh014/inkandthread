@@ -1,4 +1,4 @@
-import { type LoreEntry, nameForms, type State } from "./state-applier";
+import type { LoreEntry } from "./state-applier";
 
 // shortcut: four characters per token is a rough average, use the model's tokenizer if budgets prove too loose.
 export const estimateTokens = (text: string) => Math.ceil(text.length / 4);
@@ -39,21 +39,4 @@ export function activateLore(entries: LoreEntry[], recentText: string, tokenBudg
   const activatedText = mentioned.map(textOf).join("\n");
   const recursed = keyworded.filter((entry) => !mentioned.includes(entry) && mentions(activatedText, entry)).filter(withinBudget);
   return [...alwaysOn, ...mentioned, ...recursed];
-}
-
-/**
- * Who each thread names, for the checks on ending one: each person or place is all the names it goes by, so a thread naming
- * "Thorne" is about "Reverend Amos Thorne". The always-on setting isn't one, or naming the city would tie every thread to it.
- */
-export function threadPeople(state: Pick<State, "npcs" | "worldBible">) {
-  const people = [
-    ...state.npcs.map(({ name }) => nameForms(name)),
-    ...state.worldBible
-      .filter(({ alwaysOn }) => !alwaysOn)
-      .map(({ keywords }) => keywords.filter((word) => /^\p{Lu}/u.test(word)).flatMap(nameForms))
-      .filter((names) => names.length > 0),
-  ];
-  const mentions = (text: string, name: string, flags = "iu") => wholeWord(name, flags).test(text);
-  const named = (thread: string) => people.filter((names) => names.some((name) => mentions(thread, name, "u")));
-  return { named, mentions };
 }

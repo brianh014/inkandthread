@@ -1,7 +1,7 @@
 import type { Check } from "./check-resolver";
-import { activateLore, estimateTokens, threadPeople, wholeWord } from "./lore-activation";
+import { activateLore, estimateTokens, wholeWord } from "./lore-activation";
 import type { Message, Save } from "./save-store";
-import { MAX_PLOT_THREADS, nameForms, playersOwn, type SceneMemory, type State, type WorldEdit } from "./state-applier";
+import { MAX_PLOT_THREADS, playersOwn, type SceneMemory, type State, type WorldEdit } from "./state-applier";
 import type { PromptStyle } from "./graph-builder";
 
 export type Prompt = { role: "system" | "user" | "assistant"; content: string }[];
@@ -308,18 +308,7 @@ export function assemblePrompt({
   promptStyle: PromptStyle | null;
 }): Prompt {
   // A Save from before the limit can hold far more, which would crowd the prompt.
-  // A truth only while someone it names is in the scene, or it names no one, as the Narrator put the secrets it read into
-  // whoever spoke. World Moves On reads every truth and keeps each now moving, so a thread out of reach plays by its now alone.
-  const { named } = threadPeople({ npcs: currentState.npcs, worldBible });
-  const inScene = new Set(currentState.scene.visibleCast.flatMap(nameForms));
-  const reachable = (truth: string) => {
-    const people = named(truth);
-    return people.length === 0 || people.some((names) => names.some((name) => inScene.has(name)));
-  };
-  const plotThreads = allThreads
-    .slice(0, MAX_PLOT_THREADS)
-    .map((truth) => ({ truth, now: threadsNow[truth] ?? "" }))
-    .flatMap(({ truth, now }) => (reachable(truth) ? [{ truth, now }] : now ? [{ now }] : []));
+  const plotThreads = allThreads.slice(0, MAX_PLOT_THREADS).map((truth) => ({ truth, now: threadsNow[truth] ?? "" }));
   const recent = messageWindow(messages, sceneMemories, memoryStart, windowMessages);
   // Only the lists of those in the scene or named by the player or the last reply, as everyone's would crowd the prompt.
   // The full name in any case, or a capitalised part of it as written, so "Nadia" finds Nadia Petrova, "Al" isn't in
@@ -337,7 +326,7 @@ export function assemblePrompt({
   // first time rewrote who they were; first, so recent mentions rank ahead of them for the budget.
   const activeEntries = activateLore(
     worldBible,
-    [...plotThreads.flatMap(Object.values), ...opening, ...recent.map(({ text }) => text), input].join("\n"),
+    [...plotThreads.flatMap(({ truth, now }) => [truth, now]), ...opening, ...recent.map(({ text }) => text), input].join("\n"),
     // Plot Threads and world_rules are always-on too, so they spend the budget before any Lore Entry.
     LORE_TOKEN_BUDGET - estimateTokens(JSON.stringify([plotThreads, worldRules])),
   );
@@ -360,7 +349,7 @@ The Lore Entries and Plot Threads are secret. Let them shape the story and revea
 Keep the scene in the state current. Whenever the PC reaches a new location or the NPCs they can see change, use set_scene with a short name for the location, repeated exactly while they stay there, and visible_cast listing the NPCs in view by their names in the state, using add_npc first for a new one. An NPC's appearance is used to paint them, so give it ${LOOKS}, and use update_npc whenever their looks change for longer than a moment: clothing, hair, scars, wounds, tattoos, makeup and the like, but never a passing expression. The PC's physicalTraits are how they looked when the story began, and pcAppearance in the state, once set, is how they look now and replaces them. When the PC's body or face changes for longer than a moment in the same way, or the story first shows looks their description lacks, use set_pc_appearance with all of how their body and face look now, keeping what hasn't changed, in at most 40 words with no name and never clothing, which comes from what they wear. If two NPCs in the state turn out to be one person, such as a description and the name they later gave, use merge_npc with name for the one to drop and into for the one to keep, then use only the kept name. The player reads the location as a caption, so write it as the PC would, with no Lore Entry or Plot Thread secrets, and no dice, numbers or Checks.
 storyTime in the current state is the date and time of day the PC is living in, and its day counts the days since the story began. Keep it up to date: time passes as people talk and act, so whenever the time has moved on, use set_story_time in that Turn, without narrating the time passing. time_of_day is a few words, with the clock time when the PC would know it. days_passed is how many days the narration moved past, usually 0, and passing midnight counts as one. date is needed whenever days_passed is above 0, worked out from the current date by the world's calendar, never earlier than it, and kept to a few words such as "3rd of Thaw, 1204", otherwise null. Whenever anyone names a time, day, date or how long ago something was, keep it true to storyTime, and for anything earlier to the date and time the Scene Memory of it opens with, never a guess, and if storyTime has fallen behind what the story shows, correct it in that Turn. In the summary, known facts, Loose Ends and Plot Threads, say when something happens by its day or date, never counted from now, as "in two days" goes stale once time moves on. The player reads the date and time of day, so write them as the PC would reckon them, even vaguely if the PC has lost track, with no Lore Entry or Plot Thread secrets.
 ${imageInstruction(promptStyle, { artStyle, theme, worldBrief: currentBrief }, imageInstructions)}
-Plot Threads, each with its truth only while someone it names is in the scene, so update or resolve only those that show one: ${JSON.stringify(plotThreads)}
+Plot Threads: ${JSON.stringify(plotThreads)}
 Model Instructions, which are the player's out-of-character guidance to follow: ${modelInstructions}
 Scene Memories of the story so far, oldest first, each opening with the date and time its scene began where the story had one: ${JSON.stringify(sceneMemories.map(({ firstMessage, text }) => (memoryTimes[firstMessage] ? `${memoryTimes[firstMessage]}: ${text}` : text)))}`,
     },

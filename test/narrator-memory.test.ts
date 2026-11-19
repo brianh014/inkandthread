@@ -345,26 +345,6 @@ test("the Narrator sees what people know only for those in the scene or named by
   for (const name of ["Will Ash", "The Old Man", "Al", "Other"]) expect(prompt).not.toContain(`KNOWS-${name.toUpperCase()}.`);
 });
 
-test("the Narrator reads a thread's truth only while someone it names is in the scene, and otherwise only its now", () => {
-  const near = "Mr Pell hides the ledger under the mill wheel.";
-  const far = "Thorne killed the clerk and seeks the ledger.";
-  const nobody = "The tide is rising early this year.";
-  const prompt = promptFor({
-    npcs: [
-      { name: "Mr Pell", appearance: "looks" },
-      { name: "Reverend Amos Thorne", appearance: "looks" },
-    ],
-    scene: { location: "The mill", visibleCast: ["Mr Pell"] },
-    plotThreads: [near, far, nobody],
-    threadsNow: { [far]: "Thorne asks at the inn after the clerk's lodger." },
-  });
-
-  expect(prompt).toContain(near);
-  expect(prompt).toContain(nobody);
-  expect(prompt).not.toContain(far);
-  expect(prompt).toContain("Thorne asks at the inn after the clerk's lodger.");
-});
-
 const textOfPrompt = (prompt: { content: string }[]) => prompt.map(({ content }) => content).join("\n");
 
 const promptFor = (sections: Partial<State> = {}, input = "I wait.") => {
@@ -476,10 +456,9 @@ test("a long story's World Bible fits the budget, with its Plot Threads and worl
   for (const { title } of worldBible) expect(prompt).toContain(`"${title}"`);
 });
 
-test("a Lore Entry a Plot Thread's now names comes into the prompt, so the person the plot brings on is met as the lore has them", () => {
+test("a Lore Entry a Plot Thread names comes into the prompt, so the person the plot brings on is met as the lore has them", () => {
   const prompt = promptFor({
     plotThreads: ["Marrick pays riders to take the letters."],
-    threadsNow: { "Marrick pays riders to take the letters.": "Marrick sends a rider north at dusk." },
     worldBible: [
       { title: "Marrick", keywords: ["Marrick"], content: "MARRICK-IS-THE-STEWARD.", alwaysOn: false },
       { title: "Gulls", keywords: ["gull"], content: "GULLS-ON-THE-DOME.", alwaysOn: false },

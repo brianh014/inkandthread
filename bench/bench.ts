@@ -11,7 +11,7 @@
 //   bun bench judge <run folder> --by <model> --scores <scores.json>   (scores for a --judge self run, one entry per play)
 //   bun bench keep <run folder>        copies the run's numbers, never its story, to bench/results to commit
 //   bun bench table [--csv]            every kept and recent run, side by side
-//   bun bench chart [--rounds N]       the kept, judged, drawn Choices runs of one length (30) as charts, with a pick of bench
+//   bun bench chart [--rounds N]       the kept, judged, drawn Choices runs of one length (45) as charts, with a pick of bench
 //                                      version, score and story, to bench/charts/bench-chart.html
 // To bench a setup without editing the Settings copy: --narrator <model>, --narrator-only (no other reviewer, Consistency off),
 // --reviewer <model> and --consistency <model> (or --decisions, its old name), which turns the check on with that chat model.
@@ -48,7 +48,7 @@ const DEFAULT_WORLD = "adventure.json";
 const BENCH_ITERATION = 48;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
-const CHART_ROUNDS = 30;
+const CHART_ROUNDS = 45;
 // --fake plays on the stand-in models, free and offline, to try the bench itself; its numbers say nothing of a real Narrator.
 const fake = process.argv.includes("--fake");
 // --draw draws on local ComfyUI, which costs nothing per picture; a paid image API is never drawn on.

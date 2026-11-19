@@ -15,12 +15,12 @@ Start a session with: "Run the bench loop in `bench/LOOP.md`", adding any change
 
 | | |
 |---|---|
-| World | `bench/worlds/mystery.json`, 30 rounds, 1 run per round |
+| World | `bench/worlds/mystery.json`, 45 rounds, 1 run per round |
 | Pairings, alternating | GLM narrates and DeepSeek reviews: `--narrator z-ai/glm-5.3-flash --reviewer deepseek/deepseek-v4.1-flash-1017`. Then DeepSeek narrates and GLM reviews: the two swapped. The Consistency model stays as the settings have it. Pass models by flag only. |
 | Judge | A blind Fable 5.2 subagent at high effort. Self-judging ran about a point generous. |
 | Fixer | An Opus subagent, test-first |
 | Pictures | `--draw` on local ComfyUI; without it if ComfyUI is down, noted in the ledger |
-| Stop | Each pairing's last two runs are within 0.3 of its own best overall, and the judge finds no app bug. Then one 30-round check each on the other genre worlds (adventure, romance, horror), fixing only app bugs they show. |
+| Stop | Each pairing's last two runs are within 0.3 of its own best overall, and the judge finds no app bug. Then one 45-round check each on the other genre worlds (adventure, romance, horror), fixing only app bugs they show. |
 
 The first run of each pairing is its baseline: runs with other models, or before a rubric change, don't compare.
 
@@ -29,7 +29,7 @@ The first run of each pairing is its baseline: runs with other models, or before
 - **Scope per round:** at most the judge's top three findings plus clear bugs, and at most one radical change, so a drop can be traced and undone.
 - **Allowed:** any change to code, prompts, retries, thinking levels or which call does what, within `CLAUDE.md`'s product rules.
 - **Not allowed:** stats or visible Checks, a setting the player must touch, changing the models in `bench/settings.json`, editing bench worlds, or changing the rubric. A rubric problem goes in the ledger for a human.
-- **Prompts stay general** (`CLAUDE.md` → Model prompts). A rule written for one kind of story is kept only if it helps across genres. It must hold on a second world (one 30-round run scoring no lower there than its last), and is marked "specific" in the ledger.
+- **Prompts stay general** (`CLAUDE.md` → Model prompts). A rule written for one kind of story is kept only if it helps across genres. It must hold on a second world (one 45-round run scoring no lower there than its last), and is marked "specific" in the ledger.
 - **Noise:** one play moves about a quarter point.
   - Bug fixes stay whatever the score does.
   - A radical change is reverted (`git revert`) if the next run on the same pairing drops more than 0.5.
@@ -40,7 +40,7 @@ The first run of each pairing is its baseline: runs with other models, or before
 The main session only coordinates and keeps the ledger, so its context stays small. The run, the judging and the fixing each happen outside it.
 
 1. **Run** in the background:
-   `bun bench run --world <world> --rounds 30 --runs 1 --judge self --label <pairing>-<iteration> --draw --keep-save --yes <pairing flags>`
+   `bun bench run --world <world> --rounds 45 --runs 1 --judge self --label <pairing>-<iteration> --draw --keep-save --yes <pairing flags>`
    On the notification, read only its summary lines: `grep -vE "play 1 round|judge\.|^\s*$"` on the output.
 2. **Judge** with a general-purpose subagent, model Fable, high effort, given the brief below.
 3. **Decide** which findings to fix, after a targeted grep of the log or code confirms each bug. Don't read the transcript in full.

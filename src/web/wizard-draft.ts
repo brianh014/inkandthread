@@ -7,6 +7,8 @@ export const THEMES: Record<string, string> = {
   "High Fantasy": "Wondrous realms of magic, ancient kingdoms and epic quests, where good and evil are clearly drawn.",
   "Dark Fantasy": "Grim lands where magic comes at a cost, monsters are real and heroes rarely stay clean.",
   "Urban Fantasy": "Vampires, witches and hidden courts live unseen in the cities of today.",
+  Romantasy: "Magic, danger and a love story as central as the quest, in realms where loving the wrong one has a price.",
+  Romance: "Two people drawn together, and everything that stands between them, in any age or place.",
   Cyberpunk: "Neon megacities run by corporations, where chrome implants and stolen data are the way to get ahead.",
   "Space Opera": "Starships, galactic empires and mystic powers, in sweeping struggles across the stars.",
   "Sci Fi": "Plausible futures of space travel, advanced technology and first contact.",
@@ -17,6 +19,8 @@ export const THEMES: Record<string, string> = {
   "Post-Apocalyptic": "The ruins of a fallen world, where survivors fight over what's left.",
   Horror: "Ordinary lives unravel as something terrible closes in, and safety never lasts.",
   Noir: "Rain-slick streets, crooked cops and secrets that someone will kill to keep.",
+  Mystery: "A puzzle to solve, with clues, suspects who all have something to hide, and a truth worth finding out.",
+  "Spy Thriller": "Agents, double-crosses and dead drops, where no one is quite who they say and every ally may be selling you out.",
 };
 
 export const OWN_THEME = "Create your own";

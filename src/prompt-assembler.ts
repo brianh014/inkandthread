@@ -425,10 +425,11 @@ export const SET_SCENE_NOTE: Prompt[number] = {
     "Your last reply set scene_changed to true without a set_scene operation. Write the Turn again, and this time include set_scene in state_operations, repeating the current location exactly if the PC hasn't moved.",
 };
 
-export function resultInstruction({ action, stakes, outcome, degree }: Check): Prompt[number] {
+// Without the action, as a rating that named an act the move never made had it narrated as the PC's.
+export function resultInstruction({ stakes, outcome, degree }: Check): Prompt[number] {
   return {
     role: "system",
-    content: `The Check is resolved: ${JSON.stringify({ action, stakes, outcome, degree })}
-The PC makes the attempt as the player wrote it, and the result decides how it turns out, never whether they tried. A mixed degree means the PC succeeds at a cost. A strong one goes better than the PC hoped, with some gain they weren't aiming for, or, when it rests on someone, with that person warmer or more open than the PC hoped; a bad one goes wrong badly. When it rests on how someone takes it, success means they welcome it, a cost means they welcome it with some hurt or doubt, and a failure means they resist, refuse or stop it; otherwise a failure means it goes wrong, now or, where it can only show later, through a flaw this narration hints at. Narrate exactly this result, with its stakes coming true on a failure, in part at a cost and not at all on a success, as a finished Turn with check null, with those it touches reacting as they truly would, and record what it changes with add_known_fact or add_loose_end, and what each person it touched takes from it with npc_learns, so later replies keep to it. Do not request another check.`,
+    content: `The Check is resolved: ${JSON.stringify({ stakes, outcome, degree })}
+The attempt is the player's move above, made by the PC just as the player wrote it and nothing more, and the result decides how it turns out, never whether they tried. A mixed degree means the PC succeeds at a cost. A strong one goes better than the PC hoped, with some gain they weren't aiming for, or, when it rests on someone, with that person warmer or more open than the PC hoped; a bad one goes wrong badly. When it rests on how someone takes it, success means they welcome it, a cost means they welcome it with some hurt or doubt, and a failure means they resist, refuse or stop it; otherwise a failure means it goes wrong, now or, where it can only show later, through a flaw this narration hints at. Narrate exactly this result, with its stakes coming true on a failure, in part at a cost and not at all on a success, as a finished Turn with check null, with those it touches reacting as they truly would, and record what it changes with add_known_fact or add_loose_end, and what each person it touched takes from it with npc_learns, so later replies keep to it. Do not request another check.`,
   };
 }

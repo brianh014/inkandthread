@@ -802,7 +802,7 @@ test("a Check takes two calls, and the second receives the outcome and degree", 
   expect(prompts).toHaveLength(2);
   expect(JSON.stringify(prompts[0])).not.toContain("outcome");
   const result = JSON.stringify(prompts[1]);
-  expect(result).toContain("Leap the flooded gap");
+  expect(result).not.toContain("Leap the flooded gap");
   expect(result).toContain("I leap the gap.");
   expect(result).toContain('\\"outcome\\":\\"success\\"');
   expect(result).toContain('\\"degree\\":\\"clean\\"');
@@ -1977,9 +1977,11 @@ test("a replacement reuses the stored Check through the result call, and never r
 
   const check = { action: "Leap the flooded gap", difficulty: "Hard", roll: 14, outcome: "success", degree: "mixed" };
   expect(storedChecks(id)).toEqual([null, check]);
-  for (const prompt of prompts.slice(2)) {
+  for (const prompt of prompts.slice(1)) {
     expect(prompt.at(-1)!.content).toContain('"outcome":"success","degree":"mixed"');
     expect(prompt.at(-1)!.content).toContain("Narrate exactly this result");
+    // The attempt is the player's move, so the rating's name for it is never told again as what the PC does.
+    expect(prompt.at(-1)!.content).not.toContain("Leap the flooded gap");
   }
   expect(prompts).toHaveLength(4);
 });

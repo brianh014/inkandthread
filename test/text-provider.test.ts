@@ -914,6 +914,15 @@ test("a reply that leaves one of its fields in the narration is saved without it
   expect((await storedMessages(id)).at(-1)!.text).toBe("He sits.");
 });
 
+test("a reply whose narration ends on a line about one of its fields, with no colon, is saved without it", async () => {
+  play([narrated("He sits.\n\nstate_operations has more ops")]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+
+  expect((await storedMessages(id)).at(-1)!.text).toBe("He sits.");
+});
+
 test("a reply that ends on a speaker tag with no words is saved without it", async () => {
   play([narrated("She keeps the boy by her.\n\n[Lieutenant Rennie]:")]);
   const id = await app.createSave();

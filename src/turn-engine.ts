@@ -369,8 +369,10 @@ const isNoteAboutTurn = (narration: string) => {
   return countWords(narration) < 30 && named.size >= 2 && ["reply", "check", "result"].some((word) => named.has(word));
 };
 // A reply once left a bare "state_operations:[]" line in its narration, which was saved as the story. The fields come after the
-// narration, so such a line starts a tail that isn't story, and the narration ends before it.
-const FIELD_LINE = new RegExp(String.raw`^\s*"?(?:${Object.keys(ChoicesShape.shape).join("|")})"?\s*:`, "m");
+// narration, so such a line starts a tail that isn't story, and the narration ends before it. A line that starts with a field
+// whose name no prose has, as "state_operations has more ops" did, needs no colon.
+const FIELDS = Object.keys(ChoicesShape.shape);
+const FIELD_LINE = new RegExp(String.raw`^\s*"?(?:(?:${FIELDS.join("|")})"?\s*:|(?:${FIELDS.filter((field) => field.includes("_")).join("|")})\b)`, "m");
 // A reply also once ended its narration with its JSON's closing brace and a tool-call tag, as "}</arg_value>".
 const JSON_TAIL = /\s*\}?(?:\s*<\/\w+>)*\s*$/;
 // And once on a speaker tag with no words, which the tidying of marks keeps at the very end, as a tag still streaming.

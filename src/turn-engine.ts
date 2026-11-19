@@ -946,6 +946,9 @@ async function narrate(
       const narrated = applyOperations(introducedBefore.state, introducedBefore.operations);
       const clashesBefore = attempt < MAX_ATTEMPTS ? introducedBefore.refused : [];
       if (clashesBefore.length > 0 || narrated.refused.length > 0) throw new InvalidResponse(undefined, { cause: [...clashesBefore, ...narrated.refused] });
+      // Both together, as a reply that did so had started the story over, while either alone was a sound reply's slip.
+      const restarted = narrated.repeats > 0 && narrated.ignored.some(({ reason }) => reason === "earlier than now");
+      if (restarted && attempt < MAX_ATTEMPTS) throw new InvalidResponse(undefined, { cause: RESTARTED });
       let description = withoutJsonTail(visual_description ?? "");
       // The long words a consistency fix took out of the reply.
       let cut: string[] = [];
@@ -1205,6 +1208,7 @@ const copiesPrevious = (text: string, previous: string) =>
     5 >=
   countWords(text) * 4;
 const COPIED = "the previous reply written again";
+const RESTARTED = "the story started over, its clock set back and what the PC knew added again";
 
 /** Whether a fix passes what a Narrator reply must. It may run a little longer than the reply it fixes. */
 export function usableFix(text: string, pcName: string, told: string, check?: Check) {

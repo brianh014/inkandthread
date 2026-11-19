@@ -1601,6 +1601,23 @@ test("a summary cut to under two-fifths of the last is not taken, as a reply tha
   expect(log).toMatch(/Summary kept .*"was":10,"now":3/);
 });
 
+test("a reply that sets the clock back within the day and adds again what the PC knew is written again, as it had started the story over", async () => {
+  const fact = { op: "add_known_fact", fact: "The keeper drowned." };
+  const time = (time_of_day: string) => ({ op: "set_story_time", days_passed: 0, date: "1st of Lowtide", time_of_day });
+  play([
+    narrated("Evening falls.", time("evening"), fact),
+    narrated("Morning. The keeper is dead.", time("morning"), fact),
+    narrated("The lamps are lit.", time("night")),
+  ]);
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait again." })).status).toBe(201);
+
+  expect(provider.requests).toHaveLength(3);
+  expect((await storedMessages(id)).at(-1)!.text).toBe("The lamps are lit.");
+});
+
 test("an opening must bring on each Important Character its Starting Hook names, by full name or a part of it", () => {
   expect(peopleLeftOut("Vane watched the road while Tamsin drove.", ["Captain Vane", "Tamsin", "Jory"])).toEqual(["Jory"]);
   expect(peopleLeftOut("The boy, Jory, ran ahead.", ["Jory"])).toEqual([]);

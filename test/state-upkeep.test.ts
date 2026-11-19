@@ -4,6 +4,7 @@ import { startServer } from "../src/rest-api";
 import { reviewTimedOut, slowReviewer, UPKEEP_LIMIT } from "../src/state-upkeep";
 import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
+import { type TextProvider, ThinkingBudgetReached } from "../src/turn-engine";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -22,7 +23,7 @@ afterEach(async () => {
 });
 
 /** A server whose Narrator and reviewer each follow a script. The reviewer is the Narrator's model, as by default. */
-function play(narrator: (string | Error)[], reviewer: (string | Error | Promise<string>)[], stalled = false) {
+function play(narrator: (string | Error)[], reviewer: (string | Error | Promise<string>)[], stalled: boolean | TextProvider = false) {
   const settings = settingsStore(join(dirname(savesDir), "settings.json"));
   settings.update({ textModel: "narrator/model" });
   const told = scriptedTextProvider(...narrator);
@@ -32,9 +33,12 @@ function play(narrator: (string | Error)[], reviewer: (string | Error | Promise<
     settings,
     textProvider: told.textProvider,
     // One that answers only when stopped, like a reviewer stuck retrying.
-    reviewProvider: stalled
-      ? (_prompt, { signal }) => new Promise<string>((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason)))
-      : upkeep.textProvider,
+    reviewProvider:
+      typeof stalled === "function"
+        ? stalled
+        : stalled
+          ? (_prompt, { signal }) => new Promise<string>((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason)))
+          : upkeep.textProvider,
     imageAdapter: scriptedImages().imageAdapter,
     dice: scriptedDice(),
     nearMissMargin: 2,
@@ -171,6 +175,34 @@ test("State Upkeep that runs past its time limit keeps the Narrator's state, and
     // So the next review thinks a level less, rather than being cut off again.
     expect(log).toContain("Review thinking lowered");
     expect(slowReviewer.steps).toBe(1);
+  } finally {
+    UPKEEP_LIMIT.ms = limit;
+  }
+});
+
+test("State Upkeep's thinking is cut early enough that its hurried second try has most of the time limit", async () => {
+  const limit = UPKEEP_LIMIT.ms;
+  UPKEEP_LIMIT.ms = 600;
+  let calls = 0;
+  // Thinks until cut, as the real provider stops it at thinkingMs; the hurried try answers after a third of the limit.
+  const reviewer: TextProvider = async (_prompt, { thinkingMs = 0, signal }) => {
+    calls++;
+    const ms = calls === 1 ? thinkingMs : UPKEEP_LIMIT.ms / 3;
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, ms);
+      signal.addEventListener("abort", () => (clearTimeout(timer), reject(signal.reason)));
+    });
+    if (calls === 1) throw new ThinkingBudgetReached("over");
+    return upkept({ op: "add_item", slot: "carrying", item: "a key" });
+  };
+  try {
+    play([narration("Ash walks home.")], [], reviewer);
+    const id = createSave();
+
+    expect((await turn(id)).ok).toBe(true);
+
+    expect(calls).toBe(2);
+    expect(store().latestState(id).inventory.carrying).toEqual(["a key"]);
   } finally {
     UPKEEP_LIMIT.ms = limit;
   }

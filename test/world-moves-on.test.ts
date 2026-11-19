@@ -126,7 +126,7 @@ test("a Turn's resolve only asks the next move to close the thread, which the mo
       { op: "set_scene", location: "The dock", visible_cast: [] },
       nextDay(),
     ),
-    moved({ old: THIEF, new: null }),
+    moved({ old: THIEF, new: null }, { old: null, new: "The thief's father wants him back." }),
     narration("Ash looks out over the water."),
   );
   const id = createSave();
@@ -141,7 +141,7 @@ test("a Turn's resolve only asks the next move to close the thread, which the mo
   const asked = JSON.parse(told.prompts[1]!.at(-1)!.content);
   expect(asked.plot_threads).toEqual([THIEF]);
   expect(asked.asked_to_close).toEqual([THIEF]);
-  expect(store().latestState(id).plotThreads).toEqual([]);
+  expect(store().latestState(id).plotThreads).toEqual(["The thief's father wants him back."]);
   expect(log).toContain('"closeAsked":1');
   expect(log).toContain('"asked":1,"closed":1');
 });
@@ -366,6 +366,40 @@ test("a move adds threads only while fewer than three are open, as an 80-round s
   ]);
   expect(log).toContain('"overflow":1');
   expect(log).not.toContain("World didn't move on");
+});
+
+test("a move removes a thread only when the replies show its people or a Turn asked, and never below three open without an add", async () => {
+  const PELL = "Mr Pell means to burn the mill.";
+  const told = play(
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
+    // Mr Pell is nowhere in the replies, so his thread stays.
+    moved({ old: PELL, new: null }, { old: null, new: "The tide is wrong." }),
+    narration("Ash sees Mr Pell hanged at the quay.", { op: "set_scene", location: "The quay", visible_cast: [] }, nextDay("3rd of Thaw")),
+    // Shown now, but removing it would leave one thread and add none, so it's asked again.
+    moved({ old: PELL, new: null }),
+    moved({ old: PELL, new: null }, { old: null, new: "The gulls are omens." }),
+    narration("Ash goes home."),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The library", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [PELL],
+      worldBible: [{ title: "The miller", keywords: ["Mr Pell"], content: "", alwaysOn: false }],
+    },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I walk to the dock.", "I walk to the quay.", "I go home."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(store().latestState(id).plotThreads).toEqual(["The tide is wrong.", "The gulls are omens."]);
+  expect(log).toContain('"dropped":{"a remove of a thread whose people the replies never name":1}');
+  expect(told.prompts.some((prompt) => prompt.at(-1)!.content.includes("a remove leaves fewer than three threads and adds none"))).toBe(true);
 });
 
 test("a move keeps its usable changes and drops only those that change a thread twice or misquote one", async () => {

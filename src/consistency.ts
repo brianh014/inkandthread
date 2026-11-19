@@ -44,9 +44,10 @@ export const CUT_OFFS: Record<string, Record<Name, number>> = { "liquid/d1.2": {
 // 25 s, as 15 s cut off 22 of 28 fixes by DeepSeek at Low: finished fixes thought up to 1,010 tokens and answered in under 100,
 // which a provider streaming 50 tokens a second needs about 22 s for. Exported only so a test can shorten it.
 export const FIX_LIMIT = { ms: 25_000 };
-// Thinking tokens a fix may spend, sent where the provider takes a budget: the most a finished fix used on the bench, as Low
-// alone has no ceiling (over 2,300 tokens on hard ones), while none at all left real slips in.
-const FIX_THINKING = 1_000;
+// Thinking tokens a fix may spend, sent where the provider takes a budget, as Low alone has no ceiling (over 2,300 tokens on hard
+// ones), while none at all left real slips in. By the questions flagged, as at 1,000 for any fix all ten with two or three were cut
+// and four of ten with one; at most 2,000, as the time stop (10 ms a token) must leave the fix's 25 s room to answer.
+const fixThinking = (questions: number) => Math.min(1_000 + 500 * questions, 2_000);
 // A score at which an unchanged fix is asked again, as the slips scored this high on the bench were mostly real.
 const SURE_SLIP = 0.7;
 export const cutOffs = (model: string) => CUT_OFFS[model] ?? CUT_OFFS["liquid/d1.2"]!;
@@ -216,7 +217,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(FixRepl
   // cousin", from a fact sent about someone else; the reply is kept unfixed instead.
   const { narration_edits, visual_description_edits } = await askForJson(reviewer, prompt, FixReply, "The reviewer refused to fix the reply.", signal, {
     lessThinking: slowReviewer.steps,
-    thinkingBudget: FIX_THINKING,
+    thinkingBudget: fixThinking(Object.keys(flagged).length),
     reviewer: true,
     hurried: false,
   });

@@ -131,9 +131,15 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const basedOn = saves.latestMessageId(id);
   const state = saves.latestState(id);
   const { plotThreads } = state;
-  const { keepsNames, keepsSecrets, retells } = threadGuards(state, saves.read(id).pc.name);
+  const { keepsNames, keepsSecrets, retells, named, mentions } = threadGuards(state, saves.read(id).pc.name);
   const asked = [...(closeAsked.get(id) ?? [])].filter((thread) => plotThreads.includes(thread));
   closeAsked.delete(id);
+  const latestReplies = saves
+    .messages(id)
+    .filter(({ role }) => role === "narrator")
+    .slice(-2)
+    .map(({ text }) => text);
+  const shown = latestReplies.join("\n");
   // Why a change can't be used, named so the log and the request to write it again both say which.
   const fault = (change: z.infer<typeof ListChange>, index: number, all: z.infer<typeof ListChange>[]) => {
     if (change.old !== null && !plotThreads.includes(change.old)) return "a change misquotes a thread";
@@ -143,6 +149,15 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     if (!keepsNames(change)) return "a rewrite drops someone the thread named";
     if (retells(change)) return "a rewrite retells the scene in play";
     if (!keepsSecrets(change)) return "a rewrite drops what the thread hides";
+    // Held as a Turn's resolve is, as moves removed threads nothing had ended and added none, leaving one stale thread open.
+    if (change.old !== null && change.new === null) {
+      const people = named(change.old);
+      const closed = asked.includes(change.old) || people.length === 0 || people.some((names) => names.some((name) => mentions(shown, name, "u")));
+      if (!closed) return "a remove of a thread whose people the replies never name";
+      const removes = all.filter(({ old, new: text }) => old !== null && text === null).length;
+      const adds = all.some(({ old, new: text }) => old === null && text !== null && withinLimit(text, THREAD_WORDS));
+      if (!adds && plotThreads.length - removes < OPEN_THREADS) return "a remove leaves fewer than three threads and adds none";
+    }
     return null;
   };
   // Only the changes that fail are dropped, as throwing away a whole move for one of them lost most moves in bench runs.
@@ -166,11 +181,6 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     if (plot_threads.length === 0 || kept.length > 0 || faults.length === 0) return;
     for (const message of new Set(faults)) context.addIssue({ code: "custom", message });
   });
-  const latestReplies = saves
-    .messages(id)
-    .filter(({ role }) => role === "narrator")
-    .slice(-2)
-    .map(({ text }) => text);
   const prompt: Prompt = [
     {
       role: "system",
@@ -226,7 +236,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
 /**
  * A Turn's own thread changes, held to World Moves On's checks, as Turns rewrote a thread as the scene in play (losing what it hid)
  * and resolved threads whose people were nowhere in the reply, which then never came back. A resolve stands only when the reply
- * names someone the thread names; one that ends out of sight is World Moves On's to make.
+ * names someone the thread names, as World Moves On's remove must too.
  */
 export function turnThreadChanges<Operation extends StateOperation>(operations: Operation[], state: State, pcName: string, narration: string) {
   const { keepsNames, keepsSecrets, retells, named, mentions } = threadGuards(state, pcName);

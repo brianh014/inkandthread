@@ -245,8 +245,33 @@ test("the fix asks at Review thinking, and once more when it changes nothing of 
   expect(fixed!.narration).toBe("Five men.");
   expect(fixed!.checked.outcome).toBe("fixed");
   expect(asked).toEqual([0, 0]);
-  expect(budgets).toEqual([1000, 1000]);
+  expect(budgets).toEqual([1500, 1500]);
   expect(log).toContain("Empty fix asked again");
+});
+
+test("the fix may think longer for each further question flagged, up to a budget whose time stop leaves it room to answer", async () => {
+  CUT_OFFS["liquid/d1.2"]!.continuity = 0.5;
+  const budgets: (number | undefined)[] = [];
+  const reviewer = async (_prompt: unknown, { thinkingBudget }: { thinkingBudget?: number }) => {
+    budgets.push(thinkingBudget);
+    return JSON.stringify({ narration_edits: [{ old: "Six", new: "Five" }], visual_description_edits: [] });
+  };
+  const reply = {
+    ...{ previous: "Five men.", input: "I count them.", timeBefore: null, timeAfter: null, pc: "Ash", pcLooks: "", wearing: [], cast: [] },
+    ...{ facts: ["Five men came."], summary: "", memories: [], knows: {}, narration: "Six men.", visualDescription: "" },
+  };
+  for (const scores of [
+    { continuity: 0.99, past: 0.99 },
+    { continuity: 0.99, past: 0.99, description: 0.99 },
+  ] as Record<string, number>[])
+    await checkConsistency(
+      { decide: decisions(scores).decide, enabled: () => true, logOnly: false },
+      { provider: reviewer, settings: REVIEW },
+      reply,
+      () => true,
+      new AbortController().signal,
+    );
+  expect(budgets).toEqual([2000, 2000]);
 });
 
 test("the fix is shown the Turn's Check, to keep what it decided", async () => {

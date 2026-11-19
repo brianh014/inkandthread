@@ -2287,6 +2287,24 @@ test("a reply whose narration has no words is retried", async () => {
   expect(messages.at(-1)!.text).toBe("The rain keeps on.");
 });
 
+test("a reply that copies the last one nearly whole is retried, while one quoting a line of it stands", async () => {
+  const last = "The rain keeps on over the harbour wall. A gull walks the edge of the quay in the grey light. Nobody comes.";
+  const { app, prompts } = playWithDice(
+    [],
+    narration(last),
+    narration(`: ${last}`),
+    narration("The rain stops at last. A gull walks the edge of the quay in the grey light, then lifts away over the water."),
+  );
+  const id = await app.createSave();
+
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+  await app.post(`/saves/${id}/turns`, { input: "I wait more." });
+
+  expect(prompts).toHaveLength(3);
+  const { messages } = (await (await app.get(`/saves/${id}/messages`)).json()) as { messages: { text: string }[] };
+  expect(messages.at(-1)!.text).toStartWith("The rain stops at last.");
+});
+
 test("an action rated None streams and finishes the Turn with no roll, while a rated one rolls", async () => {
   const none = `{"check":{"action":"Wave to \\"Sam\\"","stakes":"nothing, a friendly wave","difficulty":"None"},"narration":"Sam waves back.","state_operations":[]}`;
   const replies = [none, requestCheck("Hard"), narration("It holds.")];

@@ -49,9 +49,9 @@ const RULES = { withTime: rules(true), withoutTime: rules(false) };
 // The Choices and the Turn's save wait for State Upkeep, which took 1 to 5 s on the bench; past this, as a slow or retrying
 // reviewer could hold them for 30 s or more, the Turn keeps the Narrator's own state. Exported only so a test can shorten it.
 export const UPKEEP_LIMIT = { ms: 15_000 };
-// Thinking tokens Upkeep may spend, sent where the provider takes a budget: with its answer, what a provider streaming 50 tokens
-// a second fits in UPKEEP_LIMIT. Finished Upkeep thought a median 538 on the bench, and an empty one 130 to 560.
-const UPKEEP_THINKING = 600;
+// Thinking tokens Upkeep may spend, sent where the provider takes a budget: 1,000, which 44 of 52 finished Upkeeps by DeepSeek at
+// Low stayed within over three bench runs, as 600 stopped 34 of 35; its time stop at 10 s leaves UPKEEP_LIMIT room for the answer.
+const UPKEEP_THINKING = 1_000;
 
 /**
  * Thinking levels below Review thinking that reviews are sent at, raised each time one runs out of time, as a reviewer on a slow

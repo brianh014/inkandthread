@@ -128,7 +128,7 @@ test("a State Upkeep call is sent its thinking budget", async () => {
   const { upkeep } = play([narration("Ash walks home.")], [upkept()]);
   const id = createSave();
   expect((await turn(id)).ok).toBe(true);
-  expect(upkeep.budgets[0]).toBe(600);
+  expect(upkeep.budgets[0]).toBe(1000);
 });
 
 test("reviews lowered after a time-out stay lowered, however quick the next are, as raising them again timed out again", async () => {

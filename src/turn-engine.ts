@@ -817,6 +817,8 @@ async function narrate(
       if (edited === undefined && check && declined(narration)) throw new InvalidResponse(undefined, { cause: DECLINED });
       if (edited === undefined && !hasWords(narration)) throw new InvalidResponse(undefined, { cause: NO_WORDS });
       if (edited === undefined && isJsonObject(narration)) throw new InvalidResponse(undefined, { cause: JSON_NARRATION });
+      // Never kept either, as the Turn then never happens, nor the Check's result it was asked to tell.
+      if (edited === undefined && previous && copiesPrevious(narration, previous)) throw new InvalidResponse(undefined, { cause: COPIED });
       const unplaced = scene_changed && !state_operations.some(({ op }) => op === "set_scene") ? "a picture without set_scene" : undefined;
       const spoken = edited === undefined ? spokenLineFault(narration, pcName) : undefined;
       // The opening sets the book's voice, which every reply copies, so speech it leaves in the prose is written again there alone:
@@ -1042,6 +1044,19 @@ export const withoutCut = <Operation extends StateOperation>(operations: Operati
 /** Whether a fix put in a sentence of eight words or more copied from the previous reply, as one swapped an earned admission for a speech already made. */
 export const repeatsPrevious = (fixed: string, told: string, previous: string) =>
   fixed.split(/(?<=[.!?…]["”]?)\s+/).some((sentence) => countWords(sentence) >= 8 && !told.includes(sentence) && previous.includes(sentence));
+
+/** Whether four in five of a reply's words are in sentences of eight words or more from the previous reply, as one came back as the last reply whole after ": ". */
+const copiesPrevious = (text: string, previous: string) =>
+  countWords(
+    text
+      .split(/(?<=[.!?…]["”]?)\s+/)
+      .map((sentence) => sentence.replace(/^[\s:;,-]+/, ""))
+      .filter((sentence) => countWords(sentence) >= 8 && previous.includes(sentence))
+      .join(" "),
+  ) *
+    5 >=
+  countWords(text) * 4;
+const COPIED = "the previous reply written again";
 
 /** Whether a fix passes what a Narrator reply must. It may run a little longer than the reply it fixes. */
 export function usableFix(text: string, pcName: string, told: string, check?: Check) {

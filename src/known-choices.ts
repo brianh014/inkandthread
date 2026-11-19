@@ -45,19 +45,12 @@ export function unknownWords(choices: string[], state: State, seen: string, jour
   // The threads' truths, never their nows, as a now retells play in the words the page or the PC's notes used, and true notes
   // were dropped for "arrived", "payments" and "hearthstone".
   const hidden = [...state.plotThreads, ...unread.map(({ content }) => content)].join("\n");
-  // Another form of a word read counts as read, as Choices were dropped for "holding" and "searched" when only other forms were.
-  const knownForms = new Set((known.match(/\p{L}+/gu) ?? []).flatMap(forms));
-  const unseen = (word: string) => !wholeWord(word, "iu").test(known) && !forms(word).some((form) => knownForms.has(form));
+  const unseen = unreadIn(known);
   const hiddenRuns = new Set(journal ? [] : runs(hidden));
   return choices.map((choice) => [...new Set([...unknown.filter((word) => mentions(choice, word)), ...guessed(choice)])]);
   function guessed(choice: string) {
     // A Journal entry is held to names and the secrets' long words alone, as it is written as the PC, who names things in their own words.
-    return [
-      ...(journal ? [] : copiedOrMadeUp(choice)),
-      // A thing only the hidden threads and Lore hold, as an oilskin a secret ledger was wrapped in. Long words only, as short ones
-      // are common, and no everyday word, as "anyone" and "examine" cost a play its Choices.
-      ...(choice.match(/\p{L}{6,}/gu) ?? []).filter((word) => !everyday(word) && wholeWord(word, "iu").test(hidden) && unseen(word)),
-    ];
+    return [...(journal ? [] : copiedOrMadeUp(choice)), ...secretWords(choice, hidden, known, unseen)];
   }
   function copiedOrMadeUp(choice: string) {
     return [
@@ -69,6 +62,19 @@ export function unknownWords(choices: string[], state: State, seen: string, jour
     ];
   }
 }
+
+/** Whether a word is unread in the known text, as neither it nor another form of it, as "holding" and "searched" dropped Choices when only other forms were read. */
+function unreadIn(known: string) {
+  const knownForms = new Set((known.match(/\p{L}+/gu) ?? []).flatMap(forms));
+  return (word: string) => !wholeWord(word, "iu").test(known) && !forms(word).some((form) => knownForms.has(form));
+}
+
+/**
+ * The things in a text that only the hidden text holds, as an oilskin a secret ledger was wrapped in. Long words only, as short
+ * ones are common, and no everyday word, as "anyone" and "examine" cost a play its Choices.
+ */
+export const secretWords = (text: string, hidden: string, known: string, unseen = unreadIn(known)) =>
+  (text.match(/\p{L}{6,}/gu) ?? []).filter((word) => !everyday(word) && wholeWord(word, "iu").test(hidden) && unseen(word));
 
 /**
  * The word in lower case with the forms it may come from: without its -s, -es, -ed or -ing, and -ied or -ies as -y.

@@ -457,7 +457,7 @@ test("a move gives each person a thread names their own part of it, kept as what
       nextDay(),
     ),
     moved({
-      ...change(THIEF, "The Ferryman waits to row the thief out."),
+      ...change(THIEF, "The Ferryman, at the dock, will row the thief out at the next tide."),
       knows: [
         { name: "Ferryman", knows: ferryman },
         { name: "Oren", knows: oren },
@@ -566,6 +566,46 @@ test("what a move gives someone to know is capped, so it never grows without bou
   };
 
   expect(applyEdit(state, edit).npcKnows.Ferryman).toEqual([...known.slice(1), "New."]);
+});
+
+test("a now that waits on the PC, puts someone with the PC elsewhere or gives them what only a secret holds is asked again once", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  const hidden = "The ledger is hidden in the cottage chimney, and the vicar is searching for it.";
+  const part = { name: "Silas Grout", knows: "He held the harbourmaster under for the vicar." };
+  const committed = "Grout, in the crypt with Ash, will dig a fresh grave in the churchyard by dawn.";
+  const told = play(
+    narration(
+      "Ash meets the sexton in the crypt.",
+      { op: "add_npc", name: "Silas Grout", appearance: "a huge man" },
+      { op: "set_scene", location: "The crypt", visible_cast: ["Silas Grout"] },
+      nextDay(),
+    ),
+    moved({ ...change(drowned, "Grout is at the cottage, pulling at the chimney, and will deal with Ash if she presses."), knows: [part] }),
+    moved({ ...change(drowned, committed), knows: [part] }),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [drowned, hidden],
+      worldBible: [],
+    },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I meet him.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  const again = told.prompts[2]!.at(-1)!.content;
+  for (const why of ["a now waits on what the PC might do", "a now puts someone with the PC somewhere else", "a now gives someone what only a secret holds"])
+    expect(again).toContain(why);
+  expect(log).toContain("Nows asked again");
+  expect(store().latestState(id).threadsNow[drowned]).toBe(committed);
 });
 
 test("a move with no usable change is written again, saying why", async () => {

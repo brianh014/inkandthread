@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { dirname, join } from "node:path";
 import { startServer } from "../src/rest-api";
-import { slowReviewer, UPKEEP_LIMIT } from "../src/state-upkeep";
+import { reviewTimedOut, slowReviewer, UPKEEP_LIMIT } from "../src/state-upkeep";
 import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
@@ -13,7 +13,6 @@ let server: ReturnType<typeof startServer>;
 beforeEach(() => {
   // Shared by every Save, so one test's time-out would lower another's thinking.
   slowReviewer.steps = 0;
-  slowReviewer.quick = 0;
   folder = tempFolder();
   savesDir = join(folder.path, "Saves");
 });
@@ -109,6 +108,19 @@ test("State Upkeep that runs past its time limit keeps the Narrator's state, and
   } finally {
     UPKEEP_LIMIT.ms = limit;
   }
+});
+
+test("reviews lowered after a time-out stay lowered, however quick the next are, as raising them again timed out again", async () => {
+  reviewTimedOut("fix");
+  play([narration("Ash walks home."), narration("Ash sits."), narration("Ash sleeps.")], [upkept(), upkept(), upkept()]);
+  const id = createSave();
+
+  const log = await logOf(async () => {
+    for (let at = 0; at < 3; at++) expect((await turn(id)).ok).toBe(true);
+  }, "info");
+
+  expect(slowReviewer.steps).toBe(1);
+  expect(log).not.toContain("Review thinking raised");
 });
 
 test("an operation of State Upkeep's that the state refuses is dropped, and the rest still apply", async () => {

@@ -16,7 +16,6 @@ const tuned = structuredClone(CUT_OFFS);
 beforeEach(() => {
   // Shared by every Save, so one test's time-out would lower another's thinking.
   slowReviewer.steps = 0;
-  slowReviewer.quick = 0;
   folder = tempFolder();
   savesDir = join(folder.path, "Saves");
 });
@@ -134,9 +133,9 @@ test("a question over its cut-off has the reviewer fix the reply and its picture
 });
 
 test("a reviewer that gives no edits leaves the reply as it was, logged as not a slip rather than fixed", async () => {
-  CUT_OFFS["liquid/d1.2"]!.continuity = 0.9;
+  CUT_OFFS["liquid/d1.2"]!.continuity = 0.3;
   const none = JSON.stringify({ narration_edits: [], visual_description_edits: [] });
-  play(ON, [FIRST, SECOND], [NOTHING, none, NOTHING], decisions({ continuity: 0.99 }).decide);
+  const review = play(ON, [FIRST, SECOND], [NOTHING, none, NOTHING], decisions({ continuity: 0.5 }).decide);
   const id = createSave();
   await turn(id);
 
@@ -144,6 +143,8 @@ test("a reviewer that gives no edits leaves the reply as it was, logged as not a
 
   expect(lastNarration(id)).toContain("Six men");
   expect(log).toContain('"outcome":"not a slip"');
+  // Scored low, so the fix isn't asked again.
+  expect(review.prompts).toHaveLength(3);
 });
 
 test("a model with its own cut-offs is judged by them, not Liquid D1.2's", async () => {
@@ -196,12 +197,16 @@ test("a fix that runs past its time limit keeps the reply as the Narrator wrote 
   }
 });
 
-test("the fix asks the reviewer to think a level below Review thinking, from its first try", async () => {
-  CUT_OFFS["liquid/d1.2"]!.continuity = 0.9;
+test("the fix asks at Review thinking, and once more when it changes nothing of a slip scored high", async () => {
+  CUT_OFFS["liquid/d1.2"]!.continuity = 0.5;
   const asked: (number | undefined)[] = [];
+  const replies = [
+    { narration_edits: [{ old: "Six", new: "Six" }], visual_description_edits: [] },
+    { narration_edits: [{ old: "Six men", new: "Five men" }], visual_description_edits: [] },
+  ];
   const reviewer = async (_prompt: unknown, { lessThinking }: { lessThinking?: number }) => {
     asked.push(lessThinking);
-    return JSON.stringify({ narration_edits: [{ old: "Six men", new: "Five men" }], visual_description_edits: [] });
+    return JSON.stringify(replies[asked.length - 1]);
   };
   const reply = {
     previous: "Five men.",
@@ -219,15 +224,20 @@ test("the fix asks the reviewer to think a level below Review thinking, from its
     narration: "Six men.",
     visualDescription: "",
   };
-  const fixed = await checkConsistency(
-    { decide: decisions({ continuity: 0.99 }).decide, enabled: () => true, logOnly: false },
-    reviewer,
-    reply,
-    () => true,
-    new AbortController().signal,
-  );
-  expect(fixed.narration).toBe("Five men.");
-  expect(asked).toEqual([1]);
+  let fixed: Awaited<ReturnType<typeof checkConsistency>> | undefined;
+  const log = await logOf(async () => {
+    fixed = await checkConsistency(
+      { decide: decisions({ continuity: 0.99 }).decide, enabled: () => true, logOnly: false },
+      reviewer,
+      reply,
+      () => true,
+      new AbortController().signal,
+    );
+  }, "info");
+  expect(fixed!.narration).toBe("Five men.");
+  expect(fixed!.checked.outcome).toBe("fixed");
+  expect(asked).toEqual([0, 0]);
+  expect(log).toContain("Empty fix asked again");
 });
 
 test("the fix is shown the Turn's Check, to keep what it decided", async () => {

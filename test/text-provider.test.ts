@@ -622,7 +622,7 @@ test("the Settings test is sent the Thinking level too, though it has no schema"
   expect(provider.requests[0]!.body.reasoning).toEqual({ effort: "medium" });
 });
 
-test("a call asked for less thinking is sent a lower level, down to None below Low, and the model's own level as a step above Low", async () => {
+test("a call asked for less thinking is sent a lower level, never below Low, and the model's own level as a step above Low", async () => {
   const thinking = { data: [{ id: "fake/model", supported_parameters: ["reasoning"] }] };
   const said = [delta("Hello."), "data: [DONE]\n\n"];
   play([said, said, said, said, said], thinking, scriptedDice(), true);
@@ -640,20 +640,20 @@ test("a call asked for less thinking is sent a lower level, down to None below L
 
   expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([
     { effort: "medium" },
-    { effort: "none" },
-    { effort: "none" },
     { effort: "low" },
-    { effort: "none" },
+    { effort: "low" },
+    { effort: "low" },
+    { effort: "low" },
   ]);
 });
 
-test("a model that refuses None is sent the next level up instead, and isn't sent None again", async () => {
+test("a model that refuses Low is sent the next level up instead, and isn't sent Low again", async () => {
   const thinking = { data: [{ id: "fake/model", supported_parameters: ["reasoning"] }] };
   const said = [delta("Hello."), "data: [DONE]\n\n"];
   const refused = new Response(JSON.stringify({ error: { message: "Reasoning is mandatory" } }), { status: 400 });
   play([refused, said, said, said], thinking, scriptedDice(), true);
   const settings = settingsStore(join(folder.path, "settings.json"));
-  settings.update({ textThinking: "low" });
+  settings.update({ textThinking: "medium" });
   const provide = textProvider(settings);
   const send = (lessThinking: number) => provide([{ role: "user", content: "Hi" }], { lessThinking, onText: () => {}, signal: new AbortController().signal });
   const log = await logOf(async () => {
@@ -662,7 +662,7 @@ test("a model that refuses None is sent the next level up instead, and isn't sen
     await send(0);
   });
 
-  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([{ effort: "none" }, { effort: "low" }, { effort: "low" }, { effort: "low" }]);
+  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([{ effort: "low" }, { effort: "medium" }, { effort: "medium" }, { effort: "medium" }]);
   expect(log).toContain("Thinking level raised");
 });
 

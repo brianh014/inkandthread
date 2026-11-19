@@ -44,6 +44,8 @@ export const CUT_OFFS: Record<string, Record<Name, number>> = { "liquid/d1.2": {
 // 15 s, as 8 s cut off fixes that were still working, and 12 s cut off a reviewer at Low a third of the time on a slow provider.
 // Exported only so a test can shorten it.
 export const FIX_LIMIT = { ms: 15_000 };
+// A score at which an unchanged fix is asked again, as the slips scored this high on the bench were mostly real.
+const SURE_SLIP = 0.7;
 export const cutOffs = (model: string) => CUT_OFFS[model] ?? CUT_OFFS["liquid/d1.2"]!;
 
 /** The Consistency model, and the reviewer that fixes a reply it flags. `enabled` is read for each reply, so Settings apply at once. */
@@ -151,11 +153,17 @@ export async function checkConsistency(
     return { ...kept, checked: { model, scores, outcome: logOnly ? "logged" : flagged.length > 0 ? "fix failed" : answered ? "passed" : "unanswered" } };
   const limited = AbortSignal.any([signal, AbortSignal.timeout(FIX_LIMIT.ms)]);
   try {
-    const fixed = await fixReply(reviewer, reply, Object.fromEntries(asked.filter(([name]) => flagged.includes(name))), limited);
+    const toFix = Object.fromEntries(asked.filter(([name]) => flagged.includes(name)));
+    const unchanged = ({ narration, visualDescription }: typeof kept) => narration === reply.narration && visualDescription === reply.visualDescription;
+    let fixed = await fixReply(reviewer, reply, toFix, limited);
+    // Asked once more, as on the bench most fixes of a slip scored this high that came back unchanged had left a real slip in.
+    if (unchanged(fixed) && flagged.some((name) => (scores[name] ?? 0) >= SURE_SLIP)) {
+      fixed = await fixReply(reviewer, reply, toFix, limited);
+      log.info("consistency", "Empty fix asked again", { flagged: flagged.length, fixed: unchanged(fixed) ? 0 : 1 });
+    }
     if (!usable(fixed.narration)) throw new Error("unusable fix");
     // No edits is the reviewer judging the flag a false alarm, which the log tells apart from a fix.
-    const same = fixed.narration === reply.narration && fixed.visualDescription === reply.visualDescription;
-    return { ...fixed, checked: { model, scores, outcome: same ? "not a slip" : "fixed" } };
+    return { ...fixed, checked: { model, scores, outcome: unchanged(fixed) ? "not a slip" : "fixed" } };
   } catch (error) {
     if (signal.aborted) throw error;
     log.warning("consistency", "Reply kept unfixed", { flagged, ...errorType(error) });
@@ -199,10 +207,9 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(FixRepl
       }),
     },
   ];
-  // A level below Review thinking, as on Medium the fix ran past FIX_LIMIT 5 times in 8 on the bench; it only edits words of one
-  // reply, and a failure keeps the reply as written.
+  // At Review thinking, as a level below left real slips in; a reviewer that runs past FIX_LIMIT is lowered by slowReviewer.
   const { narration_edits, visual_description_edits } = await askForJson(reviewer, prompt, FixReply, "The reviewer refused to fix the reply.", signal, {
-    lessThinking: 1 + slowReviewer.steps,
+    lessThinking: slowReviewer.steps,
   });
   return { narration: edited(reply.narration, narration_edits), visualDescription: edited(reply.visualDescription, visual_description_edits) };
 }

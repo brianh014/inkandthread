@@ -51,28 +51,16 @@ export const UPKEEP_LIMIT = { ms: 15_000 };
 
 /**
  * Thinking levels below Review thinking that reviews are sent at, raised each time one runs out of time, as a reviewer on a slow
- * model or provider was cut off a third of the time on the bench, and a review cut off does nothing. Down to None, thinking off, as a
- * reviewer already at Low still ran out of time on most fixes. A State
- * Upkeep done in under half its time three times running raises it a step again, so one stall doesn't lower reviews for good.
+ * model or provider was cut off a third of the time on the bench, and a review cut off does nothing. Never below Low, as with
+ * thinking off fixes came back empty. Never raised again until the app restarts, as each raise undid a lowering a time-out at that
+ * very level had caused, and on the bench every raise was followed by another time-out (lowered 8 times, raised 7, in one play).
  * shortcut: in memory and shared by every Save; key it by model if that misfires.
  */
-export const slowReviewer = { steps: 0, quick: 0 };
-// Three quick in a row, as one quick review at the lowered level says little about the level above, and raising after one swung
-// back and forth, a time-out every other Turn.
-const QUICK_TO_RAISE = 3;
+export const slowReviewer = { steps: 0 };
 export function reviewTimedOut(during: "State Upkeep" | "fix") {
-  slowReviewer.quick = 0;
   if (slowReviewer.steps >= 2) return;
   slowReviewer.steps++;
   log.info("turn", "Review thinking lowered", { during, steps: slowReviewer.steps });
-}
-function reviewWasQuick(ms: number) {
-  if (slowReviewer.steps === 0) return;
-  slowReviewer.quick = ms < UPKEEP_LIMIT.ms / 2 ? slowReviewer.quick + 1 : 0;
-  if (slowReviewer.quick < QUICK_TO_RAISE) return;
-  slowReviewer.quick = 0;
-  slowReviewer.steps--;
-  log.info("turn", "Review thinking raised", { steps: slowReviewer.steps });
 }
 
 export type Upkeep = {
@@ -141,7 +129,6 @@ export async function upkeepOperations(
     );
     const kept = given.filter((operation) => operation !== null);
     log.info("turn", "State Upkeep", () => ({ model, operations: kept.map(({ op }) => op), dropped: given.length - kept.length, ms: Date.now() - started }));
-    reviewWasQuick(Date.now() - started);
     return kept as StateOperation[];
   } catch (error) {
     if (signal.aborted) throw error;

@@ -58,6 +58,12 @@ test("a Journal entry naming a many-word name or keyword is kept when the player
   expect(withoutUnread(operations, judge, "Tamsin says Pell will hear the case.")).toEqual(operations.slice(0, 1));
 });
 
+test("a Journal entry naming a Lore Entry by another of its keywords is kept once the player has read one of them", () => {
+  const operations = [{ op: "add_known_fact", fact: "Fuel is hidden at Free Wells." }] as Parameters<typeof withoutUnread>[0];
+  expect(withoutUnread(operations, state, "Tamsin rides ahead.")).toEqual([]);
+  expect(withoutUnread(operations, state, "Tamsin kicks one of the drums.")).toEqual(operations);
+});
+
 test("a Choice built on what the PC hasn't learned is written again by the reviewer, and the others are kept", async () => {
   const reviewer = scriptedTextProvider(
     JSON.stringify({ choices: ["Ask Tamsin about the old hut.", "Ask Jory what scares him.", "Ride on."] }),

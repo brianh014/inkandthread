@@ -61,7 +61,9 @@ export function withoutUnread<Operation extends StateOperation>(operations: Oper
   const journal = operations.filter(({ op }) => JOURNAL.includes(op));
   // Names and keywords alone, as the long-word test dropped what the player had just read in other words, such as a daughter
   // who had said "my father"; for Choices the reviewer writes those again, but here it would be lost.
-  const leaks = unknownWords(journal.map(journalText), { ...state, summary: "", pcKnown: { facts: [], npcs: [] } }, read, true);
+  // Not a Lore Entry the player has read of by any of its keywords, as true notes were dropped for calling a vicar the Reverend.
+  const worldBible = state.worldBible.filter(({ keywords }) => !keywords.some((word) => mentions(read, word)));
+  const leaks = unknownWords(journal.map(journalText), { ...state, worldBible, summary: "", pcKnown: { facts: [], npcs: [] } }, read, true);
   const leaking = new Set(journal.filter((_, index) => leaks[index]!.length > 0));
   return operations.filter((operation) => !leaking.has(operation));
 }

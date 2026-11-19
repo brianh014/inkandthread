@@ -132,10 +132,10 @@ const routing = ({ textRouting, textHost, textHostFallback }: Routing) =>
   textHost ? { order: [textHost], allow_fallbacks: textHostFallback } : textRouting === "default" ? {} : { sort: textRouting };
 
 /** The one Text Provider: any OpenAI-compatible server, using the Settings at the time of each call. */
-// "none" only ever comes of lowering, as a reviewer at Low still ran out of time, and turns thinking off where the model takes a level.
-const LEVELS = ["none", "low", "medium", "high"];
-/** `steps` levels below `level`, and never below None. The model's own level is taken as one that thinks too long, so it goes a step below Medium. */
-const lowerThinking = (level: string, steps: number) => LEVELS[Math.max(0, (level === "default" ? 2 : LEVELS.indexOf(level)) - steps)]!;
+// Never None, as with thinking off a reviewer's fixes came back empty and State Upkeep invented what the reply never showed.
+const LEVELS = ["low", "medium", "high"];
+/** `steps` levels below `level`, and never below Low. The model's own level is taken as one that thinks too long, so it goes a step below Medium. */
+const lowerThinking = (level: string, steps: number) => LEVELS[Math.max(0, (level === "default" ? 1 : LEVELS.indexOf(level)) - steps)]!;
 
 export function textProvider(
   settings: TextSettings,
@@ -292,10 +292,9 @@ export function textProvider(
       if (withThinking && refused()) {
         const status = response.status;
         const asked = textThinking;
-        // A model that must think refuses None, and sent no level at all it thinks at its own length, so a lowered call first
-        // tries the levels above, up to the player's own.
-        const top = chosenThinking === "default" ? 2 : LEVELS.indexOf(chosenThinking);
-        for (let at = LEVELS.indexOf(textThinking) + 1; refused() && at > 0 && at <= top; at++) {
+        // Sent no level at all a model thinks at its own length, so a lowered call first tries the levels above, up to the player's own.
+        const top = chosenThinking === "default" ? 1 : LEVELS.indexOf(chosenThinking);
+        for (let at = LEVELS.indexOf(textThinking) + 1; refused() && at <= top; at++) {
           await response.body?.cancel();
           textThinking = LEVELS[at]!;
           response = await send(useSchema, askUsage);
@@ -306,8 +305,7 @@ export function textProvider(
           response = await send(useSchema, askUsage);
           if (response.ok) {
             log.warning("text", "Thinking level refused", { model: textModel, thinking: asked, status });
-            // A model that must think, such as one that won't take None, still takes the levels the player chooses.
-            if (asked !== "none") thinks.set(modelKey, false);
+            thinks.set(modelKey, false);
           }
         } else if (response.ok && textThinking !== asked) {
           lowestTaken.set(modelKey, LEVELS.indexOf(textThinking));

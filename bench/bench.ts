@@ -977,14 +977,14 @@ async function run() {
   if (chosen.narrator) settings.update({ textModel: chosen.narrator });
   if (flag("--narrator-only")) settings.update({ reviewOtherModel: false, consistencyEnabled: false });
   if (chosen.reviewer) settings.update({ reviewOtherModel: true, reviewModel: chosen.reviewer });
-  if (chosen.consistency) settings.update({ consistencyEnabled: true, consistencyModel: chosen.consistency });
+  if (chosen.consistency) settings.update({ consistencyEnabled: true, consistencyChatModel: chosen.consistency });
   if (noConsistency) settings.update({ consistencyEnabled: false });
   if (fake)
     settings.update({
       textBaseUrl: "http://127.0.0.1:9/v1",
       textModel: "fake-narrator",
       consistencyEnabled: !flag("--narrator-only") && !noConsistency,
-      consistencyModel: "",
+      consistencyChatModel: "",
     });
   // Last, as the host is kept per server address and a change of address above loads that server's own.
   const host = option("--host");

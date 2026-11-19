@@ -25,7 +25,7 @@ const [PROVIDER, MODEL, REVIEW, CONSISTENCY, PICTURES, READING, READY] = [1, 2, 
 const SKIPPABLE = [REVIEW, CONSISTENCY, PICTURES, READING];
 // What each step's Next saves, by setting name, and nothing else, so leaving halfway loses nothing done.
 const STEP_FIELDS: Record<number, RegExp> = {
-  [PROVIDER]: /^(textBaseUrl|textModel|textHost|reviewModel|consistencyModel)$/,
+  [PROVIDER]: /^(textBaseUrl|textModel|textHost|reviewModel|consistencyChatModel)$/,
   [MODEL]: /^text(Model|Host|Thinking)$/,
   [REVIEW]: /^review/,
   [CONSISTENCY]: /^consistency/,
@@ -255,7 +255,7 @@ function Steps({ initial }: { initial: Settings }) {
               textBaseUrl,
               ...(saved.textProfiles[textBaseUrl] ?? { textModel: "", textHost: "" }),
               ...(draft.reviewSameProvider && { reviewModel: "" }),
-              ...(draft.consistencySameProvider && { consistencyModel: "" }),
+              ...(draft.consistencySameProvider && { consistencyChatModel: "" }),
             });
           }}
         />
@@ -501,7 +501,7 @@ function Steps({ initial }: { initial: Settings }) {
           <dt>Second reader</dt>
           <dd>{saved.reviewOtherModel && saved.reviewModel ? saved.reviewModel : "The Narrator's own"}</dd>
           <dt>Consistency</dt>
-          <dd>{saved.consistencyEnabled ? saved.consistencyModel || "The Review model" : "Off"}</dd>
+          <dd>{saved.consistencyEnabled ? saved.consistencyChatModel || "The Review model" : "Off"}</dd>
           <dt>Pictures</dt>
           <dd>
             {!saved.imagesEnabled

@@ -56,7 +56,8 @@ export const SettingsUpdate = z
     reviewThinking: z.enum(["same", "default", "low", "medium", "high"]),
     // Narrow questions of each reply on a chat model, each quoting and fixing a slip it finds. No model is the reviewer's.
     consistencyEnabled: z.boolean(),
-    consistencyModel: z.string(),
+    // A new name, as the old consistencyModel held a decision model's id, which the chat endpoint refuses; dropped as unknown.
+    consistencyChatModel: z.string(),
     // The Narrator's provider and key, or its own.
     consistencySameProvider: z.boolean(),
     consistencyBaseUrl: z.url({ protocol: /^https?$/ }),
@@ -177,7 +178,7 @@ const defaults = {
   reviewApiKey: "",
   reviewThinking: "same",
   consistencyEnabled: false,
-  consistencyModel: "",
+  consistencyChatModel: "",
   consistencySameProvider: true,
   consistencyBaseUrl: "https://openrouter.ai/api/v1",
   consistencyApiKey: "",
@@ -246,9 +247,9 @@ export const reviewerSettings = (settings: TextSettings): TextSettings => ({
 export const consistencySettings = (settings: TextSettings): TextSettings => ({
   read: () => {
     const all = settings.read();
-    if (!all.consistencyModel) return { ...reviewerSettings(settings).read(), textThinking: "low" };
+    if (!all.consistencyChatModel) return { ...reviewerSettings(settings).read(), textThinking: "low" };
     const server = all.consistencySameProvider ? {} : { textBaseUrl: all.consistencyBaseUrl, textApiKey: all.consistencyApiKey, textHost: "" };
-    return { ...all, ...server, textModel: all.consistencyModel, textThinking: "low" };
+    return { ...all, ...server, textModel: all.consistencyChatModel, textThinking: "low" };
   },
 });
 

@@ -1033,7 +1033,7 @@ export function ConsistencySettings({
                 value={choice}
                 choices={[...TEXT_CHOICES]}
                 onChange={(provider) =>
-                  set({ consistencyBaseUrl: provider === "local" ? "http://localhost:1234/v1" : TEXT_PROVIDERS[provider], consistencyModel: "" })
+                  set({ consistencyBaseUrl: provider === "local" ? "http://localhost:1234/v1" : TEXT_PROVIDERS[provider], consistencyChatModel: "" })
                 }
               />
               {choice === "local" && (
@@ -1063,12 +1063,12 @@ export function ConsistencySettings({
           <ModelField
             key={own ? draft.consistencyBaseUrl : draft.textBaseUrl}
             label="Consistency model"
-            value={draft.consistencyModel}
+            value={draft.consistencyChatModel}
             list={models}
-            onChange={(consistencyModel) => set({ consistencyModel })}
+            onChange={(consistencyChatModel) => set({ consistencyChatModel })}
           />
           {own && !ownSaved && <p className="muted">Save to choose from this provider's models.</p>}
-          {!draft.consistencyModel.trim() && <p className="muted">With no model chosen, the Review model checks.</p>}
+          {!draft.consistencyChatModel.trim() && <p className="muted">With no model chosen, the Review model checks.</p>}
         </>
       )}
     </fieldset>
@@ -1154,7 +1154,7 @@ function InstallSettings({
       textBaseUrl,
       ...(saved.textProfiles[textBaseUrl] ?? { textModel: "", textHost: "" }),
       ...(draft.reviewSameProvider && { reviewModel: "" }),
-      ...(draft.consistencySameProvider && { consistencyModel: "" }),
+      ...(draft.consistencySameProvider && { consistencyChatModel: "" }),
     });
   };
   const needsKey = saved.hasTextApiKey && draft.textBaseUrl !== saved.textBaseUrl && !saved.textKeysFor.includes(draft.textBaseUrl) && !textKey.trim();

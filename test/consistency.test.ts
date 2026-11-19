@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
+import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { CHECK_LIMIT, checkConsistency, type Name, QUESTIONS, type ReplyToCheck } from "../src/consistency";
 import type { Prompt } from "../src/prompt-assembler";
@@ -22,7 +23,7 @@ afterEach(async () => {
   folder.remove();
 });
 
-const ON: SettingsChange = { textModel: "narrator/model", consistencyEnabled: true, consistencyModel: "glm/check" };
+const ON: SettingsChange = { textModel: "narrator/model", consistencyEnabled: true, consistencyChatModel: "glm/check" };
 type Claim = { established: string; clash: string; fix: string };
 const NO_SLIP = JSON.stringify({ slip: false, established: null, clash: null, fix: null });
 
@@ -175,11 +176,17 @@ test("the default Consistency model is the reviewer's, on its server with the pl
   settings.update({ textModel: "narrator/model", textHost: "DeepInfra", textThinking: "high", reviewOtherModel: true, reviewModel: "deepseek/review" });
   expect(consistencySettings(settings).read()).toMatchObject({ textModel: "deepseek/review", textHost: "DeepInfra", textThinking: "low" });
 
-  settings.update({ consistencyModel: "glm/check" });
+  settings.update({ consistencyChatModel: "glm/check" });
   expect(consistencySettings(settings).read()).toMatchObject({ textModel: "glm/check", textHost: "DeepInfra", textThinking: "low" });
 
   settings.update({ consistencySameProvider: false, consistencyBaseUrl: "https://api.nano-gpt.com/api/v1", consistencyApiKey: "own-key" });
   expect(consistencySettings(settings).read()).toMatchObject({ textBaseUrl: "https://api.nano-gpt.com/api/v1", textApiKey: "own-key", textHost: "" });
+});
+
+test("a decision model saved before the chat-model check is ignored, so the reviewer's model checks", () => {
+  const path = join(folder.path, "settings.json");
+  writeFileSync(path, JSON.stringify({ reviewOtherModel: true, reviewModel: "deepseek/review", consistencyModel: "perplexity/pplx-decider-v1.3:free" }));
+  expect(consistencySettings(settingsStore(path)).read()).toMatchObject({ textModel: "deepseek/review" });
 });
 
 test("with no Consistency model provider, the reviewer's checks the reply", async () => {

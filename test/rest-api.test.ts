@@ -1972,62 +1972,60 @@ test("only the latest Narrator response can be replaced", async () => {
   expect(await messageTexts(app, id)).toEqual(["I wait.", "First.", "I go on."]);
 });
 
-test("a replacement reuses the stored Check through the result call, and never rolls", async () => {
-  // The Dice would fail the request if rolled a second time.
+test("a Regenerate whose new rating is None drops the stored Check and narrates with none", async () => {
+  const { app, prompts } = playWithDice([14], requestCheck("Hard"), narration("You land."), narration("You call across the gap."));
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: '"Is anyone there?"' });
+
+  expect((await regenerate(app, id, 2)).status).toBe(201);
+
+  expect(prompts).toHaveLength(3);
+  expect(prompts[2]!.some(({ content }) => content.startsWith("The Check is resolved"))).toBe(false);
+  expect(prompts[2]!.at(-1)!.content).not.toContain("do not request a check");
+  expect(storedChecks(id)).toEqual([null, null]);
+  expect(await messageTexts(app, id)).toEqual(['"Is anyone there?"', "You call across the gap."]);
+});
+
+test("a replacement's new Check is rated afresh and rolled with a fresh die", async () => {
   const { app, prompts } = playWithDice(
-    [14],
+    [14, 3, 8],
     requestCheck("Hard"),
     narration("You land, but your pack is gone."),
-    narration("You land, soaked."),
-    narration("You land, bruised."),
+    requestCheck("Easy", "Step across"),
+    narration("You step across, soaked."),
+    requestCheck("Very Hard", "Vault the gap"),
+    narration("You fall short."),
   );
   const id = await app.createSave();
   await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
 
-  expect((await regenerate(app, id, 3 - 1)).status).toBe(201);
-  expect((await rewrite(app, id, 3, "I land perfectly, I always roll a twenty.")).status).toBe(201);
+  expect((await regenerate(app, id, 2)).status).toBe(201);
+  expect(storedChecks(id)[1]).toEqual({ action: "Step across", difficulty: "Easy", roll: 3, outcome: "success", degree: "mixed" });
+  expect((await rewrite(app, id, 3, "Make it harder.")).status).toBe(201);
 
-  const check = { action: "Leap the flooded gap", difficulty: "Hard", roll: 14, outcome: "success", degree: "mixed" };
-  expect(storedChecks(id)).toEqual([null, check]);
-  for (const prompt of prompts.slice(1)) {
-    expect(prompt.at(-1)!.content).toContain('"outcome":"success","degree":"mixed"');
-    expect(prompt.at(-1)!.content).toContain("Narrate exactly this result");
-    // The attempt is the player's move, so the rating's name for it is never told again as what the PC does.
-    expect(prompt.at(-1)!.content).not.toContain("Leap the flooded gap");
-  }
-  expect(prompts).toHaveLength(4);
+  expect(storedChecks(id)).toEqual([null, { action: "Vault the gap", difficulty: "Very Hard", roll: 8, outcome: "failure", degree: "plain" }]);
+  expect(prompts).toHaveLength(6);
+  expect(prompts[5]!.at(-1)!.content).toContain('"outcome":"failure","degree":"plain"');
 });
 
-test("a repeated Check request on a Turn with a stored Check is invalid and rolls nothing", async () => {
-  const { app, prompts } = playWithDice([14], requestCheck("Hard"), narration("You land."), ...Array(3).fill(requestCheck("Easy")));
+test("a Regenerate of a Turn with no Check rolls only when the new rating asks", async () => {
+  // One roll: a None rating that rolled would leave none for the Check.
+  const { app, prompts } = playWithDice([9], narration("You wait."), narration("You wait on."), requestCheck("Hard"), narration("You slip."));
   const id = await app.createSave();
   await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
 
-  const response = await regenerate(app, id, 2);
-
-  expect(response.status).toBe(502);
-  expect(prompts).toHaveLength(5);
-  expect(await messageTexts(app, id)).toEqual(["I leap the gap.", "You land."]);
-  expect(storedChecks(id)[1]).toMatchObject({ roll: 14 });
-});
-
-test("a Turn with no Check stays without one: a Check request is retried, and never commits a roll", async () => {
-  const { app, prompts } = playWithDice([], narration("You wait."), requestCheck("Hard"), narration("You wait on."));
-  const id = await app.createSave();
-  await app.post(`/saves/${id}/turns`, { input: "I wait." });
-
-  const response = await regenerate(app, id, 2);
-
-  expect(response.status).toBe(201);
-  expect(prompts).toHaveLength(3);
-  expect(prompts[1]!.at(-1)!.content).toContain("do not request a check");
+  expect((await regenerate(app, id, 2)).status).toBe(201);
   expect(storedChecks(id)).toEqual([null, null]);
-  expect(await messageTexts(app, id)).toEqual(["I wait.", "You wait on."]);
+  expect((await regenerate(app, id, 3)).status).toBe(201);
+
+  expect(prompts).toHaveLength(4);
+  expect(storedChecks(id)).toEqual([null, { action: "Leap the flooded gap", difficulty: "Hard", roll: 9, outcome: "failure", degree: "plain" }]);
+  expect(await messageTexts(app, id)).toEqual(["I leap the gap.", "You slip."]);
 });
 
 test("a Narrator that keeps asking for a Check fails the replacement, leaving the response and revealing nothing", async () => {
   const marker = "MARKERXCHECKXACTION";
-  const { app, prompts } = playWithDice([], narration("You wait."), ...Array(3).fill(requestCheck("Hard", marker)));
+  const { app, prompts } = playWithDice([10], narration("You wait."), ...Array(4).fill(requestCheck("Hard", marker)));
   const id = await app.createSave();
   await app.post(`/saves/${id}/turns`, { input: "I wait." });
 
@@ -2039,7 +2037,7 @@ test("a Narrator that keeps asking for a Check fails the replacement, leaving th
     failure: "retryable",
     input: "",
   });
-  expect(prompts).toHaveLength(4);
+  expect(prompts).toHaveLength(5);
   expect(await messageTexts(app, id)).toEqual(["I wait.", "You wait."]);
   expect(storedChecks(id)).toEqual([null, null]);
 });

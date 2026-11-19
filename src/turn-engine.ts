@@ -462,7 +462,6 @@ type Narrated = {
   mustMeet?: string[];
   /** The player's own words for an Edit, which stand in for whatever narration the reply holds. */
   narration?: string;
-  check?: Check;
   /** The Scene Memory this Turn adds, if one is due and came back. */
   memory: Promise<SceneMemory | null>;
   /** Left out when no new roll is allowed, which makes a Check request an invalid reply. */
@@ -660,10 +659,13 @@ export function playOpening(saves: SaveStore, engine: Parameters<typeof playTurn
   return playTurn(saves, engine, id, OPENING_INPUT, signal, emit, false);
 }
 
-/** Rewrite, when there is `feedback`, or Regenerate. Takes no Dice: the Turn's stored Check stands, and a Turn without one stays without. */
+/**
+ * Rewrite, when there is `feedback`, or Regenerate. The move is rated afresh, as a new Turn's is, and a Check it asks for is
+ * rolled again: the stored one may have rated a misread move, and a story, not a game, lets the player try for another result.
+ */
 export async function replaceResponse(
   saves: SaveStore,
-  { textProvider, settings, images, reviewProvider, consistency }: WorldContext,
+  { textProvider, settings, images, reviewProvider, consistency, dice, nearMissMargin }: WorldContext & { dice: Dice; nearMissMargin: number },
   id: string,
   messageId: number,
   feedback: string | undefined,
@@ -685,9 +687,11 @@ export async function replaceResponse(
     picture: images.ready(),
   });
   const kind = feedback === undefined ? "regenerate" : "rewrite";
+  // As in playTurn: nothing is attempted in the opening or a Continue.
+  const mayRate = input !== OPENING_INPUT && !isContinueInput(input);
   const replaced = await narrate(textProvider, signal, emit, {
     kind,
-    prompt: [...prompt, ...replacementInstruction(feedback === undefined ? undefined : { narration, feedback }, hadPicture && images.ready())],
+    prompt: [...prompt, ...replacementInstruction(feedback === undefined ? undefined : { narration, feedback }, hadPicture && images.ready(), mayRate)],
     input: feedback ?? "",
     move: input,
     refusal: "The Narrator refused this, so the response stays as it was.",
@@ -698,10 +702,20 @@ export async function replaceResponse(
     consistency,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
-    check,
     memory,
+    rollCheck: mayRate ? (request) => resolveCheck(request, dice, nearMissMargin) : undefined,
     playMode,
-    commit: (text, _check, advance, choices) => saves.replaceTurn(id, messageId, text, advance, feedback?.trim() || undefined, choices),
+    commit: (text, rolled, advance, choices) => {
+      if (mayRate)
+        log.info("turn", "Replacement re-rated", {
+          kind,
+          check: rolled ? (check ? "rerolled" : "rolled") : check ? "dropped" : "none",
+          difficulty: rolled?.difficulty,
+          roll: rolled?.roll,
+          outcome: rolled?.outcome,
+        });
+      return saves.replaceTurn(id, messageId, text, rolled, advance, feedback?.trim() || undefined, choices);
+    },
     committed: (replacement, scene) => {
       images.forget(id, messageId - 1, kind);
       // shortcut: a Narrator that writes no prompt gets the old one, which shows the old moment and draws with no portraits. Retry the reply if real models do this.
@@ -810,7 +824,6 @@ async function narrate(
     seen,
     mustMeet = [],
     narration: edited,
-    check: storedCheck,
     memory: pendingMemory,
     rollCheck,
     playMode,
@@ -826,7 +839,7 @@ async function narrate(
     noCheck: threadsHeld(SCHEMAS[playMode].noCheck, before.plotThreads.slice(0, MAX_PLOT_THREADS)),
   };
   // Kept across attempts, so an invalid reply can never change the outcome.
-  let check = storedCheck;
+  let check: Check | undefined;
   // A Turn is rated once, as a retry rated the move afresh and rolled for an act the first reply had called None.
   let ratedNone = false;
   let narrationSent = 0;

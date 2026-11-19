@@ -1279,7 +1279,7 @@ export function saveStore(savesDir: string) {
     },
 
     /**
-     * Swaps the latest Narrator Message for a new one that keeps its Check. The new Message gets a new id, so any
+     * Swaps the latest Narrator Message for a new one with the replacement's own Check. The new Message gets a new id, so any
      * Turn or replacement in flight from the old response is caught as stale.
      */
     /** In place, so the Message keeps its id and with it its Scene Image, Requested Images and portraits. */
@@ -1300,8 +1300,16 @@ export function saveStore(savesDir: string) {
       })();
     },
 
-    /** A Rewrite's `direction` replaces the old response's, and a Regenerate keeps it. */
-    replaceTurn(id: string, messageId: number, narration: string, advance: (state: State) => State, direction?: string, choices?: string[]): Reply[] {
+    /** A Rewrite's `direction` replaces the old response's, and a Regenerate keeps it. The replacement's Check is its own, rated afresh. */
+    replaceTurn(
+      id: string,
+      messageId: number,
+      narration: string,
+      check: Check | undefined,
+      advance: (state: State) => State,
+      direction?: string,
+      choices?: string[],
+    ): Reply[] {
       using db = open(id);
       return db.transaction(() => {
         const { narrator, player, state, edits } = latestTurn(db, messageId);
@@ -1310,7 +1318,13 @@ export function saveStore(savesDir: string) {
           .query<ChoicesRow, [string, string | null, string | null, string | null, string | null]>(
             `INSERT INTO messages (role, text, hidden_check, edits, direction, choices, created_at) VALUES ('narrator', ?, ?, ?, ?, ?, ${NOW}) RETURNING id, role, text, choices`,
           )
-          .get(narration, narrator.hidden_check, edits.length > 0 ? JSON.stringify(edits) : null, direction ?? narrator.direction, choicesText(choices))!;
+          .get(
+            narration,
+            check ? JSON.stringify(check) : null,
+            edits.length > 0 ? JSON.stringify(edits) : null,
+            direction ?? narrator.direction,
+            choicesText(choices),
+          )!;
         writeSnapshot(db, replacement.id, advance(state));
         return [withChoices(replacement)];
       })();

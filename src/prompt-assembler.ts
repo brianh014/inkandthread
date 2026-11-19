@@ -391,10 +391,10 @@ Right now, from the current state: ${JSON.stringify({ inventory, scene, storyTim
  * For Rewrite and Regenerate. Goes before any Check result, so that feedback can never override the result. A Rewrite's
  * direction comes last as the player's own message, as the Narrator ignored it in a system message and kept the rejected events.
  */
-export function replacementInstruction(rewrite?: { narration: string; feedback: string }, drawAgain = false): Prompt {
+export function replacementInstruction(rewrite?: { narration: string; feedback: string }, drawAgain = false, mayRate = false): Prompt {
   const replacing: Prompt[number] = {
     role: "system",
-    content: `This is a new response to the player's last action, replacing an earlier one that no longer counts. The state above is from before that action, so include every state operation this response needs, including add_known_fact where it applies, and a summary that covers this response. Reply with a finished Turn, and do not request a check.${
+    content: `This is a new response to the player's last action, replacing an earlier one that no longer counts. The state above is from before that action, so include every state operation this response needs, including add_known_fact where it applies, and a summary that covers this response.${mayRate ? "" : " Reply with a finished Turn, and do not request a check."}${
       drawAgain ? " The earlier response had a picture, which went with it, so set scene_changed to true and write visual_description for this response." : ""
     }${
       rewrite

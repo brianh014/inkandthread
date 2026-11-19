@@ -414,6 +414,8 @@ function hiddenChanges(before: State, after: State) {
   for (const truth of after.plotThreads) {
     const now = after.threadsNow[truth];
     if (now && now !== before.threadsNow[truth]) lines.push(`Plot Thread now, of "${truth.split(" ").slice(0, 8).join(" ")}…": ${now}`);
+    const plan = after.threadsPlan[truth];
+    if (plan && plan !== before.threadsPlan[truth]) lines.push(`Plot Thread plan, of "${truth.split(" ").slice(0, 8).join(" ")}…": ${plan}`);
   }
   diff("Loose End", before.looseEnds, after.looseEnds);
   for (const [name, known] of Object.entries(after.npcKnows)) {
@@ -778,7 +780,7 @@ function transcript(world: z.infer<typeof World>, saves: ReturnType<typeof saveS
   // The world as it began and the summary as it ended, so the transcript alone holds what the Narrator was working from.
   const begun = `## World rules at the start\n\n${list(start.worldRules ?? [])}\n\n## Lore at the start (hidden)\n\n${list((start.worldBible ?? []).map(({ title, content }) => `${title}: ${content}`))}`;
   const time = end.storyTime ? `day ${end.storyTime.day}, ${end.storyTime.date}, ${end.storyTime.timeOfDay}` : "(none)";
-  const ending = `## At the end\n\nStory time: ${time}\n\nSummary the Narrator reads: ${end.summary || "(none)"}\n\nPlot Threads:\n\n${list(end.plotThreads.map((truth) => `${truth}\n  - Now: ${end.threadsNow[truth] || "(none)"}`))}\n\nLoose Ends:\n\n${list(end.looseEnds)}`;
+  const ending = `## At the end\n\nStory time: ${time}\n\nSummary the Narrator reads: ${end.summary || "(none)"}\n\nPlot Threads:\n\n${list(end.plotThreads.map((truth) => `${truth}\n  - Now: ${end.threadsNow[truth] || "(none)"}\n  - Plan: ${end.threadsPlan[truth] || "(none)"}`))}\n\nLoose Ends:\n\n${list(end.looseEnds)}`;
   return `# ${world.save.title}\n\n${setup}\n\n## Plot Threads at the start (hidden)\n\n${list(world.opening.plotThreads as string[])}\n\n${begun}\n\n## The story\n\n${story.join("\n\n")}\n\n## Portrait prompts\n\n${portraits.join("\n") || "(none)"}\n\n## Hidden timeline\n\n${timeline.join("\n")}\n\n${ending}\n`;
 }
 

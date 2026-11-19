@@ -1,9 +1,10 @@
+import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { dirname, join } from "node:path";
 import { startServer } from "../src/rest-api";
 import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
-import { applyEdit, MAX_NPC_KNOWS, openingState, type WorldEdit } from "../src/state-applier";
+import { applyEdit, applyOperations, MAX_NPC_KNOWS, openingState, type WorldEdit } from "../src/state-applier";
 import { journalChange } from "../src/prompt-assembler";
 import { MOVE_EVERY, moveDue, turnThreadChanges } from "../src/world-moves-on";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
@@ -606,6 +607,86 @@ test("a now that waits on the PC, puts someone with the PC elsewhere or gives th
     expect(again).toContain(why);
   expect(log).toContain("Nows asked again");
   expect(store().latestState(id).threadsNow[drowned]).toBe(committed);
+});
+
+test("a move keeps what a thread's people have done apart from what they plan, and the next Turn and move read the plan as not yet done", async () => {
+  const done = "The thief has hidden the books on a barge.";
+  const plan = "He will sell them at the dock by noon tomorrow.";
+  const told = play(
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
+    moved({ ...change(THIEF, done), plan }),
+    narration("Ash watches the barges.", nextDay("3rd of Thaw")),
+    moved(change(THIEF, "The thief sold the books at noon.")),
+    narration("Ash waits."),
+  );
+  const id = createSave();
+
+  for (const input of ["I walk to the dock.", "I watch the barges.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+
+  const next = told.prompts[2]!.map(({ content }) => content).join("\n");
+  expect(next).toContain(JSON.stringify({ truth: THIEF, now: done, plan }));
+  expect(next).toContain("unless play has prevented it");
+  expect(JSON.parse(told.prompts[3]!.at(-1)!.content).plot_threads).toEqual([{ truth: THIEF, now: done, plan }]);
+  // A move that gives no plan leaves none, and an old now with none reads as done.
+  expect(store().latestState(id).threadsNow).toEqual({ [THIEF]: "The thief sold the books at noon." });
+  expect(store().latestState(id).threadsPlan).toEqual({});
+});
+
+test("a Save from before plans opens with none, so its now reads as done", () => {
+  const id = store().create({ worldBrief: "A drowned city", pc: { name: "Ash" }, opening: { plotThreads: [THIEF], threadsNow: { [THIEF]: "He waits." } } });
+  {
+    using db = new Database(join(savesDir, `${id}.sqlite`));
+    db.run("DELETE FROM snapshot_sections WHERE name = 'threadsPlan'; PRAGMA user_version = 27");
+  }
+
+  expect(store().latestState(id)).toMatchObject({ threadsNow: { [THIEF]: "He waits." }, threadsPlan: {} });
+});
+
+test("a Turn's update of a thread sets its plan, or clears it", () => {
+  const state = { ...structuredClone(openingState), plotThreads: [THIEF], threadsNow: { [THIEF]: "He waits." }, threadsPlan: { [THIEF]: "He will run." } };
+  const planned = applyOperations(state, [{ op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: "He will hide by dusk.", truth: null }]).next;
+  expect(planned.threadsPlan).toEqual({ [THIEF]: "He will hide by dusk." });
+  expect(applyOperations(state, [{ op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: null, truth: null }]).next.threadsPlan).toEqual({});
+});
+
+test("a move that tells as done a plan whose people were with the PC is asked again once", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  const plan = "Grout will go up to the apothecary at four and leave the dead man's letter.";
+  const part = { name: "Silas Grout", knows: "He held the harbourmaster under for the vicar." };
+  const stayed = "Grout sat in the crypt with Ash through the afternoon.";
+  const told = play(
+    narration(
+      "Ash sits with the sexton in the crypt.",
+      { op: "add_npc", name: "Silas Grout", appearance: "a huge man" },
+      { op: "set_scene", location: "The crypt", visible_cast: ["Silas Grout"] },
+      nextDay(),
+    ),
+    moved({ ...change(drowned, "Grout, back from the crypt, went to the apothecary at four and left the letter."), knows: [part] }),
+    moved({ ...change(drowned, stayed), knows: [part] }),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [drowned],
+      threadsNow: { [drowned]: "Grout dug a grave." },
+      threadsPlan: { [drowned]: plan },
+      worldBible: [],
+    },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I sit with him.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(told.prompts[2]!.at(-1)!.content).toContain("a now tells as done a plan whose people were with the PC");
+  expect(log).toContain('"a now tells as done a plan whose people were with the PC":1');
+  expect(store().latestState(id).threadsNow[drowned]).toBe(stayed);
 });
 
 test("a move with no usable change is written again, saying why", async () => {

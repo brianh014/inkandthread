@@ -112,7 +112,7 @@ People besides the PC that the player wants in the story, added on the New Story
 _Avoid_: Cast, NPCs (those are whoever the story meets)
 
 **Plot Thread**:
-A secret storyline held by the Narrator that play can reveal. Its truth is what really happened, who is behind it and what is hidden, and changes only as play reveals it; its now is what its people are doing and will do next out of the PC's sight, which World Moves On rewrites.
+A secret storyline held by the Narrator that play can reveal. Its truth is what really happened, who is behind it and what is hidden, and changes only as play reveals it; its now is what its people have done out of the PC's sight, which is true, and its plan the one deed they mean to do next and by when, which has not happened until its time comes and play hasn't prevented it. World Moves On rewrites both.
 _Avoid_: Hook (alone), plot
 
 **Loose End**:

@@ -217,6 +217,7 @@ export const fakeTextProvider: TextProvider = async (prompt, { schema, onText, o
       thread: truth,
       truth: null,
       now: "Its people move on out of sight.",
+      plan: "Its people mean to act again by tomorrow.",
       knows: knows(without_part),
     }));
   }

@@ -181,7 +181,7 @@ const TurnOperation = z.discriminatedUnion(
 const MAX_OPERATIONS = 30;
 type TurnOperation = z.infer<typeof TurnOperation>;
 // What an operation gives the record it names, so two that change one record are one however each words the change.
-const NEW_VALUES = ["replacement", "now", "truth", "content", "keywords", "appearance", "summary"];
+const NEW_VALUES = ["replacement", "now", "plan", "truth", "content", "keywords", "appearance", "summary"];
 /**
  * The operations without a second of the same operation on the same record, such as a thread updated again, and at most
  * `limit` of them. An update then a resolve of one thread is kept, as the state applier follows it. A rewrite of what an earlier

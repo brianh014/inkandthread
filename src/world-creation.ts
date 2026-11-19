@@ -691,11 +691,24 @@ inventory and status are what the PC wears and carries, and their health, injuri
 npc_looks holds new looks only for each NPC whose looks or clothing the instruction changes, with their exact name from npcs, ${LOOKS}. These are hidden, and they are what pictures of that NPC are drawn from.
 pc_looks is the PC's new looks, only when the instruction changes how their body or face looks, such as their hair, a scar, a tattoo or makeup, and null otherwise: start from pc_looks in the world, keep all it doesn't change, and write only how their body and face look in at most 40 words, never clothing, gear, temperament or history. Pictures of the PC are drawn from it.`;
 
-const worldAsItStands = ({ worldBrief, worldBible, worldRules, plotThreads, threadsNow, summary, pcKnown, inventory, status, npcs, pcAppearance }: State) => ({
+const worldAsItStands = ({
+  worldBrief,
+  worldBible,
+  worldRules,
+  plotThreads,
+  threadsNow,
+  threadsPlan,
+  summary,
+  pcKnown,
+  inventory,
+  status,
+  npcs,
+  pcAppearance,
+}: State) => ({
   world_brief: worldBrief,
   lore_entries: worldBible.map(({ title, keywords, content }) => ({ title, keywords, content })),
   world_rules: worldRules,
-  plot_threads: plotThreads.map((truth) => ({ truth, now: threadsNow[truth] ?? "" })),
+  plot_threads: plotThreads.map((truth) => ({ truth, now: threadsNow[truth] ?? "", ...(threadsPlan[truth] && { plan: threadsPlan[truth] }) })),
   npcs: Object.fromEntries(npcs.map(({ name, appearance }) => [name, appearance])),
   pc_looks: pcAppearance,
   journal: {

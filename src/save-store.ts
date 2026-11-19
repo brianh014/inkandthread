@@ -343,6 +343,9 @@ const toVersion26 = addMissingSections;
 /** The era every picture keeps to, which starts empty, as nothing could set it yet. */
 const toVersion27 = addMissingSections;
 
+/** Each Plot Thread's plan, which starts empty, so an older now, which held both, reads as done. */
+const toVersion28 = addMissingSections;
+
 /** One step per schema version, where step N takes a Save from version N to N + 1. New Saves take them too, so they can't drift from old ones. */
 const MIGRATIONS = [
   toVersion1,
@@ -372,6 +375,7 @@ const MIGRATIONS = [
   toVersion25,
   toVersion26,
   toVersion27,
+  toVersion28,
 ];
 
 function schemaVersion(db: Database) {

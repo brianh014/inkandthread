@@ -22,10 +22,16 @@ export type State = {
   /** Each Plot Thread's truth: what really happened, who is behind it, what they want and what is hidden. It changes only when play reveals it. */
   plotThreads: string[];
   /**
-   * Each Plot Thread's now, by its truth: what its people are doing and will do next, out of the PC's sight. World Moves On
+   * Each Plot Thread's now, by its truth: what its people have done out of the PC's sight, which is true. World Moves On
    * rewrites it freely, as rewriting a thread's one text lost who was behind it and what it hid. A Save from before it has none.
    */
   threadsNow: Record<string, string>;
+  /**
+   * Each Plot Thread's plan, by its truth: the deed its people mean to do next and by when, which hasn't happened, apart from
+   * the now, as a planned deed read as done had someone act on news the PC had outrun. A Save from before it has none, so its
+   * now, which held both, reads as done.
+   */
+  threadsPlan: Record<string, string>;
   /**
    * By each Plot Thread's truth, who World Moves On gave their own part of it, kept in npcKnows. Apart from what they learn in
    * play, as a move took anything in npcKnows for their part and never gave the people with only that one. A Save from before it has none.
@@ -67,6 +73,7 @@ export const openingState: State = {
   worldRules: [],
   plotThreads: [],
   threadsNow: {},
+  threadsPlan: {},
   threadParts: {},
   summary: "",
   recentSummary: "",
@@ -95,6 +102,7 @@ export const StateSections = {
   worldRules: stringList,
   plotThreads: stringList,
   threadsNow: z.record(z.string(), z.string()),
+  threadsPlan: z.record(z.string(), z.string()),
   threadParts: z.record(z.string(), stringList),
   summary: z.string(),
   recentSummary: z.string(),
@@ -145,7 +153,13 @@ export const StateOperation = z.discriminatedUnion("op", [
     content: nonEmpty,
   }),
   z.object({ op: z.literal("remove_lore_entry"), title: nonEmpty }),
-  z.object({ op: z.literal("update_plot_thread"), thread: nonEmpty, now: nonEmpty, truth: nonEmpty.nullable().default(null) }),
+  z.object({
+    op: z.literal("update_plot_thread"),
+    thread: nonEmpty,
+    now: nonEmpty,
+    plan: nonEmpty.nullable().default(null),
+    truth: nonEmpty.nullable().default(null),
+  }),
   z.object({ op: z.literal("resolve_plot_thread"), thread: nonEmpty }),
   z.object({ op: z.literal("set_pc_appearance"), appearance: nonEmpty }),
   z.object({ op: z.literal("set_era"), era: nonEmpty }),
@@ -429,6 +443,8 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const truth = operation.truth ?? thread;
       const { [thread]: _was, ...others } = state.threadsNow;
       state.threadsNow = { ...others, [truth]: operation.now };
+      const { [thread]: _planned, ...otherPlans } = state.threadsPlan;
+      state.threadsPlan = operation.plan ? { ...otherPlans, [truth]: operation.plan } : otherPlans;
       const { [thread]: parts, ...otherParts } = state.threadParts;
       if (parts) state.threadParts = { ...otherParts, [truth]: parts };
       replaceOnce(state.plotThreads, thread, truth);
@@ -442,6 +458,8 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       if (thread === undefined || !take(state.plotThreads, thread)) return "matches no thread";
       const { [thread]: _gone, ...open } = state.threadsNow;
       state.threadsNow = open;
+      const { [thread]: _plan, ...openPlans } = state.threadsPlan;
+      state.threadsPlan = openPlans;
       const { [thread]: _parts, ...openParts } = state.threadParts;
       state.threadParts = openParts;
       threads.became.set(thread, null);
@@ -600,11 +618,13 @@ export const WorldEdit = z.discriminatedUnion("edit", [
   ...VisibleEdit.options,
   // `made` counts the edits just before it that the same World Change wrote, which a Save from before it lacks.
   // `moved` marks World Moves On's, which settles none of the player's Journal edits and rests on the reply it followed.
-  // `now` sets the now of each thread it names by its truth, after `update`, which a Save from before it lacks.
+  // `now` sets the now of each thread it names by its truth, after `update`, which a Save from before it lacks, and `plan` the
+  // plan of each, which a thread whose now it sets without one loses.
   z.object({
     edit: z.literal("world"),
     update: WorldUpdate,
     now: z.record(z.string(), z.string()).optional(),
+    plan: z.record(z.string(), z.string()).optional(),
     made: z.number().int().min(0).optional(),
     moved: z.boolean().optional(),
     // World Moves On's: by name, each person's own part of the threads it wrote, kept as what they know.
@@ -658,6 +678,9 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       // A truth a World Change rewrites starts with no now, as the old one may no longer fit it, until the world next moves on.
       const now = { ...state.threadsNow, ...edit.now };
       const threadsNow = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(now, truth) ? [[truth, now[truth]!]] : [])));
+      const plans = Object.fromEntries(Object.entries(state.threadsPlan).filter(([truth]) => !Object.hasOwn(edit.now ?? {}, truth)));
+      const plan = { ...plans, ...edit.plan };
+      const threadsPlan = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(plan, truth) ? [[truth, plan[truth]!]] : [])));
       // Under the name of someone met, or as named until they are, when add_npc takes it up.
       const npcKnows = { ...state.npcKnows };
       for (const [name, parts] of Object.entries(edit.knows ?? {})) {
@@ -673,7 +696,7 @@ export function applyEdit(state: State, edit: WorldEdit): State {
           return names.length > 0 ? [[truth, names]] : [];
         }),
       );
-      return { ...state, ...merged, threadsNow, npcKnows, threadParts };
+      return { ...state, ...merged, threadsNow, threadsPlan, npcKnows, threadParts };
     }
     case "inventory":
       return { ...state, inventory: { wearing: edit.wearing, carrying: edit.carrying } };

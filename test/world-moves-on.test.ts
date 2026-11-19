@@ -409,6 +409,24 @@ test("a move keeps its usable changes and drops only those that change a thread 
   expect(log).toContain('"dropped":{"a change changes a thread twice":1,"a change misquotes a thread":1,"an add without its truth and now":1}');
 });
 
+test("a move sent as an add carrying an open thread's truth rewrites that thread, as GLM sent its rewrites so", async () => {
+  play(
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
+    moved(change(null, "The thief waits by the library.", THIEF), change(null, "Soon.", "The tide is wrong."), change(null, "Soon.", "The gulls are omens.")),
+    narration("Ash watches the barges."),
+  );
+  const id = createSave();
+
+  const log = await logOf(async () => {
+    for (const input of ["I walk to the dock.", "I watch the barges."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(store().latestState(id).plotThreads).toEqual([THIEF, "The tide is wrong.", "The gulls are omens."]);
+  expect(store().latestState(id).threadsNow[THIEF]).toBe("The thief waits by the library.");
+  expect(log).toContain('"rewritten":1,"added":2');
+  expect(log).not.toContain("overflow");
+});
+
 test("a move with no usable change is written again, saying why", async () => {
   const told = play(
     narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),

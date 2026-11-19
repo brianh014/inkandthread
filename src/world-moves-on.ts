@@ -5,7 +5,7 @@ import { activateLore, wholeWord } from "./lore-activation";
 import { LORE_TOKEN_BUDGET, type Prompt } from "./prompt-assembler";
 import type { SaveStore } from "./save-store";
 import type { SettingsStore } from "./settings-store";
-import { type ListChange, nameForms, type State, type StateOperation } from "./state-applier";
+import { closestThread, type ListChange, nameForms, type State, type StateOperation } from "./state-applier";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
 /** Replies between moves when nothing else calls for one, as a long scene in one place would otherwise never let the world act. */
@@ -136,7 +136,12 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     return null;
   };
   // Only the changes that fail are dropped, as throwing away a whole move for one of them lost most moves in bench runs.
-  const sorted = (changes: ThreadMove[]) => {
+  const sorted = (sent: ThreadMove[]) => {
+    // Matched to an open thread as a Turn's are, as GLM sent its rewrites as adds carrying the thread's truth, which the cap then cut.
+    const changes = sent.map((change) => {
+      const thread = closestThread(plotThreads, change.thread ?? change.truth ?? "");
+      return thread === undefined ? change : { ...change, thread, truth: change.thread === null ? null : change.truth };
+    });
     const kept = changes.filter((change, index) => fault(change, index, changes) === null);
     // Adds only up to OPEN_THREADS, as the rule says, since an 80-round story's moves added past it to seven that nothing ended,
     // and each move then rewrote all seven. More may stand, from a World Change, but a move adds none then. The last adds go first.

@@ -46,7 +46,7 @@ export function unknownWords(choices: string[], state: State, seen: string, name
 // shortcut: a short list of everyday long words seen in Choices; use a word-frequency list if ordinary words still get flagged.
 // Days and months too, as "Sunday" was taken for a made-up name. No rule by spelling tells "honest" or "written" from the
 // hidden nouns this is for, so those are listed as seen.
-const EVERYDAY = new Set(
+export const EVERYDAY = new Set(
   `anyone anybody anything anywhere someone somebody something somewhere somehow everyone everybody everything everywhere nothing nobody
   nowhere whatever whoever wherever whenever however whether another others itself himself herself myself yourself themselves ourselves
   around across behind before beside besides between beyond inside outside toward towards through during against without within already
@@ -147,6 +147,7 @@ export async function knownChoices({ provider }: Upkeep, choices: string[], stat
   try {
     const { choices: written } = await askForJson(provider, prompt, Reply, "The reviewer refused to write the Choices.", limited, {
       lessThinking: slowReviewer.steps,
+      reviewer: true,
     });
     log.info("turn", "Choices kept to what the PC knows", { rewritten: leaks.filter((words) => words.length > 0).length });
     return written;

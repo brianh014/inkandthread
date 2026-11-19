@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { z } from "zod";
 import { askForJson, type TextProvider, ThinkingBudgetReached, ThoughtTooLong } from "../src/turn-engine";
+import { logOf } from "./support";
 
 /** Answers with each reply in turn, keeping what each try was sent. */
 function scripted(...replies: (string | Error)[]) {
@@ -42,4 +43,22 @@ test("a reply stopped at its thinking budget is asked again at the same level, t
   expect(await ask(provider)).toEqual({ text: "ok" });
   expect(tries.map(({ lessThinking }) => lessThinking)).toEqual([0, 0]);
   expect(tries[1]!.prompt.at(-1)!.content).toContain("give it now");
+});
+
+test("a call that mustn't be hurried fails at its thinking budget, and a reviewer's retry is logged as the reviewer's", async () => {
+  const { provider, tries } = scripted(new ThinkingBudgetReached("budget"), JSON.stringify({ text: "ok" }));
+  const signal = new AbortController().signal;
+  const prompt = [{ role: "user" as const, content: "Hi" }];
+
+  await expect(askForJson(provider, prompt, Reply, "refused", signal, { hurried: false })).rejects.toBeInstanceOf(ThinkingBudgetReached);
+  expect(tries).toHaveLength(1);
+
+  const line = await logOf(
+    () =>
+      askForJson(scripted(JSON.stringify({ text: "far too long" }), JSON.stringify({ text: "ok" })).provider, prompt, Reply, "refused", signal, {
+        reviewer: true,
+      }),
+    "warning",
+  );
+  expect(line).toContain("Unusable reviewer reply");
 });

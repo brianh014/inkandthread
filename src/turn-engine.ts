@@ -166,15 +166,22 @@ type TurnOperation = z.infer<typeof TurnOperation>;
 const NEW_VALUES = ["replacement", "content", "keywords", "appearance", "summary"];
 /**
  * The operations without a second of the same operation on the same record, such as a thread updated again, and at most
- * `limit` of them. An update then a resolve of one thread is kept, as the state applier follows it.
+ * `limit` of them. An update then a resolve of one thread is kept, as the state applier follows it. A rewrite of what an earlier
+ * one wrote goes too, so a record changes once, as a looping reply rewrote one thread 14 times, A to B to C, and lost what it hid.
  * shortcut: records are told apart by their exact words, so a loop that rewords its quote each time gets through; match them as closestThread does if that shows up.
  */
-function withoutLoop(operations: TurnOperation[], limit: number) {
+export function withoutLoop(operations: TurnOperation[], limit: number) {
   const seen = new Set<string>();
   return operations
     .filter((operation) => {
       const key = JSON.stringify(Object.entries(operation).filter(([field]) => !NEW_VALUES.includes(field)));
-      return !seen.has(key) && !!seen.add(key);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      if (operation.op !== "update_plot_thread" && operation.op !== "update_known_fact") return true;
+      const old = operation.op === "update_plot_thread" ? operation.thread : operation.fact;
+      // Each link's new words are noted even when it goes, so the rest of the chain goes too.
+      seen.add(`${operation.op}\n${operation.replacement}`);
+      return !seen.has(`${operation.op}\n${old}`);
     })
     .slice(0, limit);
 }
@@ -1127,10 +1134,10 @@ const couldNotUse = (reason: string): Prompt[number] => ({
 });
 
 /** Returns, if another attempt should run, why it's needed in the player's words. Anything but an invalid reply goes on up. */
-function retryIfInvalid(cause: unknown, attempt: number, input: string, generation: string | undefined) {
+function retryIfInvalid(cause: unknown, attempt: number, input: string, generation: string | undefined, by = "Narrator") {
   if (!(cause instanceof InvalidResponse)) throw cause;
   const reason = whyInvalid(cause);
-  log.warning("turn", "Unusable Narrator reply", { attempt, of: MAX_ATTEMPTS, reason, generation });
+  log.warning("turn", `Unusable ${by} reply`, { attempt, of: MAX_ATTEMPTS, reason, generation });
   if (attempt === MAX_ATTEMPTS) {
     // Told plainly as a block, with the move kept to change, as a provider's own refusal is.
     if (reason === DECLINED) throw new TurnFailed(DECLINED_MESSAGE, "refused", input, { cause: new Error(reason) });
@@ -1209,8 +1216,17 @@ export async function askForJson<T>(
   schema: z.ZodType<T>,
   refusal: string,
   signal: AbortSignal,
-  /** `lessThinking` asks for that many levels below the player's Thinking from the first attempt. */
-  { picture = false, lessThinking: fewer = 0, thinkingBudget }: { picture?: boolean; lessThinking?: number; thinkingBudget?: number } = {},
+  /**
+   * `lessThinking` asks for that many levels below the player's Thinking from the first attempt. `reviewer` names the call's
+   * model in the log. `hurried: false` fails a reply stopped at its thinking budget rather than ask for it with little thinking.
+   */
+  {
+    picture = false,
+    lessThinking: fewer = 0,
+    thinkingBudget,
+    reviewer = false,
+    hurried = true,
+  }: { picture?: boolean; lessThinking?: number; thinkingBudget?: number; reviewer?: boolean; hurried?: boolean } = {},
 ) {
   let generation: string | undefined;
   let lessThinking = fewer;
@@ -1228,7 +1244,8 @@ export async function askForJson<T>(
     try {
       return parseReply(await askNarrator(textProvider, asked, request, "", refusal), schema);
     } catch (cause) {
-      retryIfInvalid(cause, attempt, "", generation);
+      if (!hurried && cause instanceof InvalidResponse && cause.cause === OVER_BUDGET) throw new ThinkingBudgetReached(OVER_BUDGET);
+      retryIfInvalid(cause, attempt, "", generation, reviewer ? "reviewer" : "Narrator");
       const reason = whyInvalid(cause as InvalidResponse);
       // The same level would most likely think past the limit again.
       if (reason === OVERTHOUGHT) lessThinking++;

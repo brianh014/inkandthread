@@ -261,6 +261,7 @@ export function textProvider(
     const seen: Record<string, unknown> = { model: textModel, thinking: textThinking, thinkingLimit: thinkingTokens };
     let reply = "";
     let thought = 0;
+    const sentAt = Date.now();
 
     const silence = new AbortController();
     let timer: Timer | undefined;
@@ -390,8 +391,11 @@ export function textProvider(
         // About four characters a token, as estimateTokens counts.
         if (thought / 4 > thinkingTokens) throw new ThoughtTooLong(THOUGHT_TOO_LONG);
         // A budget the model can't take is kept here, as reviewers without one thought 12,000 characters and more and never answered.
-        if (thinkingBudget && !budget && thought / 4 > thinkingBudget) {
-          log.info("text", "Thinking budget reached", { model: textModel, budget: thinkingBudget, thoughtChars: thought });
+        // By time too, at 100 tokens a second, as a reviewer thinking 50 a second reached a fix's 1,000 only 17 to 21 s into its
+        // 25 s, too late to answer; finished fixes took at most 6.4 s on that run.
+        const thinkingMs = Date.now() - sentAt;
+        if (thinkingBudget && !budget && (thought / 4 > thinkingBudget || (thought > 0 && !reply && thinkingMs > thinkingBudget * 10))) {
+          log.info("text", "Thinking budget reached", { model: textModel, budget: thinkingBudget, thoughtChars: thought, ms: thinkingMs });
           throw new ThinkingBudgetReached(THOUGHT_TOO_LONG);
         }
         const text = delta?.content ?? message?.content;

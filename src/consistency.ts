@@ -212,9 +212,13 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(FixRepl
     },
   ];
   // At Review thinking, as a level below left real slips in; a reviewer that runs past FIX_LIMIT is lowered by slowReviewer.
+  // Not hurried past its budget, as a fix told to answer with little thinking turned a daughter's true "my father" into "my
+  // cousin", from a fact sent about someone else; the reply is kept unfixed instead.
   const { narration_edits, visual_description_edits } = await askForJson(reviewer, prompt, FixReply, "The reviewer refused to fix the reply.", signal, {
     lessThinking: slowReviewer.steps,
     thinkingBudget: FIX_THINKING,
+    reviewer: true,
+    hurried: false,
   });
   // Not an edit that takes out a long word of the player's move, as fixes undid what the player had just done as a slip.
   const moved = reply.input.match(/\p{L}{5,}/gu) ?? [];

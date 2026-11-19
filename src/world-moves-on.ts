@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { withinLimit } from "./limits";
+import { EVERYDAY } from "./known-choices";
 import { errorType, log } from "./logger";
 import { activateLore, wholeWord } from "./lore-activation";
 import { LORE_TOKEN_BUDGET, type Prompt } from "./prompt-assembler";
@@ -99,6 +100,15 @@ export function threadGuards(state: State, pcName: string) {
   // Capitalised in the old thread, so a keyword that is also a common word, such as "harbour", binds no rewrite.
   const keepsNames = ({ old, new: text }: z.infer<typeof ListChange>) =>
     old === null || text === null || people.every((names) => !names.some((name) => mentions(old, name, "u")) || names.some((name) => mentions(text, name)));
+  // And three in five of its long plain words the PC hasn't learned, as a rewrite kept every name and dropped that a killing was
+  // done on someone's orders: it kept four of seven, and the fair rewrites of that bench run two in three or more.
+  // shortcut: words, not meaning, so a secret told again in new words is refused; compare by meaning if fair moves are lost.
+  const known = [state.summary, ...state.pcKnown.facts, ...Object.values(state.pcKnown.summaries ?? {})].join("\n");
+  const keepsSecrets = ({ old, new: text }: z.infer<typeof ListChange>) => {
+    if (old === null || text === null) return true;
+    const hidden = [...new Set(old.match(/(?<!\p{L})\p{Ll}{6,}/gu))].filter((word) => !EVERYDAY.has(word) && !mentions(known, word));
+    return hidden.filter((word) => mentions(text, word)).length * 5 >= hidden.length * 3;
+  };
   const pc = nameForms(pcName);
   const cast = state.scene.visibleCast.flatMap(nameForms);
   // The thread of someone with the PC, rewritten with the PC in it, is the scene in play told as what they did out of sight, as
@@ -108,7 +118,7 @@ export function threadGuards(state: State, pcName: string) {
   const retells = ({ old, new: text }: z.infer<typeof ListChange>) =>
     old !== null && text !== null && cast.some((name) => mentions(old, name)) && pc.some((name) => mentions(text, name, "u"));
   const named = (thread: string) => people.filter((names) => names.some((name) => mentions(thread, name, "u")));
-  return { keepsNames, retells, named, mentions };
+  return { keepsNames, keepsSecrets, retells, named, mentions };
 }
 
 /**
@@ -120,7 +130,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const basedOn = saves.latestMessageId(id);
   const state = saves.latestState(id);
   const { plotThreads } = state;
-  const { keepsNames, retells } = threadGuards(state, saves.read(id).pc.name);
+  const { keepsNames, keepsSecrets, retells } = threadGuards(state, saves.read(id).pc.name);
   const asked = [...(closeAsked.get(id) ?? [])].filter((thread) => plotThreads.includes(thread));
   closeAsked.delete(id);
   // Why a change can't be used, named so the log and the request to write it again both say which.
@@ -131,6 +141,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     if (change.new !== null && !withinLimit(change.new, THREAD_WORDS)) return `a thread runs past ${THREAD_WORDS} words`;
     if (!keepsNames(change)) return "a rewrite drops someone the thread named";
     if (retells(change)) return "a rewrite retells the scene in play";
+    if (!keepsSecrets(change)) return "a rewrite drops what the thread hides";
     return null;
   };
   // Only the changes that fail are dropped, as throwing away a whole move for one of them lost most moves in bench runs.
@@ -217,12 +228,13 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
  * names someone the thread names; one that ends out of sight is World Moves On's to make.
  */
 export function turnThreadChanges<Operation extends StateOperation>(operations: Operation[], state: State, pcName: string, narration: string) {
-  const { keepsNames, retells, named, mentions } = threadGuards(state, pcName);
+  const { keepsNames, keepsSecrets, retells, named, mentions } = threadGuards(state, pcName);
   const fault = (operation: Operation) => {
     if (operation.op === "update_plot_thread") {
       const change = { old: operation.thread, new: operation.replacement };
       if (!keepsNames(change)) return "a rewrite drops someone the thread named";
       if (retells(change)) return "a rewrite retells the scene in play";
+      if (!keepsSecrets(change)) return "a rewrite drops what the thread hides";
     }
     if (operation.op === "resolve_plot_thread") {
       const people = named(operation.thread);

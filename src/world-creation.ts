@@ -741,7 +741,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
     playerChoices({ instruction: change, world: worldAsItStands(state), proposed_change: proposed }),
   ];
   return reviewed(context, "World Change", proposed, signal, async (reviewer) => {
-    const { fixed, change: corrected } = await askForJson(reviewer, prompt, reply, REFUSAL, signal);
+    const { fixed, change: corrected } = await askForJson(reviewer, prompt, reply, REFUSAL, signal, { reviewer: true });
     return corrected ? { result: withoutStrangers(state, corrected), reasons: fixed } : { result: proposed, reasons: [] };
   });
 }
@@ -896,7 +896,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
     playerChoices({ choices: worldChoicesData(choices, pc), world }),
   ];
   return reviewed(context, "World", world, signal, async (reviewer) => {
-    const review = await askForJson(reviewer, prompt, reply, REFUSAL, signal);
+    const review = await askForJson(reviewer, prompt, reply, REFUSAL, signal, { reviewer: true });
     const faults = [
       ...[review.world_overview, review.calendar, review.start].filter((edit) => edit !== null),
       ...review.lore_entries,

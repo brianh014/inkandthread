@@ -129,7 +129,7 @@ export async function upkeepOperations(
       timed ? REPLY.withoutTime : REPLY.withTime,
       "The reviewer refused to keep the state.",
       limited,
-      { lessThinking: slowReviewer.steps, thinkingBudget: UPKEEP_THINKING },
+      { lessThinking: slowReviewer.steps, thinkingBudget: UPKEEP_THINKING, reviewer: true },
     );
     const kept = given.filter((operation) => operation !== null);
     log.info("turn", "State Upkeep", () => ({ model, operations: kept.map(({ op }) => op), dropped: given.length - kept.length, ms: Date.now() - started }));

@@ -148,7 +148,7 @@ test("a Turn's resolve only asks the next move to close the thread, which the mo
 
 test("a close ask follows its thread through a later rewrite, and a Turn logs only the asks that matched a thread", async () => {
   const THIEF = "A thief plans to rob the library at the next high tide.";
-  const REWRITTEN = "The thief waits at the dock for the next high tide.";
+  const REWRITTEN = "The thief waits at the dock to rob the library at the next high tide.";
   const told = play(
     narration("Ash hears of a ghost.", { op: "resolve_plot_thread", thread: "A ghost haunts the dome." }),
     narration("Ash corners the thief.", { op: "resolve_plot_thread", thread: THIEF }),
@@ -210,6 +210,18 @@ test("a rewrite keeps a many-word name or Lore keyword when it keeps the word th
   expect(keepsNames({ old, new: "Pell means to burn Orrin's place before the hearing." })).toBe(true);
   expect(keepsNames({ old, new: "Mr Pell means to burn the mill tonight." })).toBe(false);
   expect(keepsNames({ old, new: "Mr Kell means to burn Orrin's mill." })).toBe(false);
+});
+
+test("a rewrite keeps most of what the thread hides the PC hasn't learned, not only its names", () => {
+  const state = { ...openingState, pcKnown: { facts: ["Pell keeps the mill's ledger."], npcs: [] } };
+  const { keepsSecrets } = threadGuards(state, "Ash");
+  const old = "Pell poisoned Orrin's brother on the magistrate's orders and burns the ledger tonight.";
+
+  expect(keepsSecrets({ old, new: "Pell, who poisoned Orrin's brother on the magistrate's orders, burned the papers." })).toBe(true);
+  expect(keepsSecrets({ old, new: "Pell burned the ledger at the mill and watches Orrin's brother." })).toBe(false);
+  expect(turnThreadChanges([{ op: "update_plot_thread", thread: old, replacement: "Pell sits by Orrin's ledger." }], state, "Ash", "").dropped).toEqual({
+    "a rewrite drops what the thread hides": 1,
+  });
 });
 
 test("a rewrite keeps everyone the thread named even once the PC has met them, as meeting someone doesn't end their plan", () => {
@@ -371,7 +383,7 @@ test("a move keeps its usable changes and drops only those that change a thread 
   play(
     narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
     moved(
-      { old: "A thief plans to rob the library at the next high tide.", new: "The thief waits." },
+      { old: "A thief plans to rob the library at the next high tide.", new: "The thief waits by the library." },
       { old: "A thief plans to rob the library at the next high tide.", new: "The thief strikes." },
       { old: "A thread that isn't there.", new: "x" },
     ),
@@ -384,7 +396,7 @@ test("a move keeps its usable changes and drops only those that change a thread 
     expect((await turn(id, "I watch the barges.")).ok).toBe(true);
   }, "info");
 
-  expect(store().latestState(id).plotThreads).toEqual(["The thief waits."]);
+  expect(store().latestState(id).plotThreads).toEqual(["The thief waits by the library."]);
   expect(log).toContain('"dropped":{"a change changes a thread twice":1,"a change misquotes a thread":1}');
 });
 

@@ -18,6 +18,7 @@ import {
   withoutBareSpeech,
   withoutCut,
   withoutJsonTail,
+  withoutLoop,
 } from "../src/turn-engine";
 import { delta, fakeOpenAi, logOf, scriptedDice, startApp, tempFolder, turnEvents } from "./support";
 
@@ -697,6 +698,22 @@ test("a model that can't take a thinking budget is stopped once its thinking pas
 
   expect(log).toContain("Thinking budget reached");
   expect(log).toContain('"budget":100');
+});
+
+test("a slow thinker is stopped by time as well, at 100 tokens of its budget a second, so a retry still has time to answer", async () => {
+  const slow = async function* () {
+    yield `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "Hmm." } }] })}\n\n`;
+    await Bun.sleep(150);
+    yield `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "Hmm." } }] })}\n\n`;
+    yield* [delta("Done."), "data: [DONE]\n\n"];
+  };
+  play([slow], { data: [{ id: "plain/model", supported_parameters: ["reasoning"] }] }, scriptedDice(), true);
+  const settings = settingsStore(join(folder.path, "settings.json"));
+  settings.update({ textThinking: "low", textModel: "plain/model" });
+
+  const send = textProvider(settings)([{ role: "user", content: "Hi" }], { thinkingBudget: 10, onText: () => {}, signal: new AbortController().signal });
+
+  await expect(send).rejects.toBeInstanceOf(ThinkingBudgetReached);
 });
 
 test("a reply cut by its caller's time limit is logged as a time limit, not as the client leaving", async () => {
@@ -1454,6 +1471,17 @@ test("placeholder operations, a known fact that is only a name, and a reply's re
   ];
   expect(usableOperations([...kept, ...lore])).toEqual(kept);
   expect(usableOperations([...kept, lore[0], lore[0]])).toEqual([...kept, lore[0], lore[0]]);
+});
+
+test("a reply changes a record once, so a chain of rewrites keeps only its first link", () => {
+  const first = { op: "update_plot_thread", thread: "A", replacement: "B" } as const;
+  const fact = { op: "update_known_fact", fact: "B", replacement: "C" } as const;
+  const chain = [
+    first,
+    { op: "update_plot_thread", thread: "B", replacement: "C" } as const,
+    { op: "update_plot_thread", thread: "C", replacement: "D" } as const,
+  ];
+  expect(withoutLoop([...chain, fact], 30)).toEqual([first, fact]);
 });
 
 test("a line that is only quoted speech, with no speaker, is dropped, and speaker lines and speech in the prose are kept", () => {

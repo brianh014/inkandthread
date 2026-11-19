@@ -866,6 +866,41 @@ export const TEXT_CHOICES = [
   { value: "local", label: "Local / OpenAI server" },
 ] as const;
 
+/** The Narrator's providers: the servers, and Command only for a page on this computer, as it runs a program there. */
+export const narratorChoices = ({ commandHere }: Pick<Settings, "commandHere">) => [
+  ...TEXT_CHOICES,
+  ...(commandHere ? [{ value: "command" as const, label: "Command" }] : []),
+];
+
+/** The command as the player types it, or undefined while the Narrator is on a server. */
+export const commandLineOf = ({ textCommand }: Pick<Settings, "textCommand">) => (textCommand.length > 0 ? commandText(textCommand) : undefined);
+
+/** A command set on the computer NovelForge runs on, seen from another one, which may not change it. */
+export const LockedCommand = ({ line }: { line: string }) => (
+  <>
+    <p>
+      The AI is a command: <code>{line}</code>. It runs a program on the computer NovelForge runs on, so only Settings opened there, at <code>127.0.0.1</code>{" "}
+      or <code>localhost</code>, can change it.
+    </p>
+    <CommandCaveats />
+  </>
+);
+
+/** The box for the Narrator's command, as one line, with what it does and what a player takes on with it. */
+export const CommandField = ({ line, onLine }: { line: string; onLine: (line: string) => void }) => (
+  <>
+    <label>
+      Command
+      <input required spellCheck={false} placeholder="claude -p --output-format text" value={line} onChange={(e) => onLine(e.target.value)} />
+    </label>
+    <p className="muted">
+      A program and its arguments, such as a provider's own command-line tool, run with no shell. NovelForge sends it the prompt on its input and reads the
+      reply from its output, which must be the reply alone. Quote an argument with spaces. As it runs a program, only Settings on this computer can change it.
+    </p>
+    <CommandCaveats />
+  </>
+);
+
 /** The reviewer that takes a second look at a new world and at World Changes: the Narrator's model, or another one, on any provider. */
 export function ReviewSettings({
   draft,
@@ -1098,7 +1133,7 @@ function InstallSettings({
   const [consistencyKey, setConsistencyKey] = useState("");
   const set = (change: Partial<Settings>) => setDraft({ ...draft, ...change });
   // The command as the player types it, or undefined while the Narrator is on a server.
-  const [commandLine, setCommandLine] = useState(initial.textCommand.length > 0 ? commandText(initial.textCommand) : undefined);
+  const [commandLine, setCommandLine] = useState(commandLineOf(initial));
 
   const textChoice = textChoiceOf(draft.textBaseUrl);
   const local = textChoice === "local";
@@ -1218,19 +1253,13 @@ function InstallSettings({
       <div data-section="Text" className="fields" hidden={section !== "Text"}>
         <h2>Text</h2>
         {commandLine !== undefined && !saved.commandHere ? (
-          <>
-            <p>
-              The AI is a command: <code>{commandLine}</code>. It runs a program on the computer NovelForge runs on, so only Settings opened there, at{" "}
-              <code>127.0.0.1</code> or <code>localhost</code>, can change it.
-            </p>
-            <CommandCaveats />
-          </>
+          <LockedCommand line={commandLine} />
         ) : (
           <>
             <Picker
               label="Text provider"
               value={commandLine !== undefined ? "command" : textChoice}
-              choices={[...TEXT_CHOICES, ...(saved.commandHere ? [{ value: "command" as const, label: "Command" }] : [])]}
+              choices={narratorChoices(saved)}
               onChange={(provider) => {
                 setCommandLine(provider === "command" ? "" : undefined);
                 // A server switched to turns the command off.
@@ -1238,27 +1267,13 @@ function InstallSettings({
               }}
             />
             {commandLine !== undefined ? (
-              <>
-                <label>
-                  Command
-                  <input
-                    required
-                    spellCheck={false}
-                    placeholder="claude -p --output-format text"
-                    value={commandLine}
-                    onChange={(e) => {
-                      setCommandLine(e.target.value);
-                      set({ textCommand: commandWords(e.target.value) });
-                    }}
-                  />
-                </label>
-                <p className="muted">
-                  A program and its arguments, such as a provider's own command-line tool, run with no shell. NovelForge sends it the prompt on its input and
-                  reads the reply from its output, which must be the reply alone. Quote an argument with spaces. As it runs a program, only Settings on this
-                  computer can change it.
-                </p>
-                <CommandCaveats />
-              </>
+              <CommandField
+                line={commandLine}
+                onLine={(line) => {
+                  setCommandLine(line);
+                  set({ textCommand: commandWords(line) });
+                }}
+              />
             ) : (
               <>
                 {local && (

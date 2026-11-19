@@ -1,14 +1,18 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
-import { askTextTest, getImageModels, getSettings, getTextModels, offersDecisions, type Settings, saveSettings, setupProblem } from "./api";
+import { askTextTest, commandWords, getImageModels, getSettings, getTextModels, offersDecisions, type Settings, saveSettings, setupProblem } from "./api";
 import type { SettingsChange } from "../settings-store";
 import { roman } from "./chat-style";
 import { MenuRibbon, Sheet } from "./menu";
 import { CHAT_STYLES, ReadingSamples, THEMES } from "./reading-samples";
 import {
   applyLook,
+  CommandField,
+  commandLineOf,
   ComfySettings,
   ConsistencySettings,
+  LockedCommand,
   ModelField,
+  narratorChoices,
   Picker,
   ReviewSettings,
   TEXT_CHOICES,
@@ -24,7 +28,7 @@ const [PROVIDER, MODEL, REVIEW, CONSISTENCY, PICTURES, READING, READY] = [1, 2, 
 const SKIPPABLE = [REVIEW, CONSISTENCY, PICTURES, READING];
 // What each step's Next saves, by setting name, and nothing else, so leaving halfway loses nothing done.
 const STEP_FIELDS: Record<number, RegExp> = {
-  [PROVIDER]: /^(textBaseUrl|textModel|textHost|reviewModel|consistencyModel)$/,
+  [PROVIDER]: /^(textBaseUrl|textCommand|textModel|textHost|reviewModel|consistencyModel)$/,
   [MODEL]: /^text(Model|Host|Thinking)$/,
   [REVIEW]: /^review/,
   [CONSISTENCY]: /^consistency/,
@@ -112,6 +116,8 @@ function Steps({ initial }: { initial: Settings }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const set = (change: Partial<Settings>) => setDraft({ ...draft, ...change });
+  const [commandLine, setCommandLine] = useState(commandLineOf(initial));
+  const command = commandLine !== undefined;
 
   const textChoice = textChoiceOf(draft.textBaseUrl);
   const local = textChoice === "local";
@@ -143,7 +149,7 @@ function Steps({ initial }: { initial: Settings }) {
     };
   }, [draft.imageProvider, saved]);
 
-  const keyNeeded = !local && !textKey.trim() && !saved.textKeysFor.includes(draft.textBaseUrl);
+  const keyNeeded = !command && !local && !textKey.trim() && !saved.textKeysFor.includes(draft.textBaseUrl);
   // One key does both when the pictures come from the Narrator's own service, and it has a key saved.
   const sharesKey = textChoiceOf(saved.textBaseUrl) === draft.imageProvider && saved.textKeysFor.includes(saved.textBaseUrl);
   const textKeyDraws = sharesKey && (useTextKey ?? !saved.imageKeysFor.includes(draft.imageProvider));
@@ -179,6 +185,7 @@ function Steps({ initial }: { initial: Settings }) {
   // Leaving a page any way but Next drops what it changed, as only Next saves.
   const go = (step: number) => {
     setDraft(saved);
+    setCommandLine(commandLineOf(saved));
     applyLook(saved);
     setError("");
     setHere(step);
@@ -213,7 +220,7 @@ function Steps({ initial }: { initial: Settings }) {
     </>
   );
 
-  const blocked = (here === PROVIDER && keyNeeded) || (here === MODEL && !draft.textModel.trim());
+  const blocked = (here === PROVIDER && keyNeeded) || (here === MODEL && !command && !draft.textModel.trim());
   const ready = !setupProblem(saved);
 
   const pages: Record<number, ReactNode> = {
@@ -242,99 +249,127 @@ function Steps({ initial }: { initial: Settings }) {
           own service, such as Google AI Studio, offers only its own family of models. And Local / OpenAI server reaches an AI on your own computer, or any
           other service that speaks the common OpenAI-compatible standard.
         </p>
-        <Picker
-          label="Text provider"
-          value={textChoice}
-          choices={[...TEXT_CHOICES]}
-          onChange={(provider) => {
-            // As in Settings: a provider switched to brings back its own model, and Local the last local server.
-            const lastLocal = Object.keys(saved.textProfiles).findLast((at) => !Object.values(TEXT_PROVIDERS).includes(at)) ?? "";
-            const textBaseUrl = provider === "local" ? lastLocal : TEXT_PROVIDERS[provider];
-            set({
-              textBaseUrl,
-              ...(saved.textProfiles[textBaseUrl] ?? { textModel: "", textHost: "" }),
-              ...(draft.reviewSameProvider && { reviewModel: "" }),
-              ...(draft.consistencySameProvider && { consistencyModel: "" }),
-            });
-          }}
-        />
-        <p className="muted">
-          {
-            {
-              openrouter:
-                "Recommended. One account and key reach every model, the drawing ones too, and you pay only for what you use. Sign up, add a few dollars of credit, then make a key and paste it below. It's shown only once, so keep a copy.",
-              google:
-                "A free key with a Google account, to try NovelForge. The free tier limits how many Turns a day you get, and Google may use what you send, your story among it, to improve its products.",
-              nanogpt: "Pay as you go for many models, with one key.",
-              local:
-                "An AI on your own computer, or any other OpenAI-compatible server. Nothing leaves your computer, but a long story outgrows a 10 GB graphics card, so it suits short stories, privacy and trying things out. Ollama is at http://localhost:11434/v1, LM Studio at http://localhost:1234/v1.",
-            }[textChoice]
-          }
-        </p>
-        <ProviderLinks provider={textChoice} />
-        {local && (
-          <label>
-            Server address
-            <input
-              type="url"
-              required
-              placeholder="http://localhost:1234/v1"
-              value={draft.textBaseUrl}
-              onChange={(e) => set({ textBaseUrl: e.target.value })}
+        {command && !saved.commandHere ? (
+          <LockedCommand line={commandLine} />
+        ) : (
+          <>
+            <Picker
+              label="Text provider"
+              value={command ? "command" : textChoice}
+              choices={narratorChoices(saved)}
+              onChange={(provider) => {
+                setCommandLine(provider === "command" ? "" : undefined);
+                if (provider === "command") return;
+                // As in Settings: a provider switched to brings back its own model, and Local the last local server, and turns the command off.
+                const lastLocal = Object.keys(saved.textProfiles).findLast((at) => !Object.values(TEXT_PROVIDERS).includes(at)) ?? "";
+                const textBaseUrl = provider === "local" ? lastLocal : TEXT_PROVIDERS[provider];
+                set({
+                  textBaseUrl,
+                  textCommand: [],
+                  ...(saved.textProfiles[textBaseUrl] ?? { textModel: "", textHost: "" }),
+                  ...(draft.reviewSameProvider && { reviewModel: "" }),
+                  ...(draft.consistencySameProvider && { consistencyModel: "" }),
+                });
+              }}
             />
-          </label>
+            <p className="muted">
+              {
+                {
+                  openrouter:
+                    "Recommended. One account and key reach every model, the drawing ones too, and you pay only for what you use. Sign up, add a few dollars of credit, then make a key and paste it below. It's shown only once, so keep a copy.",
+                  google:
+                    "A free key with a Google account, to try NovelForge. The free tier limits how many Turns a day you get, and Google may use what you send, your story among it, to improve its products.",
+                  nanogpt: "Pay as you go for many models, with one key.",
+                  local:
+                    "An AI on your own computer, or any other OpenAI-compatible server. Nothing leaves your computer, but a long story outgrows a 10 GB graphics card, so it suits short stories, privacy and trying things out. Ollama is at http://localhost:11434/v1, LM Studio at http://localhost:1234/v1.",
+                  command: "A program you set up, such as a provider's own command-line tool, instead of a server. We still recommend one of the others.",
+                }[command ? "command" : textChoice]
+              }
+            </p>
+            {command ? (
+              <CommandField
+                line={commandLine}
+                onLine={(line) => {
+                  setCommandLine(line);
+                  set({ textCommand: commandWords(line) });
+                }}
+              />
+            ) : (
+              <>
+                <ProviderLinks provider={textChoice} />
+                {local && (
+                  <label>
+                    Server address
+                    <input
+                      type="url"
+                      required
+                      placeholder="http://localhost:1234/v1"
+                      value={draft.textBaseUrl}
+                      onChange={(e) => set({ textBaseUrl: e.target.value })}
+                    />
+                  </label>
+                )}
+                <label>
+                  {local ? "Text API key (most local servers need none)" : "Text API key"}
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder={saved.textKeysFor.includes(draft.textBaseUrl) ? "Saved. Type a new key to replace it." : "None saved"}
+                    value={textKey}
+                    onChange={(e) => setTextKey(e.target.value)}
+                  />
+                </label>
+              </>
+            )}
+          </>
         )}
-        <label>
-          {local ? "Text API key (most local servers need none)" : "Text API key"}
-          <input
-            type="password"
-            autoComplete="new-password"
-            placeholder={saved.textKeysFor.includes(draft.textBaseUrl) ? "Saved. Type a new key to replace it." : "None saved"}
-            value={textKey}
-            onChange={(e) => setTextKey(e.target.value)}
-          />
-        </label>
       </>
     ),
     [MODEL]: (
       <>
-        <p className="muted">
-          {/* The Guide and README name the same models, so change them together. */}
-          {
-            {
-              openrouter:
-                "Two good choices: MiMo V2.6 Pro (search “mimo pro”), for richer role-play and writing at a little more a Turn, or DeepSeek V4.1 Flash (search “deepseek flash”), much cheaper a Turn, with writing not quite as rich. Try both on one story and keep the one you like.",
-              google: "We recommend a Gemini Flash model.",
-              nanogpt: "We recommend MiMo or DeepSeek, though any model you like will do.",
-              local: "Choose the model your server runs. MiMo and DeepSeek write well if you can run them.",
-            }[textChoice]
-          }
-        </p>
-        <ModelField
-          key={draft.textBaseUrl}
-          label="Text model"
-          value={draft.textModel}
-          list={models}
-          onChange={(textModel) => set({ textModel, textHost: textModel === draft.textModel ? draft.textHost : "" })}
-        />
-        {models?.length === 0 && <p className="muted">No models listed. Make sure the key or server is right, or type the model's name.</p>}
-        {!local && (
+        {command ? (
+          <p className="muted">A command has no model to choose here: set the model and its thinking in the command, if the program allows. Test it below.</p>
+        ) : (
           <>
-            <Picker
-              label="Thinking"
-              value={draft.textThinking}
-              choices={[
-                { value: "default", label: "The model's own" },
-                { value: "low", label: "Low" },
-                { value: "medium", label: "Medium" },
-                { value: "high", label: "High" },
-              ]}
-              onChange={(textThinking) => set({ textThinking })}
-            />
             <p className="muted">
-              How long a model that thinks before it writes may think. Medium is a good start. On High, some models think past their limit, and the reply is
-              stopped and asked again, which can fail every try.
+              {/* The Guide and README name the same models, so change them together. */}
+              {
+                {
+                  openrouter:
+                    "Two good choices: MiMo V2.6 Pro (search “mimo pro”), for richer role-play and writing at a little more a Turn, or DeepSeek V4.1 Flash (search “deepseek flash”), much cheaper a Turn, with writing not quite as rich. Try both on one story and keep the one you like.",
+                  google: "We recommend a Gemini Flash model.",
+                  nanogpt: "We recommend MiMo or DeepSeek, though any model you like will do.",
+                  local: "Choose the model your server runs. MiMo and DeepSeek write well if you can run them.",
+                }[textChoice]
+              }
             </p>
+            <ModelField
+              key={draft.textBaseUrl}
+              label="Text model"
+              value={draft.textModel}
+              list={models}
+              onChange={(textModel) => set({ textModel, textHost: textModel === draft.textModel ? draft.textHost : "" })}
+            />
+            {models?.length === 0 && <p className="muted">No models listed. Make sure the key or server is right, or type the model's name.</p>}
+            {!local && (
+              <>
+                <Picker
+                  label="Thinking"
+                  value={draft.textThinking}
+                  choices={[
+                    { value: "default", label: "The model's own" },
+                    { value: "low", label: "Low" },
+                    { value: "medium", label: "Medium" },
+                    { value: "high", label: "High" },
+                  ]}
+                  onChange={(textThinking) => set({ textThinking })}
+                />
+                <p className="muted">
+                  How long a model that thinks before it writes may think. Medium is a good start. On High, some models think past their limit, and the reply is
+                  stopped and asked again, which can fail every try.
+                </p>
+              </>
+            )}
           </>
         )}
         <TestBox
@@ -485,9 +520,7 @@ function Steps({ initial }: { initial: Settings }) {
         <p>{ready ? "NovelForge is ready." : "The story needs its Narrator set up first: go back to The storyteller."}</p>
         <dl className="test-stats">
           <dt>Narrator</dt>
-          <dd>
-            {textName(saved.textBaseUrl)}, {saved.textModel || "no model"}
-          </dd>
+          <dd>{saved.textCommand.length > 0 ? `Command, ${saved.textCommand[0]}` : `${textName(saved.textBaseUrl)}, ${saved.textModel || "no model"}`}</dd>
           <dt>Second reader</dt>
           <dd>{saved.reviewOtherModel && saved.reviewModel ? saved.reviewModel : "The Narrator's own"}</dd>
           <dt>Consistency</dt>

@@ -64,7 +64,10 @@ export type TextProvider = (
     picture?: boolean;
     /** How many levels below the player's Thinking to ask for, after a reply thought past the limit. */
     lessThinking?: number;
-    /** Tokens of thinking, sent in place of the level to a model whose provider takes a budget, for a call with a hard time limit. */
+    /**
+     * Tokens of thinking, sent in place of the level to a model whose provider takes a budget, for a call with a hard time limit.
+     * For any other model, the stream is stopped once its thinking passes it, with ThinkingBudgetReached.
+     */
     thinkingBudget?: number;
     onText: (text: string) => void;
     onGeneration?: (id: string) => void;
@@ -84,6 +87,10 @@ export class ReplyCutOff extends TextProviderFailed {}
 export class ThoughtTooLong extends ReplyCutOff {
   override name = "ThoughtTooLong";
 }
+/** A call thought past the budget it was given, which its model couldn't take as a parameter, so the stream was stopped. */
+export class ThinkingBudgetReached extends ReplyCutOff {
+  override name = "ThinkingBudgetReached";
+}
 class InvalidResponse extends Error {}
 
 /** An abort reason for a reply stopped on purpose, as it has given all that's needed: logged by its words, and never a failure. */
@@ -93,6 +100,8 @@ export class StoppedOnPurpose {
 
 const RAN_ON = "ran on far too long";
 const OVERTHOUGHT = "thought far too long";
+// Told to the model as the reason, so it answers at once: a call that already thought at length mostly has its answer.
+const OVER_BUDGET = "you thought past the time this answer has, so give it now with little or no more thinking";
 const RATED = "rated for a Check, so the rest isn't needed";
 const DECLINED_MESSAGE =
   "The AI wouldn't write how this turned out, which usually means its content rules block it. Nothing was saved: try another move, or another AI.";
@@ -564,7 +573,7 @@ export async function playTurn(
     askClose: (threads, rewrites) => askToClose(id, threads, rewrites),
   });
   const replies = messages.filter(({ role }) => role === "narrator").length + 1;
-  if (moveWorld && kind === "turn" && moveDue(state, saves.latestState(id), replies)) {
+  if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies)) {
     // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
     const move = moveWorldOn(textProvider, settings, saves, id, AbortSignal.timeout(MOVE_LIMIT.ms)).finally(() => moving.delete(id));
     moving.set(id, move);
@@ -1102,7 +1111,7 @@ function playerReason({ cause }: InvalidResponse) {
   if (cause === DECLINED) return "The last reply wasn't a story, which can mean the AI's content rules block this";
   if (cause === NOTE_ABOUT_TURN) return "The last reply was a note about the story instead of the story";
   if (cause === RAN_ON) return "The last reply ran on far too long";
-  if (cause === OVERTHOUGHT) return "The AI thought for too long before writing";
+  if (cause === OVERTHOUGHT || cause === OVER_BUDGET) return "The AI thought for too long before writing";
   if (Array.isArray(cause)) return "The last reply changed the story in a way that doesn't fit what's already true";
   if (cause === undefined) return "The last reply asked for a second dice roll";
   return "The last reply came back garbled";
@@ -1145,6 +1154,7 @@ async function askNarrator(
     // Any other call that reaches the token limit would likely reach it again, so it fails at once and says why.
     // The reason is the cause, as whyInvalid and playerReason read it: given the error, a runaway was logged as a Check request.
     if (cause instanceof ThoughtTooLong) throw new InvalidResponse(undefined, { cause: OVERTHOUGHT });
+    if (cause instanceof ThinkingBudgetReached) throw new InvalidResponse(undefined, { cause: OVER_BUDGET });
     if (runaway && (runaway.aborted || cause instanceof ReplyCutOff)) throw new InvalidResponse(undefined, { cause: RAN_ON });
     if (cause instanceof ContentRefused) {
       throw new TurnFailed(refusal, "refused", input, { cause });

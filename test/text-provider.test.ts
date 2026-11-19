@@ -9,6 +9,7 @@ import {
   peopleLeftOut,
   speechOutsideLines,
   spokenLineFault,
+  ThinkingBudgetReached,
   cutWords,
   repeatsPrevious,
   usableChoices,
@@ -670,6 +671,32 @@ test("a call with a thinking budget sends it to a model whose listing takes one,
 
   expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([{ max_tokens: 1000 }, { effort: "low" }, { effort: "low" }]);
   expect(log).toContain('"thinkingBudget":1000');
+});
+
+test("a model that can't take a thinking budget is stopped once its thinking passes it, and one that can is left to the provider", async () => {
+  const listing = {
+    data: [
+      { id: "fake/model", supported_parameters: ["reasoning"], reasoning: { supports_max_tokens: true } },
+      { id: "plain/model", supported_parameters: ["reasoning"] },
+    ],
+  };
+  const thinking = async function* () {
+    for (let at = 0; at < 40; at++) yield `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "Hmm, let me think again. " } }] })}\n\n`;
+    yield* [delta("Done."), "data: [DONE]\n\n"];
+  };
+  play([thinking, thinking], listing, scriptedDice(), true);
+  const settings = settingsStore(join(folder.path, "settings.json"));
+  settings.update({ textThinking: "low", textModel: "plain/model" });
+  const send = () => textProvider(settings)([{ role: "user", content: "Hi" }], { thinkingBudget: 100, onText: () => {}, signal: new AbortController().signal });
+
+  const log = await logOf(async () => {
+    await expect(send()).rejects.toBeInstanceOf(ThinkingBudgetReached);
+    settings.update({ textModel: "fake/model" });
+    expect(await send()).toBe("Done.");
+  }, "info");
+
+  expect(log).toContain("Thinking budget reached");
+  expect(log).toContain('"budget":100');
 });
 
 test("a reply cut by its caller's time limit is logged as a time limit, not as the client leaving", async () => {

@@ -1,7 +1,16 @@
 import { z } from "zod";
 import { errorFields, log } from "./logger";
 import type { SettingsStore, TextSettings } from "./settings-store";
-import { ContentRefused, ReplyCutOff, StoppedOnPurpose, type TextProvider, TextProviderFailed, type TextUsage, ThoughtTooLong } from "./turn-engine";
+import {
+  ContentRefused,
+  ReplyCutOff,
+  StoppedOnPurpose,
+  type TextProvider,
+  TextProviderFailed,
+  type TextUsage,
+  ThinkingBudgetReached,
+  ThoughtTooLong,
+} from "./turn-engine";
 import { GOOGLE_URL, NANOGPT_URL } from "./web/api";
 
 // The player sees these with a retry hint after them, so none ends in a full stop.
@@ -380,6 +389,11 @@ export function textProvider(
         thought += (delta?.reasoning ?? delta?.reasoning_content ?? "").length;
         // About four characters a token, as estimateTokens counts.
         if (thought / 4 > thinkingTokens) throw new ThoughtTooLong(THOUGHT_TOO_LONG);
+        // A budget the model can't take is kept here, as reviewers without one thought 12,000 characters and more and never answered.
+        if (thinkingBudget && !budget && thought / 4 > thinkingBudget) {
+          log.info("text", "Thinking budget reached", { model: textModel, budget: thinkingBudget, thoughtChars: thought });
+          throw new ThinkingBudgetReached(THOUGHT_TOO_LONG);
+        }
         const text = delta?.content ?? message?.content;
         if (text) {
           reply += text;

@@ -35,6 +35,12 @@ test("an everyday word the secrets happen to hold isn't taken for something the 
   expect(unknownWords(choices, secret, "Tamsin rides ahead.")).toEqual([[], [], ["chimney"]]);
 });
 
+test("a day or month is never taken for a made-up name, nor an everyday word the secrets hold for one", () => {
+  const secret = { ...state, plotThreads: ["By Sunday the honest clerk has written the ledger out in March."] };
+  const choices = ["I wait until Sunday, then go.", "I ask for an honest answer, written down.", "I ride north before March."];
+  expect(unknownWords(choices, secret, "Tamsin rides ahead.")).toEqual([[], [], []]);
+});
+
 test("a known fact, summary or Loose End naming someone or somewhere the player has only in the secrets is dropped, even if an earlier fact named it", () => {
   const secret = {
     ...state,

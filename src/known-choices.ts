@@ -35,7 +35,7 @@ export function unknownWords(choices: string[], state: State, seen: string, name
   function guessed(choice: string) {
     return [
       // A name or place the Narrator made up, as a town no one had spoken of was offered as where to ride. Not a sentence's first word.
-      ...(choice.match(/(?<!\p{L}|[.!?:;"“‘(]\s*|^[\s"“‘]*)\p{Lu}\p{L}{3,}/gu) ?? []).filter(unseen),
+      ...(choice.match(/(?<!\p{L}|[.!?:;"“‘(]\s*|^[\s"“‘]*)\p{Lu}\p{L}{3,}/gu) ?? []).filter((word) => !EVERYDAY.has(word.toLowerCase()) && unseen(word)),
       // A thing only the hidden threads and Lore hold, as an oilskin a secret ledger was wrapped in. Long words only, as short ones
       // are common, and no everyday word, as "anyone" and "examine" cost a play its Choices.
       ...(choice.match(/\p{L}{6,}/gu) ?? []).filter((word) => !EVERYDAY.has(word.toLowerCase()) && wholeWord(word, "iu").test(hidden) && unseen(word)),
@@ -44,6 +44,8 @@ export function unknownWords(choices: string[], state: State, seen: string, name
 }
 
 // shortcut: a short list of everyday long words seen in Choices; use a word-frequency list if ordinary words still get flagged.
+// Days and months too, as "Sunday" was taken for a made-up name. No rule by spelling tells "honest" or "written" from the
+// hidden nouns this is for, so those are listed as seen.
 const EVERYDAY = new Set(
   `anyone anybody anything anywhere someone somebody something somewhere somehow everyone everybody everything everywhere nothing nobody
   nowhere whatever whoever wherever whenever however whether another others itself himself herself myself yourself themselves ourselves
@@ -52,7 +54,9 @@ const EVERYDAY = new Set(
   slowly quickly gently carefully closely examine search follow listen glance inspect answer reveal return gather travel notice wonder
   mention explain decide remain become choose settle finish handle insist invite accept promise refuse report pretend pursue escape
   convince persuade confront approach continue consider question suggest believe remember forget struggle warning trouble silence moment
-  minute morning evening tonight tomorrow yesterday people person matter reason chance hidden secret should things`.split(/\s+/),
+  minute morning evening tonight tomorrow yesterday people person matter reason chance hidden secret should things honest written
+  monday tuesday wednesday thursday friday saturday sunday january february march april june july august september october november
+  december`.split(/\s+/),
 );
 
 // What the player reads in the Journal as the PC's own knowledge.

@@ -235,17 +235,27 @@ test("a move that misquotes a thread, or fails, leaves the world as it was and t
 test("a move is due after hours of story time, on a new day or every few replies, even with no threads, as only a move adds them", () => {
   const at = (timeOfDay: string, date = "1st of Thaw") => ({ date, timeOfDay, day: 1 });
   const before = { ...openingState, plotThreads: ["A thread."], scene: { location: "Here", visibleCast: [] }, storyTime: at("early afternoon") };
-  expect(moveDue(before, before, 1)).toBe(false);
+  expect(moveDue("a", before, before, 1)).toBe(false);
   // Walking from room to room isn't a pause, as moves that often rewrote the threads out of what they hid.
-  expect(moveDue(before, { ...before, scene: { location: "There", visibleCast: [] } }, 1)).toBe(false);
-  expect(moveDue(before, { ...before, storyTime: at("mid afternoon") }, 1)).toBe(false);
-  expect(moveDue(before, { ...before, storyTime: at("evening") }, 1)).toBe(true);
-  expect(moveDue({ ...before, storyTime: at("about 9 a.m.") }, { ...before, storyTime: at("10:30 am") }, 1)).toBe(false);
-  expect(moveDue({ ...before, storyTime: at("about 9 a.m.") }, { ...before, storyTime: at("half past 2 pm") }, 1)).toBe(true);
-  expect(moveDue(before, { ...before, storyTime: at("a while later") }, 1)).toBe(false);
-  expect(moveDue(before, { ...before, storyTime: at("dawn", "2nd of Thaw") }, 1)).toBe(true);
-  expect(moveDue(before, before, MOVE_EVERY)).toBe(true);
-  expect(moveDue(before, { ...before, plotThreads: [] }, MOVE_EVERY)).toBe(true);
+  expect(moveDue("a", before, { ...before, scene: { location: "There", visibleCast: [] } }, 1)).toBe(false);
+  expect(moveDue("a", before, { ...before, storyTime: at("mid afternoon") }, 1)).toBe(false);
+  expect(moveDue("b", before, { ...before, storyTime: at("evening") }, 1)).toBe(true);
+  expect(moveDue("a", { ...before, storyTime: at("about 9 a.m.") }, { ...before, storyTime: at("10:30 am") }, 1)).toBe(false);
+  expect(moveDue("c", { ...before, storyTime: at("about 9 a.m.") }, { ...before, storyTime: at("half past 2 pm") }, 1)).toBe(true);
+  expect(moveDue("a", before, { ...before, storyTime: at("a while later") }, 1)).toBe(false);
+  expect(moveDue("d", before, { ...before, storyTime: at("dawn", "2nd of Thaw") }, 1)).toBe(true);
+  expect(moveDue("a", before, before, MOVE_EVERY)).toBe(true);
+  expect(moveDue("e", before, { ...before, plotThreads: [] }, MOVE_EVERY)).toBe(true);
+});
+
+test("the fallback move counts replies since the last move, so a move due on time is never followed by one a reply later", () => {
+  const before = { ...openingState, storyTime: { date: "1st of Thaw", timeOfDay: "dawn", day: 1 } };
+  const nextDay = { ...before, storyTime: { date: "2nd of Thaw", timeOfDay: "dawn", day: 2 } };
+
+  expect(moveDue("spaced", before, nextDay, MOVE_EVERY * 3 + 2)).toBe(true);
+  expect(moveDue("spaced", before, before, MOVE_EVERY * 4)).toBe(false);
+  expect(moveDue("spaced", before, before, MOVE_EVERY * 4 + 1)).toBe(false);
+  expect(moveDue("spaced", before, before, MOVE_EVERY * 4 + 2)).toBe(true);
 });
 
 test("the player's Journal edits are still settled after a move, which settles none of them", () => {

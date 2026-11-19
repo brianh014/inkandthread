@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { z } from "zod";
-import { askForJson, type TextProvider, ThoughtTooLong } from "../src/turn-engine";
+import { askForJson, type TextProvider, ThinkingBudgetReached, ThoughtTooLong } from "../src/turn-engine";
 
 /** Answers with each reply in turn, keeping what each try was sent. */
 function scripted(...replies: (string | Error)[]) {
@@ -34,4 +34,12 @@ test("a reply that thought too long is asked again a Thinking level lower each t
   expect(await ask(provider)).toEqual({ text: "ok" });
   expect(tries.map(({ lessThinking }) => lessThinking)).toEqual([0, 1, 2]);
   expect(tries[2]!.prompt).toHaveLength(1);
+});
+
+test("a reply stopped at its thinking budget is asked again at the same level, told to answer now", async () => {
+  const { provider, tries } = scripted(new ThinkingBudgetReached("budget"), JSON.stringify({ text: "ok" }));
+
+  expect(await ask(provider)).toEqual({ text: "ok" });
+  expect(tries.map(({ lessThinking }) => lessThinking)).toEqual([0, 0]);
+  expect(tries[1]!.prompt.at(-1)!.content).toContain("give it now");
 });

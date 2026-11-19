@@ -98,7 +98,8 @@ test("a repeated Loose End logs only its count, at Info", async () => {
 
   const line = await logOf(() => turn(id).then((r) => r.text()), "info");
 
-  expect(line).toMatch(/Repeats ignored .*"count":1/);
+  // Repeated within one reply, it goes as a loop does.
+  expect(line).toMatch(/Looping operations dropped .*"sent":2,"kept":1/);
   expect(line).not.toContain("ZQX");
 });
 

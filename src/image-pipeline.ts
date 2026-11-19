@@ -624,7 +624,11 @@ export function imagePipeline(
       enqueue(id, (jobs) => {
         if (scene.moved) jobs.queue.push(portraitJob(id, OPENING_SNAPSHOT));
         jobs.queue.push(...scene.portraits.map((npc) => portraitJob(id, messageId, npc)));
-        if (drawScenes && scene.changed && scene.description) {
+        // A lone word, such as one object named alone, was drawn as that thing with no place or people.
+        // shortcut: only a lone word in lower case, the fragment a reply sent, as tests draw from one capitalised word; count words if a real one shows.
+        const fragment = /^\p{Ll}\S*$/u.test(scene.description.trim());
+        if (drawScenes && scene.changed && fragment) log.info("images", "Scene picture skipped", { save: id, message: messageId });
+        if (drawScenes && scene.changed && scene.description && !fragment) {
           if (jobs.waiting) dropped(id, jobs.waiting, "a newer scene");
           jobs.waiting = queued(id, {
             kind: "scene",

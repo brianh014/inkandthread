@@ -210,7 +210,7 @@ test("a refused operation fails the whole Turn, including its valid operations",
         "You trade the lantern for a rope.",
         { op: "add_item", slot: "carrying", item: "lantern" },
         { op: "remove_item", item: "lantern" },
-        { op: "remove_item", item: "lantern" },
+        { op: "remove_item", item: "rope" },
       ),
     ),
   );

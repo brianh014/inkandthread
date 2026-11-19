@@ -234,6 +234,20 @@ test("a move with no description draws nothing, as a location alone leaves the m
   expect(images.payloads).toHaveLength(0);
 });
 
+test("a scene change described in one stray word draws nothing, as that draws the thing alone, with no place or people", async () => {
+  play([newScene("bead")], PNG);
+  await enableImages();
+  const id = await app.createSave();
+
+  const log = await logOf(async () => {
+    await playTurn(id);
+    await settled(id);
+  });
+
+  expect(images.payloads).toHaveLength(0);
+  expect(log).toContain("Scene picture skipped");
+});
+
 test("a scene change with nothing to draw asks for no image", async () => {
   play([turn({ scene_changed: true, visual_description: null })]);
   await enableImages();

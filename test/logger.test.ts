@@ -225,7 +225,7 @@ test("a refused Turn logs why, a retry its generation, and a repeat a count", as
 
   expect(line).toContain("refused operations: remove_item: not held");
   expect(line).toContain('"generation":"gen-bad"');
-  expect(line).toMatch(/Repeats ignored .*"count":1/);
+  expect(line).toMatch(/Looping operations dropped .*"sent":2,"kept":1/);
   expect(line).toContain('"kind":"turn"');
   expect(line).toContain(`"save":"${id}"`);
   expect(line).not.toContain("ZQX");

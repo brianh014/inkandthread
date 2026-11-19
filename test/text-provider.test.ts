@@ -814,16 +814,36 @@ test("a reply that ends its narration with the brace or tag of its own JSON is s
   expect((await storedMessages(id)).map(({ text }) => text).slice(-3)).toEqual(['[Ilse]: "Since dawn?"', "I wait.", "He sits."]);
 });
 
-test("a reply that updates one Plot Thread twice is written again, and one that updates then resolves it is kept", async () => {
+test("a reply that repeats an operation on one record is kept with only the first, not written again", async () => {
   const update = (replacement: string) => ({ op: "update_plot_thread", thread: "The duke plots.", replacement });
-  const resolve = { op: "resolve_plot_thread", thread: "The duke plots." };
-  play([narrated("He sits.", update("The duke waits."), update("The duke strikes.")), narrated("He sits.", update("The duke waits."), resolve)]);
+  const learns = { op: "add_known_fact", fact: "The duke keeps a ledger." };
+  play([narrated("He sits.", update("The duke waits."), learns, update("The duke strikes."), learns)]);
   // With the thread there, as a rewrite that matches none is ignored rather than added.
-  const id = saveStore(join(folder.path, "Saves")).create({ worldBrief: "A drowned city", pc: { name: "Ash" }, opening: { plotThreads: ["The duke plots."] } });
+  const store = saveStore(join(folder.path, "Saves"));
+  const id = store.create({ worldBrief: "A drowned city", pc: { name: "Ash" }, opening: { plotThreads: ["The duke plots."] } });
 
-  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+  const log = await logOf(async () => expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201));
 
-  expect(provider.requests).toHaveLength(2);
+  expect(provider.requests).toHaveLength(1);
+  expect(store.latestState(id).plotThreads).toEqual(["The duke waits."]);
+  expect(log).toContain('"sent":4,"kept":2');
+});
+
+test("a reply that runs on in its operations is kept up to its last whole one, as its narration came whole", async () => {
+  const runOn = async function* () {
+    yield delta('{"check":null,"narration":"He sits.","people":[],"state_operations":[{"op":"add_known_fact","fact":"The duke keeps a ledger."}');
+    for (let at = 0; at < 1000; at++) yield delta(',{"op":"update_plot_thread","thread":"The duke plots.","replacement":"The duke plots."}');
+  };
+  play([runOn]);
+  const store = saveStore(join(folder.path, "Saves"));
+  const id = store.create({ worldBrief: "A drowned city", pc: { name: "Ash" }, opening: { plotThreads: ["The duke plots."] } });
+
+  const log = await logOf(async () => expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201));
+
+  expect(provider.requests).toHaveLength(1);
+  expect((await storedMessages(id)).at(-1)!.text).toBe("He sits.");
+  expect(store.latestState(id).pcKnown.facts).toEqual(["The duke keeps a ledger."]);
+  expect(log).toContain("Run-on reply kept");
 });
 
 test("Choices lose JSON marks left at their end, and one-word Choices told apart by a number are one", () => {
@@ -1354,6 +1374,13 @@ test("placeholder operations, a known fact that is only a name, and a reply's re
   ];
   expect(usableOperations([...kept, ...two])).toEqual(kept);
   expect(usableOperations([...kept, two[0]])).toEqual([...kept, two[0]]);
+  // Lore Entries likewise, as a reply wiped nine of ten; one entry named twice is one remove, left to the loop check.
+  const lore = [
+    { op: "remove_lore_entry", title: "The mill" },
+    { op: "remove_lore_entry", title: "The chapel" },
+  ];
+  expect(usableOperations([...kept, ...lore])).toEqual(kept);
+  expect(usableOperations([...kept, lore[0], lore[0]])).toEqual([...kept, lore[0], lore[0]]);
 });
 
 test("a line that is only quoted speech, with no speaker, is dropped, and speaker lines and speech in the prose are kept", () => {

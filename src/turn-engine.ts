@@ -113,14 +113,22 @@ export const isJunk = (operation: Record<string, unknown>) =>
 /**
  * The operations without retired ones and placeholders. A reply's resolves go too when it resolves more than one thread, as
  * DeepSeek wiped every open thread at once, early and again later, with nothing ended; World Moves On removes what play has ended.
+ * Its removes of Lore Entries likewise, as one reply wiped nine of the world's ten. Removing other records two at a time is
+ * common in play, such as two items handed over, so only these two are held to one.
  */
 export const usableOperations = (operations: unknown) => {
   if (!Array.isArray(operations)) return operations;
   const usable = operations.filter((operation) => !RETIRED.includes(operation?.op ?? "") && !(operation && typeof operation === "object" && isJunk(operation)));
-  const resolves = usable.filter(({ op }) => op === "resolve_plot_thread").length;
-  const kept = resolves > 1 ? usable.filter(({ op }) => op !== "resolve_plot_thread") : usable;
+  // How many of `op` the reply sent, or 0 when they name one record only.
+  const many = (op: string, field: string) => {
+    const removes = usable.filter((operation) => operation.op === op);
+    return new Set(removes.map((operation) => operation[field])).size > 1 ? removes.length : 0;
+  };
+  const resolves = many("resolve_plot_thread", "thread");
+  const loreRemoves = many("remove_lore_entry", "title");
+  const kept = usable.filter(({ op }) => !(resolves && op === "resolve_plot_thread") && !(loreRemoves && op === "remove_lore_entry"));
   const dropped = operations.length - kept.length;
-  if (dropped > 0) log.info("turn", "Operations dropped", { placeholders: operations.length - usable.length, resolves: resolves > 1 ? resolves : 0 });
+  if (dropped > 0) log.info("turn", "Operations dropped", { placeholders: operations.length - usable.length, resolves, loreRemoves });
   return kept;
 };
 const TurnOperation = z.discriminatedUnion(
@@ -131,23 +139,34 @@ const TurnOperation = z.discriminatedUnion(
 // Real replies held at most 16 operations, and openings 23; a model stuck in a loop sent up to 138, mostly one thread updated
 // again and again. An opening gets twice as many, as it does twice the work.
 const MAX_OPERATIONS = 30;
-const LOOPING = "operations repeated in a loop";
 type TurnOperation = z.infer<typeof TurnOperation>;
+// What an operation gives the record it names, so two that change one record are one however each words the change.
+const NEW_VALUES = ["replacement", "content", "keywords", "appearance", "summary"];
 /**
- * The operations without a second update of a thread already updated, and at most `limit` of them. An update then a resolve
- * of one thread is kept, as the state applier follows it.
- * shortcut: threads are told apart by their exact words, so a loop that rewords its quote each time gets through; match them as closestThread does if that shows up.
+ * The operations without a second of the same operation on the same record, such as a thread updated again, and at most
+ * `limit` of them. An update then a resolve of one thread is kept, as the state applier follows it.
+ * shortcut: records are told apart by their exact words, so a loop that rewords its quote each time gets through; match them as closestThread does if that shows up.
  */
 function withoutLoop(operations: TurnOperation[], limit: number) {
-  const updated = new Set<string>();
+  const seen = new Set<string>();
   return operations
     .filter((operation) => {
-      if (operation.op !== "update_plot_thread") return true;
-      if (updated.has(operation.thread)) return false;
-      updated.add(operation.thread);
-      return true;
+      const key = JSON.stringify(Object.entries(operation).filter(([field]) => !NEW_VALUES.includes(field)));
+      return !seen.has(key) && !!seen.add(key);
     })
     .slice(0, limit);
+}
+/**
+ * A reply stopped as it ran on, closed after its last whole operation, when its narration came before its operations, as the
+ * runaways were models repeating operations after a whole narration. What follows them, such as the summary, is lost.
+ * shortcut: a "}," inside an operation's text would cut there; the cut reply then fails to parse and is written again, as before.
+ */
+export function closedAtLastOperation(reply: string) {
+  const start = reply.indexOf('"state_operations"');
+  const narration = reply.indexOf('"narration"');
+  if (start < 0 || narration < 0 || narration > start) return undefined;
+  const whole = reply.slice(start).match(/^[\s\S]*\}(?=\s*,)/)?.[0];
+  return whole ? `${reply.slice(0, start)}${whole}]}` : undefined;
 }
 const FinishedTurn = z.object({
   // Whether it has words is checked once it's parsed, so a Check's result without any is told as declined.
@@ -716,7 +735,10 @@ async function narrate(
         runaway.signal,
       ).catch((cause: unknown): string => {
         if (rated && !signal.aborted) return JSON.stringify({ check: rated });
-        throw cause;
+        const closed = runaway.signal.aborted && !signal.aborted ? closedAtLastOperation(withoutThinking(partial)) : undefined;
+        if (!closed) throw cause;
+        log.warning("turn", "Run-on reply kept", { attempt, generation, sent: withoutThinking(partial).length, kept: closed.length });
+        return closed;
       });
       const response = parseReply<z.infer<typeof NarratorResponse | typeof EditedTurn>>(reply, edited === undefined ? NarratorResponse : EditedTurn);
       if (response.check) {
@@ -727,10 +749,17 @@ async function narrate(
         continue;
       }
       const { people, summary, recent_summary, scene_changed, visual_description, chapter_ends } = response;
-      // Written again while tries remain, as a model in a loop mostly isn't the next time; the last try keeps the reply without the loop.
+      // Kept without the loop, not written again, as DeepSeek's whole narration was lost to a retry eight times in one 30-round play.
       const operationLimit = MAX_OPERATIONS * (kind === "opening" ? 2 : 1);
       let state_operations = withoutLoop(response.state_operations, operationLimit);
-      const looping = state_operations.length < response.state_operations.length ? LOOPING : undefined;
+      const looping = state_operations.length < response.state_operations.length;
+      // The opening starts from a world just written, which one opening's removes wiped before the story had used any of it.
+      if (kind === "opening") {
+        const kept = state_operations.filter(({ op }) => op !== "remove_lore_entry");
+        if (kept.length < state_operations.length)
+          log.info("turn", "Operations dropped", { attempt, generation, openingLoreRemoves: state_operations.length - kept.length });
+        state_operations = kept;
+      }
       // Later replies copy marks like these, so they never reach a Save.
       const cleaned = withoutFields(withoutStrayMarks(response.narration as string));
       let narration = edited ?? withoutBareSpeech(cleaned);
@@ -755,9 +784,7 @@ async function narrate(
       // A long speech is only logged, as rewriting it restarted too many Turns the player could see.
       const noted = edited === undefined && isNoteAboutTurn(narration) ? NOTE_ABOUT_TURN : undefined;
       const fault =
-        attempt < MAX_ATTEMPTS
-          ? (noted ?? looping ?? (upkeep ? undefined : unplaced) ?? (spoken === LONG_SPEECH ? undefined : spoken) ?? inline ?? unmet)
-          : undefined;
+        attempt < MAX_ATTEMPTS ? (noted ?? (upkeep ? undefined : unplaced) ?? (spoken === LONG_SPEECH ? undefined : spoken) ?? inline ?? unmet) : undefined;
       unplacedBefore = fault === unplaced && !!unplaced;
       if (fault) throw new InvalidResponse(undefined, { cause: fault });
       if (spoken === LONG_SPEECH) log.warning("turn", "Long speech kept", { attempt, generation });
@@ -1024,7 +1051,6 @@ function playerReason({ cause }: InvalidResponse) {
   if (cause === "a picture without set_scene") return "The last reply moved to a new scene without saying where";
   if (cause === DECLINED) return "The last reply wasn't a story, which can mean the AI's content rules block this";
   if (cause === NOTE_ABOUT_TURN) return "The last reply was a note about the story instead of the story";
-  if (cause === LOOPING) return "The last reply got stuck repeating itself";
   if (cause === RAN_ON) return "The last reply ran on far too long";
   if (cause === OVERTHOUGHT) return "The AI thought for too long before writing";
   if (Array.isArray(cause)) return "The last reply changed the story in a way that doesn't fit what's already true";

@@ -139,6 +139,20 @@ test("State Upkeep doesn't move time in a Turn where the Narrator did, as it mov
   expect(log).toContain('"operations":["set_scene"],"dropped":1');
 });
 
+test("State Upkeep is sent the Loose Ends and resolves one the reply settled, as long stories kept a dozen stale", async () => {
+  const { upkeep } = play(
+    [narration("Ash finds the key under the mat.", { op: "add_loose_end", loose_end: "Find the key to the boathouse" })],
+    [upkept({ op: "resolve_loose_end", loose_end: "Find the key to the boathouse" })],
+  );
+  const id = createSave();
+
+  expect((await turn(id)).ok).toBe(true);
+
+  expect(JSON.parse(upkeep.prompts[0]!.at(-1)!.content).state.loose_ends).toEqual(["Find the key to the boathouse"]);
+  expect(upkeep.prompts[0]![0]!.content).toContain("resolve_loose_end");
+  expect(store().latestState(id).looseEnds).toEqual([]);
+});
+
 test("State Upkeep may move time in a Turn where the Narrator didn't", async () => {
   const { upkeep } = play([narration("Ash waits until dark.")], [upkept({ op: "set_story_time", days_passed: 0, date: "1st of Thaw", time_of_day: "night" })]);
   const id = createSave();

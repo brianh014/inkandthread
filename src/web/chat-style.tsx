@@ -56,7 +56,7 @@ export const readable = (messages: Message[]) =>
 
 /**
  * Marks a model sometimes puts in narration that aren't story: a Markdown quote ">" before a paragraph, and a speaker tag
- * written as `[Name: ""]`, `[Name:]`, `[ Name ]:` or a bare `Name:` before a quote, which become `[Name]:`, so later replies copy
+ * written as `[Name: ""]`, `[Name:]`, `[Name]` with no colon, `[ Name ]:` or a bare `Name:` before a quote, which become `[Name]:`, so later replies copy
  * that; a speaker tag with no words after it; and a line of prose in brackets, which loses them.
  * Taken out of a reply before it's saved, and when shown, for Messages saved before.
  */
@@ -65,6 +65,8 @@ export const withoutStrayMarks = (text: string) =>
   text
     .replace(/^[ \t]*>[ \t]*/gm, "")
     .replace(/^([ \t]*)\[([^[\]:\n]+?)[ \t]*:[ \t]*(?:""|“”)?[ \t]*\][ \t]*:?[ \t]*(?=["“])/gm, "$1[$2]: ")
+    // `[Name] "…"`, with no colon, which a model then wrote all through an 80-round story.
+    .replace(/^([ \t]*)\[([^[\]:\n]+?)\][ \t]+(?=["“])/gm, "$1[$2]: ")
     .replace(/^([ \t]*)(\p{Lu}[\p{L}'’.-]*(?: \p{Lu}[\p{L}'’.-]*){0,3}):[ \t]*(?=["“])/gmu, "$1[$2]: ")
     .replace(/^([ \t]*)\[[ \t]*([^[\]\s][^[\]\n]*?)[ \t]*\]:/gm, "$1[$2]:")
     // A tag on its own line takes the speech that follows it; with none, it goes. Only once a line follows, so a tag still

@@ -676,6 +676,19 @@ test('a speaker tag written as [Name: ""] is saved as [Name]:, and shows as one'
   expect(messageBeats({ role: "narrator", text: "[Note:] The door is shut." })).toEqual([{ text: "[Note:] The door is shut." }]);
 });
 
+test("a speaker tag with no colon before its quote is saved as [Name]:, and shows as one", async () => {
+  play([narrated('She sits.\n\n[Tamsin] "Get the skins checked."\n\n[Voice, breathless] “Riders!”')]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+
+  expect((await storedMessages(id)).at(-1)!.text).toBe('She sits.\n\n[Tamsin]: "Get the skins checked."\n\n[Voice, breathless]: “Riders!”');
+  // Messages saved before show as speech too.
+  expect(messageBeats({ role: "narrator", text: '[Tamsin] "Here."' })).toEqual([{ speaker: "Tamsin", text: '"Here."' }]);
+  // Brackets before prose, with no quote, are no tag.
+  expect(messageBeats({ role: "narrator", text: "[Later] The door is shut." })).toEqual([{ text: "[Later] The door is shut." }]);
+});
+
 test("a speaker written without brackets is saved as [Name]:, so later replies copy that", async () => {
   play([narrated('She sits.\n\nNadia: "I saw him."\n\nSign: “Closed”\n\nThen: nothing.')]);
   const id = await app.createSave();

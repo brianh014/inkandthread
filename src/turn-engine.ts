@@ -902,7 +902,10 @@ async function narrate(
         );
       // Side by side, as neither needs the other, so a slow reviewer holds the Choices back once, not twice.
       const [upkept, offered] = await Promise.all([
-        upkeep ? upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal, timed) : undefined,
+        // Held to the fix's cut as the Narrator's are, as Upkeep's npc_learns can carry what the fix took out.
+        upkeep
+          ? upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal, timed).then((ops) => ops && withoutCut(ops, cut))
+          : undefined,
         choices && upkeep && seen !== undefined
           ? knownChoices(upkeep, choices, narrated.next, seen(), narration, signal).then((kept) => {
               // Asked for alone, as a lone Choice left after dropping leaks lost a play its clue.

@@ -150,7 +150,7 @@ const COVERAGE: [string, string[]][] = [
   ["Plot Thread added", ["ops.add_plot_thread", "moves.added"]],
   ["Plot Thread moved on", ["ops.update_plot_thread", "moves.rewritten"]],
   ["Plot Thread resolved", ["ops.resolve_plot_thread", "moves.removed"]],
-  ["NPC learns (npcKnows)", ["ops.npc_learns"]],
+  ["NPC learns (npcKnows)", ["ops.npc_learns", "upkeep.npc_learns"]],
   ["Known fact added", ["ops.add_known_fact"]],
   ["Known fact changed", ["ops.update_known_fact", "ops.remove_known_fact", "upkeep.update_known_fact", "upkeep.remove_known_fact"]],
   ["Known NPC summary", ["ops.set_known_npc_summary"]],

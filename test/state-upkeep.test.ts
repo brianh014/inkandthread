@@ -186,6 +186,31 @@ test("State Upkeep is sent the Loose Ends and resolves one the reply settled, as
   expect(store().latestState(id).looseEnds).toEqual([]);
 });
 
+test("State Upkeep records what someone learned that the Narrator missed, held to the checks a Turn's is, as NPCs never learned anything", async () => {
+  const { upkeep } = play(
+    [
+      narration(
+        "Ash tells Kit the key is under the mat.",
+        { op: "add_npc", name: "Kit", appearance: "a boy in a cap" },
+        { op: "npc_learns", name: "Kit", fact: "Ash came home wet." },
+      ),
+    ],
+    [upkept({ op: "npc_learns", name: "Kit", fact: "Ash told him the key is under the mat." }, { op: "npc_learns", name: "Orin", fact: "Orin heard it too." })],
+  );
+  const id = createSave();
+
+  const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
+
+  // Sent what they know already, so it isn't given twice.
+  expect(JSON.parse(upkeep.prompts[0]!.at(-1)!.content).state.npc_knows).toEqual({ Kit: ["Ash came home wet."] });
+  expect(upkeep.prompts[0]![0]!.content).toContain("npc_learns");
+  // Someone the state doesn't hold is refused, as a Turn's would be.
+  expect(store().latestState(id).npcKnows).toEqual({ Kit: ["Ash came home wet.", "Ash told him the key is under the mat."] });
+  expect(log).toContain('"learned":2');
+  expect(log).toContain('"upkeepRefused":1');
+  expect(log).not.toContain("under the mat");
+});
+
 test("State Upkeep may move time in a Turn where the Narrator didn't", async () => {
   const { upkeep } = play([narration("Ash waits until dark.")], [upkept({ op: "set_story_time", days_passed: 0, date: "1st of Thaw", time_of_day: "night" })]);
   const id = createSave();

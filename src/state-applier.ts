@@ -19,7 +19,13 @@ export type State = {
   sceneMemories: SceneMemory[];
   worldBible: LoreEntry[];
   worldRules: string[];
+  /** Each Plot Thread's truth: what really happened, who is behind it, what they want and what is hidden. It changes only when play reveals it. */
   plotThreads: string[];
+  /**
+   * Each Plot Thread's now, by its truth: what its people are doing and will do next, out of the PC's sight. World Moves On
+   * rewrites it freely, as rewriting a thread's one text lost who was behind it and what it hid. A Save from before it has none.
+   */
+  threadsNow: Record<string, string>;
   summary: string;
   /** Just the last few scenes, for the player. The Narrator never reads it back. */
   recentSummary: string;
@@ -55,6 +61,7 @@ export const openingState: State = {
   worldBible: [],
   worldRules: [],
   plotThreads: [],
+  threadsNow: {},
   summary: "",
   recentSummary: "",
   directorsNotes: [],
@@ -81,6 +88,7 @@ export const StateSections = {
   worldBible: z.array(z.object({ title: z.string(), keywords: stringList, content: z.string(), alwaysOn: z.boolean() })),
   worldRules: stringList,
   plotThreads: stringList,
+  threadsNow: z.record(z.string(), z.string()),
   summary: z.string(),
   recentSummary: z.string(),
   directorsNotes: stringList,
@@ -130,8 +138,7 @@ export const StateOperation = z.discriminatedUnion("op", [
     content: nonEmpty,
   }),
   z.object({ op: z.literal("remove_lore_entry"), title: nonEmpty }),
-  z.object({ op: z.literal("add_plot_thread"), thread: nonEmpty }),
-  z.object({ op: z.literal("update_plot_thread"), thread: nonEmpty, replacement: nonEmpty }),
+  z.object({ op: z.literal("update_plot_thread"), thread: nonEmpty, now: nonEmpty, truth: nonEmpty.nullable().default(null) }),
   z.object({ op: z.literal("resolve_plot_thread"), thread: nonEmpty }),
   z.object({ op: z.literal("set_pc_appearance"), appearance: nonEmpty }),
   z.object({ op: z.literal("set_era"), era: nonEmpty }),
@@ -255,20 +262,19 @@ function mergeNpc(state: State, name: string, into: string) {
   state.npcKnows = { ...knows, [into]: [...knew.filter((fact) => !kept.includes(fact)), ...kept].slice(-MAX_NPC_KNOWS) };
 }
 
-/** What this reply made of each Plot Thread it changed, its replacement or null once resolved, and those still waiting to be added because the list was full. */
-type ThreadsSoFar = { became: Map<string, string | null>; waiting: string[] };
+/** What this reply made of each Plot Thread's truth it changed, its amended truth or null once resolved. */
+type ThreadsSoFar = { became: Map<string, string | null> };
 
 /**
  * The open thread `text` names, followed to what this reply made of it, so that a thread already changed is never matched
- * to another that shares its words. `resolved` when this reply closed it, and `wait` when it is still waiting to be added.
+ * to another that shares its words. `resolved` when this reply closed it.
  */
-function namedThread(state: State, text: string, { became, waiting }: ThreadsSoFar) {
+function namedThread(state: State, text: string, { became }: ThreadsSoFar) {
   // Only those the prompt showed, as a Save from before the limit can hold more.
   const shown = state.plotThreads.slice(0, MAX_PLOT_THREADS);
   // Once each, as a thread in two lists would tie with itself and match nothing.
-  const named = closestThread([...new Set([...shown, ...became.keys(), ...waiting])], text);
+  const named = closestThread([...new Set([...shown, ...became.keys()])], text);
   if (named === undefined || shown.includes(named)) return { thread: named };
-  if (waiting.includes(named)) return { wait: true };
   let now: string | null | undefined = named;
   // A few steps at most, in case a reply rewrites a thread back and forth.
   for (let step = 0; typeof now === "string" && !shown.includes(now) && became.has(now) && step < MAX_PLOT_THREADS; step++) now = became.get(now);
@@ -276,7 +282,7 @@ function namedThread(state: State, text: string, { became, waiting }: ThreadsSoF
 }
 
 /** Changes `state` and returns nothing, or returns why `operation` is disproved, having changed nothing. The reason goes to the Server Log, so it never quotes the operation. */
-function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = { became: new Map(), waiting: [] }): string | undefined {
+function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = { became: new Map() }): string | undefined {
   switch (operation.op) {
     case "add_item":
       state.inventory[operation.slot].push(operation.item);
@@ -371,34 +377,26 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
     case "remove_lore_entry":
       state.worldBible = state.worldBible.filter(({ title, alwaysOn }) => alwaysOn || title !== operation.title);
       return;
-    case "add_plot_thread":
-      if (state.plotThreads.includes(operation.thread)) return "already there";
-      if (state.plotThreads.length >= MAX_PLOT_THREADS) {
-        threads.waiting.push(operation.thread);
-        return "full";
-      }
-      state.plotThreads.push(operation.thread);
-      return;
     case "update_plot_thread": {
-      const { thread, wait, resolved } = namedThread(state, operation.thread, threads);
+      const { thread, resolved } = namedThread(state, operation.thread, threads);
       // Closed earlier in this reply, so a rewrite mustn't open it again.
       if (resolved) return;
       // Not added, as a Turn adds no thread: World Moves On does. A DeepSeek Turn's unmatched rewrites took three threads to six.
-      if (wait) {
-        threads.waiting.push(operation.replacement);
-        return "full";
-      }
       if (thread === undefined) return "matches no thread";
-      replaceOnce(state.plotThreads, thread, operation.replacement);
-      if (thread !== undefined && thread !== operation.replacement) threads.became.set(thread, operation.replacement);
+      const truth = operation.truth ?? thread;
+      const { [thread]: _was, ...others } = state.threadsNow;
+      state.threadsNow = { ...others, [truth]: operation.now };
+      replaceOnce(state.plotThreads, thread, truth);
+      if (thread !== truth) threads.became.set(thread, truth);
       return;
     }
     case "resolve_plot_thread": {
-      const { thread, wait, resolved } = namedThread(state, operation.thread, threads);
-      if (wait) return "full";
+      const { thread, resolved } = namedThread(state, operation.thread, threads);
       if (resolved) return;
       // Ignored, not refused, as DeepSeek resolved threads long gone, which failed whole Turns.
       if (thread === undefined || !take(state.plotThreads, thread)) return "matches no thread";
+      const { [thread]: _gone, ...open } = state.threadsNow;
+      state.threadsNow = open;
       threads.became.set(thread, null);
       return;
     }
@@ -454,28 +452,19 @@ const isRepeat = ({ pcKnown, looseEnds }: State, operation: StateOperation) =>
 
 // None of these contradict the narration, so they aren't worth a whole response. Someone nameless is added once they're named.
 const IGNORABLE: StateOperation["op"][] = ["resolve_loose_end", "add_known_npc", "set_known_npc_summary", "set_story_time", "npc_learns"];
-// A full list of Plot Threads is the Narrator's to tidy later, not worth a whole response.
 const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }) =>
-  IGNORABLE.includes(op) || reason === "already there" || reason === "full" || reason === "matches no thread";
+  IGNORABLE.includes(op) || reason === "already there" || reason === "matches no thread";
 
-/** Applies operations in order, so each is judged against the ones before it, except that a Plot Thread change refused as full is tried once more at the end. */
+/** Applies operations in order, so each is judged against the ones before it. */
 export function applyOperations(state: State, operations: StateOperation[]) {
   const next = structuredClone(state);
   let repeats = 0;
-  const full: StateOperation[] = [];
-  const threads: ThreadsSoFar = { became: new Map(), waiting: [] };
+  const threads: ThreadsSoFar = { became: new Map() };
   const refusals = operations.flatMap(({ ...operation }) => {
     if (isRepeat(next, operation)) repeats++;
     const reason = apply(next, operation, threads);
-    if (reason === "full") full.push(operation);
-    return reason && reason !== "full" ? [{ op: operation.op, reason }] : [];
+    return reason ? [{ op: operation.op, reason }] : [];
   });
-  // Tried again after the reply's resolves, which may have made room for them.
-  threads.waiting = [];
-  for (const operation of full) {
-    const reason = apply(next, operation, threads);
-    if (reason) refusals.push({ op: operation.op, reason });
-  }
   return { next, refused: refusals.filter((refusal) => !isHarmless(refusal)), ignored: refusals.filter(isHarmless), repeats };
 }
 
@@ -546,7 +535,14 @@ export const WorldEdit = z.discriminatedUnion("edit", [
   ...VisibleEdit.options,
   // `made` counts the edits just before it that the same World Change wrote, which a Save from before it lacks.
   // `moved` marks World Moves On's, which settles none of the player's Journal edits and rests on the reply it followed.
-  z.object({ edit: z.literal("world"), update: WorldUpdate, made: z.number().int().min(0).optional(), moved: z.boolean().optional() }),
+  // `now` sets the now of each thread it names by its truth, after `update`, which a Save from before it lacks.
+  z.object({
+    edit: z.literal("world"),
+    update: WorldUpdate,
+    now: z.record(z.string(), z.string()).optional(),
+    made: z.number().int().min(0).optional(),
+    moved: z.boolean().optional(),
+  }),
   // Whole lists, as a World Change rewrites what the player says is wrong rather than one item at a time.
   z.object({ edit: z.literal("inventory"), wearing: z.array(z.string()), carrying: z.array(z.string()) }),
   z.object({ edit: z.literal("status"), health: z.string(), injuries: z.array(z.string()), conditions: z.array(z.string()) }),
@@ -588,8 +584,13 @@ export function applyEdit(state: State, edit: WorldEdit): State {
         ...state,
         sceneMemories: state.sceneMemories.map((memory) => (memory.firstMessage === edit.firstMessage ? { ...memory, text: edit.text } : memory)),
       };
-    case "world":
-      return { ...state, ...mergeWorldUpdate(state, edit.update) };
+    case "world": {
+      const merged = mergeWorldUpdate(state, edit.update);
+      // A truth a World Change rewrites starts with no now, as the old one may no longer fit it, until the world next moves on.
+      const now = { ...state.threadsNow, ...edit.now };
+      const threadsNow = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(now, truth) ? [[truth, now[truth]!]] : [])));
+      return { ...state, ...merged, threadsNow };
+    }
     case "inventory":
       return { ...state, inventory: { wearing: edit.wearing, carrying: edit.carrying } };
     case "pcLooks":

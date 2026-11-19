@@ -1354,7 +1354,7 @@ test("a Lore Entry and a Plot Thread the Narrator corrects go forward corrected,
     narration(
       "It stops.",
       { op: "update_lore_entry", title: "Ferrymen", keywords: ["ferry"], content: "new-lore" },
-      { op: "update_plot_thread", thread: "old-thread", replacement: "new-thread" },
+      { op: "update_plot_thread", thread: "old-thread", now: "new-now", truth: "new-thread" },
     ),
     narration("Silence."),
     narration("A horn again."),

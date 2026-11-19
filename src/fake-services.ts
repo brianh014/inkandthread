@@ -143,7 +143,8 @@ function storyChanges(people: string[]) {
     { op: "set_health", health: pick(HEALTH) },
     { op: "add_status", kind: "conditions", text: pick(CONDITIONS) },
     { op: "add_status", kind: "injuries", text: pick(INJURIES) },
-    { op: "set_story_time", days_passed: at % TIMES.length === TIMES.length - 1 ? 1 : 0, date: "The first of Thaw", time_of_day: pick(TIMES) },
+    // A new date with each round of the times, so a retry that skips ahead never takes the story back within a day.
+    { op: "set_story_time", days_passed: at % TIMES.length === 0 ? 1 : 0, date: `Day ${Math.floor(at / TIMES.length) + 1} of Thaw`, time_of_day: pick(TIMES) },
   ];
 }
 
@@ -203,6 +204,11 @@ export const fakeTextProvider: TextProvider = async (prompt, { schema, onText, o
   // A World or World Change review, or State Upkeep, finds nothing, as sampled edits would name parts the world doesn't have.
   if (sampled && /^You (review|keep a story's state)/.test(prompt[0]?.content ?? ""))
     for (const [key, value] of Object.entries(sampled)) sampled[key] = Array.isArray(value) ? [] : null;
+  // World Moves On rewrites each thread's now and keeps its truth, as sampled words would quote no thread.
+  if (sampled && /^You plot the hidden side/.test(prompt[0]?.content ?? "")) {
+    const { plot_threads = [] } = JSON.parse(prompt.at(-1)?.content ?? "{}") as { plot_threads?: { truth: string }[] };
+    sampled.plot_threads = plot_threads.map(({ truth }) => ({ thread: truth, truth: null, now: "Its people move on out of sight." }));
+  }
   if (sampled) meetImportant(prompt, Array.isArray(sampled.people) ? sampled.people : []);
   if (sampled && Array.isArray(sampled.people) && Array.isArray(sampled.state_operations)) {
     sampled.state_operations = storyChanges(sampled.people.map(({ name }: { name: string }) => name));

@@ -44,7 +44,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 44;
+const BENCH_ITERATION = 45;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 30;
@@ -421,7 +421,11 @@ function hiddenChanges(before: State, after: State) {
     for (const text of now.filter((item) => !was.includes(item))) lines.push(`${label} added: ${text}`);
     for (const text of was.filter((item) => !now.includes(item))) lines.push(`${label} gone: ${text}`);
   };
-  diff("Plot Thread", before.plotThreads, after.plotThreads);
+  diff("Plot Thread truth", before.plotThreads, after.plotThreads);
+  for (const truth of after.plotThreads) {
+    const now = after.threadsNow[truth];
+    if (now && now !== before.threadsNow[truth]) lines.push(`Plot Thread now, of "${truth.split(" ").slice(0, 8).join(" ")}…": ${now}`);
+  }
   diff("Loose End", before.looseEnds, after.looseEnds);
   for (const [name, known] of Object.entries(after.npcKnows)) {
     for (const text of known.filter((item) => !(before.npcKnows[name] ?? []).includes(item))) lines.push(`${name} now knows: ${text}`);
@@ -783,7 +787,7 @@ function transcript(world: z.infer<typeof World>, saves: ReturnType<typeof saveS
   // The world as it began and the summary as it ended, so the transcript alone holds what the Narrator was working from.
   const begun = `## World rules at the start\n\n${list(start.worldRules ?? [])}\n\n## Lore at the start (hidden)\n\n${list((start.worldBible ?? []).map(({ title, content }) => `${title}: ${content}`))}`;
   const time = end.storyTime ? `day ${end.storyTime.day}, ${end.storyTime.date}, ${end.storyTime.timeOfDay}` : "(none)";
-  const ending = `## At the end\n\nStory time: ${time}\n\nSummary the Narrator reads: ${end.summary || "(none)"}\n\nPlot Threads:\n\n${list(end.plotThreads)}\n\nLoose Ends:\n\n${list(end.looseEnds)}`;
+  const ending = `## At the end\n\nStory time: ${time}\n\nSummary the Narrator reads: ${end.summary || "(none)"}\n\nPlot Threads:\n\n${list(end.plotThreads.map((truth) => `${truth}\n  - Now: ${end.threadsNow[truth] || "(none)"}`))}\n\nLoose Ends:\n\n${list(end.looseEnds)}`;
   return `# ${world.save.title}\n\n${setup}\n\n## Plot Threads at the start (hidden)\n\n${list(world.opening.plotThreads as string[])}\n\n${begun}\n\n## The story\n\n${story.join("\n\n")}\n\n## Portrait prompts\n\n${portraits.join("\n") || "(none)"}\n\n## Hidden timeline\n\n${timeline.join("\n")}\n\n${ending}\n`;
 }
 

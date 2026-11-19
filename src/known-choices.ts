@@ -29,7 +29,11 @@ export function unknownWords(choices: string[], state: State, seen: string, name
     ...state.inventory.carrying,
   ].join("\n");
   const unknown = [...new Set(words)].filter((word) => word.length >= 4 && !nameForms(word).some((form) => mentions(known, form)));
-  const hidden = [...state.plotThreads, ...state.worldBible.filter(({ alwaysOn }) => !alwaysOn).map(({ content }) => content)].join("\n");
+  const hidden = [
+    ...state.plotThreads,
+    ...Object.values(state.threadsNow),
+    ...state.worldBible.filter(({ alwaysOn }) => !alwaysOn).map(({ content }) => content),
+  ].join("\n");
   const unseen = (word: string) => !wholeWord(word, "iu").test(known);
   const hiddenRuns = new Set(namesOnly ? [] : runs(hidden));
   const knownRuns = new Set(namesOnly ? [] : runs(known));

@@ -320,7 +320,7 @@ test("State Upkeep never changes a Plot Thread, which is World Moves On's", asyn
     [narration("Ash finds the thief at the dock and the thief confesses.")],
     [
       upkept(
-        { op: "update_plot_thread", thread: "A thief steals from the library.", replacement: "The exposed thief flees by boat." },
+        { op: "update_plot_thread", thread: "A thief steals from the library.", now: "The exposed thief flees by boat.", truth: null },
         { op: "resolve_plot_thread", thread: "The tide rises." },
       ),
     ],
@@ -339,6 +339,7 @@ test("State Upkeep never changes a Plot Thread, which is World Moves On's", asyn
   const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
 
   expect(store().latestState(id).plotThreads).toEqual(["A thief steals from the library.", "The tide rises."]);
+  expect(store().latestState(id).threadsNow).toEqual({});
   expect(log).toContain('"operations":[],"dropped":2');
   expect(log).not.toContain("thief");
 });

@@ -82,7 +82,7 @@ A second AI call after each reply, on the reviewer model, that brings the scene,
 _Avoid_: State sync, bookkeeping call
 
 **World Moves On**:
-A Narrator call at a natural pause (a Turn moving story time on by hours, a new day, or every fifth reply), run after the Turn is saved while the player reads, that rewrites each Plot Thread by what its people did out of the PC's sight, true to the Lore Entries it names, removes one play has brought to an end, and adds one while fewer than three remain. The next Turn waits for it. It changes only the hidden Plot Threads, so the player never sees it, only its results in play.
+A Narrator call at a natural pause (a Turn moving story time on by hours, a new day, or every fifth reply), run after the Turn is saved while the player reads, that rewrites each Plot Thread's now by what its people did out of the PC's sight, leaving its truth as it is, true to the Lore Entries it names, removes one play has brought to an end, and adds one while fewer than three remain. The next Turn waits for it. It changes only the hidden Plot Threads, so the player never sees it, only its results in play.
 _Avoid_: Off-screen turn, world tick
 
 **Consistency model**:
@@ -112,7 +112,7 @@ People besides the PC that the player wants in the story, added on the New Story
 _Avoid_: Cast, NPCs (those are whoever the story meets)
 
 **Plot Thread**:
-A secret storyline held by the Narrator that play can reveal.
+A secret storyline held by the Narrator that play can reveal. Its truth is what really happened, who is behind it and what is hidden, and changes only as play reveals it; its now is what its people are doing and will do next out of the PC's sight, which World Moves On rewrites.
 _Avoid_: Hook (alone), plot
 
 **Loose End**:

@@ -65,7 +65,7 @@ test("the Narrator can remove a Lore Entry, but neither rewrite nor remove an al
 });
 
 for (const [name, list, operation] of [
-  ["Plot Thread", "plotThreads", (from: string, replacement: string) => ({ op: "update_plot_thread", thread: from, replacement })],
+  ["Plot Thread", "plotThreads", (from: string, replacement: string) => ({ op: "update_plot_thread", thread: from, now: "Waiting.", truth: replacement })],
   ["known fact", "facts", (from: string, replacement: string) => ({ op: "update_known_fact", fact: from, replacement })],
 ] as const) {
   const stateWith = (...items: string[]) => (list === "facts" ? withState({ pcKnown: { facts: items, npcs: [] } }) : withState({ plotThreads: items }));
@@ -90,17 +90,38 @@ for (const [name, list, operation] of [
   });
 }
 
-test("a full list of Plot Threads takes no new one, by add or by a miscopied rewrite, but still takes an exact rewrite, and costs no Turn", () => {
+test("a Plot Thread's rewrite changes its now and keeps its truth, unless it amends the truth with what play revealed", () => {
+  const state = withState({
+    plotThreads: ["Pell killed Crane on the magistrate's orders."],
+    threadsNow: { "Pell killed Crane on the magistrate's orders.": "Pell hides." },
+  });
+
+  const moved = run(state, { op: "update_plot_thread", thread: "Pell killed Crane on the magistrate's orders.", now: "Pell flees north.", truth: null });
+  expect(moved.plotThreads).toEqual(state.plotThreads);
+  expect(moved.threadsNow).toEqual({ "Pell killed Crane on the magistrate's orders.": "Pell flees north." });
+
+  const revealed = run(state, {
+    op: "update_plot_thread",
+    thread: "Pell killed Crane on the magistrate's orders.",
+    now: "Pell flees north.",
+    truth: "Pell killed Crane on the magistrate's orders, and the PC knows it.",
+  });
+  expect(revealed.plotThreads).toEqual(["Pell killed Crane on the magistrate's orders, and the PC knows it."]);
+  expect(revealed.threadsNow).toEqual({ "Pell killed Crane on the magistrate's orders, and the PC knows it.": "Pell flees north." });
+  expect(run(revealed, { op: "resolve_plot_thread", thread: revealed.plotThreads[0]! }).threadsNow).toEqual({});
+});
+
+test("a Turn's rewrite of a thread not in the list adds none, even at a full list, and costs no Turn", () => {
   const full = withState({ plotThreads: Array.from({ length: MAX_PLOT_THREADS }, (_, i) => `t${i}`) });
 
   const { next, refused } = applyOperations(full, [
-    { op: "add_plot_thread", thread: "new" },
-    { op: "update_plot_thread", thread: "miscopied", replacement: "new" },
-    { op: "update_plot_thread", thread: "t0", replacement: "T0" },
+    { op: "update_plot_thread", thread: "miscopied", now: "new", truth: null },
+    { op: "update_plot_thread", thread: "t0", now: "moved", truth: null },
   ]);
 
   expect(refused).toEqual([]);
-  expect(next.plotThreads).toEqual(["T0", ...full.plotThreads.slice(1)]);
+  expect(next.plotThreads).toEqual(full.plotThreads);
+  expect(next.threadsNow).toEqual({ t0: "moved" });
 });
 
 const THREADS = [
@@ -116,10 +137,12 @@ test("a miscopied Plot Thread is matched to the closest one, so a full list stil
   const next = run(state, {
     op: "update_plot_thread",
     thread: "Smugglers in Greyport move stolen relics through the old lighthouse by night.",
-    replacement: "The lighthouse is watched now.",
+    now: "The lighthouse is watched now.",
+    truth: null,
   });
 
-  expect(next.plotThreads).toEqual(fullOf("The lighthouse is watched now.", ...THREADS.slice(1)));
+  expect(next.plotThreads).toEqual(fullOf(...THREADS));
+  expect(next.threadsNow).toEqual({ [THREADS[0]!]: "The lighthouse is watched now." });
 });
 
 test("a miscopied Plot Thread can be resolved", () => {
@@ -133,8 +156,8 @@ test("a miscopied Plot Thread can be resolved", () => {
 test("a thread sharing only a name with one in the list, or matching two equally, is no match", () => {
   const state = withState({ plotThreads: fullOf(...THREADS, "Greyport smugglers fear the lighthouse.", "Greyport smugglers fear the Guild.") });
   const { next, ignored } = applyOperations(state, [
-    { op: "update_plot_thread", thread: "Greyport elects a new mayor.", replacement: "x" },
-    { op: "update_plot_thread", thread: "Greyport smugglers fear.", replacement: "y" },
+    { op: "update_plot_thread", thread: "Greyport elects a new mayor.", now: "x", truth: null },
+    { op: "update_plot_thread", thread: "Greyport smugglers fear.", now: "y", truth: null },
   ]);
 
   expect(ignored).toEqual([
@@ -142,14 +165,6 @@ test("a thread sharing only a name with one in the list, or matching two equally
     { op: "update_plot_thread", reason: "matches no thread" },
   ]);
   expect(next.plotThreads).toEqual(state.plotThreads);
-});
-
-test("a new Plot Thread sent before the resolve that makes room for it is still kept", () => {
-  const state = withState({ plotThreads: fullOf(...THREADS) });
-
-  const next = run(state, { op: "add_plot_thread", thread: "New." }, { op: "resolve_plot_thread", thread: THREADS[2]! });
-
-  expect(next.plotThreads).toEqual([...fullOf(...THREADS).filter((thread) => thread !== THREADS[2]), "New."]);
 });
 
 test("a Plot Thread this reply already resolved or rewrote is never matched to another that shares its words", () => {
@@ -165,23 +180,10 @@ test("a Plot Thread this reply already resolved or rewrote is never matched to a
   expect(next.plotThreads).toEqual(twins.slice(1));
 });
 
-test("at a full list, a rewrite of a thread the reply is still waiting to add waits for it, and touches no other", () => {
-  const state = withState({ plotThreads: fullOf(...THREADS) });
-
-  const next = run(
-    state,
-    { op: "add_plot_thread", thread: "Captain Rhys of Greyport flees the Guild." },
-    { op: "resolve_plot_thread", thread: THREADS[2]! },
-    { op: "update_plot_thread", thread: "Captain Rhys of Greyport flees the Guild.", replacement: "Rhys is caught." },
-  );
-
-  expect(next.plotThreads).toEqual([...THREADS.slice(0, 2), ...fullOf(...THREADS).slice(3), "Rhys is caught."]);
-});
-
-test("resolving a thread by its old words after rewriting it in the same reply resolves the rewrite", () => {
+test("resolving a thread by its old words after amending its truth in the same reply resolves the amended thread", () => {
   const next = run(
     withState({ plotThreads: [...THREADS] }),
-    { op: "update_plot_thread", thread: THREADS[0]!, replacement: "The lighthouse is watched now." },
+    { op: "update_plot_thread", thread: THREADS[0]!, now: "Watched.", truth: "The lighthouse is watched now." },
     { op: "resolve_plot_thread", thread: THREADS[0]! },
   );
 
@@ -192,26 +194,18 @@ test("rewriting a thread this reply already resolved doesn't bring it back", () 
   const next = run(
     withState({ plotThreads: [...THREADS] }),
     { op: "resolve_plot_thread", thread: THREADS[0]! },
-    { op: "update_plot_thread", thread: THREADS[0]!, replacement: "The lighthouse is watched now." },
+    { op: "update_plot_thread", thread: THREADS[0]!, now: "The lighthouse is watched now.", truth: null },
   );
 
   expect(next.plotThreads).toEqual(THREADS.slice(1));
+  expect(next.threadsNow).toEqual({});
 });
 
-test("at a full list, adding a thread that's already open doesn't stop it being resolved", () => {
-  const { next } = applyOperations(withState({ plotThreads: fullOf(...THREADS) }), [
-    { op: "add_plot_thread", thread: THREADS[0]! },
-    { op: "resolve_plot_thread", thread: THREADS[0]! },
-  ]);
-
-  expect(next.plotThreads).not.toContain(THREADS[0]);
-});
-
-test("a thread rewritten and rewritten back still matches a paraphrase", () => {
+test("a thread whose truth is amended and amended back still matches a paraphrase", () => {
   const next = run(
     withState({ plotThreads: [...THREADS] }),
-    { op: "update_plot_thread", thread: THREADS[2]!, replacement: "Gone quiet." },
-    { op: "update_plot_thread", thread: "Gone quiet.", replacement: THREADS[2]! },
+    { op: "update_plot_thread", thread: THREADS[2]!, now: "Quiet.", truth: "Gone quiet." },
+    { op: "update_plot_thread", thread: "Gone quiet.", now: "Quiet.", truth: THREADS[2]! },
     { op: "resolve_plot_thread", thread: "A plague ship drifts toward the harbor; no one aboard is seen alive." },
   );
 
@@ -222,14 +216,9 @@ test("a miscopied Plot Thread is matched only among those the Narrator was shown
   const hidden = "Smugglers in Greyport move stolen relics through the old lighthouse by night.";
   const state = withState({ plotThreads: [...fullOf(...THREADS), hidden] });
 
-  const next = run(state, { op: "update_plot_thread", thread: hidden.replace("by night", "at night"), replacement: "Watched." });
+  const next = run(state, { op: "update_plot_thread", thread: hidden.replace("by night", "at night"), now: "Watched.", truth: null });
 
-  expect(next.plotThreads[0]).toBe("Watched.");
-  expect(next.plotThreads.at(-1)).toBe(hidden);
-});
-
-test("a Plot Thread added and then rewritten in one reply ends up rewritten", () => {
-  expect(run(withState({}), { op: "add_plot_thread", thread: "A" }, { op: "update_plot_thread", thread: "A", replacement: "B" }).plotThreads).toEqual(["B"]);
+  expect(next.threadsNow).toEqual({ [THREADS[0]!]: "Watched." });
 });
 
 test("a known fact can be removed, and removing one that isn't there changes nothing", () => {

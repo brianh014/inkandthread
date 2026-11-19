@@ -168,7 +168,7 @@ const TurnOperation = z.discriminatedUnion(
 const MAX_OPERATIONS = 30;
 type TurnOperation = z.infer<typeof TurnOperation>;
 // What an operation gives the record it names, so two that change one record are one however each words the change.
-const NEW_VALUES = ["replacement", "content", "keywords", "appearance", "summary"];
+const NEW_VALUES = ["replacement", "now", "truth", "content", "keywords", "appearance", "summary"];
 /**
  * The operations without a second of the same operation on the same record, such as a thread updated again, and at most
  * `limit` of them. An update then a resolve of one thread is kept, as the state applier follows it. A rewrite of what an earlier
@@ -183,9 +183,9 @@ export function withoutLoop(operations: TurnOperation[], limit: number) {
       if (seen.has(key)) return false;
       seen.add(key);
       if (operation.op !== "update_plot_thread" && operation.op !== "update_known_fact") return true;
-      const old = operation.op === "update_plot_thread" ? operation.thread : operation.fact;
-      // Each link's new words are noted even when it goes, so the rest of the chain goes too.
-      seen.add(`${operation.op}\n${operation.replacement}`);
+      const [old, next] = operation.op === "update_plot_thread" ? [operation.thread, operation.truth] : [operation.fact, operation.replacement];
+      // Each link's new words are noted even when it goes, so the rest of the chain goes too. A thread's identity is its truth.
+      if (next && next !== old) seen.add(`${operation.op}\n${next}`);
       return !seen.has(`${operation.op}\n${old}`);
     })
     .slice(0, limit);
@@ -428,8 +428,6 @@ type Narrated = {
   previous?: string;
   /** All the player has read so far, the Starting Hook and the Messages, so a Choice is never built on what the PC hasn't. Built only when asked, as a long story's is large. */
   seen?: () => string;
-  /** The Plot Threads the story began with, whose secrets a thread rewrite must keep. */
-  opening?: () => string[];
   /** For the opening, the Important Characters its Starting Hook names, whom it must bring on, as an opening that skipped them left the plot they seed unplayed. */
   mustMeet?: string[];
   /** The player's own words for an Edit, which stand in for whatever narration the reply holds. */
@@ -600,7 +598,6 @@ export async function playTurn(
     consistency,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
-    opening: () => saves.opening(id).plotThreads,
     mustMeet:
       kind === "opening"
         ? (saves.read(id).importantCharacters ?? []).map(({ name }) => name).filter((name) => (saves.read(id).startingHook ?? "").includes(name))
@@ -669,7 +666,6 @@ export async function replaceResponse(
     consistency,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
-    opening: () => saves.opening(id).plotThreads,
     check,
     memory,
     playMode,
@@ -720,7 +716,6 @@ export async function editResponse(
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
-    opening: () => saves.opening(id).plotThreads,
     narration: text,
     memory,
     playMode,
@@ -749,7 +744,6 @@ async function narrate(
     consistency,
     previous = "",
     seen,
-    opening,
     mustMeet = [],
     narration: edited,
     check: storedCheck,
@@ -933,9 +927,11 @@ async function narrate(
         state_operations = kept;
       }
       const story = seen?.() ?? "";
-      const threads = turnThreadChanges(state_operations, before, pcName, narration, { opening: opening?.() ?? [], seen: story });
-      if (threads.kept.length < state_operations.length) log.info("turn", "Thread changes dropped", { attempt, generation, ...threads.dropped });
+      const threads = turnThreadChanges(state_operations, before, narration);
+      if (Object.keys(threads.dropped).length > 0) log.info("turn", "Thread changes dropped", { attempt, generation, ...threads.dropped });
       state_operations = threads.kept;
+      const amended = state_operations.filter((operation) => operation.op === "update_plot_thread" && operation.truth).length;
+      if (amended > 0) log.info("turn", "Thread truths amended", { attempt, generation, amended });
       if (seen) {
         const read = withoutUnread(state_operations, narrated.next, `${story}\n${narration}`);
         if (read.length < state_operations.length)
@@ -1013,10 +1009,10 @@ async function narrate(
           const kept = applyOperations(told, upkept ?? []);
           upkeepRefused = kept.refused.length + kept.ignored.length;
           const next = kept.next;
-          // Through this Turn's rewrites, so an ask follows its thread to its new words, as the next move matches them exactly.
+          // Through this Turn's amended truths, so an ask follows its thread to its new words, as the next move matches them exactly.
           rewrites = [...state_operations, ...(upkept ?? [])].flatMap((operation) =>
-            operation.op === "update_plot_thread"
-              ? [[closestThread(state.plotThreads, operation.thread) ?? operation.thread, operation.replacement] as const]
+            operation.op === "update_plot_thread" && operation.truth
+              ? [[closestThread(state.plotThreads, operation.thread) ?? operation.thread, operation.truth] as const]
               : [],
           );
           const rewritten = new Map(rewrites);

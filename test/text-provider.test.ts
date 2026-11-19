@@ -904,7 +904,7 @@ test("a reply that ends its narration with the brace or tag of its own JSON is s
 });
 
 test("a reply that repeats an operation on one record is kept with only the first, not written again", async () => {
-  const update = (replacement: string) => ({ op: "update_plot_thread", thread: "The duke plots.", replacement });
+  const update = (now: string) => ({ op: "update_plot_thread", thread: "The duke plots.", now, truth: null });
   const learns = { op: "add_known_fact", fact: "The duke keeps a ledger." };
   play([narrated("He sits.", update("The duke waits."), learns, update("The duke strikes."), learns)]);
   // With the thread there, as a rewrite that matches none is ignored rather than added.
@@ -914,7 +914,7 @@ test("a reply that repeats an operation on one record is kept with only the firs
   const log = await logOf(async () => expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201));
 
   expect(provider.requests).toHaveLength(1);
-  expect(store.latestState(id).plotThreads).toEqual(["The duke waits."]);
+  expect(store.latestState(id).threadsNow).toEqual({ "The duke plots.": "The duke waits." });
   expect(log).toContain('"sent":4,"kept":2');
 });
 
@@ -923,7 +923,7 @@ test("a reply that runs on in its operations is kept up to its last whole one, a
     yield delta(
       '{"check":null,"narration":"He sits.","people":[],"state_operations":[{"op":"set_scene","location":"The quay","visible_cast":[]},{"op":"add_known_fact","fact":"The duke keeps a ledger."}',
     );
-    for (let at = 0; at < 1000; at++) yield delta(',{"op":"update_plot_thread","thread":"The duke plots.","replacement":"The duke plots."}');
+    for (let at = 0; at < 1000; at++) yield delta(',{"op":"update_plot_thread","thread":"The duke plots.","now":"The duke plots.","truth":null}');
   };
   play([runOn]);
   const store = saveStore(join(folder.path, "Saves"));
@@ -1477,14 +1477,17 @@ test("placeholder operations, a known fact that is only a name, and a reply's re
 });
 
 test("a reply changes a record once, so a chain of rewrites keeps only its first link", () => {
-  const first = { op: "update_plot_thread", thread: "A", replacement: "B" } as const;
+  const first = { op: "update_plot_thread", thread: "A", now: "a", truth: "B" } as const;
   const fact = { op: "update_known_fact", fact: "B", replacement: "C" } as const;
   const chain = [
     first,
-    { op: "update_plot_thread", thread: "B", replacement: "C" } as const,
-    { op: "update_plot_thread", thread: "C", replacement: "D" } as const,
+    { op: "update_plot_thread", thread: "B", now: "b", truth: "C" } as const,
+    { op: "update_plot_thread", thread: "C", now: "c", truth: "D" } as const,
   ];
   expect(withoutLoop([...chain, fact], 30)).toEqual([first, fact]);
+  // A rewrite of its now alone keeps the thread's truth, so it is no link of a chain.
+  const moves = [{ op: "update_plot_thread", thread: "A", now: "a", truth: null } as const, { op: "update_known_fact", fact: "A", replacement: "B" } as const];
+  expect(withoutLoop(moves, 30)).toEqual(moves);
 });
 
 test("a line that is only quoted speech after the PC's paragraph is dropped, and speaker lines and speech in the prose are kept", () => {

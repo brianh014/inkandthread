@@ -47,7 +47,7 @@ The prompts in `src/prompt-assembler.ts` and `src/world-creation.ts` go into eve
 
 - Everything the player types is the PC's own words and actions, a bare quote included. The player never speaks or acts for anyone else, so a fix for a misread move makes the move unmistakably the PC's, such as the PC's name sent with it.
 - A retry is a last resort, as the player waits through it or sees the text restart. Prevent the fault first: how the prompt or move is built, a schema, or the state sent. Never add a retry in the player's path to enforce a rule; one off it (State Upkeep, World Moves On) still costs time and money.
-- Code never cuts or rewrites a reply's story sentences, as the rest of the reply was written around them, and never changes text the player has read. It may trim what isn't story, such as stray JSON or a field name. When a reply's text itself is broken, such as one that restarts the story, writing it again beats keeping it with its state repaired.
+- Code never cuts, rewrites or stops early a reply's story text, as the rest of the reply was written around it and a reply stopped early can be a sentence long, and never changes text the player has read. It may fix only format, such as stray JSON or a field name. When a reply's text itself is broken, such as one that restarts the story, writing it again beats keeping it with its state repaired.
 
 ### Reader's Guide
 

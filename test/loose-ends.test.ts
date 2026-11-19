@@ -103,6 +103,32 @@ test("an Edit that keeps the response whole keeps the Loose Ends it resolved, th
   expect(line).toContain('"looseEndsKept":1');
 });
 
+test("an Edit that keeps the response whole keeps the Loose Ends it opened and the looks it changed, though the Narrator misses them", async () => {
+  const OPENED = "Where did Kit run to?";
+  play(
+    narration("Owen waits.", { op: "add_npc", name: "Owen", appearance: "a tall man in a grey coat" }),
+    narration("Owen shaves his beard. Kit runs off.", add(OPENED), {
+      op: "update_npc",
+      name: "Owen",
+      appearance: "a tall man, clean-shaven, in a grey coat",
+    }),
+    narration("Owen shaves his beard. Kit runs off.\n\nA bell rings."),
+  );
+  const id = createSave(SOCIAL);
+  expect((await turn(id)).status).toBe(201);
+  expect((await turn(id)).status).toBe(201);
+
+  const line = await logOf(() => app.post(`/saves/${id}/messages/4/edit`, { text: "Owen shaves his beard. Kit runs off.\n\nA bell rings." }), "info");
+
+  expect(ends(id)).toEqual([SOCIAL, OPENED]);
+  expect(
+    store()
+      .latestState(id)
+      .npcs.find(({ name }) => name === "Owen")?.appearance,
+  ).toBe("a tall man, clean-shaven, in a grey coat");
+  expect(line).toContain('"looksKept":1');
+});
+
 test("a repeated Loose End logs only its count, at Info", async () => {
   play(narration("A line.", add("ZQX"), add("ZQX")));
   const id = createSave();

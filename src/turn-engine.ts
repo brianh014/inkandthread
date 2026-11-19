@@ -723,11 +723,14 @@ export async function editResponse(
   const times = { started: Date.now() };
   await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.turnToReplace(id, messageId).state);
   const { input, state, messages, journalEdits } = saves.turnToReplace(id, messageId);
-  // An Edit that keeps the response whole keeps the Loose Ends it resolved, as the Narrator, bringing the state in line
-  // again, left one open to the end of a play.
+  // An Edit that keeps the response whole keeps the Loose Ends it resolved and opened and the looks it changed, as the Narrator,
+  // bringing the state in line again, left one open to the end of a play, dropped another and lost a coat taken off.
   const replaced = saves.messages(id).find((message) => message.id === messageId)?.text ?? "";
-  const after = saves.latestState(id).looseEnds;
-  const resolved = replaced && text.includes(replaced) ? state.looseEnds.filter((end) => !after.includes(end)) : [];
+  const whole = !!replaced && text.includes(replaced);
+  const after = saves.latestState(id);
+  const resolved = whole ? state.looseEnds.filter((end) => !after.looseEnds.includes(end)) : [];
+  const opened = whole ? after.looseEnds.filter((end) => !state.looseEnds.includes(end)) : [];
+  const restyled = whole ? after.npcs.filter(({ name, appearance }) => state.npcs.some((npc) => npc.name === name && npc.appearance !== appearance)) : [];
   const { prompt, memory, playMode } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
@@ -759,7 +762,18 @@ export async function editResponse(
           const next = advance(before);
           const kept = next.looseEnds.filter((end) => resolved.includes(end));
           if (kept.length > 0) log.info("turn", "Loose Ends kept resolved by an Edit", { looseEndsKept: kept.length });
-          return { ...next, looseEnds: next.looseEnds.filter((end) => !kept.includes(end)) };
+          const reopened = opened.filter((end) => !next.looseEnds.includes(end));
+          // Only where the Edit left the looks as they were before the response, so its own change stands.
+          const looks = restyled.filter(
+            ({ name }) => next.npcs.find((npc) => npc.name === name)?.appearance === state.npcs.find((npc) => npc.name === name)?.appearance,
+          );
+          if (reopened.length > 0 || looks.length > 0)
+            log.info("turn", "An Edit's kept response carried over", { looseEndsOpened: reopened.length, looksKept: looks.length });
+          return {
+            ...next,
+            looseEnds: [...next.looseEnds.filter((end) => !kept.includes(end)), ...reopened],
+            npcs: next.npcs.map((npc) => looks.find(({ name }) => name === npc.name) ?? npc),
+          };
         },
         choices,
       ),

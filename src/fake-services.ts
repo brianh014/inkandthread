@@ -207,12 +207,18 @@ export const fakeTextProvider: TextProvider = async (prompt, { schema, onText, o
   // World Moves On rewrites each thread's now and keeps its truth, as sampled words would quote no thread.
   if (sampled && /^You plot the hidden side/.test(prompt[0]?.content ?? "")) {
     const { plot_threads = [], visible_cast = [] } = JSON.parse(prompt.at(-1)?.content ?? "{}") as {
-      plot_threads?: { truth: string }[];
+      plot_threads?: { truth: string; without_part?: string[] }[];
       visible_cast?: string[];
     };
-    // Whoever is with the PC knows a part, so What an NPC Knows fills as a real move's would.
-    const knows = visible_cast.slice(0, 1).map((name) => ({ name, knows: "They know only their own part of it." }));
-    sampled.plot_threads = plot_threads.map(({ truth }) => ({ thread: truth, truth: null, now: "Its people move on out of sight.", knows }));
+    // Whoever is with the PC and each the thread names without one knows a part, so What an NPC Knows fills as a real move's would.
+    const knows = (without: string[]) =>
+      [...new Set([...visible_cast.slice(0, 1), ...without])].map((name) => ({ name, knows: "They know only their own part of it." }));
+    sampled.plot_threads = plot_threads.map(({ truth, without_part = [] }) => ({
+      thread: truth,
+      truth: null,
+      now: "Its people move on out of sight.",
+      knows: knows(without_part),
+    }));
   }
   if (sampled) meetImportant(prompt, Array.isArray(sampled.people) ? sampled.people : []);
   if (sampled && Array.isArray(sampled.people) && Array.isArray(sampled.state_operations)) {

@@ -265,6 +265,8 @@ export function assemblePrompt({
     worldRules,
     plotThreads: allThreads,
     threadsNow,
+    // Only World Moves On's bookkeeping: the parts themselves are in npcKnows.
+    threadParts: _parts,
     summary,
     recentSummary: _recent,
     sceneMemories,

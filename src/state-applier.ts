@@ -26,6 +26,11 @@ export type State = {
    * rewrites it freely, as rewriting a thread's one text lost who was behind it and what it hid. A Save from before it has none.
    */
   threadsNow: Record<string, string>;
+  /**
+   * By each Plot Thread's truth, who World Moves On gave their own part of it, kept in npcKnows. Apart from what they learn in
+   * play, as a move took anything in npcKnows for their part and never gave the people with only that one. A Save from before it has none.
+   */
+  threadParts: Record<string, string[]>;
   summary: string;
   /** Just the last few scenes, for the player. The Narrator never reads it back. */
   recentSummary: string;
@@ -62,6 +67,7 @@ export const openingState: State = {
   worldRules: [],
   plotThreads: [],
   threadsNow: {},
+  threadParts: {},
   summary: "",
   recentSummary: "",
   directorsNotes: [],
@@ -89,6 +95,7 @@ export const StateSections = {
   worldRules: stringList,
   plotThreads: stringList,
   threadsNow: z.record(z.string(), z.string()),
+  threadParts: z.record(z.string(), stringList),
   summary: z.string(),
   recentSummary: z.string(),
   directorsNotes: stringList,
@@ -395,6 +402,8 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const truth = operation.truth ?? thread;
       const { [thread]: _was, ...others } = state.threadsNow;
       state.threadsNow = { ...others, [truth]: operation.now };
+      const { [thread]: parts, ...otherParts } = state.threadParts;
+      if (parts) state.threadParts = { ...otherParts, [truth]: parts };
       replaceOnce(state.plotThreads, thread, truth);
       if (thread !== truth) threads.became.set(thread, truth);
       return;
@@ -406,6 +415,8 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       if (thread === undefined || !take(state.plotThreads, thread)) return "matches no thread";
       const { [thread]: _gone, ...open } = state.threadsNow;
       state.threadsNow = open;
+      const { [thread]: _parts, ...openParts } = state.threadParts;
+      state.threadParts = openParts;
       threads.became.set(thread, null);
       return;
     }
@@ -553,6 +564,8 @@ export const WorldEdit = z.discriminatedUnion("edit", [
     moved: z.boolean().optional(),
     // World Moves On's: by name, each person's own part of the threads it wrote, kept as what they know.
     knows: z.record(z.string(), z.array(z.string())).optional(),
+    // By truth, who those parts went to.
+    parts: z.record(z.string(), z.array(z.string())).optional(),
   }),
   // Whole lists, as a World Change rewrites what the player says is wrong rather than one item at a time.
   z.object({ edit: z.literal("inventory"), wearing: z.array(z.string()), carrying: z.array(z.string()) }),
@@ -607,7 +620,15 @@ export function applyEdit(state: State, edit: WorldEdit): State {
         const knew = Object.hasOwn(npcKnows, key) ? npcKnows[key]! : [];
         npcKnows[key] = [...knew, ...parts.filter((part) => !knew.includes(part))].slice(-MAX_NPC_KNOWS);
       }
-      return { ...state, ...merged, threadsNow, npcKnows };
+      const had = (truth: string) => (Object.hasOwn(state.threadParts, truth) ? state.threadParts[truth]! : []);
+      const given = (truth: string) => (edit.parts && Object.hasOwn(edit.parts, truth) ? edit.parts[truth]! : []);
+      const threadParts = Object.fromEntries(
+        merged.plotThreads.flatMap((truth) => {
+          const names = [...new Set([...had(truth), ...given(truth)])];
+          return names.length > 0 ? [[truth, names]] : [];
+        }),
+      );
+      return { ...state, ...merged, threadsNow, npcKnows, threadParts };
     }
     case "inventory":
       return { ...state, inventory: { wearing: edit.wearing, carrying: edit.carrying } };

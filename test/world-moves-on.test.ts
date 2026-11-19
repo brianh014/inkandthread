@@ -483,6 +483,48 @@ test("a move gives each person a thread names their own part of it, kept as what
   expect(log).not.toContain("hooded");
 });
 
+test("a move asks a part of each person a thread names who has none for it, though they learned other things in play, and asks again once when one is missing", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  const part = "He held the harbourmaster under, and the vicar paid him.";
+  const told = play(
+    narration(
+      "Ash meets the sexton.",
+      { op: "add_npc", name: "Silas Grout", appearance: "a huge man" },
+      { op: "npc_learns", name: "Silas Grout", fact: "Ash asked who dug the grave." },
+      nextDay(),
+    ),
+    moved(change(drowned, "Grout digs a grave.")),
+    moved({ ...change(drowned, "Grout digs a grave."), knows: [{ name: "Grout", knows: part }] }),
+    narration("Ash waits.", nextDay("3rd of Thaw")),
+    moved(change(drowned, "Grout fills the grave.")),
+    narration("Ash waits again."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [drowned],
+      worldBible: [],
+    },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I meet him.", "I wait.", "I wait again."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  // Asked of Grout, though what he learned in play already sat in npc_knows.
+  expect(JSON.parse(told.prompts[1]!.at(-1)!.content).plot_threads).toEqual([{ truth: drowned, now: "", without_part: ["Silas Grout"] }]);
+  // The move that gave none was asked again, and the next move asks him no more.
+  expect(told.prompts[2]!.at(-1)!.content).toContain("without_part");
+  expect(JSON.parse(told.prompts[4]!.at(-1)!.content).plot_threads).toEqual([{ truth: drowned, now: "Grout digs a grave." }]);
+  expect(store().latestState(id).npcKnows["Silas Grout"]).toEqual(["Ash asked who dug the grave.", part]);
+  expect(log).not.toContain('"withoutPart"');
+});
+
 test("what a move gives someone to know is capped, so it never grows without bound", () => {
   const known = Array.from({ length: MAX_NPC_KNOWS }, (_, at) => `Fact ${at}.`);
   const state = { ...openingState, npcs: [{ name: "Ferryman", appearance: "" }], npcKnows: { Ferryman: known } };

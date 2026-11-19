@@ -40,6 +40,16 @@ test("a Choice copying four words in a row from the secrets is caught, unless th
   expect(unknownWords(choices, secret, "Tamsin asks: whose side does the lie fall on? She wonders whose side the lie falls on.")).toEqual([[], [], []]);
 });
 
+test("a Choice is never dropped for another form of a word read or an everyday one, nor for a word of the World Brief", () => {
+  const secret = {
+    ...state,
+    worldBrief: "A harbour town whose harbourmaster has drowned.",
+    plotThreads: ["The sexton, holding him under, drowned the harbourmaster; whoever he thinks saw it, he kills, and the cottage is searched."],
+  };
+  const choices = ["I ask whose hand was holding it.", "I ask who he thinks did it, and whether the room was searched.", "I ask after the harbourmaster."];
+  expect(unknownWords(choices, secret, "Tamsin holds the lamp.")).toEqual([[], [], []]);
+});
+
 test("a day or month is never taken for a made-up name, nor an everyday word the secrets hold for one", () => {
   const secret = { ...state, plotThreads: ["By Sunday the honest clerk has written the ledger out in March."] };
   const choices = ["I wait until Sunday, then go.", "I ask for an honest answer, written down.", "I ride north before March."];

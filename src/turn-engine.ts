@@ -981,7 +981,7 @@ async function narrate(
       const alone = () =>
         writeChoices(textProvider, narration, signal, previous, plainMessage({ role: "player", text: upkeep?.input ?? input }).text).then((written) =>
           // Held to what the PC knows, as the Choices the reply came with are.
-          written && upkeep && seen !== undefined ? knownChoices(written, narrated.next, seen(), narration) : written,
+          written && upkeep && seen !== undefined ? knownChoices(written, narrated.next, seen(), narration, upkeep.settings.read().storyInLog) : written,
         );
       // Merged with what each ask kept, up to two asks, as taking one set or the other offered two Choices when each had lost one to a leak.
       const refilled = async (kept: string[]) => {
@@ -1005,7 +1005,7 @@ async function narrate(
           "choices",
           choices && upkeep && seen !== undefined
             ? (() => {
-                const kept = knownChoices(choices, narrated.next, seen(), narration);
+                const kept = knownChoices(choices, narrated.next, seen(), narration, upkeep.settings.read().storyInLog);
                 // Asked for alone, as a lone Choice left after dropping leaks lost a play its clue, and two were left in four rounds.
                 if (kept.length >= 3) return kept;
                 log.info("turn", "Too few Choices kept", { attempt, generation, kept: kept.length });

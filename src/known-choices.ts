@@ -21,6 +21,8 @@ export function unknownWords(choices: string[], state: State, seen: string, jour
   const words = [...state.npcs.map(({ name }) => name), ...keywords.filter((word) => /^\p{Lu}/u.test(word) || word.includes(" "))];
   const known = [
     seen,
+    // Always shown to the player, as a Choice was dropped for a word only it and the secrets held.
+    state.worldBrief,
     state.summary,
     ...state.pcKnown.facts,
     ...state.pcKnown.npcs,
@@ -34,7 +36,9 @@ export function unknownWords(choices: string[], state: State, seen: string, jour
     ...Object.values(state.threadsNow),
     ...state.worldBible.filter(({ alwaysOn }) => !alwaysOn).map(({ content }) => content),
   ].join("\n");
-  const unseen = (word: string) => !wholeWord(word, "iu").test(known);
+  // Another form of a word read counts as read, as Choices were dropped for "holding" and "searched" when only other forms were.
+  const knownForms = new Set((known.match(/\p{L}+/gu) ?? []).flatMap(forms));
+  const unseen = (word: string) => !wholeWord(word, "iu").test(known) && !forms(word).some((form) => knownForms.has(form));
   const hiddenRuns = new Set(journal ? [] : runs(hidden));
   const knownRuns = new Set(journal ? [] : runs(known));
   return choices.map((choice) => [...new Set([...unknown.filter((word) => mentions(choice, word)), ...guessed(choice)])]);
@@ -44,7 +48,7 @@ export function unknownWords(choices: string[], state: State, seen: string, jour
       ...(journal ? [] : copiedOrMadeUp(choice)),
       // A thing only the hidden threads and Lore hold, as an oilskin a secret ledger was wrapped in. Long words only, as short ones
       // are common, and no everyday word, as "anyone" and "examine" cost a play its Choices.
-      ...(choice.match(/\p{L}{6,}/gu) ?? []).filter((word) => !EVERYDAY.has(word.toLowerCase()) && wholeWord(word, "iu").test(hidden) && unseen(word)),
+      ...(choice.match(/\p{L}{6,}/gu) ?? []).filter((word) => !everyday(word) && wholeWord(word, "iu").test(hidden) && unseen(word)),
     ];
   }
   function copiedOrMadeUp(choice: string) {
@@ -58,6 +62,23 @@ export function unknownWords(choices: string[], state: State, seen: string, jour
   }
 }
 
+/**
+ * The word in lower case with the forms it may come from: without its -s, -es, -ed or -ing, and -ied or -ies as -y.
+ * shortcut: regular endings only, so "held" isn't "hold"; use a stemmer if irregular forms still drop Choices.
+ */
+function forms(word: string) {
+  const lower = word.toLowerCase();
+  const all = [lower];
+  if (/i(?:es|ed)$/.test(lower)) all.push(`${lower.slice(0, -3)}y`);
+  if (/(?:s|x|z|ch|sh)es$/.test(lower)) all.push(lower.slice(0, -2));
+  else if (/[^s]s$/.test(lower)) all.push(lower.slice(0, -1));
+  if (/ed$/.test(lower)) all.push(lower.slice(0, -2), lower.slice(0, -1));
+  if (/ing$/.test(lower)) all.push(lower.slice(0, -3), `${lower.slice(0, -3)}e`);
+  return all.filter((form) => form.length >= 3);
+}
+
+const everyday = (word: string) => forms(word).some((form) => EVERYDAY.has(form));
+
 /** Every run of four words in the text, in lower case and without punctuation. */
 function runs(text: string) {
   const words = text.toLowerCase().match(/\p{L}+(?:['’]\p{L}+)*/gu) ?? [];
@@ -66,7 +87,8 @@ function runs(text: string) {
 
 // shortcut: a short list of everyday long words seen in Choices; use a word-frequency list if ordinary words still get flagged.
 // Days and months too, as "Sunday" was taken for a made-up name. No rule by spelling tells "honest" or "written" from the
-// hidden nouns this is for, so those are listed as seen.
+// hidden nouns this is for, so those are listed as seen. Every form of each counts, so common short verbs are here for
+// theirs, as "thinks" and "holding" dropped fair Choices.
 export const EVERYDAY = new Set(
   `anyone anybody anything anywhere someone somebody something somewhere somehow everyone everybody everything everywhere nothing nobody
   nowhere whatever whoever wherever whenever however whether another others itself himself herself myself yourself themselves ourselves
@@ -77,7 +99,7 @@ export const EVERYDAY = new Set(
   convince persuade confront approach continue consider question suggest believe remember forget struggle warning trouble silence moment
   minute morning evening tonight tomorrow yesterday people person matter reason chance hidden secret should things honest written
   monday tuesday wednesday thursday friday saturday sunday january february march april june july august september october november
-  december`.split(/\s+/),
+  december think hold carry keep look speak bring watch walk talk tell find stand leave wait`.split(/\s+/),
 );
 
 // What the player reads in the Journal as the PC's own knowledge.
@@ -147,9 +169,11 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
  * The Choices without any built on something the PC has never read of. Dropped, not written again, as a reviewer's rewording
  * kept the secret in other words ("the Revenue" became "the authorities"); the caller asks for Choices alone if too few are left.
  */
-export function knownChoices(choices: string[], state: State, seen: string, reply: string) {
+export function knownChoices(choices: string[], state: State, seen: string, reply: string, storyInLog = false) {
   const leaks = unknownWords(choices, state, `${seen}\n${reply}`);
   const kept = choices.filter((_, index) => leaks[index]!.length === 0);
   if (kept.length < choices.length) log.info("turn", "Choices with unknown words dropped", { leaking: choices.length - kept.length, kept: kept.length });
+  // The words themselves only with Story in log, as they are story text, so a fair Choice dropped can be traced to its word.
+  if (kept.length < choices.length && storyInLog) log.story("turn", "Choices' unknown words", { words: leaks.flat() });
   return kept;
 }

@@ -4,7 +4,7 @@ import type { ImageAdapter, ImagePayload } from "./image-adapter";
 import { errorType, log } from "./logger";
 import { type ImageTarget, imageType, OPENING_SNAPSHOT, type Pictured, type Save, SaveNotFound, type SaveStore } from "./save-store";
 import type { SettingsStore } from "./settings-store";
-import { findPerson, named, type State } from "./state-applier";
+import { findPerson, isBody, named, type State } from "./state-applier";
 import type { PictureAsk } from "./world-creation";
 
 export type ImagePipeline = ReturnType<typeof imagePipeline>;
@@ -68,15 +68,12 @@ export const visibleNpcs = ({ scene, npcs }: State) => scene.visibleCast.flatMap
 export function portraitsDue(before: State, after: State) {
   const { scene, pcKnown } = after;
   const due = movedScene(before, after) ? [...scene.visibleCast, ...pcKnown.npcs] : pcKnown.npcs.filter((name) => !before.pcKnown.npcs.includes(name));
-  // Not someone named as a body, or whose own Lore Entry the world keys as one, as a portrait draws them alive. shortcut: by name
-  // and keyword, as an NPC has no alive or dead; one who dies in play keeps their portrait, add a field if that misleads.
-  const dead = (name: string) =>
-    DEAD.test(name) || after.worldBible.some(({ title, keywords }) => title === name && keywords.some((keyword) => DEAD.test(keyword)));
+  // Not someone named as a body, as a portrait draws them alive.
+  const dead = (name: string) => isBody(after, name);
   const bodies = [...new Set(due)].filter(dead).length;
   if (bodies > 0) log.info("images", "No portrait for a body", { bodies });
   return [...new Set(due)].filter((name) => !dead(name)).flatMap((name) => after.npcs.filter((npc) => npc.name === name));
 }
-const DEAD = /\b(body|corpse|remains)\b/i;
 
 /** Everyone whose looks a Turn changed: an NPC given new looks, and the PC, as null, when what they wear or how they look changed. */
 export function restyledBy(before: State, after: State): (Npc | null)[] {

@@ -5,7 +5,7 @@ import { activateLore, wholeWord } from "./lore-activation";
 import { LORE_TOKEN_BUDGET, type Prompt } from "./prompt-assembler";
 import type { SaveStore } from "./save-store";
 import type { SettingsStore } from "./settings-store";
-import { closestThread, type ListChange, nameForms, type State, type StateOperation } from "./state-applier";
+import { closestThread, isBody, type ListChange, nameForms, type State, type StateOperation } from "./state-applier";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
 /** Replies between moves when nothing else calls for one, as a long scene in one place would otherwise never let the world act. */
@@ -162,7 +162,9 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   // Those met whom a thread names with no part of it yet, as a move took what they learned in play for their part and gave none.
   // Met only, as a place a thread names has no part to give.
   const given = (name: string, to: string[]) => to.some((other) => nameForms(other).some((form) => nameForms(name).includes(form)));
-  const people = (text: string) => state.npcs.map(({ name }) => name).filter((name) => nameForms(name).some((form) => mentions(text, form, "u")));
+  // Not the dead, as a dead man was asked twice for what he knew.
+  const people = (text: string) =>
+    state.npcs.map(({ name }) => name).filter((name) => !isBody(state, name) && nameForms(name).some((form) => mentions(text, form, "u")));
   const withoutPart = (truth: string, now: string) => people(`${truth}\n${now}`).filter((name) => !given(name, state.threadParts[truth] ?? []));
   /** How many people a reply leaves with no part: of each open thread it keeps, the ones it gave none, and of each it adds, all it names. */
   const partsMissing = (kept: ThreadMove[]) => {

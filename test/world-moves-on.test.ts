@@ -525,6 +525,36 @@ test("a move asks a part of each person a thread names who has none for it, thou
   expect(log).not.toContain('"withoutPart"');
 });
 
+test("a move asks no part of the dead, as a dead man was asked what he knew", async () => {
+  const drowned = "Silas Grout drowned Tobias Crane on the vicar's orders.";
+  const told = play(
+    narration(
+      "Ash meets the sexton beside the body.",
+      { op: "add_npc", name: "Silas Grout", appearance: "a huge man" },
+      { op: "add_npc", name: "Tobias Crane", appearance: "an old man, drowned" },
+      nextDay(),
+    ),
+    moved({ ...change(drowned, "Grout digs a grave."), knows: [{ name: "Grout", knows: "He held Crane under." }] }),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [drowned],
+      worldBible: [{ title: "Tobias Crane", keywords: ["Crane", "body", "drowned"], content: "The harbourmaster, drowned.", alwaysOn: false }],
+    },
+  });
+
+  for (const input of ["I meet him.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+
+  expect(JSON.parse(told.prompts[1]!.at(-1)!.content).plot_threads).toEqual([{ truth: drowned, now: "", without_part: ["Silas Grout"] }]);
+});
+
 test("what a move gives someone to know is capped, so it never grows without bound", () => {
   const known = Array.from({ length: MAX_NPC_KNOWS }, (_, at) => `Fact ${at}.`);
   const state = { ...openingState, npcs: [{ name: "Ferryman", appearance: "" }], npcKnows: { Ferryman: known } };

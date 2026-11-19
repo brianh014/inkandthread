@@ -751,6 +751,14 @@ export function givenName(name: string) {
  * A name and each word of it that tells it apart, so "Dacre" names Mr Dacre and "Crane" names Crane's cottage, as a phrase
  * matched whole dropped writing that shortened it. A word counts if capitalised, past two letters and not a title.
  */
+/**
+ * Whether someone is named as a body, or their own Lore Entry is keyed as one. shortcut: by name and keyword, as an NPC has no
+ * alive or dead, so one who dies in play still counts as alive; add a field if that misleads.
+ */
+export const isBody = (state: Pick<State, "worldBible">, name: string) =>
+  DEAD.test(name) || state.worldBible.some(({ title, keywords }) => title === name && keywords.some((keyword) => DEAD.test(keyword)));
+const DEAD = /\b(body|corpse|remains)\b/i;
+
 export const nameForms = (name: string) => [
   name,
   ...name

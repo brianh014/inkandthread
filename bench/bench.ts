@@ -30,7 +30,7 @@ import { localIsSetUp } from "../src/graph-builder";
 import { reviewerSettings, settingsStore } from "../src/settings-store";
 import { textProvider } from "../src/text-provider";
 import { VERSION } from "../src/updater";
-import { askForJson, jsonSchemaOf, type TextProvider } from "../src/turn-engine";
+import { askForJson, jsonSchemaOf, type TextProvider, worldMoved } from "../src/turn-engine";
 import { chartPage } from "./chart";
 import { resultFiles } from "./result-files";
 
@@ -39,7 +39,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 41;
+const BENCH_ITERATION = 42;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 30;
@@ -575,6 +575,8 @@ async function play(
     }
     // OpenRouter reports some usage a moment after the reply ends, and the last pictures may still be written, or with --draw
     // still drawing, which the count alone can't tell as one picture takes longer than a check.
+    // The last move of the world too, as removing the Save under it lost it from the transcript. It stops itself at MOVE_LIMIT.
+    await worldMoved(id, new AbortController().signal);
     await Bun.sleep(5000);
     const drawing = async () => ((await (await fetch(new URL(`/saves/${id}/images`, server.url))).json()) as { pending: boolean }).pending;
     for (let waited = 0, seen = -1; waited < 600 && (saves.gallery(id).length !== seen || (await drawing())); waited += 5) {

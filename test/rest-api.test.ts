@@ -2287,6 +2287,17 @@ test("a reply whose narration has no words is retried", async () => {
   expect(messages.at(-1)!.text).toBe("The rain keeps on.");
 });
 
+test("a reply of a few words that end no sentence is retried, while a short sentence stands", async () => {
+  const { app, prompts } = playWithDice([], narration("offer seen"), narration("Nobody comes."));
+  const id = await app.createSave();
+
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect(prompts).toHaveLength(2);
+  const { messages } = (await (await app.get(`/saves/${id}/messages`)).json()) as { messages: { text: string }[] };
+  expect(messages.at(-1)!.text).toBe("Nobody comes.");
+});
+
 test("a reply that copies the last one nearly whole is retried, while one quoting a line of it stands", async () => {
   const last = "The rain keeps on over the harbour wall. A gull walks the edge of the quay in the grey light. Nobody comes.";
   const { app, prompts } = playWithDice(

@@ -263,6 +263,28 @@ test("a rewrite keeps most of the secrets only the threads the story began with 
   });
 });
 
+test("once play brings a thread's secret out, a rewrite may record it with the PC in it and drop what's left unread", () => {
+  const state = {
+    ...openingState,
+    npcs: ["Vell", "Crane", "Thorne"].map((name) => ({ name, appearance: "" })),
+    scene: { location: "The cottage", visibleCast: ["Vell"] },
+  };
+  const old =
+    "Vell is Crane's daughter by a secret marriage; hidden in the chimney of the cottage that passes to her is Crane's ledger, which Thorne is searching for.";
+  const found = "Ash and Vell pull an oilskin packet out of the chimney: Crane's ledger, kept all along at the cottage.";
+  const story = { opening: [old], seen: found, latest: found };
+  const { dropsSecrets, retells } = threadGuards(state, "Ash", story);
+  const recorded =
+    "Vell is Crane's daughter by a secret marriage, and his cottage passes to her. Crane's ledger is out of the chimney in her and Ash's hands; Thorne does not know.";
+
+  expect(retells({ old, new: recorded })).toBe(false);
+  // Read words count as kept, so the thread isn't held to its last unread ones.
+  expect(dropsSecrets({ old, new: "Vell, Crane's daughter by a secret marriage, holds his ledger from the chimney, and Thorne still wants it." })).toEqual([]);
+  // The scene in play told with one word of the thread is still a retelling, and an unread secret still binds.
+  expect(retells({ old, new: "Vell waits with Ash in the cottage." })).toBe(true);
+  expect(dropsSecrets({ old, new: "Vell holds Crane's ledger, and Thorne wants it." })).toEqual(["daughter", "marriage", "passes", "searching"]);
+});
+
 test("a move that misquotes a thread, or fails, leaves the world as it was and the next Turn plays", async () => {
   play(
     narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),

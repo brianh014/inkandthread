@@ -209,7 +209,7 @@ test("a reply that turns into a Check request after narration began restarts the
 });
 
 test("escapes and multi-byte characters split across network reads reach the client intact", async () => {
-  const text = 'She said "café\n\u{1F30A}" \\ end';
+  const text = 'She said "café\n\u{1F30A}" \\ end.';
   const reply = JSON.stringify({ check: null, narration: text, state_operations: [] });
   const bytes = new TextEncoder().encode(delta(reply).replaceAll("\n\n", "\r\n\r\n"));
   play([
@@ -486,7 +486,7 @@ test("a client that leaves mid-stream doesn't stop the Turn, which is saved", as
   play([
     async function* () {
       yield delta('{"check":null,"narration":"The tide ');
-      yield delta("rises");
+      yield delta("rises.");
       await Bun.sleep(150);
       yield delta('"}');
       yield "data: [DONE]\n\n";
@@ -500,7 +500,7 @@ test("a client that leaves mid-stream doesn't stop the Turn, which is saved", as
   client.abort();
 
   await Bun.sleep(300);
-  expect((await storedMessages(id)).map(({ text }) => text)).toEqual(["I wade forward.", "The tide rises"]);
+  expect((await storedMessages(id)).map(({ text }) => text)).toEqual(["I wade forward.", "The tide rises."]);
 });
 
 // 14s, so it runs only with SLOW_TESTS=1: it guards the `idleTimeout: 0` in rest-api.ts.
@@ -1201,7 +1201,7 @@ test("a client that leaves is logged as that, not as a failed Turn", async () =>
     async function* () {
       yield delta('{"check":null,"narration":"The tide ');
       await Bun.sleep(100);
-      yield delta('"}');
+      yield delta('rises."}');
     },
   ]);
   const id = await app.createSave();
@@ -1228,7 +1228,7 @@ test("a running Turn can be read back with its text so far, and is gone once sav
   play([
     async function* () {
       yield delta('{"check":null,"narration":"The tide ');
-      yield delta("rises");
+      yield delta("rises.");
       await release;
       yield delta('"}');
     },
@@ -1240,7 +1240,7 @@ test("a running Turn can be read back with its text so far, and is gone once sav
   client.abort();
   await Bun.sleep(50);
 
-  expect(await liveTurn(id)).toEqual({ running: { input: "I wade forward.", narration: "The tide rises", after: 0 } });
+  expect(await liveTurn(id)).toEqual({ running: { input: "I wade forward.", narration: "The tide rises.", after: 0 } });
 
   finish();
   await Bun.sleep(100);
@@ -1326,7 +1326,7 @@ test("a client that cancels its stream doesn't fail the Turn, which is saved", a
     async function* () {
       yield delta('{"check":null,"narration":"The tide ');
       await Bun.sleep(100);
-      yield delta("rises");
+      yield delta("rises.");
       await Bun.sleep(100);
       yield delta('"}');
     },
@@ -1340,7 +1340,7 @@ test("a client that cancels its stream doesn't fail the Turn, which is saved", a
     await Bun.sleep(400);
   });
 
-  expect((await storedMessages(id)).at(-1)?.text).toBe("The tide rises");
+  expect((await storedMessages(id)).at(-1)?.text).toBe("The tide rises.");
   expect(log).not.toContain("A Turn failed");
 });
 

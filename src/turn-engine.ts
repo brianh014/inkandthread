@@ -331,6 +331,11 @@ const declined = (narration: string) => (narration.match(/\p{L}+/gu)?.length ?? 
 // Words, not just punctuation, as a reply once came back as a lone comma.
 const NO_WORDS = "a story with no words";
 const hasWords = (narration: string) => /\p{L}{2}/u.test(narration);
+// A reply once came back as "offer seen" and passed every check. The shortest real replies on the bench run past 80 words, and a
+// short one that ends a sentence can still be a beat of story, so only a few words that end none are taken for a fragment.
+// shortcut: by length and a closing mark; a fragment that ends in a full stop gets through, so add a word floor alone if one does.
+const FRAGMENT = "a fragment far too short to be a reply";
+const isFragment = (narration: string) => countWords(narration) < 15 && !/[.!?…]["”’)]?\s*$/u.test(narration);
 // A result reply once came back as one line about the Turn awaiting its roll, shown as the story.
 // Prose speaks of dice and turns too, as at a game, so only a short reply naming two of these, one of them the app's own
 // reply, check or result, is taken for such a note.
@@ -832,6 +837,7 @@ async function narrate(
       // Never kept, even on the last attempt, as what isn't a story is no Turn.
       if (edited === undefined && check && declined(narration)) throw new InvalidResponse(undefined, { cause: DECLINED });
       if (edited === undefined && !hasWords(narration)) throw new InvalidResponse(undefined, { cause: NO_WORDS });
+      if (edited === undefined && isFragment(narration)) throw new InvalidResponse(undefined, { cause: FRAGMENT });
       if (edited === undefined && isJsonObject(narration)) throw new InvalidResponse(undefined, { cause: JSON_NARRATION });
       // Never kept either, as the Turn then never happens, nor the Check's result it was asked to tell.
       if (edited === undefined && previous && copiesPrevious(narration, previous)) throw new InvalidResponse(undefined, { cause: COPIED });
@@ -907,7 +913,7 @@ async function narrate(
       const alone = () =>
         writeChoices(textProvider, narration, signal, previous, plainMessage({ role: "player", text: upkeep?.input ?? input }).text).then((written) =>
           // Held to what the PC knows, as the Choices the reply came with are.
-          written && upkeep && seen !== undefined ? knownChoices(upkeep, written, narrated.next, seen(), narration, signal) : written,
+          written && upkeep && seen !== undefined ? knownChoices(written, narrated.next, seen(), narration) : written,
         );
       // Side by side, as neither needs the other, so a slow reviewer holds the Choices back once, not twice.
       const [upkept, offered] = await Promise.all([
@@ -916,12 +922,13 @@ async function narrate(
           ? upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal, timed).then((ops) => ops && withoutCut(ops, cut))
           : undefined,
         choices && upkeep && seen !== undefined
-          ? knownChoices(upkeep, choices, narrated.next, seen(), narration, signal).then((kept) => {
+          ? (() => {
+              const kept = knownChoices(choices, narrated.next, seen(), narration);
               // Asked for alone, as a lone Choice left after dropping leaks lost a play its clue.
               if (kept.length >= 2) return kept;
               log.info("turn", "Too few Choices kept", { attempt, generation, kept: kept.length });
               return alone().then((written) => written ?? kept);
-            })
+            })()
           : unchosen
             ? alone()
             : choices,

@@ -1,9 +1,6 @@
 import { expect, test } from "bun:test";
-import { join } from "node:path";
 import { knownChoices, unknownWords, withoutUnread } from "../src/known-choices";
-import { settingsStore } from "../src/settings-store";
 import { openingState, type State } from "../src/state-applier";
-import { scriptedTextProvider, tempFolder } from "./support";
 
 const state: State = {
   ...openingState,
@@ -84,56 +81,10 @@ test("a Journal entry naming a Lore Entry by another of its keywords is kept onc
   expect(withoutUnread(operations, state, "Tamsin kicks one of the drums.")).toEqual(operations);
 });
 
-test("a Choice built on what the PC hasn't learned is written again by the reviewer, and the others are kept", async () => {
-  const reviewer = scriptedTextProvider(
-    JSON.stringify({ choices: ["Ask Tamsin about the old hut.", "Ask Jory what scares him.", "Ride on."] }),
-    JSON.stringify({ choices: ["Ask Tamsin what she carries.", "Ask Jory what scares him.", "Ride on."] }),
-  );
-  const folder = tempFolder();
-  const settings = settingsStore(join(folder.path, "settings.json"));
+test("a Choice built on what the PC hasn't learned is dropped, not reworded, and the others are kept", () => {
+  // A rewording kept the secret in other words, so no one is asked to write it again.
   const choices = ["Ask Tamsin about the old hut.", "Ask Jory what scares him.", "Ride on."];
 
-  const offered = await knownChoices(
-    { provider: reviewer.textProvider, settings, input: "" },
-    choices,
-    state,
-    "Tamsin rides ahead.",
-    "Jory looks away.",
-    new AbortController().signal,
-  );
-
-  // The first rewrite still named the old hut, so it was asked again.
-  expect(offered).toEqual(["Ask Tamsin what she carries.", "Ask Jory what scares him.", "Ride on."]);
-  expect(reviewer.prompts).toHaveLength(2);
-  folder.remove();
-});
-
-test("when the reviewer can't write them again, the Choices built on what the PC hasn't learned are dropped and the rest offered", async () => {
-  const reviewer = scriptedTextProvider(...Array.from({ length: 5 }, () => new Error("down")));
-  const folder = tempFolder();
-  const settings = settingsStore(join(folder.path, "settings.json"));
-  const choices = ["Ask Tamsin about the old hut.", "Ask Jory what scares him.", "Ride on."];
-
-  const offered = await knownChoices(
-    { provider: reviewer.textProvider, settings, input: "" },
-    choices,
-    state,
-    "Tamsin rides ahead.",
-    "Jory looks away.",
-    new AbortController().signal,
-  );
-
-  expect(offered).toEqual(["Ask Jory what scares him.", "Ride on."]);
-  folder.remove();
-});
-
-test("Choices with nothing unknown cost no call", async () => {
-  const reviewer = scriptedTextProvider();
-  const folder = tempFolder();
-  const settings = settingsStore(join(folder.path, "settings.json"));
-  const choices = ["Ask Jory what scares him.", "Ride on.", "Wait."];
-
-  expect(await knownChoices({ provider: reviewer.textProvider, settings, input: "" }, choices, state, "", "", new AbortController().signal)).toBe(choices);
-  expect(reviewer.prompts).toHaveLength(0);
-  folder.remove();
+  expect(knownChoices(choices, state, "Tamsin rides ahead.", "Jory looks away.")).toEqual(["Ask Jory what scares him.", "Ride on."]);
+  expect(knownChoices(["Ask Jory what scares him.", "Ride on.", "Wait."], state, "", "")).toHaveLength(3);
 });

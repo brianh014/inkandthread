@@ -85,7 +85,7 @@ Each change has old, copied exactly from plot_threads or null to add one, and ne
  * that it isn't the scene in play told as what its people did out of sight. `named` gives the people a thread names. `story`
  * holds the threads the story began with and all the player has read.
  */
-export function threadGuards(state: State, pcName: string, story: { opening: string[]; seen: string }) {
+export function threadGuards(state: State, pcName: string, story: { opening: string[]; seen: string; latest?: string }) {
   // Names a rewrite must keep, as moves kept a thread's surface and dropped who was behind it and what it hid, in every bench run
   // despite the rule. One the PC has learned may go, as play has revealed it. shortcut: names only; a secret with no name in it isn't checked.
   // Each person or place is all the names it goes by, so a rewrite that keeps "Thorne" keeps "Reverend Amos Thorne". The
@@ -105,28 +105,40 @@ export function threadGuards(state: State, pcName: string, story: { opening: str
     people.every((names) => !names.some((name) => mentions(old, name, "u")) || names.some((name) => mentions(text, name) || mentions(state.summary, name)));
   // And three in five of its long plain words that only the threads keep secret, as a rewrite kept every name and dropped that a
   // killing was done on someone's orders. Only words of the threads the story began with that are in no hidden Lore, which still
-  // holds its own, and in nothing the player has read, as Turns filled threads with the scene in play, and counting every long
-  // word refused each rewrite of two moves, a fair one that carried a ledger to someone among them.
+  // holds its own. One the player has read counts as kept, as Turns filled threads with the scene in play, counting every long
+  // word refused each rewrite of two moves, a fair one that carried a ledger to someone among them, and a thread whose secret
+  // play had brought out was held to its last unread words and froze, still saying a ledger just found was hidden.
   // shortcut: words, not meaning, so a secret told again in new words ("passes to her" as "is hers") is refused, and a secret
   // play added isn't kept; compare by meaning if fair moves are lost.
-  const lore = state.worldBible.filter(({ alwaysOn }) => !alwaysOn).map(({ content }) => content);
+  const lore = state.worldBible
+    .filter(({ alwaysOn }) => !alwaysOn)
+    .map(({ content }) => content)
+    .join("\n");
   const opening = story.opening.join("\n");
-  const known = [story.seen, state.summary, ...state.pcKnown.facts, ...Object.values(state.pcKnown.summaries ?? {}), ...lore].join("\n");
+  const known = [story.seen, state.summary, ...state.pcKnown.facts, ...Object.values(state.pcKnown.summaries ?? {})].join("\n");
+  const secrets = (thread: string) =>
+    [...new Set(thread.match(/(?<!\p{L})\p{Ll}{6,}/gu))].filter((word) => !EVERYDAY.has(word) && mentions(opening, word) && !mentions(lore, word));
   /** The secret words a rewrite leaves out when it keeps too few of them, or none. */
   const dropsSecrets = ({ old, new: text }: z.infer<typeof ListChange>) => {
     if (old === null || text === null) return [];
-    const hidden = [...new Set(old.match(/(?<!\p{L})\p{Ll}{6,}/gu))].filter((word) => !EVERYDAY.has(word) && mentions(opening, word) && !mentions(known, word));
-    const dropped = hidden.filter((word) => !mentions(text, word));
-    return (hidden.length - dropped.length) * 5 >= hidden.length * 3 ? [] : dropped;
+    const all = secrets(old);
+    const dropped = all.filter((word) => !mentions(known, word) && !mentions(text, word));
+    return (all.length - dropped.length) * 5 >= all.length * 3 ? [] : dropped;
   };
   const pc = nameForms(pcName);
   const cast = state.scene.visibleCast.flatMap(nameForms);
   // The thread of someone with the PC, rewritten with the PC in it, is the scene in play told as what they did out of sight, as
   // "Anselm is standing in Mara's room now", which the rule against it didn't stop on GLM or DeepSeek. The PC's name is matched
   // with its capital, so a name that is also a word, such as Ash, isn't taken for it.
-  // shortcut: by names; a retelling that leaves the PC unnamed, or a fair rewrite that names them, isn't told apart.
+  // Not one that carries two words of the thread's secret the latest replies show, as a ledger found with the PC, out of a
+  // chimney, was refused as a retelling and the thread went on saying it was hidden. Two, as one is often just where they are.
+  // shortcut: by names and words; a retelling that leaves the PC unnamed, or one that repeats two shown secret words, isn't told apart.
   const retells = ({ old, new: text }: z.infer<typeof ListChange>) =>
-    old !== null && text !== null && cast.some((name) => mentions(old, name)) && pc.some((name) => mentions(text, name, "u"));
+    old !== null &&
+    text !== null &&
+    cast.some((name) => mentions(old, name)) &&
+    pc.some((name) => mentions(text, name, "u")) &&
+    secrets(old).filter((word) => mentions(story.latest ?? "", word) && mentions(text, word)).length < 2;
   const named = (thread: string) => people.filter((names) => names.some((name) => mentions(thread, name, "u")));
   return { keepsNames, dropsSecrets, retells, named, mentions };
 }
@@ -142,10 +154,6 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const { plotThreads } = state;
   const save = saves.read(id);
   const messages = saves.messages(id);
-  const { keepsNames, dropsSecrets, retells, named, mentions } = threadGuards(state, save.pc.name, {
-    opening: saves.opening(id).plotThreads,
-    seen: [save.startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
-  });
   const asked = [...(closeAsked.get(id) ?? [])].filter((thread) => plotThreads.includes(thread));
   closeAsked.delete(id);
   const latestReplies = messages
@@ -153,6 +161,11 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     .slice(-2)
     .map(({ text }) => text);
   const shown = latestReplies.join("\n");
+  const { keepsNames, dropsSecrets, retells, named, mentions } = threadGuards(state, save.pc.name, {
+    opening: saves.opening(id).plotThreads,
+    seen: [save.startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
+    latest: shown,
+  });
   // Why a change can't be used, named so the log and the request to write it again both say which.
   const fault = (change: z.infer<typeof ListChange>, index: number, all: z.infer<typeof ListChange>[]) => {
     if (change.old !== null && !plotThreads.includes(change.old)) return "a change misquotes a thread";
@@ -263,7 +276,11 @@ export function turnThreadChanges<Operation extends StateOperation>(
   narration: string,
   story: { opening: string[]; seen: string },
 ) {
-  const { keepsNames, dropsSecrets, retells, named, mentions } = threadGuards(state, pcName, { ...story, seen: `${story.seen}\n${narration}` });
+  const { keepsNames, dropsSecrets, retells, named, mentions } = threadGuards(state, pcName, {
+    ...story,
+    seen: `${story.seen}\n${narration}`,
+    latest: narration,
+  });
   const fault = (operation: Operation) => {
     if (operation.op === "update_plot_thread") {
       const change = { old: operation.thread, new: operation.replacement };

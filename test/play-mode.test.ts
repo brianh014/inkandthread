@@ -98,11 +98,8 @@ test("a reply without three different Choices keeps its story, and the Choices a
 });
 
 test("when fewer than two Choices are left once those built on the unknown are dropped, the Choices are asked for alone", async () => {
-  // The reviewer can't write the leaking ones again, and answers State Upkeep with nothing.
-  const reviewer: TextProvider = async (prompt) => {
-    if (prompt[0]!.content.includes("unknown_words")) throw new Error("down");
-    return JSON.stringify({ state_operations: [] });
-  };
+  // The reviewer answers State Upkeep with nothing.
+  const reviewer: TextProvider = async () => JSON.stringify({ state_operations: [] });
   const script = scriptedTextProvider(
     withChoices("The tide rises.", ["I ride for Qasr.", "I ask Zorel the way.", "I wade on."]),
     JSON.stringify({ choices: CHOICES }),

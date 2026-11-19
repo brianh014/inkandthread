@@ -486,6 +486,10 @@ const editReply = z.object({
   ),
 });
 
+// shortcut: a list of the marks seen added; widen it if redraws invent others.
+const MARKS =
+  /\b(?:soot\w*|smudge\w*|smear\w*|stain\w*|streak\w*|grime\w*|dirt\w*|mud\w*|ash|ashes|blood\w*|bruise\w*|scar\w*|scratch\w*|cut|cuts|wound\w*)\b/g;
+
 // The scene rules' limits, and a review may keep one already over them, as it changes only what fails.
 const SCENE_WORDS: Record<PromptStyle, number> = { prose: 150, keywords: 80 };
 // The marks name who is drawn, so a review may take a person out but never add or change one, and keeps the curly sentence.
@@ -543,7 +547,12 @@ export async function writePicturePrompt(context: Context, ask: PictureAsk, styl
   const lettered = (prompt: string) => ask.kind !== "cover" || quoted(ask.title.toLowerCase()).some((title) => prompt.toLowerCase().includes(title));
   const edit = ask.kind === "portrait" && !!ask.was;
   const whole = z.object({ text: atMost(words).refine(lettered, "no title in quotation marks") });
-  const edited = editReply;
+  // No mark the looks or nudge don't name, as redraws added soot smudges that drew a beard.
+  const given = ask.kind === "portrait" ? `${ask.looks} ${ask.nudge ?? ""}`.toLowerCase() : "";
+  const edited = editReply.refine(
+    ({ changes }) => (changes.toLowerCase().match(MARKS) ?? []).every((mark) => given.includes(mark.replace(/(?:e?s|ed)$/, ""))),
+    "a mark the looks don't have",
+  );
   const reply = edit ? edited : whole;
   const { kind, face, ...details } = { face: false, ...ask };
   const prompt: Prompt = [

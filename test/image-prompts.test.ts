@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { promptStyle } from "../src/graph-builder";
-import { chestUp, expandMarks, markNames, portraitsDue } from "../src/image-pipeline";
+import { chestUp, expandMarks, markNames, portraitsDue, restyledBy } from "../src/image-pipeline";
 import { assemblePrompt, IN_ITS_WORLD_AND_STYLE, REQUESTED_IMAGE_PROMPT } from "../src/prompt-assembler";
 import { applyOperations, openingState } from "../src/state-applier";
 
@@ -170,6 +170,20 @@ test("a portrait's template keeps only what a head and shoulders frame shows", (
     "a woman in her late twenties, gaunt and hollow-cheeked, with long dark hair, pale bare feet streaked with mud, swallowed in a hooded brown wool cloak, her wrists bound behind her back";
   expect(chestUp(seren)).toBe("a woman in her late twenties, gaunt and hollow-cheeked, with long dark hair, swallowed in a hooded brown wool cloak");
   expect(chestUp("a man with charms on a thong, in those clothes")).toBe("a man with charms on a thong, in those clothes");
+});
+
+test("someone's looks keep what lasts, not what they hold or where they are, and only a change a portrait shows redraws it", () => {
+  const coat = "a broad man in his fifties with a grey moustache, in a dark blue coat";
+  const before = { ...openingState, npcs: [{ name: "Price", appearance: coat }] };
+  const passing = `${coat}, hat in hand, gone out into the rain, kneeling at the hearth, a lamp held high`;
+  const { next } = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: passing }]);
+  expect(next.npcs[0]!.appearance).toBe(coat);
+  // Soot on his wrists is below a portrait's frame, so it draws nothing new.
+  const sooty = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: `${coat}, soot to the wrists` }]).next;
+  expect(sooty.npcs[0]!.appearance).toBe(`${coat}, soot to the wrists`);
+  expect(restyledBy(before, sooty)).toEqual([]);
+  const scarred = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: `${coat}, a fresh scar on his cheek` }]).next;
+  expect(restyledBy(before, scarred)).toEqual([scarred.npcs[0]!]);
 });
 
 test("the era is set once, and a later set_era is ignored rather than failing the Turn, so pictures never drift", () => {

@@ -175,6 +175,16 @@ test("a nudge is the player's request for that picture, which the prompt must sh
   expect(plain.prompts[0]![0]!.content).not.toContain("nudge");
 });
 
+test("an Update's portrait prompt is written again when it adds a mark the looks don't have, as soot smudges drew a beard", async () => {
+  const keep = "The same man with his face preserved.";
+  const marked = JSON.stringify({ keep, changes: "Soot-grey smudges mark his neck. He wears a black coat." });
+  const plain = JSON.stringify({ keep, changes: "He wears a black coat." });
+  const ask = { ...portrait, looks: "a huge man in a black coat, soot grey to the wrists", was: "A huge man." };
+  const { written, prompts } = write(ask, "prose", marked, plain);
+  expect(await written).toBe(`${keep} He wears a black coat. ${setting.artStyle}`);
+  expect(prompts).toHaveLength(2);
+});
+
 test("an Update's portrait prompt is a short edit of the old portrait: the same face, then how they look now", async () => {
   const reply = JSON.stringify({
     keep: "The same woman with her face preserved.",

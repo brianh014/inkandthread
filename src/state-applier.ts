@@ -342,8 +342,8 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
     case "add_npc": {
       // No two people share a name, so adding someone already there gives them the looks they now have, as update_npc would.
       const npc = findNpc(state, operation.name);
-      if (npc) npc.appearance = operation.appearance;
-      else state.npcs.push({ name: operation.name, appearance: operation.appearance });
+      if (npc) npc.appearance = lasting(operation.appearance);
+      else state.npcs.push({ name: operation.name, appearance: lasting(operation.appearance) });
       // What World Moves On gave them to know before they were met, under the name a thread gave them.
       const unmet = Object.keys(state.npcKnows).find(
         (name) => name !== operation.name && !findNpc(state, name) && (named(operation.name, name) || named(name, operation.name)),
@@ -354,7 +354,7 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
     case "update_npc": {
       const npc = findNpc(state, operation.name);
       if (!npc) return "no such NPC";
-      npc.appearance = operation.appearance;
+      npc.appearance = lasting(operation.appearance);
       return;
     }
     case "merge_npc":
@@ -491,6 +491,20 @@ const DAY_PARTS: [RegExp, number][] = [
   [/dawn|sunrise|daybreak|early morning/i, 1],
   [/morning/i, 2],
 ];
+// What someone holds, or where they are or what they are doing, which passes with the scene, as a looks of "hat in hand, gone
+// out into the rain" redrew a portrait. shortcut: whole comma clauses by these words; add a word when another passing state sticks.
+const PASSING =
+  /\b(?:holding|carrying|clutching|gripping|kneeling|crouching|sitting|seated|lying|leaning|standing (?:at|in|by|on|beside|over|before)|gone (?:out|off|away|into|to|back)|in (?:his|her|their|one) (?:other )?hand|in hand|held (?:high|low|up|out))\b/i;
+/** The looks without their passing clauses, or as written if nothing else is left. */
+const lasting = (appearance: string) => {
+  const kept = appearance
+    .split(",")
+    .filter((clause) => !PASSING.test(clause))
+    .join(",")
+    .trim();
+  return kept || appearance;
+};
+
 const [MORNING, NIGHT] = [2, 6];
 /** Where in the day a time of day falls, in order, or undefined for words that don't say. */
 const dayPart = (timeOfDay = "") => DAY_PARTS.find(([words]) => words.test(timeOfDay))?.[1];

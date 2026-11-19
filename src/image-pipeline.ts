@@ -77,7 +77,8 @@ export function portraitsDue(before: State, after: State) {
 
 /** Everyone whose looks a Turn changed: an NPC given new looks, and the PC, as null, when what they wear or how they look changed. */
 export function restyledBy(before: State, after: State): (Npc | null)[] {
-  const npcs = after.npcs.filter(({ name, appearance }) => before.npcs.some((npc) => npc.name === name && npc.appearance !== appearance));
+  // Only a change a head and shoulders frame shows, as soot to the wrists redrew a portrait that then drew it on the neck.
+  const npcs = after.npcs.filter(({ name, appearance }) => before.npcs.some((npc) => npc.name === name && chestUp(npc.appearance) !== chestUp(appearance)));
   const pc = JSON.stringify(before.inventory.wearing) !== JSON.stringify(after.inventory.wearing) || before.pcAppearance !== after.pcAppearance;
   return [...(pc ? [null] : []), ...npcs];
 }
@@ -483,7 +484,8 @@ export function imagePipeline(
     const { pc: started, theme, worldBrief, artStyle } = saves.read(id);
     const state = saves.latestState(id);
     const pc = pcNow(started, state);
-    const looks = npc ? npc.appearance.trim() : pc.physicalTraits?.trim() && pcLooks(pc, wearing);
+    // Chest up, as the text model moved what the frame can't show, soot on the wrists, onto the neck.
+    const looks = npc ? chestUp(npc.appearance) : pc.physicalTraits?.trim() && pcLooks(pc, wearing);
     if (!looks) return;
     const ask = { kind: "portrait" as const, looks, theme, world: worldBrief, artStyle, era: state.era };
     if (pipeline.redraw(id, { kind: "portrait", ref: portrait.id }, portrait.messageId, ask)) {

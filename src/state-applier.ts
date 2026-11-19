@@ -165,6 +165,19 @@ export function findPerson<Npc extends { name: string }>(npcs: Npc[], mark: stri
   return partly.length === 1 ? partly[0] : undefined;
 }
 
+const itemWords = (item: string) =>
+  ` ${
+    item
+      .toLowerCase()
+      .match(/[\p{L}\p{N}]+/gu)
+      ?.join(" ") ?? ""
+  } `;
+/** Whether two items are one: the same words, or one holding all of the other's two words or more in a row. */
+const sameItem = (held: string, item: string) => {
+  const [shorter, longer] = [itemWords(held), itemWords(item)].sort((a, b) => a.length - b.length) as [string, string];
+  return shorter === longer || (shorter.trim().includes(" ") && longer.includes(shorter));
+};
+
 function take(list: string[], value: string) {
   const index = list.indexOf(value);
   if (index === -1) return false;
@@ -274,7 +287,7 @@ function mergeNpcKnows(state: State, name: string, into: string) {
 }
 
 /** What this reply made of each Plot Thread's truth it changed, its amended truth or null once resolved. */
-type ThreadsSoFar = { became: Map<string, string | null> };
+type ThreadsSoFar = { became: Map<string, string | null>; held?: Set<string> };
 
 /**
  * The open thread `text` names, followed to what this reply made of it, so that a thread already changed is never matched
@@ -295,11 +308,25 @@ function namedThread(state: State, text: string, { became }: ThreadsSoFar) {
 /** Changes `state` and returns nothing, or returns why `operation` is disproved, having changed nothing. The reason goes to the Server Log, so it never quotes the operation. */
 function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = { became: new Map() }): string | undefined {
   switch (operation.op) {
-    case "add_item":
+    case "add_item": {
+      // Worn or carried, the same thing held twice was the same notebook three times and a shawl both worn and carried. A fuller
+      // name replaces the old where it is, as models restate what is held with how it is now.
+      // The same words twice in one reply may be two of a thing, as "two lengths of rope" are, so only one held before it repeats.
+      for (const list of [state.inventory.wearing, state.inventory.carrying]) {
+        const at = list.findIndex((held) => sameItem(held, operation.item));
+        if (at < 0) continue;
+        if (itemWords(list[at]!) !== itemWords(operation.item)) list[at] = operation.item;
+        else if (!threads.held?.has(itemWords(operation.item))) break;
+        else return "already there";
+        return;
+      }
       state.inventory[operation.slot].push(operation.item);
       return;
+    }
     case "remove_item":
-      return take(state.inventory.carrying, operation.item) || take(state.inventory.wearing, operation.item) ? undefined : "not held";
+      if (take(state.inventory.carrying, operation.item) || take(state.inventory.wearing, operation.item)) return;
+      // The old name of what an add just gave a fuller one, as a reply adds the new and removes the old: it is the same thing, still held.
+      return [...state.inventory.wearing, ...state.inventory.carrying].some((held) => sameItem(held, operation.item)) ? undefined : "not held";
     case "set_health":
       if (hasNumber(operation.health)) return "has a number";
       state.status.health = operation.health;
@@ -479,7 +506,7 @@ const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }
 export function applyOperations(state: State, operations: StateOperation[]) {
   const next = structuredClone(state);
   let repeats = 0;
-  const threads: ThreadsSoFar = { became: new Map() };
+  const threads: ThreadsSoFar = { became: new Map(), held: new Set([...state.inventory.wearing, ...state.inventory.carrying].map(itemWords)) };
   const refusals = operations.flatMap(({ ...operation }) => {
     if (isRepeat(next, operation)) repeats++;
     const reason = apply(next, operation, threads);

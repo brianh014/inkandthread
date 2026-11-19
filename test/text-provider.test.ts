@@ -1005,7 +1005,8 @@ test("a line for someone who only shares the PC's title isn't the PC's", () => {
 });
 
 test("a given name is the first word after any article or title, and only clashes then", () => {
-  const state = (...names: string[]) => ({ npcs: names.map((name) => ({ name, appearance: "tall" })), pcKnown: { npcs: [] } }) as never;
+  const state = (...names: string[]) =>
+    ({ npcs: names.map((name) => ({ name, appearance: "tall" })), pcKnown: { npcs: [] }, inventory: { wearing: [], carrying: [] } }) as never;
   const adds = (...names: string[]) => names.map((name) => ({ op: "add_npc" as const, name, appearance: "tall" }));
   const refused = (names: string[], operations: Parameters<typeof introduce>[3]) => introduce(state(...names), [], "Ash", operations).refused.length;
 

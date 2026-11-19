@@ -467,3 +467,27 @@ test("a Lore Entry a Plot Thread names comes into the prompt, so the person the 
   expect(prompt).toContain("MARRICK-IS-THE-STEWARD.");
   expect(prompt).not.toContain("GULLS-ON-THE-DOME.");
 });
+
+test("an item added that is already held, worn or carried, isn't held twice, and a fuller name for it replaces the old where it is", () => {
+  const state = withState({ inventory: { wearing: ["dark blue shawl"], carrying: ["notebook and pencil", "key"] } });
+  const { next, ignored } = applyOperations(state, [
+    { op: "add_item", slot: "carrying", item: "Dark blue shawl (worn over her shoulders)" },
+    { op: "add_item", slot: "carrying", item: "notebook and pencil, with the written page torn away" },
+    { op: "add_item", slot: "carrying", item: "key" },
+    { op: "add_item", slot: "carrying", item: "key to the crypt" },
+  ]);
+
+  expect(next.inventory).toEqual({
+    wearing: ["Dark blue shawl (worn over her shoulders)"],
+    // A one-word item is the same only when it is the whole name, as one key isn't another.
+    carrying: ["notebook and pencil, with the written page torn away", "key", "key to the crypt"],
+  });
+  expect(ignored).toEqual([{ op: "add_item", reason: "already there" }]);
+  // Twice in one reply may be two of a thing.
+  expect(run(withState({}), { op: "add_item", slot: "carrying", item: "rope" }, { op: "add_item", slot: "carrying", item: "rope" }).inventory.carrying).toEqual(
+    ["rope", "rope"],
+  );
+  // A reply that adds the fuller name and removes the old keeps the thing it renamed.
+  const renamed = run(state, { op: "add_item", slot: "carrying", item: "notebook and pencil, torn" }, { op: "remove_item", item: "notebook and pencil" });
+  expect(renamed.inventory.carrying).toEqual(["notebook and pencil, torn", "key"]);
+});

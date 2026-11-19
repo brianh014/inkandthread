@@ -25,7 +25,7 @@ import { QUIET_TURNS } from "./usage";
 
 /** The Reader's Guide: what NovelForge is and how to use every part of it, one section at a time, kept in the URL hash. */
 
-/** What a player takes on with a command as their AI, in the Guide and beside the command in Settings. */
+/** What a player takes on with a command as their AI, in full, as Settings shows only a line of it. */
 export const CommandCaveats = () => (
   <ul>
     <li>

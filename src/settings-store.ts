@@ -242,8 +242,15 @@ export const reviewerSettings = (settings: TextSettings): TextSettings => ({
   },
 });
 
+/** Whether text calls run the player's command rather than reach a server. */
+export const usesCommand = ({ textCommand }: { textCommand: string[] }) => textCommand.length > 0;
+
 /** What a text call runs on, for logs and Usage: the command's program, or the chosen model. */
-export const modelName = ({ textCommand, textModel }: { textCommand: string[]; textModel: string }) => (textCommand[0] ? basename(textCommand[0]) : textModel);
+export const modelName = (settings: { textCommand: string[]; textModel: string }) =>
+  usesCommand(settings) ? basename(settings.textCommand[0]!) : settings.textModel;
+
+/** The command as another computer may see it: the program's name alone, as its arguments may hold a key. */
+export const commandSeenFrom = (here: boolean, textCommand: string[]) => (here || !usesCommand({ textCommand }) ? textCommand : [basename(textCommand[0]!)]);
 
 /** Per-install settings, including API keys. They live in one file outside the Saves folder, so no Save can carry them. */
 export function settingsStore(path: string) {

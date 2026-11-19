@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { commandReply } from "./command-provider";
 import { errorFields, log } from "./logger";
-import type { SettingsStore, TextSettings } from "./settings-store";
+import { type SettingsStore, type TextSettings, usesCommand } from "./settings-store";
 import { ContentRefused, ReplyCutOff, StoppedOnPurpose, type TextProvider, TextProviderFailed, type TextUsage, ThoughtTooLong } from "./turn-engine";
 import { GOOGLE_URL, NANOGPT_URL } from "./web/api";
 
@@ -198,7 +198,7 @@ export function textProvider(
 
   return async (prompt, request) => {
     const all = settings.read();
-    if (all.textCommand.length > 0) return commandReply(all.textCommand, prompt, request, all);
+    if (usesCommand(all)) return commandReply(prompt, request, all);
     const { schema, picture, lessThinking = 0, onText, onGeneration, onUsage, signal } = request;
     const {
       textBaseUrl,

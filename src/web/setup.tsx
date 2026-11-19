@@ -1,5 +1,5 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
-import { askTextTest, commandWords, getImageModels, getSettings, getTextModels, offersDecisions, type Settings, saveSettings, setupProblem } from "./api";
+import { askTextTest, getImageModels, getSettings, getTextModels, offersDecisions, type Settings, saveSettings, setupProblem } from "./api";
 import type { SettingsChange } from "../settings-store";
 import { roman } from "./chat-style";
 import { MenuRibbon, Sheet } from "./menu";
@@ -7,7 +7,7 @@ import { CHAT_STYLES, ReadingSamples, THEMES } from "./reading-samples";
 import {
   applyLook,
   CommandField,
-  commandLineOf,
+  useCommandLine,
   ComfySettings,
   ConsistencySettings,
   LockedCommand,
@@ -116,8 +116,8 @@ function Steps({ initial }: { initial: Settings }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const set = (change: Partial<Settings>) => setDraft({ ...draft, ...change });
-  const [commandLine, setCommandLine] = useState(commandLineOf(initial));
-  const command = commandLine !== undefined;
+  const commandBox = useCommandLine(initial, set);
+  const command = commandBox.line !== undefined;
 
   const textChoice = textChoiceOf(draft.textBaseUrl);
   const local = textChoice === "local";
@@ -185,7 +185,7 @@ function Steps({ initial }: { initial: Settings }) {
   // Leaving a page any way but Next drops what it changed, as only Next saves.
   const go = (step: number) => {
     setDraft(saved);
-    setCommandLine(commandLineOf(saved));
+    commandBox.reset(saved);
     applyLook(saved);
     setError("");
     setHere(step);
@@ -250,7 +250,7 @@ function Steps({ initial }: { initial: Settings }) {
           other service that speaks the common OpenAI-compatible standard.
         </p>
         {command && !saved.commandHere ? (
-          <LockedCommand line={commandLine} />
+          <LockedCommand line={commandBox.line!} />
         ) : (
           <>
             <Picker
@@ -258,7 +258,7 @@ function Steps({ initial }: { initial: Settings }) {
               value={command ? "command" : textChoice}
               choices={narratorChoices(saved)}
               onChange={(provider) => {
-                setCommandLine(provider === "command" ? "" : undefined);
+                commandBox.pick(provider);
                 if (provider === "command") return;
                 // As in Settings: a provider switched to brings back its own model, and Local the last local server, and turns the command off.
                 const lastLocal = Object.keys(saved.textProfiles).findLast((at) => !Object.values(TEXT_PROVIDERS).includes(at)) ?? "";
@@ -287,13 +287,7 @@ function Steps({ initial }: { initial: Settings }) {
               }
             </p>
             {command ? (
-              <CommandField
-                line={commandLine}
-                onLine={(line) => {
-                  setCommandLine(line);
-                  set({ textCommand: commandWords(line) });
-                }}
-              />
+              <CommandField line={commandBox.line!} onLine={commandBox.type} />
             ) : (
               <>
                 <ProviderLinks provider={textChoice} />

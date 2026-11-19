@@ -7,7 +7,7 @@ import type { ImageAdapter } from "./image-adapter";
 import { defaultLogLevel, errorFields, errorType, log, setLogLevel } from "./logger";
 import { decisionModels } from "./decisions";
 import { estimateTokens } from "./lore-activation";
-import { modelName, OnlineImageProvider, reviewerSettings, type SettingsChange, SettingsUpdate } from "./settings-store";
+import { commandSeenFrom, modelName, OnlineImageProvider, reviewerSettings, type SettingsChange, SettingsUpdate } from "./settings-store";
 import { textHosts, textModels } from "./text-provider";
 import { ContentRefused, TextProviderFailed } from "./turn-engine";
 import { GOOGLE_URL, NANOGPT_URL, OPENROUTER_URL, storyName, UNREADABLE_SAVE } from "./web/api";
@@ -95,7 +95,7 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
       textCommand,
     } = settings.read();
     return {
-      textCommand,
+      textCommand: commandSeenFrom(here, textCommand),
       commandHere: here,
       textBaseUrl,
       textModel,
@@ -173,8 +173,10 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
         const { imageKeyFromText, ...change } = await parseBody(req, SettingsSave);
         const current = settings.read();
         const here = fromThisComputer(req, server);
-        // The form sends every field, so only a command that differs is a change.
-        if (change.textCommand && JSON.stringify(change.textCommand) !== JSON.stringify(current.textCommand) && !here) {
+        // The form sends every field, so a command as this page was shown it is no change.
+        const shownAs = (shown: string[]) => JSON.stringify(change.textCommand) === JSON.stringify(shown);
+        if (change.textCommand && shownAs(commandSeenFrom(here, current.textCommand))) delete change.textCommand;
+        if (change.textCommand && !here) {
           log.warning("settings", "A command change was refused, as it came from another computer");
           return Response.json({ error: "The command can only be changed in Settings on the computer NovelForge runs on." }, { status: 403 });
         }

@@ -89,6 +89,10 @@ _Avoid_: Off-screen turn, world tick
 An optional decision model, chosen in Settings, that answers consistency questions of each reply: narrow yes-or-no questions, each sent only the slice of the story it needs, such as whether the reply's time of day fits Story Time. A question over its cut-off has the reviewer fix the reply before it is saved.
 _Avoid_: Checker, judge, Check model (a Check is the hidden test of a risky PC action)
 
+**Command**:
+A Text Provider that is a program the player sets up, such as a provider's own command-line tool, in place of a server: it reads each prompt on its input and prints only the reply. As it runs a program, only Settings opened on the computer NovelForge runs on can set or change it. The reviewer uses it unless it has its own server; the Consistency model never does.
+_Avoid_: CLI provider, shell command (it runs with no shell)
+
 **Check**:
 A hidden test of a risky PC action against a difficulty the Narrator sets before the outcome is known. The player never sees a Check.
 _Avoid_: Roll, skill check, saving throw

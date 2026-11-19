@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { networkInterfaces } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { commandInput } from "../src/command-provider";
 import { startServer } from "../src/rest-api";
 import { saveStore } from "../src/save-store";
@@ -155,8 +155,8 @@ test("a command is killed when the player stops it", async () => {
   expect(running()).toBe(false);
 });
 
-test("only Settings on this computer can change the command, and others see it", async () => {
-  useCommand(PLAYS);
+/** A server open to the network, as the Server download runs, with its Settings routes reached by address. */
+function openServer() {
   const server = startServer({
     savesDir: join(folder.path, "Saves"),
     settings: settingsStore(join(folder.path, "settings.json")),
@@ -167,32 +167,50 @@ test("only Settings on this computer can change the command, and others see it",
     port: 0,
     hostname: "0.0.0.0",
   });
+  const at = (host: string) => new URL(`http://${host}:${server.port}/settings`);
+  return {
+    stop: () => server.stop(true),
+    get: (host: string) => fetch(at(host)).then((r) => r.json()),
+    patch: (host: string, body: object, headers: Record<string, string> = {}) =>
+      fetch(at(host), { method: "PATCH", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) }),
+  };
+}
+
+const stored = () => JSON.parse(readFileSync(join(folder.path, "settings.json"), "utf8")).textCommand;
+// This machine's own address on its network, as another device reaches it. CI runners have one.
+const LAN = Object.values(networkInterfaces())
+  .flat()
+  .find((each) => each?.family === "IPv4" && !each.internal)?.address;
+
+test("Settings on this computer can change the command, but not a page rebinding its domain to it", async () => {
+  useCommand(PLAYS);
+  const server = openServer();
   try {
-    const at = (host: string) => new URL(`http://${host}:${server.port}/settings`);
-    const patch = (host: string, body: object, headers: Record<string, string> = {}) =>
-      fetch(at(host), { method: "PATCH", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
-    const stored = () => JSON.parse(readFileSync(join(folder.path, "settings.json"), "utf8")).textCommand;
-    const set = [process.execPath, FAKE, rules];
+    // Sent from this computer, but under the page's own name.
+    expect((await server.patch("127.0.0.1", { textCommand: ["calc.exe"] }, { Host: "rebound.example" })).status).toBe(403);
+    expect(stored()).toEqual([process.execPath, FAKE, rules]);
 
-    // A page rebinding its domain to this computer is sent from here, but under its own name.
-    expect((await patch("127.0.0.1", { textCommand: ["calc.exe"] }, { Host: "rebound.example" })).status).toBe(403);
-    expect(stored()).toEqual(set);
-
-    const lan = Object.values(networkInterfaces())
-      .flat()
-      .find((each) => each?.family === "IPv4" && !each.internal)?.address;
-    if (lan) {
-      expect((await patch(lan, { textCommand: ["calc.exe"] })).status).toBe(403);
-      // The form sends every field, so the same command, with anything else, is saved.
-      expect((await patch(lan, { textCommand: set, fontSize: "large" })).status).toBe(200);
-      expect(await fetch(at(lan)).then((r) => r.json())).toMatchObject({ textCommand: set, commandHere: false });
-    }
-
-    expect(await fetch(at("127.0.0.1")).then((r) => r.json())).toMatchObject({ textCommand: set, commandHere: true });
-    expect((await patch("localhost", { textCommand: ["claude", "-p"] })).status).toBe(200);
+    expect(await server.get("127.0.0.1")).toMatchObject({ textCommand: [process.execPath, FAKE, rules], commandHere: true });
+    expect((await server.patch("localhost", { textCommand: ["claude", "-p"] })).status).toBe(200);
     expect(stored()).toEqual(["claude", "-p"]);
   } finally {
-    await server.stop(true);
+    await server.stop();
+  }
+});
+
+test.skipIf(!LAN)("another device sees only the command's program, and can't change it", async () => {
+  useCommand(PLAYS);
+  const server = openServer();
+  try {
+    const seen = await server.get(LAN!);
+    // Its arguments may hold a key.
+    expect(seen).toMatchObject({ textCommand: [basename(process.execPath)], commandHere: false });
+    expect((await server.patch(LAN!, { textCommand: ["calc.exe"] })).status).toBe(403);
+    // The form sends every field, so the command as it was shown, with anything else, saves and keeps the command whole.
+    expect((await server.patch(LAN!, { textCommand: seen.textCommand, fontSize: "large" })).status).toBe(200);
+    expect(stored()).toEqual([process.execPath, FAKE, rules]);
+  } finally {
+    await server.stop();
   }
 });
 

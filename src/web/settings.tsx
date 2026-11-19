@@ -874,6 +874,21 @@ export const narratorChoices = ({ commandHere }: Pick<Settings, "commandHere">) 
 /** The command as the player types it, or undefined while the Narrator is on a server. */
 export const commandLineOf = ({ textCommand }: Pick<Settings, "textCommand">) => (textCommand.length > 0 ? commandText(textCommand) : undefined);
 
+/** The Narrator's command as the player types it, kept in step with the draft's `textCommand`. `line` is undefined while on a server. */
+export function useCommandLine(initial: Settings, set: (change: Partial<Settings>) => void) {
+  const [line, setLine] = useState(commandLineOf(initial));
+  return {
+    line,
+    /** For the provider list: Command starts an empty line, and a server ends it, which the caller then switches to. */
+    pick: (provider: string) => setLine(provider === "command" ? "" : undefined),
+    type: (next: string) => {
+      setLine(next);
+      set({ textCommand: commandWords(next) });
+    },
+    reset: (to: Settings) => setLine(commandLineOf(to)),
+  };
+}
+
 /** A command set on the computer NovelForge runs on, seen from another one, which may not change it. */
 export const LockedCommand = ({ line }: { line: string }) => (
   <>
@@ -1132,8 +1147,7 @@ function InstallSettings({
   const [reviewKey, setReviewKey] = useState("");
   const [consistencyKey, setConsistencyKey] = useState("");
   const set = (change: Partial<Settings>) => setDraft({ ...draft, ...change });
-  // The command as the player types it, or undefined while the Narrator is on a server.
-  const [commandLine, setCommandLine] = useState(commandLineOf(initial));
+  const command = useCommandLine(initial, set);
 
   const textChoice = textChoiceOf(draft.textBaseUrl);
   const local = textChoice === "local";
@@ -1252,28 +1266,22 @@ function InstallSettings({
     >
       <div data-section="Text" className="fields" hidden={section !== "Text"}>
         <h2>Text</h2>
-        {commandLine !== undefined && !saved.commandHere ? (
-          <LockedCommand line={commandLine} />
+        {command.line !== undefined && !saved.commandHere ? (
+          <LockedCommand line={command.line} />
         ) : (
           <>
             <Picker
               label="Text provider"
-              value={commandLine !== undefined ? "command" : textChoice}
+              value={command.line !== undefined ? "command" : textChoice}
               choices={narratorChoices(saved)}
               onChange={(provider) => {
-                setCommandLine(provider === "command" ? "" : undefined);
+                command.pick(provider);
                 // A server switched to turns the command off.
                 if (provider !== "command") switchText(provider);
               }}
             />
-            {commandLine !== undefined ? (
-              <CommandField
-                line={commandLine}
-                onLine={(line) => {
-                  setCommandLine(line);
-                  set({ textCommand: commandWords(line) });
-                }}
-              />
+            {command.line !== undefined ? (
+              <CommandField line={command.line} onLine={command.type} />
             ) : (
               <>
                 {local && (

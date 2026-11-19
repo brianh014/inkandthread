@@ -7,7 +7,7 @@ import { modelName } from "./settings-store";
 import { type TextProvider, TextProviderFailed } from "./turn-engine";
 
 // The player sees these with a retry hint after them, so none ends in a full stop.
-const CANT_RUN = "The command in settings.json can't be run, so check its program name and that the program is installed";
+const CANT_RUN = "The command in Settings can't be run, so check its program name and that the program is installed";
 const TOO_LONG = "The command ran past the reply time limit in Settings and was stopped, so nothing was saved";
 const SILENT = "The command printed nothing, so try it by hand with a short prompt on its input";
 const exitedWith = (code: number) => `The command stopped with exit code ${code}, so try it by hand, or check its limits haven't run out`;
@@ -25,15 +25,14 @@ export function commandInput(prompt: Prompt, schema?: object) {
  * it may echo the prompt.
  */
 export async function commandReply(
-  command: string[],
   prompt: Prompt,
   { schema, onText, signal }: Parameters<TextProvider>[1],
-  { textReplyMinutes, storyInLog }: { textReplyMinutes: number; storyInLog: boolean },
+  { textCommand: command, textReplyMinutes, storyInLog }: { textCommand: string[]; textReplyMinutes: number; storyInLog: boolean },
 ) {
-  const program = modelName({ textCommand: command, textModel: "" });
   if (storyInLog) log.story("text", "Prompt text", { prompt });
   const started = Date.now();
-  const seen: Record<string, unknown> = { program };
+  // For the Server Log, so it holds how the call went and none of its text.
+  const outcome: { program: string; exit?: number; stderrChars?: number; failed?: string } = { program: modelName({ textCommand: command, textModel: "" }) };
   // From the start, as a program that prints its reply in one go is silent until it ends.
   const overrun = AbortSignal.timeout(textReplyMinutes * 60 * 1000);
   const stop = AbortSignal.any([signal, overrun]);
@@ -56,19 +55,24 @@ export async function commandReply(
     }
     stop.addEventListener("abort", kill, { once: true });
     const errors = new Response(child.stderr as ReadableStream).text();
-    for await (const text of (child.stdout as ReadableStream).pipeThrough(new TextDecoderStream())) {
-      reply += text;
-      onText(text);
+    try {
+      // Ended by the stop too, as a child the killed program left behind can hold its output open.
+      for await (const text of (child.stdout as ReadableStream).pipeThrough(new TextDecoderStream(), { signal: stop })) {
+        reply += text;
+        onText(text);
+      }
+    } catch (cause) {
+      if (!stop.aborted) throw cause;
     }
-    seen.exit = await child.exited;
-    seen.stderrChars = (await errors).length;
+    outcome.exit = await child.exited;
+    outcome.stderrChars = (await errors).length;
     signal.throwIfAborted();
     if (overrun.aborted) throw new TextProviderFailed(TOO_LONG);
-    if (seen.exit !== 0) throw new TextProviderFailed(exitedWith(seen.exit as number));
+    if (outcome.exit !== 0) throw new TextProviderFailed(exitedWith(outcome.exit));
     if (!reply.trim()) throw new TextProviderFailed(SILENT);
     return reply;
   } catch (cause) {
-    seen.failed = signal.aborted ? "stopped" : overrun.aborted ? "time limit" : (cause as Error).name;
+    outcome.failed = signal.aborted ? "stopped" : overrun.aborted ? "time limit" : (cause as Error).name;
     throw cause;
   } finally {
     stop.removeEventListener("abort", kill);
@@ -77,8 +81,8 @@ export async function commandReply(
     } catch {
       // Windows keeps a folder a killed program's child still sits in, and an empty temporary folder left behind is harmless.
     }
-    const logAs = seen.failed && !signal.aborted ? log.warning : log.info;
-    logAs("text", "Command reply", { ...seen, chars: reply.length, ms: Date.now() - started });
+    const logAs = outcome.failed && !signal.aborted ? log.warning : log.info;
+    logAs("text", "Command reply", { ...outcome, chars: reply.length, ms: Date.now() - started });
     if (storyInLog && reply) log.story("text", "Text reply text", { text: reply });
   }
 }

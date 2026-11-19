@@ -15,7 +15,7 @@ const mentions = (text: string, word: string) => wholeWord(word, /^\p{Lu}/u.test
  * Threads and Lore, and on the bench kept offering Choices built on them despite the rule against it.
  * shortcut: names, keywords, made-up names and the secrets' long words, so a secret in short plain words isn't caught.
  */
-export function unknownWords(choices: string[], state: State, seen: string, namesOnly = false) {
+export function unknownWords(choices: string[], state: State, seen: string, journal = false) {
   // Names and places, as a lone common word such as "riders" is in Choices that leak nothing.
   const keywords = state.worldBible.filter(({ alwaysOn }) => !alwaysOn).flatMap(({ keywords }) => keywords);
   const words = [...state.npcs.map(({ name }) => name), ...keywords.filter((word) => /^\p{Lu}/u.test(word) || word.includes(" "))];
@@ -35,19 +35,25 @@ export function unknownWords(choices: string[], state: State, seen: string, name
     ...state.worldBible.filter(({ alwaysOn }) => !alwaysOn).map(({ content }) => content),
   ].join("\n");
   const unseen = (word: string) => !wholeWord(word, "iu").test(known);
-  const hiddenRuns = new Set(namesOnly ? [] : runs(hidden));
-  const knownRuns = new Set(namesOnly ? [] : runs(known));
-  return choices.map((choice) => [...new Set([...unknown.filter((word) => mentions(choice, word)), ...(namesOnly ? [] : guessed(choice))])]);
+  const hiddenRuns = new Set(journal ? [] : runs(hidden));
+  const knownRuns = new Set(journal ? [] : runs(known));
+  return choices.map((choice) => [...new Set([...unknown.filter((word) => mentions(choice, word)), ...guessed(choice)])]);
   function guessed(choice: string) {
+    // A Journal entry is held to names and the secrets' long words alone, as it is written as the PC, who names things in their own words.
+    return [
+      ...(journal ? [] : copiedOrMadeUp(choice)),
+      // A thing only the hidden threads and Lore hold, as an oilskin a secret ledger was wrapped in. Long words only, as short ones
+      // are common, and no everyday word, as "anyone" and "examine" cost a play its Choices.
+      ...(choice.match(/\p{L}{6,}/gu) ?? []).filter((word) => !EVERYDAY.has(word.toLowerCase()) && wholeWord(word, "iu").test(hidden) && unseen(word)),
+    ];
+  }
+  function copiedOrMadeUp(choice: string) {
     return [
       // Four words in a row from the hidden threads and Lore, as a Choice copied a thread's "whose side the lie falls on". Not
       // a run of short or everyday words alone, as those are in any Choice.
       ...runs(choice).filter((run) => hiddenRuns.has(run) && !knownRuns.has(run) && !run.split(" ").every((word) => word.length <= 3 || EVERYDAY.has(word))),
       // A name or place the Narrator made up, as a town no one had spoken of was offered as where to ride. Not a sentence's first word.
       ...(choice.match(/(?<!\p{L}|[.!?:;"“‘(]\s*|^[\s"“‘]*)\p{Lu}\p{L}{3,}/gu) ?? []).filter((word) => !EVERYDAY.has(word.toLowerCase()) && unseen(word)),
-      // A thing only the hidden threads and Lore hold, as an oilskin a secret ledger was wrapped in. Long words only, as short ones
-      // are common, and no everyday word, as "anyone" and "examine" cost a play its Choices.
-      ...(choice.match(/\p{L}{6,}/gu) ?? []).filter((word) => !EVERYDAY.has(word.toLowerCase()) && wholeWord(word, "iu").test(hidden) && unseen(word)),
     ];
   }
 }
@@ -91,8 +97,8 @@ const journalText = (operation: StateOperation) =>
  */
 export function withoutUnread<Operation extends StateOperation>(operations: Operation[], state: State, read: string) {
   const journal = operations.filter(({ op }) => JOURNAL.includes(op));
-  // Names and keywords alone, as the long-word test dropped what the player had just read in other words, such as a daughter
-  // who had said "my father"; for Choices the reviewer writes those again, but here it would be lost.
+  // With the secrets' long words too, as a summary called someone a daughter that no page had, and then let Choices through on it.
+  // shortcut: a fact the player read in other words, such as a daughter who said "my father", is lost too; match meanings if that costs true notes.
   // Not a Lore Entry the player has read of by any of its keywords, as true notes were dropped for calling a vicar the Reverend.
   const worldBible = state.worldBible.filter(({ keywords }) => !keywords.some((word) => mentions(read, word)));
   const leaks = unknownWords(journal.map(journalText), { ...state, worldBible, summary: "", pcKnown: { facts: [], npcs: [] } }, read, true);

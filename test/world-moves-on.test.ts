@@ -212,6 +212,17 @@ test("a rewrite keeps a many-word name or Lore keyword when it keeps the word th
   expect(keepsNames({ old, new: "Mr Kell means to burn Orrin's mill." })).toBe(false);
 });
 
+test("a rewrite keeps everyone the thread named even once the PC has met them, as meeting someone doesn't end their plan", () => {
+  const state = {
+    ...openingState,
+    summary: "Ash met Mr Pell at the mill and found Orrin dead.",
+    worldBible: [{ title: "The judge", keywords: ["Mr Pell", "judge"], content: "", alwaysOn: false }],
+  };
+  const { keepsNames } = threadGuards(state, "Ash");
+
+  expect(keepsNames({ old: "Mr Pell paid to have Orrin killed.", new: "The killer burns the mill's books." })).toBe(false);
+});
+
 test("a move that misquotes a thread, or fails, leaves the world as it was and the next Turn plays", async () => {
   play(
     narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),

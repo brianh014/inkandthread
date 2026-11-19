@@ -763,7 +763,24 @@ test("a reply silent from its first byte is asked for once more, as a stuck requ
   expect(provider.requests).toHaveLength(2);
   expect(log).toContain('Silent reply asked again {"model":"fake/model","ms":');
   // Each reply's line names what the call was for, so the bench can count its tokens by it.
-  expect(log).toContain('Text reply {"call":"turn","model":"fake/model"');
+  expect(log).toMatch(/Text reply \{"call":"turn","id":\d+,"model":"fake\/model"/);
+});
+
+test("a call's prompt and reply lines share one id, so calls running at once can be paired in the log", async () => {
+  play([
+    [delta("One."), "data: [DONE]\n\n"],
+    [delta("Two."), "data: [DONE]\n\n"],
+  ]);
+  const provide = textProvider(settingsStore(join(folder.path, "settings.json")));
+  const ask = (call: string) => provide([{ role: "user", content: "Hi" }], { call, onText: () => {}, signal: new AbortController().signal });
+
+  const log = await logOf(() => Promise.all([ask("turn"), ask("upkeep")]), "verbose");
+
+  for (const call of ["turn", "upkeep"]) {
+    const sent = log.match(new RegExp(`Prompt sent \\{"call":"${call}","id":(\\d+)`))?.[1];
+    expect(sent).toBeDefined();
+    expect(log).toContain(`Text reply {"call":"${call}","id":${sent},`);
+  }
 });
 
 test("a reply that stalls after some text is not asked again", async () => {

@@ -152,6 +152,8 @@ const routing = ({ textRouting, textHost, textHostFallback }: Routing) =>
 const LEVELS = ["low", "medium", "high"];
 /** `steps` levels below `level`, and never below Low. The model's own level is taken as one that thinks too long, so it goes a step below Medium. */
 export const lowerThinking = (level: string, steps: number) => LEVELS[Math.max(0, (level === "default" ? 1 : LEVELS.indexOf(level)) - steps)]!;
+// Each call's lines share its number, as calls run at once (State Upkeep, pictures) can't be paired with their prompts by order.
+let calls = 0;
 
 export function textProvider(
   settings: TextSettings,
@@ -250,16 +252,17 @@ export function textProvider(
       return short;
     };
     // Story in log is the one place a log holds story text, as the player chose it for debugging. Never the key, should the text hold it.
-    if (chosen.storyInLog) log.story("text", "Prompt text", { prompt: prompt.map(({ role, content }) => ({ role, content: unkeyed(content) })) });
+    const named = { ...(call && { call }), id: ++calls };
+    if (chosen.storyInLog) log.story("text", "Prompt text", { ...named, prompt: prompt.map(({ role, content }) => ({ role, content: unkeyed(content) })) });
     const failure = (error: ProviderError | undefined, status: number) => {
       if (isRefusal(error)) return new ContentRefused();
-      log.verbose("text", "Text Provider error", () => ({ detail: redacted(JSON.stringify({ status, error })) }));
+      log.verbose("text", "Text Provider error", () => ({ ...named, detail: redacted(JSON.stringify({ status, error })) }));
       return new TextProviderFailed(REJECTED);
     };
 
     // For the Server Log, so it holds how the reply went and none of its text.
     const started = Date.now();
-    const seen: Record<string, unknown> = { ...(call && { call }), model: textModel, thinking: textThinking, thinkingLimit: thinkingTokens };
+    const seen: Record<string, unknown> = { ...named, model: textModel, thinking: textThinking, thinkingLimit: thinkingTokens };
     let reply = "";
     let thought = 0;
     let thoughtFrom: number | undefined;
@@ -278,7 +281,7 @@ export function textProvider(
     let budget: number | undefined;
     const send = async (useSchema: boolean, askUsage: boolean) => {
       heardFrom();
-      log.verbose("text", "Prompt sent", () => ({ model: textModel, messages: prompt.length, chars: sent.length, schema: useSchema }));
+      log.verbose("text", "Prompt sent", () => ({ ...named, model: textModel, messages: prompt.length, chars: sent.length, schema: useSchema }));
       const response = await fetch(`${url}/chat/completions`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },

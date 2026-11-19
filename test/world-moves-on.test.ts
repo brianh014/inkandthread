@@ -94,7 +94,7 @@ test("at a change of place the world moves on out of sight, and the next Turn re
   expect(log).not.toContain("barge");
 });
 
-test("with no thread open, a move still reads the Lore Entries the story names, so a thread it adds keeps to the world", async () => {
+test("a move reads the Lore Entries the story names too, not only its threads', so a thread it adds keeps to the world", async () => {
   const told = play(
     narration(
       "Ash catches the thief where a gull nests on the dome.",
@@ -111,6 +111,30 @@ test("with no thread open, a move still reads the Lore Entries the story names, 
   expect((await turn(id, "I look out.")).ok).toBe(true);
 
   expect(told.prompts[1]!.at(-1)!.content).toContain("Gulls nest");
+});
+
+test("a Turn's resolve only asks the next move to close the thread, which the move removes or keeps", async () => {
+  const THIEF = "A thief plans to rob the library at the next high tide.";
+  const told = play(
+    narration("Ash catches the thief at the dock.", { op: "resolve_plot_thread", thread: THIEF }, { op: "set_scene", location: "The dock", visible_cast: [] }),
+    moved({ old: THIEF, new: null }),
+    narration("Ash looks out over the water."),
+  );
+  const id = createSave();
+
+  const log = await logOf(async () => {
+    expect((await turn(id, "I catch him.")).ok).toBe(true);
+    // The next Turn waits for the move.
+    expect((await turn(id, "I look out.")).ok).toBe(true);
+  }, "info");
+
+  // Still open when the move was asked, which was told the Turn asked to close it.
+  const asked = JSON.parse(told.prompts[1]!.at(-1)!.content);
+  expect(asked.plot_threads).toEqual([THIEF]);
+  expect(asked.asked_to_close).toEqual([THIEF]);
+  expect(store().latestState(id).plotThreads).toEqual([]);
+  expect(log).toContain('"closeAsked":1');
+  expect(log).toContain('"asked":1,"closed":1');
 });
 
 test("a Turn's thread rewrite that drops a name or retells the scene, or a resolve of a thread whose people the reply never names or the Turn also rewrites, is dropped", () => {

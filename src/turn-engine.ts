@@ -23,7 +23,18 @@ import {
 import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } from "./save-store";
 import type { SettingsStore } from "./settings-store";
 import type { NarratorTurn, UsageStore } from "./usage-store";
-import { applyOperations, findPerson, givenName, introduce, nameForms, Person, type SceneMemory, type State, StateOperation } from "./state-applier";
+import {
+  applyOperations,
+  closestThread,
+  findPerson,
+  givenName,
+  introduce,
+  nameForms,
+  Person,
+  type SceneMemory,
+  type State,
+  StateOperation,
+} from "./state-applier";
 import { type Checked, type Consistency, checkConsistency, replyToCheck } from "./consistency";
 import { countWords, withinLimit } from "./limits";
 import { knownChoices, withoutUnread, writeChoices } from "./known-choices";
@@ -31,7 +42,7 @@ import { wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
-import { MOVE_LIMIT, moveDue, moveWorldOn, turnThreadChanges } from "./world-moves-on";
+import { askToClose, MOVE_LIMIT, moveDue, moveWorldOn, turnThreadChanges } from "./world-moves-on";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
 const moving = new Map<string, Promise<void>>();
@@ -404,6 +415,8 @@ type Narrated = {
   committed: (messageId: number, scene: Scene) => void;
   /** Tallies a committed player's Turn for the Narrator report. */
   counted?: (turn: NarratorTurn) => void;
+  /** The open threads a committed reply asked to close, for World Moves On to weigh. */
+  askClose?: (threads: string[]) => void;
 };
 
 /** The prompt for a Turn's reply, and the Scene Memory due alongside it. Settings are read once, so the whole prompt comes from one copy. */
@@ -546,6 +559,7 @@ export async function playTurn(
     committed: (messageId, scene) => images.sceneChanged(id, messageId, scene),
     // Only what the player did counts, so not the opening or a Continue, which have nothing to check.
     counted: kind === "turn" && !isContinueInput(input) ? (turn) => usage?.turn(id, model, turn) : undefined,
+    askClose: (threads) => askToClose(id, threads),
   });
   const replies = messages.filter(({ role }) => role === "narrator").length + 1;
   if (moveWorld && kind === "turn" && moveDue(state, saves.latestState(id), replies)) {
@@ -678,6 +692,7 @@ async function narrate(
     commit,
     committed,
     counted,
+    askClose,
   }: Narrated,
 ) {
   const schemas = SCHEMAS[playMode];
@@ -760,6 +775,10 @@ async function narrate(
           log.info("turn", "Operations dropped", { attempt, generation, openingLoreRemoves: state_operations.length - kept.length });
         state_operations = kept;
       }
+      // Only asked of World Moves On, which weighs it at its next move, as lone resolves ended threads whose secrets were unplayed.
+      const asks = state_operations.flatMap((operation) => (operation.op === "resolve_plot_thread" ? [operation.thread] : []));
+      state_operations = state_operations.filter(({ op }) => op !== "resolve_plot_thread");
+      let asked: string[] = [];
       // Later replies copy marks like these, so they never reach a Save.
       const cleaned = withoutFields(withoutStrayMarks(response.narration as string));
       let narration = edited ?? withoutBareSpeech(cleaned);
@@ -878,6 +897,7 @@ async function narrate(
           const kept = applyOperations(told, upkept ?? []);
           upkeepRefused = kept.refused.length + kept.ignored.length;
           const next = kept.next;
+          asked = asks.flatMap((thread) => closestThread(next.plotThreads, thread) ?? []);
           repeated = repeats;
           ignored = harmless;
           // Kept when cut to a fifth of the last, as an 80-round story's became "(see journal)" and would have lost the whole story.
@@ -922,6 +942,7 @@ async function narrate(
       }
       if (repeated > 0) log.info("turn", "Repeats ignored", { count: repeated });
       if (ignored.length > 0) log.warning("turn", "Operations ignored", { reason: refusalText(ignored) });
+      askClose?.(asked);
       const operations = state_operations.map(({ op }) => op);
       counted?.({ difficulty: check?.difficulty, operations });
       // Counts only, so that the log never repeats the story: a Check's action is the player's words, so it's left out.
@@ -939,6 +960,7 @@ async function narrate(
         ...(checked && { consistency: checked }),
         sceneChanged: !!scene_changed,
         chapterEnds: !!chapter_ends,
+        ...(asks.length > 0 && { closeAsked: asks.length }),
       }));
       return messages;
     } catch (cause) {

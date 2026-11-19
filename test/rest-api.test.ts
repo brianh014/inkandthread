@@ -1381,7 +1381,7 @@ test("a Lore Entry and a Plot Thread the Narrator corrects go forward corrected,
   expect(contents(prompts[3]).join()).toContain("old-thread");
 });
 
-test("a resolved Plot Thread leaves later prompts, and resolving one that isn't there is ignored, not refused", async () => {
+test("a Turn's resolve leaves the Plot Thread for World Moves On to close, and resolving one that isn't there is ignored, not refused", async () => {
   // DeepSeek resolved threads named "x" or long gone, which failed five Turns of a 30-round play.
   const unknown = narration("Done.", { op: "resolve_plot_thread", thread: "unknown-thread" });
   const { app, prompts } = play(narration("A rumour."), narration("Found.", { op: "resolve_plot_thread", thread: "the-missing-heir" }), unknown);
@@ -1393,7 +1393,7 @@ test("a resolved Plot Thread leaves later prompts, and resolving one that isn't 
   const ignored = await app.post(`/saves/${id}/turns`, { input: "I move on." });
 
   expect(contents(prompts[1]).join()).toContain("the-missing-heir");
-  expect(contents(prompts[2]).join()).not.toContain("the-missing-heir");
+  expect(contents(prompts[2]).join()).toContain("the-missing-heir");
   expect(ignored.status).toBe(201);
   expect(prompts).toHaveLength(3);
 });

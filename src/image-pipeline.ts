@@ -68,11 +68,13 @@ export const visibleNpcs = ({ scene, npcs }: State) => scene.visibleCast.flatMap
 export function portraitsDue(before: State, after: State) {
   const { scene, pcKnown } = after;
   const due = movedScene(before, after) ? [...scene.visibleCast, ...pcKnown.npcs] : pcKnown.npcs.filter((name) => !before.pcKnown.npcs.includes(name));
-  // Not someone named as a body, as a portrait draws them alive. shortcut: by name, as an NPC has no alive or dead; one who
-  // dies keeps their name and portrait, add a field if that misleads.
-  const bodies = [...new Set(due)].filter((name) => DEAD.test(name)).length;
+  // Not someone named as a body, or whose own Lore Entry the world keys as one, as a portrait draws them alive. shortcut: by name
+  // and keyword, as an NPC has no alive or dead; one who dies in play keeps their portrait, add a field if that misleads.
+  const dead = (name: string) =>
+    DEAD.test(name) || after.worldBible.some(({ title, keywords }) => title === name && keywords.some((keyword) => DEAD.test(keyword)));
+  const bodies = [...new Set(due)].filter(dead).length;
   if (bodies > 0) log.info("images", "No portrait for a body", { bodies });
-  return [...new Set(due)].filter((name) => !DEAD.test(name)).flatMap((name) => after.npcs.filter((npc) => npc.name === name));
+  return [...new Set(due)].filter((name) => !dead(name)).flatMap((name) => after.npcs.filter((npc) => npc.name === name));
 }
 const DEAD = /\b(body|corpse|remains)\b/i;
 
@@ -632,7 +634,9 @@ export function imagePipeline(
         // A lone word, such as one object named alone, was drawn as that thing with no place or people.
         // shortcut: only a lone word in lower case, the fragment a reply sent, as tests draw from one capitalised word; count words if a real one shows.
         const fragment = /^\p{Ll}\S*$/u.test(scene.description.trim());
-        if (drawScenes && scene.changed && fragment) log.info("images", "Scene picture skipped", { save: id, message: messageId });
+        // No words too, as a reply cut where it ran on never wrote its picture's prompt.
+        if (drawScenes && scene.changed && (fragment || !scene.description.trim()))
+          log.info("images", "Scene picture skipped", { save: id, message: messageId, words: fragment ? 1 : 0 });
         if (drawScenes && scene.changed && scene.description && !fragment) {
           if (jobs.waiting) dropped(id, jobs.waiting, "a newer scene");
           jobs.waiting = queued(id, {

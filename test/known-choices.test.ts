@@ -29,6 +29,12 @@ test("a Choice naming a place no one has spoken of, or a thing only the secrets 
   expect(unknownWords(choices, secret, "Tamsin rides ahead. Before dark she searched the wagon.")).toEqual([["Qasr"], ["oilskin"], []]);
 });
 
+test("an everyday word the secrets happen to hold isn't taken for something the PC never heard of", () => {
+  const secret = { ...state, plotThreads: ["Whatever anyone may examine, the ledger lies hidden in the chimney."] };
+  const choices = ["I ask whether anyone saw him.", "I examine whatever is on the desk.", "I check the chimney."];
+  expect(unknownWords(choices, secret, "Tamsin rides ahead.")).toEqual([[], [], ["chimney"]]);
+});
+
 test("a known fact, summary or Loose End naming someone or somewhere the player has only in the secrets is dropped, even if an earlier fact named it", () => {
   const secret = {
     ...state,

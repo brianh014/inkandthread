@@ -21,11 +21,15 @@ export const MOVE_LIMIT = { ms: 120_000 };
 /**
  * The threads Turns asked to close since the last move, by Save. A Turn's resolve is only a request the next move weighs, as lone
  * resolves ended threads whose secrets were still unplayed.
- * shortcut: in memory, so a restart forgets the asks and a Revert keeps them; store them in the Snapshot if that matters.
+ * Earlier asks follow a Turn's `rewrites` of their thread, old words to new, as an ask of a thread rewritten before the move was lost.
+ * shortcut: in memory, so a restart forgets the asks and a Revert keeps them; store them in the Snapshot if that matters. A World
+ * Change's rewrite isn't followed; pass it here too if asks go missing that way.
  */
 const closeAsked = new Map<string, Set<string>>();
-export const askToClose = (id: string, threads: string[]) => {
-  if (threads.length > 0) closeAsked.set(id, new Set([...(closeAsked.get(id) ?? []), ...threads]));
+export const askToClose = (id: string, threads: string[], rewrites: (readonly [string, string])[] = []) => {
+  const renamed = new Map(rewrites);
+  const asks = new Set([...(closeAsked.get(id) ?? [])].map((thread) => renamed.get(thread) ?? thread).concat(threads));
+  if (asks.size > 0) closeAsked.set(id, asks);
 };
 
 // Story hours a Turn must skip to be a pause, as a move on every change of place, room to room, ran 15 times in one afternoon

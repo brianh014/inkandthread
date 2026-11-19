@@ -181,3 +181,12 @@ test("someone the story names as a body or corpse is given no portrait, as one d
 
   expect(portraitsDue(openingState, after)).toEqual([living]);
 });
+
+test("someone whose own Lore Entry the world keys as a body is given no portrait, though named plainly", () => {
+  const living = { name: "Owen Price", appearance: "a broad constable" };
+  const drowned = { name: "Tobias Crane", appearance: "a lean old man, soaked" };
+  const worldBible = [{ title: "Tobias Crane", keywords: ["Crane", "body"], content: "The harbourmaster.", alwaysOn: false }];
+  const after = { ...openingState, worldBible, npcs: [living, drowned], scene: { location: "The loft", visibleCast: ["Owen Price", "Tobias Crane"] } };
+
+  expect(portraitsDue(openingState, after)).toEqual([living]);
+});

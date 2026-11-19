@@ -871,21 +871,25 @@ test("a reply that repeats an operation on one record is kept with only the firs
   expect(log).toContain('"sent":4,"kept":2');
 });
 
-test("a reply that runs on in its operations is kept up to its last whole one, as its narration came whole", async () => {
+test("a reply that runs on in its operations is kept up to its last whole one, as its narration came whole, and its lost picture logged", async () => {
   const runOn = async function* () {
-    yield delta('{"check":null,"narration":"He sits.","people":[],"state_operations":[{"op":"add_known_fact","fact":"The duke keeps a ledger."}');
+    yield delta(
+      '{"check":null,"narration":"He sits.","people":[],"state_operations":[{"op":"set_scene","location":"The quay","visible_cast":[]},{"op":"add_known_fact","fact":"The duke keeps a ledger."}',
+    );
     for (let at = 0; at < 1000; at++) yield delta(',{"op":"update_plot_thread","thread":"The duke plots.","replacement":"The duke plots."}');
   };
   play([runOn]);
   const store = saveStore(join(folder.path, "Saves"));
   const id = store.create({ worldBrief: "A drowned city", pc: { name: "Ash" }, opening: { plotThreads: ["The duke plots."] } });
 
-  const log = await logOf(async () => expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201));
+  const log = await logOf(async () => expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201), "info");
 
   expect(provider.requests).toHaveLength(1);
   expect((await storedMessages(id)).at(-1)!.text).toBe("He sits.");
   expect(store.latestState(id).pcKnown.facts).toEqual(["The duke keeps a ledger."]);
   expect(log).toContain("Run-on reply kept");
+  // The picture's prompt came after the operations, so it never came.
+  expect(log).toContain('"message":2,"words":0');
 });
 
 test("Choices lose JSON marks left at their end, and one-word Choices told apart by a number are one", () => {

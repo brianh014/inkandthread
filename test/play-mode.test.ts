@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { saveStore } from "../src/save-store";
+import type { TextProvider } from "../src/turn-engine";
 import { logOf, narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -94,6 +95,27 @@ test("a reply without three different Choices keeps its story, and the Choices a
   expect(prompts[2]!.at(-1)!.content).toContain("I look around.");
   expect(((await response.json()) as { messages: object[] }).messages.at(-1)).toMatchObject({ role: "narrator", text: "Missing." });
   expect(await latestChoices(id)).toEqual(CHOICES);
+});
+
+test("when fewer than two Choices are left once those built on the unknown are dropped, the Choices are asked for alone", async () => {
+  // The reviewer can't write the leaking ones again, and answers State Upkeep with nothing.
+  const reviewer: TextProvider = async (prompt) => {
+    if (prompt[0]!.content.includes("unknown_words")) throw new Error("down");
+    return JSON.stringify({ state_operations: [] });
+  };
+  const script = scriptedTextProvider(
+    withChoices("The tide rises.", ["I ride for Qasr.", "I ask Zorel the way.", "I wade on."]),
+    JSON.stringify({ choices: CHOICES }),
+  );
+  app = startApp(savesDir, script.textProvider, undefined, undefined, undefined, undefined, undefined, reviewer);
+  const id = await app.createSave();
+  await app.patch(`/saves/${id}`, { playMode: "choices" });
+
+  const log = await logOf(() => app!.post(`/saves/${id}/turns`, { input: "I wade forward." }), "info");
+
+  expect(script.prompts).toHaveLength(2);
+  expect(await latestChoices(id)).toEqual(CHOICES);
+  expect(log).toContain('Too few Choices kept {"route":"/saves/:id/turns","save":"');
 });
 
 test("a Turn whose Choices can't be written alone is kept without any", async () => {

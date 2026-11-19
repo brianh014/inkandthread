@@ -418,7 +418,7 @@ type Narrated = {
   /** Tallies a committed player's Turn for the Narrator report. */
   counted?: (turn: NarratorTurn) => void;
   /** The open threads a committed reply asked to close, for World Moves On to weigh. */
-  askClose?: (threads: string[]) => void;
+  askClose?: (threads: string[], rewrites: (readonly [string, string])[]) => void;
 };
 
 /** The prompt for a Turn's reply, and the Scene Memory due alongside it. Settings are read once, so the whole prompt comes from one copy. */
@@ -561,7 +561,7 @@ export async function playTurn(
     committed: (messageId, scene) => images.sceneChanged(id, messageId, scene),
     // Only what the player did counts, so not the opening or a Continue, which have nothing to check.
     counted: kind === "turn" && !isContinueInput(input) ? (turn) => usage?.turn(id, model, turn) : undefined,
-    askClose: (threads) => askToClose(id, threads),
+    askClose: (threads, rewrites) => askToClose(id, threads, rewrites),
   });
   const replies = messages.filter(({ role }) => role === "narrator").length + 1;
   if (moveWorld && kind === "turn" && moveDue(state, saves.latestState(id), replies)) {
@@ -770,17 +770,25 @@ async function narrate(
       const operationLimit = MAX_OPERATIONS * (kind === "opening" ? 2 : 1);
       let state_operations = withoutLoop(response.state_operations, operationLimit);
       const looping = state_operations.length < response.state_operations.length;
-      // The opening starts from a world just written, which one opening's removes wiped before the story had used any of it.
-      if (kind === "opening") {
-        const kept = state_operations.filter(({ op }) => op !== "remove_lore_entry");
-        if (kept.length < state_operations.length)
-          log.info("turn", "Operations dropped", { attempt, generation, openingLoreRemoves: state_operations.length - kept.length });
-        state_operations = kept;
-      }
+      // The opening starts from a world just written, which one opening's removes wiped before the story had used any of it. Never
+      // the Lore Entry of someone in the story, as it holds who they are and how they look, and a lone remove lost one mid-story.
+      const person = (title: string) =>
+        before.worldBible.some(
+          (entry) => entry.title === title && before.npcs.some(({ name }) => [entry.title, ...entry.keywords].some((word) => nameForms(name).includes(word))),
+        );
+      const kept = state_operations.filter((operation) => operation.op !== "remove_lore_entry" || (kind !== "opening" && !person(operation.title)));
+      if (kept.length < state_operations.length)
+        log.info("turn", "Operations dropped", {
+          attempt,
+          generation,
+          [kind === "opening" ? "openingLoreRemoves" : "personLoreRemoves"]: state_operations.length - kept.length,
+        });
+      state_operations = kept;
       // Only asked of World Moves On, which weighs it at its next move, as lone resolves ended threads whose secrets were unplayed.
       const asks = state_operations.flatMap((operation) => (operation.op === "resolve_plot_thread" ? [operation.thread] : []));
       state_operations = state_operations.filter(({ op }) => op !== "resolve_plot_thread");
       let asked: string[] = [];
+      let rewrites: (readonly [string, string])[] = [];
       // Later replies copy marks like these, so they never reach a Save.
       const cleaned = withoutFields(withoutStrayMarks(response.narration as string));
       let narration = edited ?? withoutBareSpeech(cleaned);
@@ -861,16 +869,23 @@ async function narrate(
         state_operations = read;
       }
       const timed = state_operations.some(({ op }) => op === "set_story_time");
+      const alone = () =>
+        writeChoices(textProvider, narration, signal, previous, plainMessage({ role: "player", text: upkeep?.input ?? input }).text).then((written) =>
+          // Held to what the PC knows, as the Choices the reply came with are.
+          written && upkeep && seen !== undefined ? knownChoices(upkeep, written, narrated.next, seen(), narration, signal) : written,
+        );
       // Side by side, as neither needs the other, so a slow reviewer holds the Choices back once, not twice.
       const [upkept, offered] = await Promise.all([
         upkeep ? upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal, timed) : undefined,
         choices && upkeep && seen !== undefined
-          ? knownChoices(upkeep, choices, narrated.next, seen(), narration, signal)
+          ? knownChoices(upkeep, choices, narrated.next, seen(), narration, signal).then((kept) => {
+              // Asked for alone, as a lone Choice left after dropping leaks lost a play its clue.
+              if (kept.length >= 2) return kept;
+              log.info("turn", "Too few Choices kept", { attempt, generation, kept: kept.length });
+              return alone().then((written) => written ?? kept);
+            })
           : unchosen
-            ? writeChoices(textProvider, narration, signal, previous, plainMessage({ role: "player", text: upkeep?.input ?? input }).text).then((written) =>
-                // Held to what the PC knows, as the Choices the reply came with are.
-                written && upkeep && seen !== undefined ? knownChoices(upkeep, written, narrated.next, seen(), narration, signal) : written,
-              )
+            ? alone()
             : choices,
       ]);
       const dropped = !!unplaced && !upkept;
@@ -899,7 +914,17 @@ async function narrate(
           const kept = applyOperations(told, upkept ?? []);
           upkeepRefused = kept.refused.length + kept.ignored.length;
           const next = kept.next;
-          asked = asks.flatMap((thread) => closestThread(next.plotThreads, thread) ?? []);
+          // Through this Turn's rewrites, so an ask follows its thread to its new words, as the next move matches them exactly.
+          rewrites = [...state_operations, ...(upkept ?? [])].flatMap((operation) =>
+            operation.op === "update_plot_thread"
+              ? [[closestThread(state.plotThreads, operation.thread) ?? operation.thread, operation.replacement] as const]
+              : [],
+          );
+          const rewritten = new Map(rewrites);
+          asked = asks.flatMap((thread) => {
+            const old = closestThread(state.plotThreads, thread) ?? thread;
+            return closestThread(next.plotThreads, rewritten.get(old) ?? old) ?? [];
+          });
           repeated = repeats;
           ignored = harmless;
           // Kept when cut to a fifth of the last, as an 80-round story's became "(see journal)" and would have lost the whole story.
@@ -944,7 +969,7 @@ async function narrate(
       }
       if (repeated > 0) log.info("turn", "Repeats ignored", { count: repeated });
       if (ignored.length > 0) log.warning("turn", "Operations ignored", { reason: refusalText(ignored) });
-      askClose?.(asked);
+      askClose?.(asked, rewrites);
       const operations = state_operations.map(({ op }) => op);
       counted?.({ difficulty: check?.difficulty, operations });
       // Counts only, so that the log never repeats the story: a Check's action is the player's words, so it's left out.
@@ -962,7 +987,8 @@ async function narrate(
         ...(checked && { consistency: checked }),
         sceneChanged: !!scene_changed,
         chapterEnds: !!chapter_ends,
-        ...(asks.length > 0 && { closeAsked: asks.length }),
+        // The asks that matched an open thread, as the Narrator's own count logged asks of threads that never existed.
+        ...(asks.length > 0 && { closeAsked: asked.length }),
       }));
       return messages;
     } catch (cause) {

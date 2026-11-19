@@ -146,6 +146,27 @@ test("a Turn's resolve only asks the next move to close the thread, which the mo
   expect(log).toContain('"asked":1,"closed":1');
 });
 
+test("a close ask follows its thread through a later rewrite, and a Turn logs only the asks that matched a thread", async () => {
+  const THIEF = "A thief plans to rob the library at the next high tide.";
+  const REWRITTEN = "The thief waits at the dock for the next high tide.";
+  const told = play(
+    narration("Ash hears of a ghost.", { op: "resolve_plot_thread", thread: "A ghost haunts the dome." }),
+    narration("Ash corners the thief.", { op: "resolve_plot_thread", thread: THIEF }),
+    narration("The thief slips away.", { op: "update_plot_thread", thread: THIEF, replacement: REWRITTEN }, nextDay()),
+    moved(),
+    narration("Ash looks out."),
+  );
+  const id = createSave();
+
+  const log = await logOf(async () => {
+    for (const input of ["I listen.", "I grab him.", "I chase him.", "I look out."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(JSON.parse(told.prompts[3]!.at(-1)!.content).asked_to_close).toEqual([REWRITTEN]);
+  expect(log).toContain('"closeAsked":0');
+  expect(log).toContain('"closeAsked":1');
+});
+
 test("a Turn's thread rewrite that drops a name or retells the scene, or a resolve of a thread whose people the reply never names or the Turn also rewrites, is dropped", () => {
   const state = {
     ...openingState,

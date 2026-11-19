@@ -268,6 +268,33 @@ test("the fix is shown the Turn's Check, to keep what it decided", async () => {
   expect(JSON.parse(sent).check_result).toEqual({ action: "Pick the lock", outcome: "failure", degree: "critical" });
 });
 
+test("the fix is sent the player's move, and an edit that takes out what the move did isn't made", async () => {
+  CUT_OFFS["liquid/d1.2"]!.continuity = 0.5;
+  let sent = "";
+  const reviewer = async (prompt: { content: string }[]) => {
+    sent = prompt.at(-1)!.content;
+    const edits = [
+      { old: "Ash shouts for the guards.", new: "Ash keeps silent." },
+      { old: "Six men", new: "Five men" },
+    ];
+    return JSON.stringify({ narration_edits: edits, visual_description_edits: [] });
+  };
+  const reply = { previous: "Five men.", input: "I shout for the guards.", timeBefore: null, timeAfter: null, pc: "Ash", pcLooks: "", wearing: [], cast: [] };
+  let fixed: Awaited<ReturnType<typeof checkConsistency>> | undefined;
+  const log = await logOf(async () => {
+    fixed = await checkConsistency(
+      { decide: decisions({ continuity: 0.99 }).decide, enabled: () => true, logOnly: false },
+      { provider: reviewer, settings: REVIEW },
+      { ...reply, facts: [], summary: "", memories: [], knows: {}, narration: "Ash shouts for the guards. Six men come.", visualDescription: "" } as never,
+      () => true,
+      new AbortController().signal,
+    );
+  }, "info");
+  expect(JSON.parse(sent).player_move).toBe("I shout for the guards.");
+  expect(fixed!.narration).toBe("Ash shouts for the guards. Five men come.");
+  expect(log).toContain('"edits":1');
+});
+
 test("a reply no question answered is logged as unanswered, not passed", async () => {
   const unanswered: DecisionProvider = async () => ({ answers: {}, model: "liquid/d1.2" });
   const reply = {

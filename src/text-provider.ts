@@ -218,7 +218,7 @@ export function textProvider(
     return takes ?? false;
   }
 
-  const once: TextProvider = async (prompt, { schema, picture, lessThinking = 0, thinkingBudget, thinkingMs, onText, onGeneration, onUsage, signal }) => {
+  const once: TextProvider = async (prompt, { call, schema, picture, lessThinking = 0, thinkingBudget, thinkingMs, onText, onGeneration, onUsage, signal }) => {
     const {
       textBaseUrl,
       textApiKey,
@@ -259,7 +259,7 @@ export function textProvider(
 
     // For the Server Log, so it holds how the reply went and none of its text.
     const started = Date.now();
-    const seen: Record<string, unknown> = { model: textModel, thinking: textThinking, thinkingLimit: thinkingTokens };
+    const seen: Record<string, unknown> = { ...(call && { call }), model: textModel, thinking: textThinking, thinkingLimit: thinkingTokens };
     let reply = "";
     let thought = 0;
     let thoughtFrom: number | undefined;

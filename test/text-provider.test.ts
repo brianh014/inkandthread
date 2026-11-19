@@ -756,11 +756,13 @@ test("a reply silent from its first byte is asked for once more, as a stuck requ
   const provide = textProvider(settingsStore(join(folder.path, "settings.json")), { silenceMs: 100, listMs: 1000 });
 
   const log = await logOf(async () => {
-    expect(await provide([{ role: "user", content: "Hi" }], { onText: () => {}, signal: new AbortController().signal })).toBe("Hello.");
+    expect(await provide([{ role: "user", content: "Hi" }], { call: "turn", onText: () => {}, signal: new AbortController().signal })).toBe("Hello.");
   });
 
   expect(provider.requests).toHaveLength(2);
   expect(log).toContain('Silent reply asked again {"model":"fake/model","ms":');
+  // Each reply's line names what the call was for, so the bench can count its tokens by it.
+  expect(log).toContain('Text reply {"call":"turn","model":"fake/model"');
 });
 
 test("a reply that stalls after some text is not asked again", async () => {

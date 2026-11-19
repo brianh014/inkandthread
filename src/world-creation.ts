@@ -225,7 +225,7 @@ ${modelInstructions(context)}`,
     },
     playerChoices({ theme, ...world, ...(pc && { pc }) }),
   ];
-  return askForJson(context.textProvider, prompt, reply, REFUSAL, signal);
+  return askForJson(context.textProvider, prompt, reply, REFUSAL, signal, { call: "pickForMe" });
 }
 
 /** Rewrites one box from what the player wrote, or writes it if it's empty. Like `pickForMe`, it knows only the player's choices. */
@@ -309,8 +309,8 @@ ${modelInstructions(context)}`,
     playerChoices({ ...(idea && { idea }), ...(change && { change }), ...choices }),
   ];
   const written = byEdits
-    ? edited((await askForJson(context.textProvider, prompt, EditsReply, REFUSAL, signal)).edits)!
-    : (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal)).text;
+    ? edited((await askForJson(context.textProvider, prompt, EditsReply, REFUSAL, signal, { call: "enhance" })).edits)!
+    : (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal, { call: "enhance" })).text;
   log.info("world", "Box written", { field, how: change ? "nudge" : idea ? "enhance" : "write" });
   return written;
 }
@@ -348,7 +348,7 @@ ${modelInstructions(context)}`,
       recent_story: messages.slice(-RECENT_STORY),
     }),
   ];
-  return (await askForJson(context.textProvider, prompt, PickReply, REFUSAL, signal)).text;
+  return (await askForJson(context.textProvider, prompt, PickReply, REFUSAL, signal, { call: "decideForPc" })).text;
 }
 
 // A plain number, as unlimited replies ran long.
@@ -393,7 +393,7 @@ ${modelInstructions(context)}`,
       lore: lore.map(({ title, content }) => ({ title, content })),
     }),
   ];
-  return (await askForJson(context.textProvider, prompt, answerReply(context.settings.read().answerRejectWords), REFUSAL, signal)).text;
+  return (await askForJson(context.textProvider, prompt, answerReply(context.settings.read().answerRejectWords), REFUSAL, signal, { call: "question" })).text;
 }
 
 // The player's own words for a pose win over how the story last left the people.
@@ -432,7 +432,10 @@ ${imageInstructions(context)}`,
       recent_story: messages.slice(-RECENT_STORY).map(plainMessage),
     }),
   ];
-  return askForJson(context.textProvider, prompt, RequestedReply, "The Narrator refused this picture. Reword it and try again.", signal, { picture: true });
+  return askForJson(context.textProvider, prompt, RequestedReply, "The Narrator refused this picture. Reword it and try again.", signal, {
+    call: "requestedPrompt",
+    picture: true,
+  });
 }
 
 /** Where and how any picture of a story is drawn: its world, and the player's Art Style. An empty theme is a Save from before themes. */
@@ -520,7 +523,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
     playerChoices({ prompt: description }),
   ];
   try {
-    return (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal, { picture: true })).prompt.trim();
+    return (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal, { call: "scenePrompt", picture: true })).prompt.trim();
   } catch (error) {
     if (signal.aborted) throw error;
     log.warning("images", "A picture's prompt was drawn unchecked", errorType(error));
@@ -554,8 +557,9 @@ ${imageInstructions(context)}`,
     playerChoices(details),
   ];
   try {
-    if (!edit) return (await askForJson(context.textProvider, prompt, whole, REFUSAL, signal, { picture: true })).text;
-    const { keep, changes } = await askForJson(context.textProvider, prompt, edited, REFUSAL, signal, { picture: true });
+    const call = `${ask.kind}Prompt`;
+    if (!edit) return (await askForJson(context.textProvider, prompt, whole, REFUSAL, signal, { call, picture: true })).text;
+    const { keep, changes } = await askForJson(context.textProvider, prompt, edited, REFUSAL, signal, { call, picture: true });
     // The Art Style in code, last so the face stays up front, as edits without it came out as photographs.
     return [keep, changes, ask.artStyle]
       .map((part) => part.trim())
@@ -584,7 +588,7 @@ ${modelInstructions(context)}`,
 
 /** What the PC wears and carries and their opening status, which the player reads, so it never sees the world. */
 export async function pcSheet(context: Context, pc: Save["pc"], inventory: string, signal: AbortSignal) {
-  const sheet = await askForJson(context.textProvider, sheetPrompt(context, pc, inventory), SheetReply, REFUSAL, signal);
+  const sheet = await askForJson(context.textProvider, sheetPrompt(context, pc, inventory), SheetReply, REFUSAL, signal, { call: "pcSheet" });
   // shortcut: the Narrator's split is trusted to keep every item, as the player never sees the list, check it against the text if items go missing.
   const stocked = (["wearing", "carrying"] as const).flatMap((slot) => sheet[slot].map((item): StateOperation => ({ op: "add_item", slot, item })));
   const { next } = applyOperations(openingState, [...stocked, ...statusOperations(sheet)]);
@@ -719,6 +723,7 @@ export async function changeWorld(context: Context, state: State, change: string
       fits,
       "The Narrator refused this change. Reword it and try again.",
       signal,
+      { call: "worldChange" },
     ),
   );
   // Settling Journal edits may find nothing to change, and nothing is no change to review.
@@ -741,7 +746,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
     playerChoices({ instruction: change, world: worldAsItStands(state), proposed_change: proposed }),
   ];
   return reviewed(context, "World Change", proposed, signal, async (reviewer) => {
-    const { fixed, change: corrected } = await askForJson(reviewer, prompt, reply, REFUSAL, signal, { reviewer: true });
+    const { fixed, change: corrected } = await askForJson(reviewer, prompt, reply, REFUSAL, signal, { call: "worldChangeReview", reviewer: true });
     return corrected ? { result: withoutStrangers(state, corrected), reasons: fixed } : { result: proposed, reasons: [] };
   });
 }
@@ -896,7 +901,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
     playerChoices({ choices: worldChoicesData(choices, pc), world }),
   ];
   return reviewed(context, "World", world, signal, async (reviewer) => {
-    const review = await askForJson(reviewer, prompt, reply, REFUSAL, signal, { reviewer: true });
+    const review = await askForJson(reviewer, prompt, reply, REFUSAL, signal, { call: "worldReview", reviewer: true });
     const faults = [
       ...[review.world_overview, review.calendar, review.start].filter((edit) => edit !== null),
       ...review.lore_entries,
@@ -910,7 +915,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
 /** Only `overview` may reach the player. */
 export async function generateWorld(context: Context, choices: WorldChoices, pc: WorldPc, signal: AbortSignal) {
   // The review looks for a leak in the Overview, but past that it is Narrator free text, kept clean only by the prompts.
-  const written = await askForJson(context.textProvider, worldPrompt(context, choices, pc), WorldReply, REFUSAL, signal);
+  const written = await askForJson(context.textProvider, worldPrompt(context, choices, pc), WorldReply, REFUSAL, signal, { call: "world" });
   const { world_overview, lore_entries, world_rules, plot_threads, calendar, start_date, start_time_of_day } = await reviewWorld(
     context,
     choices,

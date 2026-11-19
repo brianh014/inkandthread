@@ -222,6 +222,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Answer)
   ];
   // Not hurried past its budget, as a fix told to answer with little thinking turned a daughter's true "my father" into "my cousin".
   return askForJson(provider, prompt, Answer, "The Consistency model refused to check the reply.", signal, {
+    call: "consistency",
     thinkingBudget: CHECK_THINKING,
     thinkingMs: CHECK_THINKING_MS,
     reviewer: true,

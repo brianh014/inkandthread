@@ -38,6 +38,7 @@ import { VERSION } from "../src/updater";
 import { askForJson, jsonSchemaOf, type TextProvider, worldMoved } from "../src/turn-engine";
 import { chartPage } from "./chart";
 import { resultFiles } from "./result-files";
+import { type Call, tokenTable, tokenUse } from "./token-use";
 
 const BENCH = import.meta.dir;
 // The world a run plays without --world. Results from before it had a name of its own recorded it as "world.json".
@@ -359,26 +360,12 @@ async function estimate(provider: string, narrator: string, reviewer: string, ro
 
 // ---- One play ----
 
-type Call = { role: string; ms: number; in: number; out: number; cost: number };
 type Side = "narrator" | "reviewer" | "consistency";
 
-/** Names a text call by what its schema asks for, so each step's time and cost are told apart. */
-function roleOf(side: Side, schema: object | undefined, picture = false) {
-  const text = JSON.stringify(schema ?? {});
-  // Writing or checking an Image Prompt, a Cover's or portrait's, or a moment's.
-  if (picture) return `${side}.picture`;
-  if (side === "consistency") return "consistency.check";
-  if (side === "reviewer") return text.includes('"state_operations"') ? "reviewer.upkeep" : "reviewer.other";
-  if (text.includes('"narration"') && text.includes('"state_operations"')) return "narrator.turn";
-  if (text.includes('"scene_memory"')) return "narrator.memory";
-  if (text.includes('"scores"')) return "narrator.judge";
-  if (text.includes('"title"') && !text.includes('"keywords"')) return "narrator.chapterTitle";
-  return "narrator.other";
-}
-
-function counted(provider: TextProvider, side: Side, calls: Call[]): TextProvider {
+/** Each call named by its side and what the app says it is for, so each step's time and cost are told apart. `step` says which step it began in. */
+function counted(provider: TextProvider, side: Side, calls: Call[], step = () => 0): TextProvider {
   return async (prompt, request) => {
-    const call: Call = { role: roleOf(side, request.schema, request.picture), ms: 0, in: 0, out: 0, cost: 0 };
+    const call: Call = { role: `${side}.${request.call ?? "other"}`, ms: 0, in: 0, cached: 0, out: 0, reasoning: 0, cost: 0, step: step() };
     calls.push(call);
     const started = performance.now();
     try {
@@ -386,7 +373,9 @@ function counted(provider: TextProvider, side: Side, calls: Call[]): TextProvide
         ...request,
         onUsage: (usage) => {
           call.in += usage.prompt_tokens ?? 0;
+          call.cached += usage.prompt_tokens_details?.cached_tokens ?? 0;
           call.out += usage.completion_tokens ?? 0;
+          call.reasoning += usage.completion_tokens_details?.reasoning_tokens ?? 0;
           call.cost += usage.cost ?? 0;
           request.onUsage?.(usage);
         },
@@ -493,9 +482,9 @@ async function play(
   const server = startServer({
     savesDir,
     settings,
-    textProvider: counted(narratorOf(settings), "narrator", calls),
-    reviewProvider: counted(fake ? fakeTextProvider : textProvider(reviewerSettings(settings)), "reviewer", calls),
-    consistencyProvider: counted(fake ? fakeTextProvider : textProvider(consistencySettings(settings)), "consistency", calls),
+    textProvider: counted(narratorOf(settings), "narrator", calls, () => steps.length),
+    reviewProvider: counted(fake ? fakeTextProvider : textProvider(reviewerSettings(settings)), "reviewer", calls, () => steps.length),
+    consistencyProvider: counted(fake ? fakeTextProvider : textProvider(consistencySettings(settings)), "consistency", calls, () => steps.length),
     // The real AI writes and checks every Image Prompt, to be judged, but a stand-in draws it, as real pictures cost money and time,
     // unless --draw, which draws on local ComfyUI only.
     imageAdapter: fakeImages,
@@ -699,7 +688,7 @@ async function play(
   );
   timing(
     "check",
-    calls.filter(({ role }) => role === "consistency.check").map(({ ms }) => ms),
+    calls.filter(({ role }) => role === "consistency.consistency").map(({ ms }) => ms),
   );
   // How long a reply was read before a fix replaced it.
   timing(
@@ -712,16 +701,18 @@ async function play(
   );
   timing(
     "picture",
-    calls.filter(({ role }) => role.endsWith(".picture")).map(({ ms }) => ms),
+    // Writing or checking an Image Prompt: a Cover's, a portrait's, a scene's or a requested one's.
+    calls.filter(({ role }) => role.endsWith("Prompt")).map(({ ms }) => ms),
   );
   const gallery = saves.gallery(id);
   for (const kind of ["scene", "portrait", "requested"]) flat[`images.${kind}`] = gallery.filter((image) => image.kind === kind).length;
-  for (const call of calls) {
-    add(`tokens.${call.role}.in`, call.in);
-    add(`tokens.${call.role}.out`, call.out);
-    add(`cost.${call.role}`, call.cost);
-    add(`calls.${call.role}`);
-  }
+  Object.assign(
+    flat,
+    tokenUse(
+      calls,
+      steps.flatMap((step, at) => (played.includes(step) ? [at] : [])),
+    ),
+  );
   flat["cost.total"] = calls.reduce((sum, { cost }) => sum + cost, 0);
   flat["cost.perRound"] = flat["cost.total"] / rounds;
   for (const side of ["narrator", "reviewer", "consistency"] as const) {
@@ -860,6 +851,7 @@ function report(result: Result) {
     const was = base ? `   was ${show(base[key], key)}` : "";
     console.log(`  ${key.padEnd(26)} ${show(result.summary[key], key)}${range}${was}`);
   }
+  console.log(tokenTable(result.summary));
   const never = Object.entries(result.coverage).filter(([, plays]) => plays === 0);
   if (never.length) console.log(`Never fired: ${never.map(([label]) => label).join(", ")}`);
   const spent = (result.summary["cost.total"] ?? 0) * result.runs;
@@ -1079,6 +1071,7 @@ async function run() {
           judgeReplyFor(readWorld()),
           "The Narrator refused to judge the story.",
           new AbortController().signal,
+          { call: "judge" },
         ),
       );
     }

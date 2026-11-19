@@ -186,7 +186,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
   ];
   const started = Date.now();
   try {
-    const reply = await askForJson(textProvider, prompt, Reply, "The Narrator refused to move the world on.", signal);
+    const reply = await askForJson(textProvider, prompt, Reply, "The Narrator refused to move the world on.", signal, { call: "moveWorld" });
     const { kept, faults, overflow } = sorted(reply.plot_threads);
     // A rewrite's truth is never used, as only play reveals a truth: World Moves On writes one only for a thread it adds.
     const plot_threads = kept.flatMap(({ thread, truth, now }): ListChange[] =>

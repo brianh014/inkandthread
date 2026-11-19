@@ -48,7 +48,13 @@ import { askToClose, MOVE_LIMIT, moveDue, moveWorldOn, turnThreadChanges } from 
 const moving = new Map<string, Promise<void>>();
 
 /** The token counts and cost a server reports for one reply, in the OpenAI shape. OpenRouter adds `cost`. */
-export type TextUsage = { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number }; cost?: number };
+export type TextUsage = {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  prompt_tokens_details?: { cached_tokens?: number };
+  completion_tokens_details?: { reasoning_tokens?: number };
+  cost?: number;
+};
 
 /** Throws ContentRefused when the content is refused. Anything else it throws is a network or API error. */
 export type TextProvider = (
@@ -60,6 +66,8 @@ export type TextProvider = (
    */
   request: {
     schema?: object;
+    /** What the call is for, such as "turn" or "upkeep", a fixed name for the log's "Text reply", so token use can be told apart. */
+    call?: string;
     /** An Image Prompt's call, which has its own thinking limit. */
     picture?: boolean;
     /** How many levels below the player's Thinking to ask for, after a reply thought past the limit. */
@@ -805,6 +813,7 @@ async function narrate(
         [...prompt, ...(check ? [resultInstruction(check)] : []), ...(unplacedBefore ? [SET_SCENE_NOTE] : []), ...why],
         {
           schema: check || !rollCheck ? schemas.noCheck : schemas.any,
+          call: kind,
           onText,
           onGeneration: (id) => (generation = id),
           signal: AbortSignal.any([signal, runaway.signal, early.signal]),
@@ -1292,7 +1301,9 @@ const SceneMemoryReply = z.object({ scene_memory: z.string().refine((text) => te
 
 /** Throws as askForJson does. */
 export async function askForMemory(textProvider: TextProvider, batch: Message[], previous: string | undefined, signal: AbortSignal) {
-  const { scene_memory } = await askForJson(textProvider, memoryPrompt(batch, previous), SceneMemoryReply, "The model refused a batch of Messages.", signal);
+  const { scene_memory } = await askForJson(textProvider, memoryPrompt(batch, previous), SceneMemoryReply, "The model refused a batch of Messages.", signal, {
+    call: "memory",
+  });
   return scene_memory.trim();
 }
 
@@ -1300,7 +1311,9 @@ const ChapterTitleReply = z.object({ title: z.string().trim().min(1).max(80) });
 
 /** Throws as askForJson does. */
 export async function askForChapterTitle(textProvider: TextProvider, memories: string[], recent: Message[], signal: AbortSignal) {
-  const { title } = await askForJson(textProvider, chapterTitlePrompt(memories, recent), ChapterTitleReply, "The model refused to title the chapter.", signal);
+  const { title } = await askForJson(textProvider, chapterTitlePrompt(memories, recent), ChapterTitleReply, "The model refused to title the chapter.", signal, {
+    call: "chapterTitle",
+  });
   return title;
 }
 
@@ -1333,15 +1346,17 @@ export async function askForJson<T>(
   /**
    * `lessThinking` asks for that many levels below the player's Thinking from the first attempt. `reviewer` names the call's
    * model in the log. `hurried: false` fails a reply stopped at its thinking budget rather than ask for it with little thinking.
+   * `call` names what the call is for in the log, as each call's token use is counted by it.
    */
   {
+    call,
     picture = false,
     lessThinking: fewer = 0,
     thinkingBudget,
     thinkingMs,
     reviewer = false,
     hurried = true,
-  }: { picture?: boolean; lessThinking?: number; thinkingBudget?: number; thinkingMs?: number; reviewer?: boolean; hurried?: boolean } = {},
+  }: { call: string; picture?: boolean; lessThinking?: number; thinkingBudget?: number; thinkingMs?: number; reviewer?: boolean; hurried?: boolean },
 ) {
   let generation: string | undefined;
   let lessThinking = fewer;
@@ -1349,6 +1364,7 @@ export async function askForJson<T>(
   for (let attempt = 1; ; attempt++) {
     const request = {
       schema: jsonSchemaOf(schema),
+      call,
       picture,
       lessThinking,
       thinkingBudget,

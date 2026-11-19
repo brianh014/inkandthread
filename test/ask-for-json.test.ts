@@ -15,7 +15,8 @@ function scripted(...replies: (string | Error)[]) {
   return { provider, tries };
 }
 const Reply = z.object({ text: z.string().refine((text) => text.length <= 5, "over 5 letters") });
-const ask = (provider: TextProvider) => askForJson(provider, [{ role: "user", content: "Hi" }], Reply, "refused", new AbortController().signal);
+const ask = (provider: TextProvider) =>
+  askForJson(provider, [{ role: "user", content: "Hi" }], Reply, "refused", new AbortController().signal, { call: "test" });
 
 test("a retry tells the model why its last reply couldn't be used, after the prompt and never quoting it", async () => {
   const { provider, tries } = scripted(JSON.stringify({ text: "far too long" }), JSON.stringify({ text: "short" }));
@@ -50,12 +51,13 @@ test("a call that mustn't be hurried fails at its thinking budget, and a reviewe
   const signal = new AbortController().signal;
   const prompt = [{ role: "user" as const, content: "Hi" }];
 
-  await expect(askForJson(provider, prompt, Reply, "refused", signal, { hurried: false })).rejects.toBeInstanceOf(ThinkingBudgetReached);
+  await expect(askForJson(provider, prompt, Reply, "refused", signal, { call: "test", hurried: false })).rejects.toBeInstanceOf(ThinkingBudgetReached);
   expect(tries).toHaveLength(1);
 
   const line = await logOf(
     () =>
       askForJson(scripted(JSON.stringify({ text: "far too long" }), JSON.stringify({ text: "ok" })).provider, prompt, Reply, "refused", signal, {
+        call: "test",
         reviewer: true,
       }),
     "warning",

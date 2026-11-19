@@ -134,7 +134,7 @@ export async function upkeepOperations(
       timed ? REPLY.withoutTime : REPLY.withTime,
       "The reviewer refused to keep the state.",
       limited,
-      { lessThinking: slowReviewer.steps, thinkingBudget: UPKEEP_THINKING, thinkingMs: UPKEEP_THINKING_MS, reviewer: true },
+      { call: "upkeep", lessThinking: slowReviewer.steps, thinkingBudget: UPKEEP_THINKING, thinkingMs: UPKEEP_THINKING_MS, reviewer: true },
     );
     const kept = given.filter((operation) => operation !== null);
     log.info("turn", "State Upkeep", () => ({

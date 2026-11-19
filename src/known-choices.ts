@@ -126,7 +126,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       Reply,
       "The Narrator refused to write the Choices.",
       AbortSignal.any([signal, AbortSignal.timeout(UPKEEP_LIMIT.ms)]),
-      { lessThinking: 1 },
+      { call: "choices", lessThinking: 1 },
     );
     log.info("turn", "Choices written alone", { sent: choices.length, usable: usableChoices(choices)?.length ?? 0 });
     return usableChoices(choices);

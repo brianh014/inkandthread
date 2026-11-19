@@ -235,7 +235,11 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
           const onText = () => (firstSeconds ??= elapsed());
           const { modelInstructions: content } = settings.read();
           const system = content.trim() ? [{ role: "system" as const, content }] : [];
-          const reply = await options.textProvider([...system, { role: "user", content: prompt }], { onText, signal: req.signal });
+          const reply = await options.textProvider([...system, { role: "user", content: prompt }], {
+            call: "settingsTest",
+            onText,
+            signal: req.signal,
+          });
           const seconds = elapsed();
           return Response.json({
             reply,

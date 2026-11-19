@@ -1023,6 +1023,30 @@ test("a line refused as the PC's is refused again when a retry gives it, nearly 
   expect(log).toContain("Refused line given to another");
 });
 
+test("a Turn is rated once: a retry after a reply rated None is asked for no Check and rolls none", async () => {
+  const none = { action: "Wait", stakes: "nothing", difficulty: "None" };
+  play(
+    [
+      [
+        delta(JSON.stringify({ check: none, narration: 'Ash leans in.\n\n[Ash]: "Tell me who keeps the gate tonight."', state_operations: [] })),
+        "data: [DONE]\n\n",
+      ],
+      [delta(CHECK_REPLY)],
+      narrated("The keeper says nothing."),
+    ],
+    schemaModel,
+  );
+  const id = await app.createSave();
+
+  // The dice are empty, so a roll would fail the Turn.
+  const log = await logOf(async () => expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201), "info");
+
+  expect(provider.requests).toHaveLength(3);
+  expect(provider.requests[1]!.body.response_format.json_schema.schema.properties.check).toMatchObject({ type: "null" });
+  expect((await storedMessages(id)).at(-1)!.text).toBe("The keeper says nothing.");
+  expect(log).toContain("Rating kept for a retry");
+});
+
 test("a line for someone who only shares the PC's title isn't the PC's", () => {
   expect(spokenLineFault('[Captain]: "Hold."', "Captain Elena Reyes")).toBeUndefined();
   expect(spokenLineFault('[Elena]: "Hold."', "Captain Elena Reyes")).toBe("a spoken line for the PC");

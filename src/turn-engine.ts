@@ -820,6 +820,8 @@ async function narrate(
   };
   // Kept across attempts, so an invalid reply can never change the outcome.
   let check = storedCheck;
+  // A Turn is rated once, as a retry rated the move afresh and rolled for an act the first reply had called None.
+  let ratedNone = false;
   let narrationSent = 0;
   let retry = "";
   let unplacedBefore = false;
@@ -841,6 +843,7 @@ async function narrate(
     // Worked out once the reply's check is complete, and never looked at again: only a None or null check lets narration stream.
     let opened: unknown;
     let none = false;
+    if (ratedNone) log.info("turn", "Rating kept for a retry", { attempt });
     const onText = (text: string) => {
       partial += text;
       const visible = withoutThinking(partial);
@@ -865,7 +868,7 @@ async function narrate(
         textProvider,
         [...prompt, ...(check ? [resultInstruction(check)] : []), ...(unplacedBefore ? [SET_SCENE_NOTE] : []), ...why],
         {
-          schema: check || !rollCheck ? schemas.noCheck : schemas.any,
+          schema: check || !rollCheck || ratedNone ? schemas.noCheck : schemas.any,
           call: kind,
           onText,
           onGeneration: (each) => (generation = each),
@@ -885,12 +888,13 @@ async function narrate(
       const streamed = Date.now();
       const response = parseReply<z.infer<typeof NarratorResponse | typeof EditedTurn>>(reply, edited === undefined ? NarratorResponse : EditedTurn);
       if (response.check) {
-        if (check || !rollCheck) throw new InvalidResponse();
+        if (check || !rollCheck || ratedNone) throw new InvalidResponse();
         check = rollCheck(response.check);
         attempt = 0; // The result call gets its own retries.
         why = [];
         continue;
       }
+      if (!check && rollCheck) ratedNone = true;
       const { people, summary, recent_summary, scene_changed, visual_description, chapter_ends } = response;
       // Kept without the loop, not written again, as DeepSeek's whole narration was lost to a retry eight times in one 30-round play.
       const operationLimit = MAX_OPERATIONS * (kind === "opening" ? 2 : 1);

@@ -56,6 +56,15 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     old === null ||
     text === null ||
     people.every((names) => !names.some((name) => mentions(old, name, "u")) || names.some((name) => mentions(text, name) || mentions(state.summary, name)));
+  const allNames = (name: string) => [name, ...name.split(" ").filter((part) => part.length > 2 && /^\p{Lu}/u.test(part))];
+  const pc = allNames(saves.read(id).pc.name);
+  const cast = state.scene.visibleCast.flatMap(allNames);
+  // The thread of someone with the PC, rewritten with the PC in it, is the scene in play told as what they did out of sight, as
+  // "Anselm is standing in Mara's room now", which the rule against it didn't stop on GLM or DeepSeek. The PC's name is matched
+  // with its capital, so a name that is also a word, such as Ash, isn't taken for it.
+  // shortcut: by names; a retelling that leaves the PC unnamed, or a fair rewrite that names them, isn't told apart.
+  const retells = ({ old, new: text }: z.infer<typeof ListChange>) =>
+    old !== null && text !== null && cast.some((name) => mentions(old, name)) && pc.some((name) => mentions(text, name, "u"));
   // Why a change can't be used, named so the log and the request to write it again both say which.
   const fault = (change: z.infer<typeof ListChange>, index: number, all: z.infer<typeof ListChange>[]) => {
     if (change.old !== null && !plotThreads.includes(change.old)) return "a change misquotes a thread";
@@ -63,6 +72,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     if (change.old !== null && all.findIndex(({ old }) => old === change.old) < index) return "a change changes a thread twice";
     if (change.new !== null && !withinLimit(change.new, THREAD_WORDS)) return `a thread runs past ${THREAD_WORDS} words`;
     if (!keepsNames(change)) return "a rewrite drops someone the thread named";
+    if (retells(change)) return "a rewrite retells the scene in play";
     return null;
   };
   // Only the changes that fail are dropped, as throwing away a whole move for one of them lost most moves in bench runs.

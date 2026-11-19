@@ -151,6 +151,49 @@ test("a Regenerate drops the move made from the reply it replaces", async () => 
   expect(store().latestState(id).plotThreads).toEqual(["A thief plans to rob the library at the next high tide."]);
 });
 
+test("a move doesn't rewrite the thread of someone with the PC into an account of the scene, which it did on GLM and DeepSeek", async () => {
+  play(
+    narration(
+      "Ash walks to the dock, where the thief is mending a net.",
+      { op: "add_npc", name: "Thief", appearance: "a wiry man in a grey smock" },
+      { op: "set_scene", location: "The dock", visible_cast: ["Thief"] },
+    ),
+    // The scene in play, retold as what the thief did: dropped, and asked again while tries remain.
+    ...Array.from({ length: 3 }, () =>
+      moved({ old: "A thief plans to rob the library at the next high tide.", new: "The thief is mending a net beside Ash now, waiting for the tide." }),
+    ),
+    narration("Ash watches the barges."),
+  );
+  const id = createSave();
+
+  const log = await logOf(async () => {
+    expect((await turn(id, "I walk to the dock.")).ok).toBe(true);
+    expect((await turn(id, "I watch the barges.")).ok).toBe(true);
+  }, "info");
+
+  expect(store().latestState(id).plotThreads).toEqual(["A thief plans to rob the library at the next high tide."]);
+  // No change is left, so it's asked again, saying why, and then the world stays as it was.
+  expect(log).toContain("a rewrite retells the scene in play");
+  expect(log).not.toContain("mending");
+});
+
+test("a move rewrites the thread of someone with the PC when it keeps to what they plan, without the PC in it", async () => {
+  play(
+    narration(
+      "Ash walks to the dock, where the thief is mending a net.",
+      { op: "add_npc", name: "Thief", appearance: "a wiry man in a grey smock" },
+      { op: "set_scene", location: "The dock", visible_cast: ["Thief"] },
+    ),
+    moved({ old: "A thief plans to rob the library at the next high tide.", new: "The thief means to rob the library at tonight's tide." }),
+    narration("Ash watches the barges."),
+  );
+  const id = createSave();
+
+  for (const input of ["I walk to the dock.", "I watch the barges."]) expect((await turn(id, input)).ok).toBe(true);
+
+  expect(store().latestState(id).plotThreads).toEqual(["The thief means to rob the library at tonight's tide."]);
+});
+
 test("a move adds threads only while fewer than three are open, as an 80-round story's grew to seven that nothing ended", async () => {
   const add = (text: string) => ({ old: null, new: text });
   play(

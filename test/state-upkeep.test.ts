@@ -160,6 +160,8 @@ test("State Upkeep may move time in a Turn where the Narrator didn't", async () 
   expect((await turn(id)).ok).toBe(true);
 
   expect(upkeep.prompts[0]![0]!.content).toContain("set_story_time");
+  // Named as the reply shows it, as on DeepSeek the clock sat at early afternoon through 30 rounds while the light went amber.
+  expect(upkeep.prompts[0]![0]!.content).toContain("shows the light, a meal or the hour moved on");
   expect(store().latestState(id).storyTime).toEqual({ day: 1, date: "1st of Thaw", timeOfDay: "night" });
 });
 

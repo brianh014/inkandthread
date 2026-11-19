@@ -111,8 +111,24 @@ test("when fewer than three Choices are left once those built on the unknown are
   const log = await logOf(() => app!.post(`/saves/${id}/turns`, { input: "I wade forward." }), "info");
 
   expect(script.prompts).toHaveLength(2);
-  expect(await latestChoices(id)).toEqual(CHOICES);
+  // The reply's own kept first, then the new ones.
+  expect(await latestChoices(id)).toEqual(["I climb the wall.", "I wade on.", "I call for help."]);
   expect(log).toContain('Too few Choices kept {"route":"/saves/:id/turns","save":"');
+});
+
+test("Choices kept from the reply and from the Choices asked for alone are merged, so three are offered when each lost one", async () => {
+  const reviewer: TextProvider = async () => JSON.stringify({ state_operations: [] });
+  const script = scriptedTextProvider(
+    withChoices("The tide rises.", ["I ride for Qasr.", "I climb the wall.", "I wade on."]),
+    JSON.stringify({ choices: ["I ride to Qasr at dawn.", "I call for help.", "I wade on."] }),
+  );
+  app = startApp(savesDir, script.textProvider, undefined, undefined, undefined, undefined, undefined, reviewer);
+  const id = await app.createSave();
+  await app.patch(`/saves/${id}`, { playMode: "choices" });
+
+  await app.post(`/saves/${id}/turns`, { input: "I wade forward." });
+
+  expect(await latestChoices(id)).toEqual(["I climb the wall.", "I wade on.", "I call for help."]);
 });
 
 test("a Turn whose Choices can't be written alone is kept without any", async () => {

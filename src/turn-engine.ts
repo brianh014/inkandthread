@@ -983,6 +983,15 @@ async function narrate(
           // Held to what the PC knows, as the Choices the reply came with are.
           written && upkeep && seen !== undefined ? knownChoices(written, narrated.next, seen(), narration) : written,
         );
+      // Merged with what each ask kept, up to two asks, as taking one set or the other offered two Choices when each had lost one to a leak.
+      const refilled = async (kept: string[]) => {
+        for (let ask = 0; ask < 2 && kept.length < 3; ask++) {
+          const written = await alone();
+          if (!written) break;
+          kept = [...new Set([...kept, ...written])].slice(0, 3);
+        }
+        return kept;
+      };
       // Side by side, as neither needs the other, so a slow reviewer holds the Choices back once, not twice.
       const [upkept, offered] = await Promise.all([
         // Held to the fix's cut as the Narrator's are, as Upkeep's npc_learns can carry what the fix took out.
@@ -1000,10 +1009,10 @@ async function narrate(
                 // Asked for alone, as a lone Choice left after dropping leaks lost a play its clue, and two were left in four rounds.
                 if (kept.length >= 3) return kept;
                 log.info("turn", "Too few Choices kept", { attempt, generation, kept: kept.length });
-                return alone().then((written) => (written && written.length >= kept.length ? written : kept));
+                return refilled(kept);
               })()
             : unchosen
-              ? alone()
+              ? refilled([])
               : choices,
         ),
       ]);

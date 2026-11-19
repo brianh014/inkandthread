@@ -45,7 +45,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 50;
+const BENCH_ITERATION = 51;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 45;
@@ -583,7 +583,9 @@ async function play(
               ? await send(round, action, `/saves/${id}/messages/${narrator.id}/edit`, { text: `${narrator.text}\n\n${world.actions.edit}` })
               : undefined;
       if (sent?.ok) sent.message = latestNarrator()?.id;
-      if (action === "continue") await send(round, action, `/saves/${id}/turns`, { input: CONTINUE }, CONTINUE);
+      // Tried again once, as the opening is, since one DNS blip otherwise spent the play's only Continue.
+      if (action === "continue" && !(await send(round, action, `/saves/${id}/turns`, { input: CONTINUE }, CONTINUE)).ok)
+        await send(round, action, `/saves/${id}/turns`, { input: CONTINUE }, CONTINUE);
       if (action === "worldChange") await send(round, action, `/saves/${id}/world-change`, { change: world.actions.worldChange }, world.actions.worldChange);
       const { offer } = (await (await fetch(new URL(`/saves/${id}/chapters`, server.url))).json()) as { offer: boolean };
       if (offer) await send(round, "chapter", `/saves/${id}/chapters`, {});

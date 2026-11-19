@@ -1,5 +1,5 @@
 // `bun bench chart`: the kept runs as two charts, judged score against cost per Turn, coloured by Turn time, one for the Narrator
-// alone and one for the Narrator with a reviewer and decision model. A self-contained page whose one small script picks the bench
+// alone and one for the Narrator with a reviewer and Consistency model. A self-contained page whose one small script picks the bench
 // version, the score (overall or one rubric item) and the story to show; every pick is drawn up front.
 
 /** The parts of a bench result the chart reads (bench.ts's `Result`). */
@@ -64,7 +64,7 @@ export function points(results: ChartResult[], version: string, rounds: number, 
     const detail =
       result.setup === "narrator"
         ? `${result.provider} ${narrator}, Thinking ${result.thinking}`
-        : `${result.provider} ${narrator}, Thinking ${result.thinking}; reviewer ${reviewer}, Thinking ${reviewThinking}; decisions ${consistency}`;
+        : `${result.provider} ${narrator}, Thinking ${result.thinking}; reviewer ${reviewer}, Thinking ${reviewThinking}; consistency ${consistency}`;
     const key = `${result.setup}|${detail}`;
     const group = groups.get(key) ?? { setup: result.setup, label, detail, runs: 0, plays: [] };
     group.runs++;
@@ -204,7 +204,7 @@ ${note}</section>`;
 // Each setup is its own chart, picked with the Setup selector, and says so when it has no runs in a pick.
 const SETUPS: [Point["setup"], string][] = [
   ["narrator", "Narrator alone"],
-  ["full", "Narrator, reviewer and decision model"],
+  ["full", "Narrator, reviewer and Consistency model"],
 ];
 
 /** The key and both setups' charts for one pick, coloured by the Turn times of that pick alone, `shown` the one not hidden. */
@@ -309,7 +309,7 @@ ${select(
   "Setup",
   SETUPS.map(([setup]) => setup),
   pick.setup,
-  (setup) => (setup === "narrator" ? "Narrator only" : "With reviewer and decision model"),
+  (setup) => (setup === "narrator" ? "Narrator only" : "With reviewer and Consistency model"),
 )}
 </div>
 ${views.length ? views.join("\n") : view([], pick.setup)}

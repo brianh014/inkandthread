@@ -14,25 +14,25 @@
 //   bun bench chart [--rounds N]       the kept, judged, drawn Choices runs of one length (30) as charts, with a pick of bench
 //                                      version, score and story, to bench/charts/bench-chart.html
 // To bench a setup without editing the Settings copy: --narrator <model>, --narrator-only (no other reviewer, Consistency off),
-// --reviewer <model> and --decisions <model>. The copy's pinned provider stays, so a model it doesn't offer fails, never reroutes.
+// --reviewer <model> and --consistency <model> (or --decisions, its old name), which turns the check on with that chat model.
+// The copy's pinned provider stays, so a model it doesn't offer fails, never reroutes.
 //   --host <provider>   pins the OpenRouter provider (DeepInfra, say) with no fallback, on the copy only, for the Narrator and
-//                       a reviewer on the same server; the decision model (src/decisions.ts) is never routed this way.
+//                       a reviewer or Consistency model on the same server.
 //   --no-consistency    turns off only the consistency check, keeping the reviewer for State Upkeep, Choices and World Moves
-//                       On, as a control run of what the check adds; not with --narrator-only or --decisions.
+//                       On, as a control run of what the check adds; not with --narrator-only or --consistency.
 // Each result and transcript header records the host and whether the check was on.
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { z } from "zod";
-import { decisionProvider } from "../src/decisions";
-import { fakeDecisions, fakeImages, fakeTextProvider } from "../src/fake-services";
+import { fakeImages, fakeTextProvider } from "../src/fake-services";
 import { setLogLevel, startLog } from "../src/logger";
 import { CONTINUE } from "../src/prompt-assembler";
 import { startServer } from "../src/rest-api";
 import { type State, StateOperation } from "../src/state-applier";
 import { saveStore } from "../src/save-store";
 import { localIsSetUp } from "../src/graph-builder";
-import { reviewerSettings, settingsStore } from "../src/settings-store";
+import { consistencySettings, reviewerSettings, settingsStore } from "../src/settings-store";
 import { textProvider } from "../src/text-provider";
 import { VERSION } from "../src/updater";
 import { askForJson, jsonSchemaOf, type TextProvider, worldMoved } from "../src/turn-engine";
@@ -44,7 +44,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 43;
+const BENCH_ITERATION = 44;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 30;
@@ -204,6 +204,8 @@ const HEADLINE = [
   "upkeep.total",
   "consistency.fixed",
   "consistency.fix failed",
+  "consistency.claimed",
+  "consistency.verified",
   "coverage.fired",
   "timing.firstText.median",
   "timing.reply.median",
@@ -211,8 +213,8 @@ const HEADLINE = [
   "timing.turn.median",
   "timing.turn.max",
   "timing.upkeep.median",
-  "timing.decision.median",
-  "timing.fix.median",
+  "timing.check.median",
+  "timing.revised.median",
   "timing.picture.median",
   "images.scene",
   "images.portrait",
@@ -301,8 +303,8 @@ function seeded(seed: number) {
 
 // ---- Cost estimate ----
 
-// Before any run exists, about what one round sends and gets back, per side, in tokens, and the decisions' cost.
-const ROUGH = { narrator: { in: 30_000, out: 2_500 }, reviewer: { in: 5_000, out: 1_000 }, decisions: 0.002 };
+// Before any run exists, about what one round sends and gets back, per side, in tokens.
+const ROUGH = { narrator: { in: 30_000, out: 2_500 }, reviewer: { in: 5_000, out: 1_000 }, consistency: { in: 6_000, out: 400 } };
 
 /** Every run's result, kept and recent, newest first. */
 function allResults() {
@@ -334,7 +336,7 @@ async function estimate(provider: string, narrator: string, reviewer: string, ro
     ? {
         narrator: { in: last["perRound.narrator.in"] ?? 0, out: last["perRound.narrator.out"] ?? 0 },
         reviewer: { in: last["perRound.reviewer.in"] ?? 0, out: last["perRound.reviewer.out"] ?? 0 },
-        decisions: last["perRound.decisions.cost"] ?? 0,
+        consistency: { in: last["perRound.consistency.in"] ?? 0, out: last["perRound.consistency.out"] ?? 0 },
       }
     : ROUGH;
   const prices = await pricesOf([narrator, reviewer]);
@@ -346,7 +348,9 @@ async function estimate(provider: string, narrator: string, reviewer: string, ro
     perRound.narrator.out * n.completion +
     perRound.reviewer.in * r.prompt +
     perRound.reviewer.out * r.completion +
-    perRound.decisions;
+    // shortcut: priced as the reviewer, which checks unless a Consistency model is chosen; look its own price up if one often is.
+    perRound.consistency.in * r.prompt +
+    perRound.consistency.out * r.completion;
   return {
     dollars: round * rounds * runs,
     how: `${last ? "tokens per round from this Narrator's last run" : "a rough guess of tokens per round, as this Narrator has no run yet"}, at OpenRouter's list prices; thinking, caching and retries can make it half to double`,
@@ -356,14 +360,15 @@ async function estimate(provider: string, narrator: string, reviewer: string, ro
 // ---- One play ----
 
 type Call = { role: string; ms: number; in: number; out: number; cost: number };
+type Side = "narrator" | "reviewer" | "consistency";
 
 /** Names a text call by what its schema asks for, so each step's time and cost are told apart. */
-function roleOf(side: "narrator" | "reviewer", schema: object | undefined, picture = false) {
+function roleOf(side: Side, schema: object | undefined, picture = false) {
   const text = JSON.stringify(schema ?? {});
   // Writing or checking an Image Prompt, a Cover's or portrait's, or a moment's.
   if (picture) return `${side}.picture`;
-  if (side === "reviewer")
-    return text.includes('"narration_edits"') ? "reviewer.fix" : text.includes('"state_operations"') ? "reviewer.upkeep" : "reviewer.other";
+  if (side === "consistency") return "consistency.check";
+  if (side === "reviewer") return text.includes('"state_operations"') ? "reviewer.upkeep" : "reviewer.other";
   if (text.includes('"narration"') && text.includes('"state_operations"')) return "narrator.turn";
   if (text.includes('"scene_memory"')) return "narrator.memory";
   if (text.includes('"scores"')) return "narrator.judge";
@@ -371,7 +376,7 @@ function roleOf(side: "narrator" | "reviewer", schema: object | undefined, pictu
   return "narrator.other";
 }
 
-function counted(provider: TextProvider, side: "narrator" | "reviewer", calls: Call[]): TextProvider {
+function counted(provider: TextProvider, side: Side, calls: Call[]): TextProvider {
   return async (prompt, request) => {
     const call: Call = { role: roleOf(side, request.schema, request.picture), ms: 0, in: 0, out: 0, cost: 0 };
     calls.push(call);
@@ -473,10 +478,6 @@ async function play(
   const savesDir = join(dirname(settingsPath), `saves-${index}`);
   const settings = settingsStore(settingsPath);
   const calls: Call[] = [];
-  // Each question's wait; the cost is summed apart, as questions run in parallel and their costs arrive in any order.
-  const decisions: number[] = [];
-  let decisionCost = 0;
-  const decide = fake ? fakeDecisions : decisionProvider(settings, ({ cost }) => (decisionCost += cost ?? 0));
   const pick = seeded(seed * 1000 + index);
   const roll = seeded(seed * 7919 + index);
   // The log goes to the play's folder, and only warnings and up to the terminal.
@@ -490,14 +491,7 @@ async function play(
     settings,
     textProvider: counted(narratorOf(settings), "narrator", calls),
     reviewProvider: counted(fake ? fakeTextProvider : textProvider(reviewerSettings(settings)), "reviewer", calls),
-    decisionProvider: async (state, questions, signal) => {
-      const started = performance.now();
-      try {
-        return await decide(state, questions, signal);
-      } finally {
-        decisions.push(performance.now() - started);
-      }
-    },
+    consistencyProvider: counted(fake ? fakeTextProvider : textProvider(consistencySettings(settings)), "consistency", calls),
     // The real AI writes and checks every Image Prompt, to be judged, but a stand-in draws it, as real pictures cost money and time,
     // unless --draw, which draws on local ComfyUI only.
     imageAdapter: fakeImages,
@@ -643,8 +637,13 @@ async function play(
       add("upkeep.total");
     }
     add("upkeep.refused", (turn.upkeepRefused as number | undefined) ?? 0);
-    const consistency = turn.consistency as { outcome: string } | undefined;
-    if (consistency) add(`consistency.${consistency.outcome}`);
+    const consistency = turn.consistency as { outcome: string; claimed: number; verified: number; edits: number } | undefined;
+    if (consistency) {
+      add(`consistency.${consistency.outcome}`);
+      add("consistency.claimed", consistency.claimed);
+      add("consistency.verified", consistency.verified);
+      add("consistency.edits", consistency.edits);
+    }
     if (turn.chapterEnds) add("chapterSuggested");
   }
   flat["checks.difficultyMean"] = flat["checks.asked"] ? (flat["checks.difficultySum"] ?? 0) / flat["checks.asked"] : 0;
@@ -695,14 +694,18 @@ async function play(
     calls.filter(({ role }) => role === "reviewer.upkeep").map(({ ms }) => ms),
   );
   timing(
-    "fix",
-    calls.filter(({ role }) => role === "reviewer.fix").map(({ ms }) => ms),
+    "check",
+    calls.filter(({ role }) => role === "consistency.check").map(({ ms }) => ms),
+  );
+  // How long a reply was read before a fix replaced it.
+  timing(
+    "revised",
+    logged("Reply revised").map(({ ms }) => ms as number),
   );
   timing(
     "memory",
     calls.filter(({ role }) => role === "narrator.memory").map(({ ms }) => ms),
   );
-  timing("decision", decisions);
   timing(
     "picture",
     calls.filter(({ role }) => role.endsWith(".picture")).map(({ ms }) => ms),
@@ -715,16 +718,13 @@ async function play(
     add(`cost.${call.role}`, call.cost);
     add(`calls.${call.role}`);
   }
-  flat["cost.decisions"] = decisionCost;
-  flat["calls.decisions"] = decisions.length;
-  flat["cost.total"] = calls.reduce((sum, { cost }) => sum + cost, 0) + decisionCost;
+  flat["cost.total"] = calls.reduce((sum, { cost }) => sum + cost, 0);
   flat["cost.perRound"] = flat["cost.total"] / rounds;
-  for (const side of ["narrator", "reviewer"] as const) {
+  for (const side of ["narrator", "reviewer", "consistency"] as const) {
     const mine = calls.filter(({ role }) => role.startsWith(`${side}.`));
     flat[`perRound.${side}.in`] = Math.round(mine.reduce((sum, { in: tokens }) => sum + tokens, 0) / rounds);
     flat[`perRound.${side}.out`] = Math.round(mine.reduce((sum, { out }) => sum + out, 0) / rounds);
   }
-  flat["perRound.decisions.cost"] = decisionCost / rounds;
 
   const { textHost, textHostFallback, consistencyEnabled } = settings.read();
   const setup = `Narrator host: ${textHost ? `${textHost}${textHostFallback ? ", falling back" : ", no fallback"}` : "any"}. Consistency check: ${consistencyEnabled ? "on" : "off"}.`;
@@ -970,21 +970,21 @@ async function run() {
     fail("--draw needs local ComfyUI set up as the image provider in the Settings file.");
   if (drawing.imageProvider === "local" ? !localIsSetUp(drawing) : !(drawing.imageModel && drawing.imageApiKey))
     settings.update({ imageProvider: "openrouter", imageModel: "fake-images", imageApiKey: "fake-key" });
-  const chosen = { narrator: option("--narrator"), reviewer: option("--reviewer"), decisions: option("--decisions") };
-  if (flag("--narrator-only") && (chosen.reviewer || chosen.decisions)) fail("--narrator-only can't go with --reviewer or --decisions.");
+  const chosen = { narrator: option("--narrator"), reviewer: option("--reviewer"), consistency: option("--consistency") ?? option("--decisions") };
+  if (flag("--narrator-only") && (chosen.reviewer || chosen.consistency)) fail("--narrator-only can't go with --reviewer or --consistency.");
   const noConsistency = flag("--no-consistency");
-  if (noConsistency && (flag("--narrator-only") || chosen.decisions)) fail("--no-consistency can't go with --narrator-only or --decisions.");
+  if (noConsistency && (flag("--narrator-only") || chosen.consistency)) fail("--no-consistency can't go with --narrator-only or --consistency.");
   if (chosen.narrator) settings.update({ textModel: chosen.narrator });
   if (flag("--narrator-only")) settings.update({ reviewOtherModel: false, consistencyEnabled: false });
   if (chosen.reviewer) settings.update({ reviewOtherModel: true, reviewModel: chosen.reviewer });
-  if (chosen.decisions) settings.update({ consistencyEnabled: true, consistencyModel: chosen.decisions });
+  if (chosen.consistency) settings.update({ consistencyEnabled: true, consistencyModel: chosen.consistency });
   if (noConsistency) settings.update({ consistencyEnabled: false });
   if (fake)
     settings.update({
       textBaseUrl: "http://127.0.0.1:9/v1",
       textModel: "fake-narrator",
       consistencyEnabled: !flag("--narrator-only") && !noConsistency,
-      consistencyModel: "fake-decisions",
+      consistencyModel: "",
     });
   // Last, as the host is kept per server address and a change of address above loads that server's own.
   const host = option("--host");
@@ -996,7 +996,7 @@ async function run() {
     narrator: all.textModel,
     reviewer: reviewer.textModel,
     reviewThinking: all.reviewThinking,
-    consistency: all.consistencyEnabled ? all.consistencyModel : "off",
+    consistency: all.consistencyEnabled ? consistencySettings(settings).read().textModel : "off",
   };
   if (!models.narrator) fail("The Settings file names no Narrator model.");
 

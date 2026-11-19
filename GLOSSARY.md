@@ -86,7 +86,7 @@ A Narrator call at a natural pause (a Turn moving story time on by hours, a new 
 _Avoid_: Off-screen turn, world tick
 
 **Consistency model**:
-An optional decision model, chosen in Settings, that answers consistency questions of each reply: narrow yes-or-no questions, each sent only the slice of the story it needs, such as whether the reply's time of day fits Story Time. A question over its cut-off has the reviewer fix the reply before it is saved.
+An optional chat model, chosen in Settings and the reviewer's when none is, that answers consistency questions of each reply: narrow questions, each in its own call with only the slice of the story it needs, such as whether the reply's time of day fits Story Time. One that finds a slip quotes the reply's words, what was established that they contradict, and a fix; the fix is made before the reply is saved only when both quotes are found.
 _Avoid_: Checker, judge, Check model (a Check is the hidden test of a risky PC action)
 
 **Check**:

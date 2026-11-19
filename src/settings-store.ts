@@ -54,10 +54,10 @@ export const SettingsUpdate = z
     reviewApiKey: z.string(),
     // Its own, so reviews can think harder than Turns. Same follows the Narrator's Thinking.
     reviewThinking: z.enum(["same", "default", "low", "medium", "high"]),
-    // Narrow questions of each reply on a decision model, and the reviewer fixes a reply that clashes with the story.
+    // Narrow questions of each reply on a chat model, each quoting and fixing a slip it finds. No model is the reviewer's.
     consistencyEnabled: z.boolean(),
     consistencyModel: z.string(),
-    // The Narrator's provider and key, when it has decision models, or its own.
+    // The Narrator's provider and key, or its own.
     consistencySameProvider: z.boolean(),
     consistencyBaseUrl: z.url({ protocol: /^https?$/ }),
     consistencyApiKey: z.string(),
@@ -235,6 +235,20 @@ export const reviewerSettings = (settings: TextSettings): TextSettings => ({
     // every call; with fallback on, a host that doesn't offer the reviewer's model routes it elsewhere. A host names nothing on
     // another server.
     return { ...all, ...server, ...thinking, textModel: all.reviewModel, ...(!all.reviewSameProvider && { textHost: "" }) };
+  },
+});
+
+/**
+ * The Consistency model's settings: the reviewer's when none is chosen, or its model on the Narrator's server, with the player's
+ * host pin as the reviewer keeps it, or on its own. Always at Low, as it quotes rather than reasons; a model that won't take Low
+ * is raised by the Text Provider.
+ */
+export const consistencySettings = (settings: TextSettings): TextSettings => ({
+  read: () => {
+    const all = settings.read();
+    if (!all.consistencyModel) return { ...reviewerSettings(settings).read(), textThinking: "low" };
+    const server = all.consistencySameProvider ? {} : { textBaseUrl: all.consistencyBaseUrl, textApiKey: all.consistencyApiKey, textHost: "" };
+    return { ...all, ...server, textModel: all.consistencyModel, textThinking: "low" };
   },
 });
 

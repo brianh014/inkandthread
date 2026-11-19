@@ -19,7 +19,6 @@ import {
   SaveNotFound,
   StaleTurn,
 } from "./save-store";
-import type { DecisionProvider } from "./decisions";
 import type { OnlineImageProvider, SettingsStore } from "./settings-store";
 import { type TextProvider, TurnFailed } from "./turn-engine";
 import { UpdateFailed } from "./updater";
@@ -32,13 +31,11 @@ export type ServerOptions = {
   textProvider: TextProvider;
   /** Reviews the world and World Changes, sent with the reviewer's settings. Without one, as in tests with a scripted Narrator, nothing is reviewed. */
   reviewProvider?: TextProvider;
-  /** The Consistency model. By default the real one, which asks nothing until Settings turn it on. */
-  decisionProvider?: DecisionProvider;
-  /** For the Consistency model dropdown, in place of the provider's list, as --fake has no network. */
-  decisionModels?: () => Promise<string[]>;
+  /** The Consistency model, sent with its settings; without one, the reviewer checks. It asks nothing until Settings turn it on. */
+  consistencyProvider?: TextProvider;
   /** Whether the world moves on at natural pauses (`moveWorldOn`): on in the app and the bench, off in tests, whose scripted Narrator would answer it. */
   moveWorld?: boolean;
-  /** `--consistency-log-only`: every question scores and logs, tuned or not, and nothing is fixed. */
+  /** `--consistency-log-only`: every question is asked and logged, and nothing is fixed. */
   consistencyLogOnly?: boolean;
   /**
    * One adapter for every online provider, as tests and --fake use, or one per provider. A list must name them all, so a provider

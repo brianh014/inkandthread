@@ -16,7 +16,6 @@ import {
   NANOGPT_URL,
   getTextModels,
   OPENROUTER_URL,
-  offersDecisions,
   type PlayMode,
   saveArtStyle,
   savePlayMode,
@@ -976,78 +975,85 @@ export function ReviewSettings({
   );
 }
 
-const DECISION_CHOICES = [
-  { value: "openrouter", label: "OpenRouter" },
-  { value: "nanogpt", label: "NanoGPT" },
-] as const;
-
-/** The Consistency model: a decision model that checks each reply against the story, so the reviewer can fix a slip. */
+/** The Consistency model: a chat model that checks each reply against the story and fixes a slip it can quote. None is the reviewer's. */
 export function ConsistencySettings({
   draft,
   saved,
   set,
+  narratorModels,
   consistencyKey,
   setConsistencyKey,
 }: {
   draft: Settings;
   saved: Settings;
   set: (change: Partial<Settings>) => void;
+  narratorModels?: string[];
   consistencyKey: string;
   setConsistencyKey: (key: string) => void;
 }) {
-  const sameOffered = offersDecisions(draft.textBaseUrl);
-  const own = !draft.consistencySameProvider || !sameOffered;
+  const own = !draft.consistencySameProvider;
+  const choice = textChoiceOf(draft.consistencyBaseUrl);
   // A list is only ever the saved server's, so only while the form shows the server that was saved.
-  const server = (settings: Settings) =>
-    settings.consistencySameProvider && offersDecisions(settings.textBaseUrl) ? settings.textBaseUrl : settings.consistencyBaseUrl;
-  const listSaved = server(saved) === server(draft);
-  const [models, setModels] = useState<string[]>();
+  const ownSaved = !saved.consistencySameProvider && saved.consistencyBaseUrl === draft.consistencyBaseUrl;
+  const [ownModels, setOwnModels] = useState<string[]>();
 
   useEffect(() => {
-    setModels(undefined);
-    if (!listSaved) return;
+    setOwnModels(undefined);
+    if (!ownSaved) return;
     let current = true;
-    const show = (list: string[]) => current && setModels(list);
+    const show = (list: string[]) => current && setOwnModels(list);
     getTextModels("consistency").then(show, () => show([]));
     return () => {
       current = false;
     };
-  }, [listSaved, saved]);
+  }, [ownSaved, saved]);
 
+  const models = own ? (ownSaved ? ownModels : undefined) : draft.textBaseUrl === saved.textBaseUrl ? narratorModels : undefined;
   return (
     <fieldset>
       <legend>Consistency</legend>
       <p className="muted">
-        A decision model asks quick questions of each reply, such as whether its time of day fits the story's, before you read on, and the reviewer quietly
-        fixes a reply that slips. Each check costs a fraction of a cent. The decision model is sent parts of the story, so for privacy pick one that keeps no
-        data.
+        Before you read on, the AI asks a few narrow questions of each reply, such as whether its time of day fits the story's, and quietly fixes a slip it can
+        point to. It adds a few seconds to a reply. It is sent parts of the story, so for privacy pick a provider that keeps no data.
       </p>
       <label className="toggle">
         <input type="checkbox" checked={draft.consistencyEnabled} onChange={(e) => set({ consistencyEnabled: e.target.checked })} />
-        Check replies with a Consistency model
+        Check replies for slips
       </label>
       {draft.consistencyEnabled && (
         <>
-          {sameOffered && (
-            <label className="toggle">
-              <input type="checkbox" checked={draft.consistencySameProvider} onChange={(e) => set({ consistencySameProvider: e.target.checked })} />
-              Same provider as the Narrator
-            </label>
-          )}
+          <label className="toggle">
+            <input type="checkbox" checked={draft.consistencySameProvider} onChange={(e) => set({ consistencySameProvider: e.target.checked })} />
+            Same provider as the Narrator
+          </label>
           {own && (
             <>
               <Picker
                 label="Consistency provider"
-                value={textChoiceOf(draft.consistencyBaseUrl) === "nanogpt" ? "nanogpt" : "openrouter"}
-                choices={[...DECISION_CHOICES]}
-                onChange={(provider) => set({ consistencyBaseUrl: TEXT_PROVIDERS[provider], consistencyModel: "" })}
+                value={choice}
+                choices={[...TEXT_CHOICES]}
+                onChange={(provider) =>
+                  set({ consistencyBaseUrl: provider === "local" ? "http://localhost:1234/v1" : TEXT_PROVIDERS[provider], consistencyModel: "" })
+                }
               />
+              {choice === "local" && (
+                <label>
+                  Consistency server address
+                  <input
+                    type="url"
+                    required
+                    placeholder="http://localhost:1234/v1"
+                    value={draft.consistencyBaseUrl}
+                    onChange={(e) => set({ consistencyBaseUrl: e.target.value })}
+                  />
+                </label>
+              )}
               <label>
                 Consistency API key
                 <input
                   type="password"
                   autoComplete="new-password"
-                  placeholder={saved.hasConsistencyApiKey && server(saved) === server(draft) ? "Saved. Type a new key to replace it." : "None saved"}
+                  placeholder={saved.hasConsistencyApiKey && ownSaved ? "Saved. Type a new key to replace it." : "None saved"}
                   value={consistencyKey}
                   onChange={(e) => setConsistencyKey(e.target.value)}
                 />
@@ -1055,14 +1061,14 @@ export function ConsistencySettings({
             </>
           )}
           <ModelField
-            key={server(draft)}
+            key={own ? draft.consistencyBaseUrl : draft.textBaseUrl}
             label="Consistency model"
             value={draft.consistencyModel}
             list={models}
             onChange={(consistencyModel) => set({ consistencyModel })}
           />
-          {!listSaved && <p className="muted">Save to choose from this provider's decision models.</p>}
-          {!draft.consistencyModel.trim() && <p className="notice">Choose a model, or replies go unchecked.</p>}
+          {own && !ownSaved && <p className="muted">Save to choose from this provider's models.</p>}
+          {!draft.consistencyModel.trim() && <p className="muted">With no model chosen, the Review model checks.</p>}
         </>
       )}
     </fieldset>
@@ -1172,9 +1178,7 @@ function InstallSettings({
       ...(textKey.trim() && { textApiKey: textKey.trim() }),
       // Likewise hidden unless the reviewer has its own provider.
       ...(draft.reviewOtherModel && !draft.reviewSameProvider && reviewKey.trim() && { reviewApiKey: reviewKey.trim() }),
-      ...(draft.consistencyEnabled &&
-        (!draft.consistencySameProvider || !offersDecisions(draft.textBaseUrl)) &&
-        consistencyKey.trim() && { consistencyApiKey: consistencyKey.trim() }),
+      ...(draft.consistencyEnabled && !draft.consistencySameProvider && consistencyKey.trim() && { consistencyApiKey: consistencyKey.trim() }),
       // Its field is hidden for Local, and a key the player can't see must not be stored.
       ...(draft.imageProvider !== "local" && imageKey.trim() && { imageApiKey: imageKey.trim() }),
     });
@@ -1382,7 +1386,14 @@ function InstallSettings({
           The Narrator is asked for about 60 words and at most 80. An answer over this limit is thrown out and asked for again, up to three tries.
         </p>
         <ReviewSettings draft={draft} saved={saved} set={set} narratorModels={models} reviewKey={reviewKey} setReviewKey={setReviewKey} />
-        <ConsistencySettings draft={draft} saved={saved} set={set} consistencyKey={consistencyKey} setConsistencyKey={setConsistencyKey} />
+        <ConsistencySettings
+          draft={draft}
+          saved={saved}
+          set={set}
+          narratorModels={models}
+          consistencyKey={consistencyKey}
+          setConsistencyKey={setConsistencyKey}
+        />
         <TestBox
           title="Test text"
           hint="Sends this prompt to your saved model, with the saved Extra Narrator Instructions above. A paid provider may charge for each test."

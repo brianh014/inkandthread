@@ -823,6 +823,7 @@ async function narrate(
         log.warning("turn", "Run-on reply kept", { attempt, generation, sent: withoutThinking(partial).length, kept: closed.length });
         return closed;
       });
+      const streamed = Date.now();
       const response = parseReply<z.infer<typeof NarratorResponse | typeof EditedTurn>>(reply, edited === undefined ? NarratorResponse : EditedTurn);
       if (response.check) {
         if (check || !rollCheck) throw new InvalidResponse();
@@ -912,7 +913,6 @@ async function narrate(
         });
         const result = await checkConsistency(
           consistency,
-          upkeep,
           reply,
           (text) => usableFix(withoutStrayMarks(text), pcName, told, check) && !repeatsPrevious(text, told, previous),
           signal,
@@ -921,7 +921,11 @@ async function narrate(
         narration = withoutBareSpeech(withoutStrayMarks(result.narration), pcName);
         description = result.visualDescription;
         // Nothing tells the player, but the fixed reply takes the streamed one's place.
-        if (narration !== told) emit("revise", { text: narration });
+        if (narration !== told) {
+          emit("revise", { text: narration });
+          // How long the player read the streamed reply before it changed, which is what the check costs them.
+          log.info("turn", "Reply revised", { attempt, generation, ms: Date.now() - streamed });
+        }
         cut = cutWords(told, narration);
         const kept = withoutCut(state_operations, cut);
         if (kept.length < state_operations.length)

@@ -1,22 +1,19 @@
-// Runs a test story's cases through what play does after a reply: the consistency questions, the reviewer's fix, then State
+// Runs a test story's cases through what play does after a reply: the consistency questions and their fixes, then State
 // Upkeep on the fixed reply. The story is invented (scripts/consistency-cases/*.json), so it holds no player's text.
-// It sends each case to the real Consistency model and reviewer from Settings, which costs real money (about $0.02 a run):
-//   bun run scripts/consistency-cases.ts [cases.json] [settings.json] [--cut-offs time=0.7,past=0.3] [--only id-prefix]
-// --cut-offs sets cut-offs for this run, to try one before it goes into CUT_OFFS.
-import { CUT_OFFS, checkConsistency, cutOffs, type Name, type ReplyToCheck } from "../src/consistency";
-import { decisionProvider } from "../src/decisions";
-import { reviewerSettings, settingsStore } from "../src/settings-store";
+// It sends each case to the real Consistency model and reviewer from Settings, which costs real money:
+//   bun run scripts/consistency-cases.ts [cases.json] [settings.json] [--only id-prefix]
+import { checkConsistency, type Name, type ReplyToCheck } from "../src/consistency";
+import { consistencySettings, reviewerSettings, settingsStore } from "../src/settings-store";
 import { openingState, type StoryTime } from "../src/state-applier";
 import { upkeepOperations } from "../src/state-upkeep";
 import { textProvider } from "../src/text-provider";
-import { usableFix } from "../src/turn-engine";
+import { type TextProvider, usableFix } from "../src/turn-engine";
 
 const args = process.argv.slice(2);
 const option = (flag: string) => {
   const at = args.indexOf(flag);
   return at === -1 ? undefined : args.splice(at, 2)[1];
 };
-const overrides = option("--cut-offs");
 const only = option("--only");
 const [casesPath = "scripts/consistency-cases/salt-road.json", settingsPath = "settings.json"] = args;
 
@@ -38,43 +35,38 @@ type Case = Partial<Base> & {
 const { base, cases } = JSON.parse(await Bun.file(casesPath).text()) as { base: Base; cases: Case[] };
 
 const settings = settingsStore(settingsPath);
-const model = settings.read().consistencyModel;
-const cutOff = cutOffs(model);
-for (const pair of overrides?.split(",") ?? []) {
-  const [name, value] = pair.split("=");
-  cutOff[name as Name] = Number(value);
-}
-CUT_OFFS[model] = cutOff;
-let decisionCost = 0;
+let checkCost = 0;
 let reviewCost = 0;
-const consistency = { decide: decisionProvider(settings, (usage) => (decisionCost += usage.cost ?? 0)), enabled: () => true, logOnly: false };
-const reviewer = textProvider(reviewerSettings(settings));
-const counted: typeof reviewer = (prompt, request) => reviewer(prompt, { ...request, onUsage: (usage) => (reviewCost += usage.cost ?? 0) });
+const costed =
+  (provider: TextProvider, add: (cost: number) => void): TextProvider =>
+  (prompt, request) =>
+    provider(prompt, { ...request, onUsage: (usage) => add(usage.cost ?? 0) });
+const checker = consistencySettings(settings);
+const consistency = {
+  provider: costed(textProvider(checker), (cost) => (checkCost += cost)),
+  settings: checker,
+  enabled: () => true,
+  logOnly: false,
+};
+const counted = costed(textProvider(reviewerSettings(settings)), (cost) => (reviewCost += cost));
 const signal = new AbortController().signal;
 const keyOf = (operation: Record<string, unknown>) => [operation.op, operation.slot ?? operation.name].filter(Boolean).join(":");
 
-const scores: Record<Name, { slip: number[]; fine: number[] }> = {} as never;
 let slipsFixed = 0;
 let slipCases = 0;
 let fineKept = 0;
 let fineCases = 0;
 let upkeepMet = 0;
 let upkeepAsked = 0;
-// How long the questions and any fix hold back the choices and picture, per case.
+// How long the questions hold back the choices and picture, per case.
 const waits: number[] = [];
 for (const entry of cases.filter(({ id }) => !only || id.startsWith(only))) {
   const at = { ...base, ...entry };
   const narration = (entry.reply ?? base.reply).replace("{reply}", base.reply);
   const visualDescription = entry.visualDescription ?? "";
   const reply: ReplyToCheck = { ...at, timeAfter: entry.timeAfter ?? at.timeBefore, narration, visualDescription };
-  const started = Date.now();
-  const result = await checkConsistency(consistency, { provider: counted, settings }, reply, (text) => usableFix(text, at.pc, narration), signal);
-  waits.push(Date.now() - started);
-  for (const [name, score] of Object.entries(result.checked.scores) as [Name, number | null][]) {
-    if (score === null) continue;
-    scores[name] ??= { slip: [], fine: [] };
-    scores[name][entry.slips.includes(name) ? "slip" : "fine"].push(score);
-  }
+  const result = await checkConsistency(consistency, reply, (text) => usableFix(text, at.pc, narration), signal);
+  waits.push(result.checked.ms);
   const text = `${result.narration}\n${result.visualDescription}`;
   const left = (entry.gone ?? []).filter((words) => text.includes(words));
   const lost = (entry.kept ?? []).filter((words) => !text.includes(words));
@@ -109,10 +101,9 @@ for (const entry of cases.filter(({ id }) => !only || id.startsWith(only))) {
     if (missing.length === 0 && unwanted.length === 0) upkeepMet++;
   }
   const upkeepVerdict = entry.upkeep ? (missing.length || unwanted.length ? ` UPKEEP WRONG (missing ${missing}, unwanted ${unwanted})` : " upkeep ok") : "";
-  const shown = Object.entries(result.checked.scores)
-    .map(([name, score]) => `${name}=${score === null ? "-" : score.toFixed(2)}`)
-    .join(" ");
-  console.log(`${entry.id.padEnd(32)} ${shown.padEnd(58)} ${result.checked.outcome.padEnd(10)} ${verdict}${upkeepVerdict} [${operations.join(", ")}]`);
+  const { claimed, verified, edits, outcome } = result.checked;
+  const shown = `claimed ${claimed}, verified ${verified}, edits ${edits}`;
+  console.log(`${entry.id.padEnd(32)} ${shown.padEnd(36)} ${outcome.padEnd(10)} ${verdict}${upkeepVerdict} [${operations.join(", ")}]`);
   if (result.narration !== narration) {
     const before = narration.split("\n");
     const after = result.narration.split("\n");
@@ -122,16 +113,11 @@ for (const entry of cases.filter(({ id }) => !only || id.startsWith(only))) {
   }
 }
 
-console.log(`\n${model}, cut-offs ${JSON.stringify(cutOff)}`);
-for (const [name, { slip, fine }] of Object.entries(scores)) {
-  const low = slip.length ? Math.min(...slip).toFixed(2) : "-";
-  const high = fine.length ? Math.max(...fine).toFixed(2) : "-";
-  console.log(`  ${name.padEnd(12)} slips ${slip.map((score) => score.toFixed(2)).join(" ") || "-"}  | lowest slip ${low}, highest fine ${high}`);
-}
+console.log(`\n${checker.read().textModel}`);
 console.log(`Slips fixed ${slipsFixed}/${slipCases}, fine replies unchanged ${fineKept}/${fineCases}, State Upkeep right ${upkeepMet}/${upkeepAsked}`);
 const sorted = waits.toSorted((a, b) => a - b);
 const seconds = (ms = 0) => (ms / 1000).toFixed(1);
 console.log(
-  `Questions and fix: median ${seconds(sorted[Math.floor(sorted.length / 2)])} s, mean ${seconds(waits.reduce((a, b) => a + b, 0) / waits.length)} s, slowest ${seconds(sorted.at(-1))} s`,
+  `Questions: median ${seconds(sorted[Math.floor(sorted.length / 2)])} s, mean ${seconds(waits.reduce((a, b) => a + b, 0) / waits.length)} s, slowest ${seconds(sorted.at(-1))} s`,
 );
-console.log(`Cost: decisions $${decisionCost.toFixed(4)}, reviewer $${reviewCost.toFixed(4)}`);
+console.log(`Cost: check $${checkCost.toFixed(4)}, reviewer $${reviewCost.toFixed(4)}`);

@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { startServer } from "../src/rest-api";
 import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
-import { applyEdit, openingState, type WorldEdit } from "../src/state-applier";
+import { applyEdit, MAX_NPC_KNOWS, openingState, type WorldEdit } from "../src/state-applier";
 import { journalChange } from "../src/prompt-assembler";
 import { MOVE_EVERY, moveDue, turnThreadChanges } from "../src/world-moves-on";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
@@ -443,6 +443,57 @@ test("the schemas a move and a Turn are sent name a thread only by an open truth
     expect(threadFields(schema).length).toBeGreaterThan(0);
     for (const field of threadFields(schema)) expect(field).toContain(`"enum":[${JSON.stringify(THIEF)}]`);
   }
+});
+
+test("a move gives each person a thread names their own part of it, kept as what they know, even for someone not yet met", async () => {
+  const ferryman = "He rowed a hooded man across at the last tide.";
+  const oren = "He is the thief, and fears the tide will turn early.";
+  const told = play(
+    narration(
+      "Ash walks to the dock.",
+      { op: "add_npc", name: "Ferryman", appearance: "a stooped man in oilskins" },
+      { op: "set_scene", location: "The dock", visible_cast: ["Ferryman"] },
+      { op: "npc_learns", name: "Ferryman", fact: "Ash asked him about boats." },
+      nextDay(),
+    ),
+    moved({
+      ...change(THIEF, "The Ferryman waits to row the thief out."),
+      knows: [
+        { name: "Ferryman", knows: ferryman },
+        { name: "Oren", knows: oren },
+      ],
+    }),
+    narration("A thin man steps from a barge.", { op: "add_npc", name: "Oren Vell", appearance: "a thin man" }, nextDay("3rd of Thaw")),
+    moved(change(THIEF, "The thief rows out.")),
+    narration("Ash watches the barges."),
+  );
+  const id = createSave();
+
+  const log = await logOf(async () => {
+    for (const input of ["I walk to the dock.", "I watch the barge.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  // Kept as what each knows, someone met later under the name they were met by.
+  expect(store().latestState(id).npcKnows).toEqual({ Ferryman: ["Ash asked him about boats.", ferryman], "Oren Vell": [oren] });
+  // The Narrator reads the Ferryman's part while he is in the scene.
+  expect(told.prompts[2]!.map(({ content }) => content).join("\n")).toContain(ferryman);
+  // The next move reads what the people its threads name already know.
+  expect(JSON.parse(told.prompts[3]!.at(-1)!.content).npc_knows).toEqual({ Ferryman: ["Ash asked him about boats.", ferryman] });
+  expect(log).toContain('"knows":2');
+  expect(log).not.toContain("hooded");
+});
+
+test("what a move gives someone to know is capped, so it never grows without bound", () => {
+  const known = Array.from({ length: MAX_NPC_KNOWS }, (_, at) => `Fact ${at}.`);
+  const state = { ...openingState, npcs: [{ name: "Ferryman", appearance: "" }], npcKnows: { Ferryman: known } };
+  const edit: WorldEdit = {
+    edit: "world",
+    update: { lore_entries: [], removed_lore: [], world_rules: [], plot_threads: [] },
+    knows: { Ferryman: ["Fact 3.", "New."] },
+    moved: true,
+  };
+
+  expect(applyEdit(state, edit).npcKnows.Ferryman).toEqual([...known.slice(1), "New."]);
 });
 
 test("a move with no usable change is written again, saying why", async () => {

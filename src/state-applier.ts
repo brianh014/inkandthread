@@ -255,6 +255,10 @@ function mergeNpc(state: State, name: string, into: string) {
   if (scene.visibleCast.includes(name)) replaceOnce(scene.visibleCast, name, into);
   const { [name]: summary, ...summaries } = pcKnown.summaries ?? {};
   if (summary !== undefined) pcKnown.summaries = { [into]: summary, ...summaries };
+  mergeNpcKnows(state, name, into);
+}
+
+function mergeNpcKnows(state: State, name: string, into: string) {
   if (!Object.hasOwn(state.npcKnows, name)) return;
   const { [name]: knew = [], ...knows } = state.npcKnows;
   const kept = Object.hasOwn(knows, into) ? knows[into]! : [];
@@ -306,6 +310,11 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const npc = findNpc(state, operation.name);
       if (npc) npc.appearance = operation.appearance;
       else state.npcs.push({ name: operation.name, appearance: operation.appearance });
+      // What World Moves On gave them to know before they were met, under the name a thread gave them.
+      const unmet = Object.keys(state.npcKnows).find(
+        (name) => name !== operation.name && !findNpc(state, name) && (named(operation.name, name) || named(name, operation.name)),
+      );
+      if (unmet) mergeNpcKnows(state, unmet, operation.name);
       return;
     }
     case "update_npc": {
@@ -542,6 +551,8 @@ export const WorldEdit = z.discriminatedUnion("edit", [
     now: z.record(z.string(), z.string()).optional(),
     made: z.number().int().min(0).optional(),
     moved: z.boolean().optional(),
+    // World Moves On's: by name, each person's own part of the threads it wrote, kept as what they know.
+    knows: z.record(z.string(), z.array(z.string())).optional(),
   }),
   // Whole lists, as a World Change rewrites what the player says is wrong rather than one item at a time.
   z.object({ edit: z.literal("inventory"), wearing: z.array(z.string()), carrying: z.array(z.string()) }),
@@ -589,7 +600,14 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       // A truth a World Change rewrites starts with no now, as the old one may no longer fit it, until the world next moves on.
       const now = { ...state.threadsNow, ...edit.now };
       const threadsNow = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(now, truth) ? [[truth, now[truth]!]] : [])));
-      return { ...state, ...merged, threadsNow };
+      // Under the name of someone met, or as named until they are, when add_npc takes it up.
+      const npcKnows = { ...state.npcKnows };
+      for (const [name, parts] of Object.entries(edit.knows ?? {})) {
+        const key = findPerson(state.npcs, name)?.name ?? name;
+        const knew = Object.hasOwn(npcKnows, key) ? npcKnows[key]! : [];
+        npcKnows[key] = [...knew, ...parts.filter((part) => !knew.includes(part))].slice(-MAX_NPC_KNOWS);
+      }
+      return { ...state, ...merged, threadsNow, npcKnows };
     }
     case "inventory":
       return { ...state, inventory: { wearing: edit.wearing, carrying: edit.carrying } };

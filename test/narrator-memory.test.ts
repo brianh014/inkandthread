@@ -378,6 +378,22 @@ test("every move carries the PC's name, so a bare quote reads as the PC speaking
   ]);
 });
 
+test("the rule that the player alone speaks for the PC is the last thing the Narrator reads before the move", () => {
+  const prompt = assemblePrompt({
+    save: { worldBrief: "", pc: { name: "Ash" }, startingHook: "" } as never,
+    state: withState({}),
+    messages: [],
+    modelInstructions: "",
+    input: '"Were we that loud?"',
+    responseSchema: "{}",
+    promptStyle: null,
+  });
+  const system = prompt.at(-2)!.content;
+
+  expect(system.trimEnd().endsWith("add no decision, spoken words or change of plan for the PC.")).toBe(true);
+  expect(system.split("The player alone decides what the PC says").length).toBe(2);
+});
+
 const textOfPrompt = (prompt: { content: string }[]) => prompt.map(({ content }) => content).join("\n");
 
 const promptFor = (sections: Partial<State> = {}, input = "I wait.") => {

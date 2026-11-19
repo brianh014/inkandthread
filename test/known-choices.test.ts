@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
-import { knownChoices, unknownWords, withoutUnread } from "../src/known-choices";
+import { knownChoices, unknownWords, withoutUnread, writeChoices } from "../src/known-choices";
 import { openingState, type State } from "../src/state-applier";
+import { scriptedTextProvider } from "./support";
 
 const state: State = {
   ...openingState,
@@ -91,6 +92,44 @@ test("a Journal entry naming a Lore Entry by another of its keywords is kept onc
   const operations = [{ op: "add_known_fact", fact: "Fuel is hidden at Free Wells." }] as Parameters<typeof withoutUnread>[0];
   expect(withoutUnread(operations, state, "Tamsin rides ahead.")).toEqual([]);
   expect(withoutUnread(operations, state, "Tamsin kicks one of the drums.")).toEqual(operations);
+});
+
+test("a thread's now, the World Rules and every word of a name the player has read never drop a true note", () => {
+  const vicar = {
+    ...state,
+    npcs: [...state.npcs, { name: "Reverend Amos Thorne", appearance: "a vicar" }],
+    worldRules: ["Brandy comes ashore through the crypt, which is smuggling."],
+    plotThreads: ["Reverend Amos Thorne pays the constable from the brandy."],
+    // A now retells play, so its words are no secret: these three each dropped a true note on the bench.
+    threadsNow: { "Reverend Amos Thorne pays the constable from the brandy.": "Thorne arrived at the hearthstone with the payments." },
+  };
+  const operations = [
+    { op: "add_known_fact", fact: "Reverend Thorne offered for the cottage." },
+    { op: "add_known_fact", fact: "The constable is on the smuggling payroll." },
+    { op: "add_loose_end", loose_end: "Someone arrived at the hearthstone with payments." },
+  ] as Parameters<typeof withoutUnread>[0];
+  expect(withoutUnread(operations, vicar, "Thorne called at the inn and paid the constable.")).toEqual(operations);
+});
+
+test("a Choice is dropped for four words copied from the secrets only when one of them is a word the player hasn't read", () => {
+  const secret = { ...state, plotThreads: ["Ossery goes to the long room at noon to burn the ledger."] };
+  const choices = ["I go to the long room at noon.", "I stop him going to burn the ledger.", "Ride on."];
+  expect(unknownWords(choices, secret, "Tamsin says the long room opens at noon, and Ossery keeps a ledger.")).toEqual([[], ["to burn the ledger"], []]);
+});
+
+test("a Lore Entry the player has read is no secret to a Choice", () => {
+  const choices = ["I count the fuel drums buried there."];
+  expect(unknownWords(choices, { ...state, plotThreads: [] }, "Tamsin rides past the old hut.")).toEqual([[]]);
+  expect(unknownWords(choices, { ...state, plotThreads: [] }, "Tamsin rides ahead.")).toEqual([["buried"]]);
+});
+
+test("Choices asked for alone are sent the PC's Journal, so they build on what the PC knows", async () => {
+  const { textProvider, prompts } = scriptedTextProvider(JSON.stringify({ choices: ["Ask Jory.", "Ride on now.", "Wait here."] }));
+  await writeChoices(textProvider, "Jory looks away.", new AbortController().signal, "", "", {
+    facts: ["Jory works the lead strings."],
+    looseEnds: ["Who paid Jory?"],
+  });
+  expect(JSON.parse(prompts[0]!.at(-1)!.content)).toMatchObject({ journal: { facts: ["Jory works the lead strings."], loose_ends: ["Who paid Jory?"] } });
 });
 
 test("a Choice built on what the PC hasn't learned is dropped, not reworded, and the others are kept", () => {

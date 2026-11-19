@@ -986,7 +986,10 @@ async function narrate(
           });
       const timed = state_operations.some(({ op }) => op === "set_story_time");
       const alone = () =>
-        writeChoices(textProvider, narration, signal, previous, plainMessage({ role: "player", text: upkeep?.input ?? input }).text).then((written) =>
+        writeChoices(textProvider, narration, signal, previous, plainMessage({ role: "player", text: upkeep?.input ?? input }).text, {
+          facts: narrated.next.pcKnown.facts,
+          looseEnds: narrated.next.looseEnds,
+        }).then((written) =>
           // Held to what the PC knows, as the Choices the reply came with are.
           written && upkeep && seen !== undefined ? knownChoices(written, narrated.next, seen(), narration, upkeep.settings.read().storyInLog) : written,
         );

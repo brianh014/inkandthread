@@ -986,6 +986,19 @@ test("Choices lose JSON marks left at their end, and one-word Choices told apart
   expect(withoutJsonTail('I shout "Run!""]')).toBe('I shout "Run!"');
 });
 
+test("a line refused as the PC's is refused again when a retry gives it, nearly word for word, to someone else", async () => {
+  const pcLine = "Ash leans in.\n\n[Ash]: “I'll not say a word to the sexton, nor name you to any soul. But listen to me now.”\n\nThe lad nods slowly.";
+  const relabelled = pcLine.replace("[Ash]", "[Kit Rowan]").replace("listen to me now", "listen to me");
+  play([narrated(pcLine), narrated(relabelled), narrated("Ash leans in, and the lad nods slowly, his cap turning in his hands.")]);
+  const id = await app.createSave();
+
+  const log = await logOf(async () => expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201), "info");
+
+  expect(provider.requests).toHaveLength(3);
+  expect((await storedMessages(id)).at(-1)!.text).toStartWith("Ash leans in, and the lad");
+  expect(log).toContain("Refused line given to another");
+});
+
 test("a line for someone who only shares the PC's title isn't the PC's", () => {
   expect(spokenLineFault('[Captain]: "Hold."', "Captain Elena Reyes")).toBeUndefined();
   expect(spokenLineFault('[Elena]: "Hold."', "Captain Elena Reyes")).toBe("a spoken line for the PC");

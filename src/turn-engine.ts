@@ -790,6 +790,8 @@ async function narrate(
   let unplacedBefore = false;
   // Why the last reply failed, told to the Narrator, as a retry with the same prompt mostly repeated the fault.
   let why: Prompt = [];
+  // The PC's lines refused so far, as a retry gave one to someone else nearly word for word.
+  const refusedLines: string[] = [];
   for (let attempt = 1; ; attempt++) {
     // Without a reason the player sees text vanish, which looks like a glitch.
     if (narrationSent > 0) emit("restart", { reason: retry });
@@ -892,7 +894,10 @@ async function narrate(
       // Never kept either, as the Turn then never happens, nor the Check's result it was asked to tell.
       if (edited === undefined && previous && copiesPrevious(narration, previous)) throw new InvalidResponse(undefined, { cause: COPIED });
       const unplaced = scene_changed && !state_operations.some(({ op }) => op === "set_scene") ? "a picture without set_scene" : undefined;
-      const spoken = edited === undefined ? spokenLineFault(narration, pcName) : undefined;
+      const relabelled = edited === undefined && copiesRefusedLine(narration, refusedLines);
+      if (relabelled) log.info("turn", "Refused line given to another", { attempt, generation });
+      const spoken = edited === undefined ? (relabelled ? PC_LINE : spokenLineFault(narration, pcName)) : undefined;
+      if (spoken === PC_LINE) refusedLines.push(...spokenLines(narration, (speaker) => isPc(speaker, pcName)));
       // The opening sets the book's voice, which every reply copies, so speech it leaves in the prose is written again there alone:
       // checked on every reply, it doubled a Turn's calls on a model that writes speech in the prose, and the retry didn't change it.
       const inline = edited === undefined && kind === "opening" && speechOutsideLines(narration) ? INLINE_SPEECH : undefined;
@@ -1192,11 +1197,37 @@ export function spokenLineFault(narration: string, pcName: string) {
     if (/^[^[\]\s][^[\]]*\]:/.test(line)) return TAG_WITHOUT_BRACKET;
     const speaker = line.match(/^\[([^[\]]+)\]:/)?.[1]?.trim();
     // The player alone writes what the PC says, and the prompt saying so was ignored.
-    if (speaker && pcName && (speaker.toLowerCase() === pcName.toLowerCase() || (givenName(speaker) ?? "") === givenName(pcName))) return PC_LINE;
+    if (speaker && isPc(speaker, pcName)) return PC_LINE;
     if (speaker) lines.set(speaker, (lines.get(speaker) ?? 0) + 1);
   }
   return [...lines.values()].some((count) => count > 3) ? LONG_SPEECH : undefined;
 }
+const isPc = (speaker: string, pcName: string) =>
+  !!pcName && (speaker.toLowerCase() === pcName.toLowerCase() || (givenName(speaker) ?? "") === givenName(pcName));
+
+/** The words of each [Name]: line whose speaker `whose` picks, in lower case. */
+const spokenLines = (narration: string, whose: (speaker: string) => boolean) =>
+  narration.split("\n").flatMap((line) => {
+    const [, speaker = "", said = ""] = line.trim().match(/^\[([^[\]]+)\]:(.*)$/) ?? [];
+    return speaker && whose(speaker.trim())
+      ? [
+          said
+            .toLowerCase()
+            .match(/\p{L}+(?:['’]\p{L}+)*/gu)
+            ?.join(" ") ?? "",
+        ]
+      : [];
+  });
+/** Whether any spoken line holds four in five of the words of a line refused as the PC's, whoever it is now given to. */
+const copiesRefusedLine = (narration: string, refused: string[]) =>
+  refused.length > 0 &&
+  spokenLines(narration, () => true).some((line) => {
+    const words = new Set(line.split(" "));
+    return refused.some((old) => {
+      const oldWords = old.split(" ").filter(Boolean);
+      return oldWords.length >= 4 && oldWords.filter((word) => words.has(word)).length * 5 >= oldWords.length * 4;
+    });
+  });
 const LONG_SPEECH = "someone speaks more than three times";
 const INLINE_SPEECH = "speech in the prose, not on a speaker line";
 const LEFT_OUT = "an opening that leaves out someone its Starting Hook names";

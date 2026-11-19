@@ -427,6 +427,24 @@ test("a move sent as an add carrying an open thread's truth rewrites that thread
   expect(log).not.toContain("overflow");
 });
 
+test("the schemas a move and a Turn are sent name a thread only by an open truth, as models misquoted the truths they copied", async () => {
+  const told = play(
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
+    moved(change(THIEF, "The thief waits by the library.")),
+    narration("Ash watches the barges."),
+  );
+  const id = createSave();
+
+  for (const input of ["I walk to the dock.", "I watch the barges."]) expect((await turn(id, input)).ok).toBe(true);
+
+  // Every thread field in each schema, a move's and both Turns', held to the open truth.
+  const threadFields = (schema: unknown) => JSON.stringify(schema).match(/"thread":\{[^}]*\}/g) ?? [];
+  for (const schema of told.schemas) {
+    expect(threadFields(schema).length).toBeGreaterThan(0);
+    for (const field of threadFields(schema)) expect(field).toContain(`"enum":[${JSON.stringify(THIEF)}]`);
+  }
+});
+
 test("a move with no usable change is written again, saying why", async () => {
   const told = play(
     narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),

@@ -29,6 +29,7 @@ import {
   findPerson,
   givenName,
   introduce,
+  MAX_PLOT_THREADS,
   nameForms,
   Person,
   type SceneMemory,
@@ -250,6 +251,15 @@ export function jsonSchemaOf(schema: z.ZodType) {
   });
   return sendable;
 }
+
+/**
+ * `schema` with every thread an operation names held to the open truths, as models misquoted the long truths they were told to copy
+ * and the change was lost. Only the sent schema, so a provider that ignores it still gets closestThread's match.
+ */
+export const threadsHeld = (schema: object, threads: string[]): object =>
+  threads.length === 0
+    ? schema
+    : JSON.parse(JSON.stringify(schema), (key, value) => (key === "thread" && value?.type === "string" ? { ...value, enum: threads } : value));
 
 // What the Narrator is asked for. It is flat because strict schema modes refuse a union at the root, and check
 // comes first so that a streamed reply shows it is not a Check request before any narration arrives.
@@ -767,7 +777,10 @@ async function narrate(
     times,
   }: Narrated,
 ) {
-  const schemas = SCHEMAS[playMode];
+  const schemas = {
+    any: threadsHeld(SCHEMAS[playMode].any, before.plotThreads.slice(0, MAX_PLOT_THREADS)),
+    noCheck: threadsHeld(SCHEMAS[playMode].noCheck, before.plotThreads.slice(0, MAX_PLOT_THREADS)),
+  };
   // Kept across attempts, so an invalid reply can never change the outcome.
   let check = storedCheck;
   let narrationSent = 0;

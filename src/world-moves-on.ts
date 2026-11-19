@@ -151,8 +151,10 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     const faults = changes.map((change, index) => fault(change, index, changes) ?? "").filter(Boolean);
     return { kept, faults, overflow: changes.length - faults.length - kept.length };
   };
+  // Sent naming only the open truths, as models misquoted them; read as any text, so a provider that ignores the schema loses only that change.
+  const Move = plotThreads.length === 0 ? ThreadMove : ThreadMove.extend({ thread: z.string().min(1).meta({ enum: plotThreads }).nullable() });
   // Asked again only when nothing usable is left.
-  const Reply = z.object({ plot_threads: z.array(ThreadMove) }).superRefine(({ plot_threads }, context) => {
+  const Reply = z.object({ plot_threads: z.array(Move) }).superRefine(({ plot_threads }, context) => {
     const { kept, faults } = sorted(plot_threads);
     // Adds past the limit alone are no move rather than a fault, so they aren't asked again.
     if (plot_threads.length === 0 || kept.length > 0 || faults.length === 0) return;

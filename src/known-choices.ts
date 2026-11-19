@@ -33,18 +33,18 @@ export function unknownWords(choices: string[], state: State, seen: string, jour
     ...state.inventory.wearing,
     ...state.inventory.carrying,
   ].join("\n");
-  // A Lore Entry read of by any of its keywords is no secret, as true notes were dropped for calling a vicar the Reverend.
-  const unread = lore.filter(({ keywords }) => !keywords.some((word) => mentions(read, word)));
-  // Every word of a name read by any of its forms, as notes on a Thorne the page named were dropped for his title, "Reverend".
+  // Every word of a name read by any of its forms, and every name of a Lore Entry read of by any keyword, as notes on a Thorne
+  // the page named were dropped for his title, "Reverend".
   const readNames = [
     ...words.filter((word) => nameForms(word).some((form) => mentions(read, form))),
-    ...lore.filter((entry) => !unread.includes(entry)).flatMap(({ keywords }) => keywords.filter(isName)),
+    ...lore.filter(({ keywords }) => keywords.some((word) => mentions(read, word))).flatMap(({ keywords }) => keywords.filter(isName)),
   ];
   const known = [read, ...readNames].join("\n");
   const unknown = words.filter((word) => word.length >= 4 && !readNames.includes(word));
   // The threads' truths, never their nows, as a now retells play in the words the page or the PC's notes used, and true notes
-  // were dropped for "arrived", "payments" and "hearthstone".
-  const hidden = [...state.plotThreads, ...unread.map(({ content }) => content)].join("\n");
+  // were dropped for "arrived", "payments" and "hearthstone". Every Lore Entry's content, read of or not, as a Choice offered
+  // the loose brick a chimney hid once the page had named the cottage.
+  const hidden = [...state.plotThreads, ...lore.map(({ content }) => content)].join("\n");
   const unseen = unreadIn(known);
   const hiddenRuns = new Set(journal ? [] : runs(hidden));
   return choices.map((choice) => [...new Set([...unknown.filter((word) => mentions(choice, word)), ...guessed(choice)])]);

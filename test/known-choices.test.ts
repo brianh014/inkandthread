@@ -124,10 +124,10 @@ test("a Choice is dropped for four words copied from the secrets only when one o
   expect(unknownWords(choices, secret, "Tamsin says the long room opens at noon, and Ossery keeps a ledger.")).toEqual([[], ["to burn the ledger"], []]);
 });
 
-test("a Lore Entry the player has read is no secret to a Choice", () => {
-  const choices = ["I count the fuel drums buried there."];
-  expect(unknownWords(choices, { ...state, plotThreads: [] }, "Tamsin rides past the old hut.")).toEqual([[]]);
-  expect(unknownWords(choices, { ...state, plotThreads: [] }, "Tamsin rides ahead.")).toEqual([["buried"]]);
+test("a Lore keyword the player has read clears that keyword and the entry's names, not the rest of what it hides", () => {
+  const choices = ["I ride to Free Wells.", "I count the fuel drums buried there."];
+  expect(unknownWords(choices, { ...state, plotThreads: [] }, "Tamsin rides past the old hut.")).toEqual([[], ["buried"]]);
+  expect(unknownWords(choices, { ...state, plotThreads: [] }, "Tamsin rides past the old hut, where something is buried.")).toEqual([[], []]);
 });
 
 test("Choices asked for alone are sent the PC's Journal, so they build on what the PC knows", async () => {

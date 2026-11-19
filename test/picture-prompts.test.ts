@@ -66,6 +66,14 @@ test("a review that changes a mark or the portrait sentence, or runs long, is re
   expect(line).not.toContain("fire");
 });
 
+test("a review that leaves a stray quote at the end of the portrait sentence is drawn, without the quote", async () => {
+  const fixed = "[Ash: a short person in grey] kneels by the fire, a cup in one hand.";
+  const { reviewed, prompts } = review("prose", checked(`${fixed} {The people from the images are the same people."}`));
+
+  expect(await reviewed).toBe(`${fixed} {The people from the images are the same people.}`);
+  expect(prompts).toHaveLength(1);
+});
+
 test("a review may take out someone who shouldn't be in the picture, and is told never to add a name or writing", async () => {
   const two = "[Ash: a short person in grey] kneels. [Mara: a tall woman] waits. {The people from the images are the same people.}";
   const script = scriptedTextProvider(checked("[Ash: a short person in grey] kneels. {The people from the images are the same people.}"));

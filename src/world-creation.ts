@@ -493,7 +493,9 @@ const MARKS =
 // The scene rules' limits, and a review may keep one already over them, as it changes only what fails.
 const SCENE_WORDS: Record<PromptStyle, number> = { prose: 150, keywords: 80 };
 // The marks name who is drawn, so a review may take a person out but never add or change one, and keeps the curly sentence.
-const marksOf = (prompt: string) => prompt.match(/\[[^[\]]*\]|\{[^{}]*\}/g) ?? [];
+const marksOf = (prompt: string) => withoutStrayQuote(prompt).match(/\[[^[\]]*\]|\{[^{}]*\}/g) ?? [];
+// A review closed the curly sentence with a quote, as in `here."}`, on all 14 of a play's refusals, drawing two prompts unchecked.
+const withoutStrayQuote = (prompt: string) => prompt.replace(/["“”\s]+\}/g, "}");
 const keepsMarks = (original: string[], reviewed: string[]) => {
   const left = [...original];
   for (const mark of reviewed) {
@@ -527,7 +529,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
     playerChoices({ prompt: description }),
   ];
   try {
-    return (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal, { call: "scenePrompt", picture: true })).prompt.trim();
+    return withoutStrayQuote((await askForJson(context.textProvider, prompt, reply, REFUSAL, signal, { call: "scenePrompt", picture: true })).prompt).trim();
   } catch (error) {
     if (signal.aborted) throw error;
     log.warning("images", "A picture's prompt was drawn unchecked", errorType(error));

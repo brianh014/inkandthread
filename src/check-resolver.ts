@@ -8,6 +8,8 @@ const DC = { Easy: 5, Moderate: 10, Hard: 15, "Very Hard": 20 };
 export const CheckRequest = z.object({
   action: z.string().min(1),
   difficulty: z.enum(["Easy", "Moderate", "Hard", "Very Hard"]),
+  // Kept for the result, as one told without them won a failure its prize and undid a success later.
+  stakes: z.string().optional(),
 });
 
 function judge(roll: number, dc: number, nearMissMargin: number) {

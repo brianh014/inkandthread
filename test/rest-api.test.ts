@@ -962,6 +962,23 @@ test("the Check is stored with the Turn, and a safe Turn stores none", async () 
   expect(storedChecks(id)).toEqual([null, { action: "Leap the flooded gap", difficulty: "Hard", roll: 14, outcome: "success", degree: "mixed" }, null, null]);
 });
 
+test("the result is sent back with the stakes the Narrator named, so the roll decides them", async () => {
+  const stakes = "the ledge crumbles and the pack is lost";
+  const { app, prompts } = playWithDice(
+    [3],
+    JSON.stringify({ check: { action: "Leap the flooded gap", stakes, difficulty: "Hard" } }),
+    narration("You fall short and the pack is gone."),
+  );
+  const id = await app.createSave();
+
+  await app.post(`/saves/${id}/turns`, { input: "I leap the gap." });
+
+  const result = prompts[1]!.find(({ content }) => content.startsWith("The Check is resolved"))!.content;
+  expect(result).toContain(JSON.stringify(stakes));
+  expect(result).toContain('"outcome":"failure"');
+  expect(storedChecks(id)[1]).toMatchObject({ stakes, roll: 3 });
+});
+
 test("Revert deletes the Check of a Turn it removes", async () => {
   const { app } = playWithDice([14], narration("You look around."), requestCheck("Hard"), narration("You land."));
   const id = await app.createSave();

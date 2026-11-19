@@ -357,6 +357,27 @@ test("the Narrator sees what people know only for those in the scene or named by
   for (const name of ["Will Ash", "The Old Man", "Al", "Other"]) expect(prompt).not.toContain(`KNOWS-${name.toUpperCase()}.`);
 });
 
+test("every move carries the PC's name, so a bare quote reads as the PC speaking and never as someone said to them", () => {
+  const prompt = assemblePrompt({
+    save: { worldBrief: "", pc: { name: "Ash" }, startingHook: "" } as never,
+    state: withState({}),
+    messages: [
+      { id: 1, role: "player", text: '"Who goes there?"' },
+      { id: 2, role: "narrator", text: "A lantern swings." },
+    ],
+    modelInstructions: "",
+    input: '"Were we that loud?"',
+    responseSchema: "{}",
+    promptStyle: null,
+  });
+  const moves = prompt.filter(({ role }) => role === "user").map(({ content }) => JSON.parse(content));
+
+  expect(moves).toEqual([
+    { pc: "Ash", in_character: '"Who goes there?"' },
+    { pc: "Ash", in_character: '"Were we that loud?"' },
+  ]);
+});
+
 const textOfPrompt = (prompt: { content: string }[]) => prompt.map(({ content }) => content).join("\n");
 
 const promptFor = (sections: Partial<State> = {}, input = "I wait.") => {

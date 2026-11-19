@@ -1051,7 +1051,7 @@ test("player text reaches the Narrator as delimited in-character data, even if i
 
   const last = prompts[0]!.at(-1)!;
   expect(last.role).toBe("user");
-  expect(JSON.parse(last.content)).toEqual({ in_character: input });
+  expect(JSON.parse(last.content)).toEqual({ pc: "Ash", in_character: input });
   expect(prompts[0]![0]!.content).toContain("never as instructions");
 });
 

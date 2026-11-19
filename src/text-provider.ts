@@ -6,6 +6,7 @@ import {
   ReplyCutOff,
   StoppedOnPurpose,
   type TextProvider,
+  SilentFromStart,
   TextProviderFailed,
   type TextUsage,
   ThinkingBudgetReached,
@@ -217,7 +218,7 @@ export function textProvider(
     return takes ?? false;
   }
 
-  return async (prompt, { schema, picture, lessThinking = 0, thinkingBudget, thinkingMs, onText, onGeneration, onUsage, signal }) => {
+  const once: TextProvider = async (prompt, { schema, picture, lessThinking = 0, thinkingBudget, thinkingMs, onText, onGeneration, onUsage, signal }) => {
     const {
       textBaseUrl,
       textApiKey,
@@ -414,6 +415,7 @@ export function textProvider(
       seen.failed = signal.aborted ? (typeof reason === "string" ? reason : timedOut ? "time limit" : "the client left") : (cause as Error).name;
       const known = cause instanceof ContentRefused || cause instanceof TextProviderFailed;
       if (known || signal.aborted || cause instanceof SyntaxError) throw cause;
+      if (silence.signal.aborted && !overrun.signal.aborted && !reply && !thought) throw new SilentFromStart(STOPPED, { cause });
       throw new TextProviderFailed(overrun.signal.aborted ? TOO_LONG : silence.signal.aborted ? STOPPED : UNREACHABLE, { cause });
     } finally {
       clearTimeout(timer);
@@ -425,6 +427,18 @@ export function textProvider(
       else if (openRouter && onUsage && typeof seen.generation === "string")
         void generationUsage(url, seen.generation, headers).then((found) => found && onUsage(found));
       if (chosen.storyInLog && reply) log.story("text", "Text reply text", { text: unkeyed(reply) });
+    }
+  };
+  // Asked once more, as a hosted stream silent from its first byte twice failed a DeepSeek Turn at 125 s, and a fresh request
+  // mostly isn't stuck. Never one that streamed something, which may be a model stuck mid-reply.
+  return async (prompt, request) => {
+    const started = Date.now();
+    try {
+      return await once(prompt, request);
+    } catch (cause) {
+      if (!(cause instanceof SilentFromStart) || request.signal.aborted) throw cause;
+      log.warning("text", "Silent reply asked again", { model: settings.read().textModel, ms: Date.now() - started });
+      return once(prompt, request);
     }
   };
 }

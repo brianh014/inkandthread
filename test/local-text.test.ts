@@ -229,17 +229,14 @@ test("a stream that stalls is reported as stopped", async () => {
 });
 
 test("a stream of keep-alives with no text is reported as stopped, as a stuck upstream sends them forever", async () => {
-  playLocal(
-    [
-      async function* () {
-        for (;;) {
-          yield ": keep-alive\n\n";
-          await Bun.sleep(20);
-        }
-      },
-    ],
-    { limits: { silenceMs: 100, listMs: 50 } },
-  );
+  const keepAlives = async function* () {
+    for (;;) {
+      yield ": keep-alive\n\n";
+      await Bun.sleep(20);
+    }
+  };
+  // Twice, as a reply that sent nothing at all is asked for once more.
+  playLocal([keepAlives, keepAlives], { limits: { silenceMs: 100, listMs: 50 } });
   const id = await app.createSave();
 
   const events = await turnEvents(await streamTurn(id, "I wade forward."));

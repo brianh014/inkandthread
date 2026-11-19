@@ -86,6 +86,8 @@ type FollowUpTimes = { started: number; upkeep?: number; choices?: number };
 export class ContentRefused extends Error {}
 /** A failure whose message is fit to show the player. */
 export class TextProviderFailed extends Error {}
+/** A reply that sent nothing at all, neither text nor thinking, before the silence limit. */
+export class SilentFromStart extends TextProviderFailed {}
 /** The reply reached the token limit and was cut off. */
 export class ReplyCutOff extends TextProviderFailed {}
 /** A model stuck thinking, which a fresh try mostly isn't, so every call retries it. */

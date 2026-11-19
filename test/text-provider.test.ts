@@ -748,6 +748,34 @@ test("a model that refuses Low is sent the next level up instead, and isn't sent
   expect(log).toContain("Thinking level raised");
 });
 
+test("a reply silent from its first byte is asked for once more, as a stuck request mostly isn't stuck twice", async () => {
+  const silent = async function* () {
+    await new Promise(() => {});
+  };
+  play([silent, [delta("Hello."), "data: [DONE]\n\n"]]);
+  const provide = textProvider(settingsStore(join(folder.path, "settings.json")), { silenceMs: 100, listMs: 1000 });
+
+  const log = await logOf(async () => {
+    expect(await provide([{ role: "user", content: "Hi" }], { onText: () => {}, signal: new AbortController().signal })).toBe("Hello.");
+  });
+
+  expect(provider.requests).toHaveLength(2);
+  expect(log).toContain('Silent reply asked again {"model":"fake/model","ms":');
+});
+
+test("a reply that stalls after some text is not asked again", async () => {
+  const stalls = async function* () {
+    yield delta("Hel");
+    await new Promise(() => {});
+  };
+  play([stalls, [delta("Hello."), "data: [DONE]\n\n"]]);
+  const provide = textProvider(settingsStore(join(folder.path, "settings.json")), { silenceMs: 100, listMs: 1000 });
+
+  expect(provide([{ role: "user", content: "Hi" }], { onText: () => {}, signal: new AbortController().signal })).rejects.toThrow("stopped responding");
+  await Bun.sleep(300);
+  expect(provider.requests).toHaveLength(1);
+});
+
 test("a local server is never sent reasoning, even with a level kept from another provider", async () => {
   play([narrated("Rain.")], { data: [{ id: "fake/model", capabilities: { reasoning: true } }] });
   settingsStore(join(folder.path, "settings.json")).update({ textThinking: "high" });

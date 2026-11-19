@@ -57,6 +57,17 @@ test("time moving back within the same day is ignored, as a reply that did so ha
   expect(applyOperations(evening, [set(1, "4th of Lowtide", "mid-morning")]).next.storyTime?.timeOfDay).toBe("mid-morning");
 });
 
+test("past midnight on the same date, the small hours and the next morning still count as later", () => {
+  for (const [from, to] of [
+    ["past midnight", "the small hours of Monday night"],
+    ["past midnight", "near two of the morning"],
+    ["the small hours of Monday night", "first light on Tuesday morning"],
+  ]) {
+    expect(applyOperations(at({ ...DUSK, timeOfDay: from! }), [set(0, null, to!)]).next.storyTime?.timeOfDay).toBe(to!);
+  }
+  expect(applyOperations(at({ ...DUSK, timeOfDay: "past midnight" }), [set(0, null, "late afternoon")]).ignored).toHaveLength(1);
+});
+
 test("a Save from before Story Time starts counting from day 1", () => {
   expect(applyOperations(at(null), [set(0, "3rd of Lowtide", "dusk")]).next.storyTime).toEqual({ day: 1, date: "3rd of Lowtide", timeOfDay: "dusk" });
 });

@@ -464,7 +464,9 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       if (date === undefined) return "no date";
       // Never back within a day, as a reply that did so had started the story over from its first morning.
       const [was, now] = [dayPart(state.storyTime?.timeOfDay), dayPart(time_of_day)];
-      if (days_passed === 0 && date === state.storyTime?.date && was !== undefined && now !== undefined && now < was) return "earlier than now";
+      // From night on, the small hours and the next morning come after, as "past midnight" refused them all for five rounds.
+      const wraps = was !== undefined && was >= NIGHT && now !== undefined && (now >= NIGHT || now <= MORNING);
+      if (days_passed === 0 && date === state.storyTime?.date && was !== undefined && now !== undefined && now < was && !wraps) return "earlier than now";
       state.storyTime = { day: (state.storyTime?.day ?? 1) + days_passed, date, timeOfDay: withoutDate(time_of_day, date) };
       return;
     }
@@ -489,6 +491,7 @@ const DAY_PARTS: [RegExp, number][] = [
   [/dawn|sunrise|daybreak|early morning/i, 1],
   [/morning/i, 2],
 ];
+const [MORNING, NIGHT] = [2, 6];
 /** Where in the day a time of day falls, in order, or undefined for words that don't say. */
 const dayPart = (timeOfDay = "") => DAY_PARTS.find(([words]) => words.test(timeOfDay))?.[1];
 

@@ -96,8 +96,10 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
                 Flash (<code>deepseek/deepseek-v4.1-flash</code>), which costs much less a Turn. Try both on the same story and keep the one you like.
               </li>
             </ol>
-            You can also choose which of its providers serves the model, and how it routes. Staying on one provider keeps its prompt cache, which makes each
-            Turn cheaper.
+            You can also choose which of its providers serves the model, and how it routes. The same AI can write noticeably worse on one provider than another,
+            as some run a smaller copy of it to save cost or handle a long story less well, and OpenRouter may switch providers between Turns. If replies
+            suddenly turn odd, such as speaking for your character or losing track of the scene, choose one provider under <b>Provider</b>. Staying on one
+            provider also keeps its prompt cache, which makes each Turn cheaper.
           </li>
           <li>
             <b>Google AI Studio</b>, which has a free key: sign in at <code>aistudio.google.com</code> with a Google account and choose <b>Get API key</b>.

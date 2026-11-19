@@ -1048,6 +1048,23 @@ test("a Turn is rated once: a retry after a reply rated None is asked for no Che
   expect(log).toContain("Rating kept for a retry");
 });
 
+test("a PC line that only repeats the move's own quoted words isn't speaking for the PC, but one with other words is", () => {
+  const move = 'I lean in. "Who keeps the gate tonight?"';
+  expect(spokenLineFault("[Ash]: “who keeps the gate tonight”\n\nThe lad shrugs.", "Ash", move)).toBeUndefined();
+  expect(spokenLineFault('[Ash]: "Who keeps the gate tonight? Tell me."', "Ash", move)).toBe("a spoken line for the PC");
+  expect(spokenLineFault('[Ash]: "Who keeps the gate tonight?"', "Ash")).toBe("a spoken line for the PC");
+});
+
+test("a reply whose PC line is the player's own quote is kept, and logged", async () => {
+  play([narrated('Ash leans in.\n\n[Ash]: "Who keeps the gate tonight?"\n\nThe lad shrugs.')]);
+  const id = await app.createSave();
+
+  const log = await logOf(async () => expect((await app.post(`/saves/${id}/turns`, { input: '"Who keeps the gate tonight?"' })).status).toBe(201), "info");
+
+  expect(provider.requests).toHaveLength(1);
+  expect(log).toContain("PC line passed as the move's own words");
+});
+
 test("a line for someone who only shares the PC's title isn't the PC's", () => {
   expect(spokenLineFault('[Captain]: "Hold."', "Captain Elena Reyes")).toBeUndefined();
   expect(spokenLineFault('[Elena]: "Hold."', "Captain Elena Reyes")).toBe("a spoken line for the PC");

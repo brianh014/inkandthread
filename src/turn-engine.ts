@@ -442,6 +442,8 @@ type Narrated = {
   prompt: Prompt;
   /** The text a failure hands back to the player. */
   input: string;
+  /** The player's move the reply answers, whose own quoted words the PC may say. */
+  move?: string;
   refusal: string;
   pcName: string;
   /** The PC's looks as the story began, which pcAppearance in the state replaces once set. */
@@ -618,6 +620,7 @@ export async function playTurn(
     kind,
     prompt,
     input,
+    move: kind === "turn" ? input : undefined,
     refusal: "The Narrator refused this message. Edit it and try again.",
     pcName: saves.read(id).pc.name,
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
@@ -686,6 +689,7 @@ export async function replaceResponse(
     kind,
     prompt: [...prompt, ...replacementInstruction(feedback === undefined ? undefined : { narration, feedback }, hadPicture && images.ready())],
     input: feedback ?? "",
+    move: input,
     refusal: "The Narrator refused this, so the response stays as it was.",
     pcName: saves.read(id).pc.name,
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
@@ -795,6 +799,7 @@ async function narrate(
     kind,
     prompt,
     input,
+    move = "",
     refusal,
     pcName,
     pcTraits,
@@ -945,8 +950,12 @@ async function narrate(
       const unplaced = scene_changed && !state_operations.some(({ op }) => op === "set_scene") ? "a picture without set_scene" : undefined;
       const relabelled = edited === undefined && copiesRefusedLine(narration, refusedLines);
       if (relabelled) log.info("turn", "Refused line given to another", { attempt, generation });
-      const spoken = edited === undefined ? (relabelled ? PC_LINE : spokenLineFault(narration, pcName)) : undefined;
-      if (spoken === PC_LINE) refusedLines.push(...spokenLines(narration, (speaker) => isPc(speaker, pcName)));
+      const spoken = edited === undefined ? (relabelled ? PC_LINE : spokenLineFault(narration, pcName, move)) : undefined;
+      const pcLines = spokenLines(narration, (speaker) => isPc(speaker, pcName));
+      const echoes = pcLines.filter((line) => movesWords(move).includes(line));
+      if (spoken === PC_LINE) refusedLines.push(...pcLines.filter((line) => !echoes.includes(line)));
+      else if (edited === undefined && echoes.length > 0)
+        log.info("turn", "PC line passed as the move's own words", { attempt, generation, lines: echoes.length });
       // The opening sets the book's voice, which every reply copies, so speech it leaves in the prose is written again there alone:
       // checked on every reply, it doubled a Turn's calls on a model that writes speech in the prose, and the retry didn't change it.
       const inline = edited === undefined && kind === "opening" && speechOutsideLines(narration) ? INLINE_SPEECH : undefined;
@@ -1258,14 +1267,22 @@ export function usableFix(text: string, pcName: string, told: string, check?: Ch
   );
 }
 
-/** Why the spoken lines break the reply's shape, if they do: a tag missing its "[", a line for the PC, or someone speaking more than three times. */
-export function spokenLineFault(narration: string, pcName: string) {
+/**
+ * Why the spoken lines break the reply's shape, if they do: a tag missing its "[", a line for the PC, or someone speaking more than three times.
+ * A PC line that only repeats words the player quoted in `move` is no fault, as nothing is said the player didn't choose.
+ */
+export function spokenLineFault(narration: string, pcName: string, move = "") {
+  const said = movesWords(move);
   const lines = new Map<string, number>();
   for (const line of narration.split("\n").map((text) => text.trim())) {
     if (/^[^[\]\s][^[\]]*\]:/.test(line)) return TAG_WITHOUT_BRACKET;
-    const speaker = line.match(/^\[([^[\]]+)\]:/)?.[1]?.trim();
+    const [, label, words = ""] = line.match(/^\[([^[\]]+)\]:(.*)$/) ?? [];
+    const speaker = label?.trim();
     // The player alone writes what the PC says, and the prompt saying so was ignored.
-    if (speaker && isPc(speaker, pcName)) return PC_LINE;
+    if (speaker && isPc(speaker, pcName)) {
+      if (said.includes(wordsOf(words))) continue;
+      return PC_LINE;
+    }
     if (speaker) lines.set(speaker, (lines.get(speaker) ?? 0) + 1);
   }
   return [...lines.values()].some((count) => count > 3) ? LONG_SPEECH : undefined;
@@ -1297,18 +1314,19 @@ export const withKnownSpeakers = (narration: string, names: string[]) =>
     return matches.length === 1 ? `${indent}[${matches[0]}]:` : line;
   });
 
+/** The words of `text` in lower case, without punctuation. */
+const wordsOf = (text: string) =>
+  text
+    .toLowerCase()
+    .match(/\p{L}+(?:['’]\p{L}+)*/gu)
+    ?.join(" ") ?? "";
+/** The words of each quote in a move, and of the whole move, as a bare quote may come without its marks. */
+const movesWords = (move: string) => [...[...move.matchAll(/["“”]([^"“”]+)["“”]/g)].map(([, quote]) => quote!), move].map(wordsOf).filter(Boolean);
 /** The words of each [Name]: line whose speaker `whose` picks, in lower case. */
 const spokenLines = (narration: string, whose: (speaker: string) => boolean) =>
   narration.split("\n").flatMap((line) => {
     const [, speaker = "", said = ""] = line.trim().match(/^\[([^[\]]+)\]:(.*)$/) ?? [];
-    return speaker && whose(speaker.trim())
-      ? [
-          said
-            .toLowerCase()
-            .match(/\p{L}+(?:['’]\p{L}+)*/gu)
-            ?.join(" ") ?? "",
-        ]
-      : [];
+    return speaker && whose(speaker.trim()) ? [wordsOf(said)] : [];
   });
 /** Whether any spoken line holds four in five of the words of a line refused as the PC's, whoever it is now given to. */
 const copiesRefusedLine = (narration: string, refused: string[]) =>

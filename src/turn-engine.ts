@@ -314,14 +314,16 @@ const SCHEMAS = {
 
 /**
  * A text field without JSON punctuation or invisible characters a model left at its end, such as `:null,`, `]]}` or `"],`.
- * A closing quote alone stays, as a Choice may end on speech, and one the marks took is put back when the text opened it.
+ * A closing quote alone stays, as a Choice may end on speech, and one the marks took is put back when the text opened it, as is
+ * a brace, as a picture's likeness sentence in braces ends its field.
  */
 export function withoutJsonTail(text: string) {
   const visible = text.replace(/[​-‍⁠﻿]+$/u, "");
   const tail = visible.match(/(?::\s*null)?[\s"\]}{[,:​-‍⁠﻿]*$/u)![0];
   if (!/[\]}{[,:]/.test(tail)) return visible.trim();
-  const kept = visible.slice(0, visible.length - tail.length).trim();
-  return tail.includes('"') && (kept.match(/"/g)?.length ?? 0) % 2 === 1 ? `${kept}"` : kept;
+  let kept = visible.slice(0, visible.length - tail.length).trim();
+  if (tail.includes('"') && (kept.match(/"/g)?.length ?? 0) % 2 === 1) kept += '"';
+  return tail.includes("}") && /\{[^{}]*$/.test(kept) ? `${kept}}` : kept;
 }
 
 /**

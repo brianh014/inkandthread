@@ -511,7 +511,10 @@ const keepsMarks = (original: string[], reviewed: string[]) => {
  * the prompt is sent, as the check is whether the picture holds together, which keeps the call small. Any failure draws
  * the prompt as it was, and the log gets the failure's type only, as a provider's error can repeat the prompt.
  */
-export async function reviewScenePrompt(context: Context, description: string, style: PromptStyle, signal: AbortSignal) {
+export async function reviewScenePrompt(context: Context, written: string, style: PromptStyle, signal: AbortSignal) {
+  // Closed, as a Narrator left one open and every review that closed it was refused for adding a mark.
+  const description = /\{[^{}]*$/.test(written) ? `${written.trimEnd()}}` : written;
+  if (description !== written) log.info("images", "A picture's open likeness sentence closed");
   const limit = Math.max(SCENE_WORDS[style], countWords(description));
   const marks = marksOf(description);
   const reply = z.object({ prompt: atMost(limit).refine((prompt) => keepsMarks(marks, marksOf(prompt)), "changed a mark") });

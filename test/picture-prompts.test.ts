@@ -74,6 +74,17 @@ test("a review that leaves a stray quote at the end of the portrait sentence is 
   expect(prompts).toHaveLength(1);
 });
 
+test("a prompt whose likeness sentence was never closed is closed before review, so a review that closes it is drawn", async () => {
+  const open = SCENE.slice(0, -1);
+  const script = scriptedTextProvider(checked(SCENE));
+  const settings = settingsStore(join(folder.path, "settings.json"));
+
+  const reviewed = await reviewScenePrompt({ textProvider: script.textProvider, settings }, open, "prose", new AbortController().signal);
+
+  expect(reviewed).toBe(SCENE);
+  expect(script.prompts).toHaveLength(1);
+});
+
 test("a review may take out someone who shouldn't be in the picture, and is told never to add a name or writing", async () => {
   const two = "[Ash: a short person in grey] kneels. [Mara: a tall woman] waits. {The people from the images are the same people.}";
   const script = scriptedTextProvider(checked("[Ash: a short person in grey] kneels. {The people from the images are the same people.}"));

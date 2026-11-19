@@ -1004,6 +1004,10 @@ test("Choices lose JSON marks left at their end, and one-word Choices told apart
   expect(usableChoices(["我打开门", "我逃跑", "我问她"])).toEqual(["我打开门", "我逃跑", "我问她"]);
   expect(withoutJsonTail('A lane at dusk"],')).toBe("A lane at dusk");
   expect(withoutJsonTail('I shout "Run!""]')).toBe('I shout "Run!"');
+  // A picture's likeness sentence ends the field, so its brace stays when it closes one the text opened.
+  expect(withoutJsonTail("A lane. {The same people.}")).toBe("A lane. {The same people.}");
+  expect(withoutJsonTail("A lane. {The same people.}}")).toBe("A lane. {The same people.}");
+  expect(withoutJsonTail("A lane.}")).toBe("A lane.");
 });
 
 test("a line refused as the PC's is refused again when a retry gives it, nearly word for word, to someone else", async () => {

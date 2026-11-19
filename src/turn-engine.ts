@@ -948,9 +948,13 @@ async function narrate(
       const narrated = applyOperations(introducedBefore.state, introducedBefore.operations);
       const clashesBefore = attempt < MAX_ATTEMPTS ? introducedBefore.refused : [];
       if (clashesBefore.length > 0 || narrated.refused.length > 0) throw new InvalidResponse(undefined, { cause: [...clashesBefore, ...narrated.refused] });
-      // Both together, as a reply that did so had started the story over, while either alone was a sound reply's slip.
+      // Both together, as a reply that did so had started the story over, while either alone was a sound reply's slip. Its
+      // operations and summary are dropped, not the reply, so the next Turn goes on from where the story was, with no retry.
       const restarted = narrated.repeats > 0 && narrated.ignored.some(({ reason }) => reason === "earlier than now");
-      if (restarted && attempt < MAX_ATTEMPTS) throw new InvalidResponse(undefined, { cause: RESTARTED });
+      if (restarted) {
+        log.warning("turn", "Restarted reply's state ignored", { attempt, generation, operations: state_operations.length });
+        state_operations = [];
+      }
       let description = withoutJsonTail(visual_description ?? "");
       // The long words a consistency fix took out of the reply.
       let cut: string[] = [];
@@ -1100,11 +1104,11 @@ async function narrate(
           // Kept when cut below two-fifths of the last, as replies that started the story again cut it to 36-39% (bench logs),
           // while sound ones, shortening one past its 500 words, kept half.
           const words = { was: countWords(next.summary), now: countWords(summary) };
-          if (words.now * 5 < words.was * 2) log.warning("turn", "Summary kept", words);
+          if (restarted || words.now * 5 < words.was * 2) log.warning("turn", "Summary kept", words);
           // Written before the fix, so it may tell what the fix took out.
           else if (cut.some((word) => wholeWord(word, "iu").test(summary))) log.info("turn", "Summary kept after a fix", words);
           else if (summary.trim()) next.summary = summary.trim();
-          if (recent_summary?.trim()) next.recentSummary = recent_summary.trim();
+          if (recent_summary?.trim() && !restarted) next.recentSummary = recent_summary.trim();
           if (memory) next.sceneMemories.push(memory);
           next.chapterReady = !!chapter_ends;
           moved = movedScene(state, next);
@@ -1210,8 +1214,6 @@ const copiesPrevious = (text: string, previous: string) =>
     5 >=
   countWords(text) * 4;
 const COPIED = "the previous reply written again";
-const RESTARTED = "the story started over, its clock set back and what the PC knew added again";
-
 /** Whether a fix passes what a Narrator reply must. It may run a little longer than the reply it fixes. */
 export function usableFix(text: string, pcName: string, told: string, check?: Check) {
   return (

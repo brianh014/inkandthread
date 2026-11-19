@@ -186,6 +186,14 @@ test("someone's looks keep what lasts, not what they hold or where they are, and
   expect(restyledBy(before, scarred)).toEqual([scarred.npcs[0]!]);
 });
 
+test("someone's looks keep no weather, dust or thing carried, which pass with the scene", () => {
+  const coat = "a broad man in his fifties with a grey moustache, in a dark blue coat";
+  const before = { ...openingState, npcs: [{ name: "Price", appearance: coat }] };
+  const passing = `${coat}, rain-dark shoulders, boots grey with road dust, a ledger carried hard against his ribs, soaked through, hair dripping`;
+  const { next } = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: passing }]);
+  expect(next.npcs[0]!.appearance).toBe(coat);
+});
+
 test("the era is set once, and a later set_era is ignored rather than failing the Turn, so pictures never drift", () => {
   const first = applyOperations(openingState, [{ op: "set_era", era: "early medieval Arabia" }]);
   const again = applyOperations(first.next, [{ op: "set_era", era: "1870s American West" }]);

@@ -492,9 +492,10 @@ const DAY_PARTS: [RegExp, number][] = [
   [/morning/i, 2],
 ];
 // What someone holds, or where they are or what they are doing, which passes with the scene, as a looks of "hat in hand, gone
-// out into the rain" redrew a portrait. shortcut: whole comma clauses by these words; add a word when another passing state sticks.
+// out into the rain" redrew a portrait. The weather and the road's dirt too, as "rain-dark shoulders" redrew one soaked.
+// shortcut: whole comma clauses by these words; add a word when another passing state sticks.
 const PASSING =
-  /\b(?:holding|carrying|clutching|gripping|kneeling|crouching|sitting|seated|lying|leaning|standing (?:at|in|by|on|beside|over|before)|gone (?:out|off|away|into|to|back)|in (?:his|her|their|one) (?:other )?hand|in hand|held (?:high|low|up|out))\b/i;
+  /\b(?:holding|carrying|carried|clutch(?:ing|ed)|gripp(?:ing|ed)|kneeling|crouching|sitting|seated|lying|leaning|standing (?:at|in|by|on|beside|over|before)|gone (?:out|off|away|into|to|back)|in (?:his|her|their|one) (?:other )?hand|in hand|held (?:high|low|up|out)|rain-\w+|wet|soaked|sodden|drenched|dripping|damp|dusty|dust|mud-\w+|muddied|windblown)\b/i;
 /** The looks without their passing clauses, or as written if nothing else is left. */
 const lasting = (appearance: string) => {
   const kept = appearance

@@ -144,12 +144,19 @@ test("an empty change isn't reviewed, nor is any change when the reviewer has no
 
 test("the reviewer uses its own model, Thinking, and its own server and key only when it isn't on the Narrator's", () => {
   const store = settings();
-  store.update({ textApiKey: "main-key", textModel: "narrator/model", textHost: "deepinfra", textThinking: "low" });
+  store.update({ textApiKey: "main-key", textModel: "narrator/model", textHost: "deepinfra", textHostFallback: false, textThinking: "low" });
   expect(reviewerSettings(store).read()).toMatchObject({ textModel: "narrator/model", textThinking: "low", textHost: "deepinfra", textThinkingTokens: 14_000 });
   store.update({ reviewOtherModel: true, reviewModel: "other/model", reviewThinking: "high" });
-  expect(reviewerSettings(store).read()).toMatchObject({ textModel: "other/model", textApiKey: "main-key", textThinking: "high", textHost: "" });
+  // On the Narrator's server it keeps the player's host and fallback, so a pin chosen for privacy holds for its calls too.
+  expect(reviewerSettings(store).read()).toMatchObject({
+    textModel: "other/model",
+    textApiKey: "main-key",
+    textThinking: "high",
+    textHost: "deepinfra",
+    textHostFallback: false,
+  });
   store.update({ reviewSameProvider: false, reviewBaseUrl: "https://nano-gpt.com/api/v1", reviewApiKey: "review-key" });
-  expect(reviewerSettings(store).read()).toMatchObject({ textBaseUrl: "https://nano-gpt.com/api/v1", textApiKey: "review-key" });
+  expect(reviewerSettings(store).read()).toMatchObject({ textBaseUrl: "https://nano-gpt.com/api/v1", textApiKey: "review-key", textHost: "" });
   // A key only ever goes to the server it was entered for.
   store.update({ reviewBaseUrl: "http://localhost:1234/v1" });
   expect(store.read().reviewApiKey).toBe("");

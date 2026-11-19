@@ -15,9 +15,8 @@
 //                                      version, score and story, to bench/charts/bench-chart.html
 // To bench a setup without editing the Settings copy: --narrator <model>, --narrator-only (no other reviewer, Consistency off),
 // --reviewer <model> and --decisions <model>. The copy's pinned provider stays, so a model it doesn't offer fails, never reroutes.
-//   --host <provider>   pins the Narrator's OpenRouter provider (DeepInfra, say) with no fallback, on the copy only. The reviewer
-//                       follows it when it is the Narrator's model; a reviewer of its own model goes unpinned, as Settings
-//                       have no host for it, and the decision model (src/decisions.ts) is never routed this way.
+//   --host <provider>   pins the OpenRouter provider (DeepInfra, say) with no fallback, on the copy only, for the Narrator and
+//                       a reviewer on the same server; the decision model (src/decisions.ts) is never routed this way.
 //   --no-consistency    turns off only the consistency check, keeping the reviewer for State Upkeep, Choices and World Moves
 //                       On, as a control run of what the check adds; not with --narrator-only or --decisions.
 // Each result and transcript header records the host and whether the check was on.

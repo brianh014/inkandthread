@@ -231,8 +231,10 @@ export const reviewerSettings = (settings: TextSettings): TextSettings => ({
     const thinking = { textThinking, textThinkingTokens: Math.max(all.textThinkingTokens, all.pictureThinkingTokens) };
     if (!all.reviewOtherModel) return { ...all, ...thinking };
     const server = all.reviewSameProvider ? {} : { textBaseUrl: all.reviewBaseUrl, textApiKey: all.reviewApiKey };
-    // The Narrator's chosen host may not offer the reviewer's model.
-    return { ...all, ...server, ...thinking, textModel: all.reviewModel, textHost: "" };
+    // On the Narrator's server the reviewer keeps the player's host and fallback, as a host pinned for privacy must hold for
+    // every call; with fallback on, a host that doesn't offer the reviewer's model routes it elsewhere. A host names nothing on
+    // another server.
+    return { ...all, ...server, ...thinking, textModel: all.reviewModel, ...(!all.reviewSameProvider && { textHost: "" }) };
   },
 });
 

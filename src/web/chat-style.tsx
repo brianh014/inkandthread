@@ -35,7 +35,15 @@ export function chapterOpenings(chapters: Chapter[], messages: Pick<Message, "id
     const narration = inside.find(({ role }) => role === "narrator");
     if (narration) opens.add(narration.id);
   });
-  return { heads, opens };
+  // What a reply still being written at the end gets, so its heading and big first letter don't appear only once it's saved.
+  const last = chapters.at(-1);
+  const since = chapters.at(-2)?.lastMessage ?? -Infinity;
+  const inOpen = last && last.lastMessage === null ? messages.filter(({ id }) => id > since) : undefined;
+  const next = {
+    ...(inOpen?.length === 0 && { head: { numeral: roman(chapters.length), title: last!.title } }),
+    opens: !!inOpen && !inOpen.some(({ role }) => role === "narrator"),
+  };
+  return { heads, opens, next };
 }
 
 export type ChatStyle = Settings["chatStyle"];

@@ -701,6 +701,12 @@ export function Play({ id }: { id: string }) {
                   </Fragment>
                 );
               })}
+              {turn && opening.next.head && (
+                <div className="chapter-head">
+                  <h2>Chapter {opening.next.head.numeral}</h2>
+                  {opening.next.head.title && <p>{opening.next.head.title}</p>}
+                </div>
+              )}
               {turn?.input && !turn.replaces && (
                 <div className="message player">
                   {messageBeats({ role: "player", text: turn.input }).map(line)}
@@ -708,7 +714,7 @@ export function Play({ id }: { id: string }) {
                 </div>
               )}
               {/* Mounted before any text arrives, or screen readers would not announce it. */}
-              <div aria-live="polite" className="message narrator">
+              <div aria-live="polite" className={`message narrator${turn && opening.next.opens ? " opens" : ""}`}>
                 {turn?.retry && <p className="notice">{turn.retry}</p>}
                 {turn?.narration && messageBeats({ role: "narrator", text: turn.narration }).map(line)}
                 {/* Until the Turn is done, as the text can pause while the Narrator writes the rest of its reply. An Edit has its own. */}

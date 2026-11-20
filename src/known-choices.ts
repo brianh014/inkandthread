@@ -116,7 +116,7 @@ export const EVERYDAY = new Set(
   convince persuade confront approach continue consider question suggest believe remember forget struggle warning trouble silence moment
   minute morning evening tonight tomorrow yesterday people person matter reason chance hidden secret should things honest written
   monday tuesday wednesday thursday friday saturday sunday january february march april june july august september october november
-  december think hold carry keep look speak bring watch walk talk tell find stand leave wait soon silent lantern candle lamp light`.split(/\s+/),
+  december think hold carry keep look speak bring watch walk talk tell find stand leave wait soon`.split(/\s+/),
 );
 
 // What the player reads in the Journal as the PC's own knowledge.

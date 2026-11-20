@@ -15,8 +15,11 @@ export type ChartResult = {
   /** `consistency` only on runs from before the Consistency check was removed. */
   models: { narrator: string; reviewer: string; reviewThinking: string; consistency?: string };
   /** Each play's rubric items, which make the overall, and its genre scores (romance, horror and the like), asked only of a story of that kind. */
-  judge: { plays: { scores: Record<string, { score: number }>; genres?: Record<string, { score: number }> }[] } | null;
+  // `overall` is given from the second rubric on, when caps and a penalty for mistakes make it more than the items' mean.
+  judge: { plays: { scores: Record<string, { score: number }>; genres?: Record<string, { score: number }>; overall?: number }[] } | null;
   plays: Record<string, number>[];
+  /** The rubric it was judged by; absent before the second. */
+  rubric?: number;
 };
 
 export type Point = {
@@ -53,9 +56,12 @@ export function points(results: ChartResult[], version: string, rounds: number, 
     string,
     { setup: Point["setup"]; label: string; detail: string; runs: number; plays: { score: number; cost: number; turnMs: number; firstMs: number }[] }
   >();
+  // A version's runs judged by an older rubric than its newest are left out, as their scores don't compare.
+  const rubric = Math.max(0, ...results.filter((result) => String(result.version) === version).map((result) => result.rubric ?? 1));
   for (const result of results) {
     const like =
       String(result.version) === version &&
+      (result.rubric ?? 1) === rubric &&
       result.rounds === rounds &&
       (result.mode ?? "choices") === "choices" &&
       (world === ALL_STORIES || (result.world ?? "adventure.json") === world);
@@ -75,7 +81,8 @@ export function points(results: ChartResult[], version: string, rounds: number, 
       const play = result.judge!.plays[at];
       const judged = play?.scores ?? {};
       const item = judged[score] ?? play?.genres?.[score];
-      const scores = score === OVERALL ? Object.values(judged).map(({ score }) => score) : item ? [item.score] : [];
+      const scores =
+        score === OVERALL ? (play?.overall !== undefined ? [play.overall] : Object.values(judged).map(({ score }) => score)) : item ? [item.score] : [];
       if (!scores.length) return;
       group.plays.push({
         score: mean(scores),

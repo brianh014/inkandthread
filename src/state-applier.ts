@@ -556,7 +556,7 @@ const lasting = (appearance: string) => {
 
 const [MORNING, NIGHT] = [2, 6];
 /** Where in the day a time of day falls, in order, or undefined for words that don't say. */
-const dayPart = (timeOfDay = "") => DAY_PARTS.find(([words]) => words.test(timeOfDay))?.[1];
+export const dayPart = (timeOfDay = "") => DAY_PARTS.find(([words]) => words.test(timeOfDay))?.[1];
 
 const isRepeat = ({ pcKnown, looseEnds }: State, operation: StateOperation) =>
   (operation.op === "add_known_fact" && pcKnown.facts.includes(operation.fact)) ||

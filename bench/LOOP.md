@@ -20,7 +20,7 @@ Start a session with: "Run the bench loop in `bench/LOOP.md`", adding any change
 | Judge | A blind Fable 5.2 subagent at high effort. Self-judging ran about a point generous. |
 | Fixer | An Opus subagent, test-first |
 | Pictures | `--draw` on local ComfyUI; without it if ComfyUI is down, noted in the ledger |
-| Stop | Each pairing's last two runs are within 0.3 of its own best overall and no more than one major per 10 Turns above its own fewest, and the judge finds no app bug. Then one 45-round check each on the other genre worlds (adventure, romance, horror), fixing only app bugs they show. |
+| Stop | Each pairing's last two runs are within 0.3 of its own best overall and no more than two majors a play above its own fewest, and the judge finds no app bug. Then one 45-round check each on the other genre worlds (adventure, romance, horror), fixing only app bugs they show. |
 
 The first run of each pairing is its baseline: runs with other models, or before a rubric change, don't compare.
 
@@ -45,7 +45,7 @@ The main session only coordinates and keeps the ledger, so its context stays sma
 2. **Judge** with a general-purpose subagent, model Fable, high effort, given the brief below.
 3. **Decide** which findings to fix, after a targeted grep of the log or code confirms each bug. Don't read the transcript in full.
 4. **Fix** with an Opus general-purpose subagent, given the chosen findings with their evidence and the fixer brief below.
-5. **Record** one row in the ledger, then start the next run with the other pairing.
+5. **Record** one row in the ledger, with the majors and minors by kind beside the scores, then start the next run with the other pairing.
 
 ### Judge brief
 

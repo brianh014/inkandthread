@@ -1059,6 +1059,7 @@ async function narrate(
       const dropped = !!unplaced && !upkept;
       if (dropped) log.warning("turn", "Picture dropped without set_scene", { attempt, generation });
       let upkeepRefused = 0;
+      let upkeepDropped: Refusal[] = [];
       const memory = await pendingMemory;
       let moved = false;
       let location = "";
@@ -1080,7 +1081,8 @@ async function narrate(
           if (clashes.length > 0 || refused.length > 0) throw new InvalidResponse(undefined, { cause: [...clashes, ...refused] });
           // After the Narrator's own, which it corrects. One the state code refuses is only dropped, as the reply already stands.
           const kept = applyOperations(told, upkept ?? []);
-          upkeepRefused = kept.refused.length + kept.ignored.length;
+          upkeepDropped = [...kept.refused, ...kept.ignored];
+          upkeepRefused = upkeepDropped.length;
           const next = kept.next;
           // Through this Turn's amended truths, so an ask follows its thread to its new words, as the next move matches them exactly.
           rewrites = [...state_operations, ...(upkept ?? [])].flatMap((operation) =>
@@ -1136,6 +1138,8 @@ async function narrate(
       }
       if (repeated > 0) log.info("turn", "Repeats ignored", { count: repeated });
       if (ignored.length > 0) log.warning("turn", "Operations ignored", { reason: refusalText(ignored) });
+      // Why, as the count alone hid State Upkeep repeating what NPCs learned.
+      if (upkeepDropped.length > 0) log.info("turn", "Upkeep operations dropped", { reason: refusalText(upkeepDropped) });
       askClose?.(asked, rewrites);
       const operations = state_operations.map(({ op }) => op);
       counted?.({ difficulty: check?.difficulty, operations });

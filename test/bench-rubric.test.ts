@@ -4,7 +4,10 @@ import { FEATURES, JudgeReply, MISTAKES, RUBRIC, scorePlay } from "../bench/rubr
 // Every feature audited, faulty where a mistake names it.
 const audited = (mistakes: unknown[]) =>
   Object.fromEntries(
-    Object.keys(FEATURES).map((key) => [key, mistakes.some((mistake) => (mistake as { feature?: string }).feature === key) ? "faulty" : "ok"]),
+    Object.keys(FEATURES).map((key) => [
+      key,
+      mistakes.some((mistake) => ((mistake as { features?: string[] }).features ?? []).includes(key)) ? "faulty" : "ok",
+    ]),
   );
 const reply = (scores: Partial<Record<keyof typeof RUBRIC, number>> = {}, mistakes: unknown[] = [], extra: object = {}) => ({
   mistakes,
@@ -13,7 +16,13 @@ const reply = (scores: Partial<Record<keyof typeof RUBRIC, number>> = {}, mistak
   happened: { npcDied: false, pcInMortalDanger: false },
   ...extra,
 });
-const mistake = (kind: string, weight: "major" | "minor", feature?: string) => ({ kind, weight, where: "M2", note: "n", ...(feature && { feature }) });
+const mistake = (kind: string, weight: "major" | "minor", feature?: string) => ({
+  kind,
+  weight,
+  where: "M2",
+  note: "n",
+  ...(feature && { features: [feature] }),
+});
 const scored = (value: object, turns = 50) => scorePlay(JudgeReply.parse(value), turns);
 
 describe("scorePlay", () => {
@@ -52,11 +61,11 @@ describe("scorePlay", () => {
     expect(flat["judge.pacing"]).toBe(3);
   });
 
-  test("each major costs 0.4 flat, whatever the length, up to 3", () => {
+  test("each major costs 0.2 flat, whatever the length, up to 1.5", () => {
     const one = scored(reply({}, [mistake("picture", "major")]), 50);
     const longer = scored(reply({}, [mistake("picture", "major")]), 100);
-    // pictures capped 7 → 4 lowers the mean by 3/12 = 0.25, then 0.4 off.
-    expect(one["judge.overall"]).toBeCloseTo(7 - 0.25 - 0.4);
+    // pictures capped 7 → 4 lowers the mean by 3/12 = 0.25, then 0.2 off.
+    expect(one["judge.overall"]).toBeCloseTo(7 - 0.25 - 0.2);
     expect(longer["judge.overall"]).toBeCloseTo(one["judge.overall"]!);
     const many = scored(
       reply(
@@ -64,7 +73,7 @@ describe("scorePlay", () => {
         Array.from({ length: 20 }, () => mistake("pcVoiced", "major")),
       ),
     );
-    expect(many["judge.overall"]).toBeCloseTo(7 - 0.25 - 3);
+    expect(many["judge.overall"]).toBeCloseTo(7 - 0.25 - 1.5);
   });
 
   test("minors cost at most 0.5, and the overall never drops below 1", () => {
@@ -89,8 +98,8 @@ describe("scorePlay", () => {
     const flat = scored(reply({}, [mistake("secret", "major"), mistake("knowledge", "minor"), mistake("knowledge", "minor")]), 40);
     expect(flat["mistakes.major"]).toBe(0.25);
     expect(flat["mistakes.minor"]).toBe(0.5);
-    expect(flat["mistakes.knowledge"]).toBe(2);
-    expect(flat["mistakes.restart"]).toBe(0);
+    expect(flat["mistakeCount.knowledge"]).toBe(2);
+    expect(flat["mistakeCount.restart"]).toBe(0);
   });
 });
 
@@ -114,6 +123,10 @@ describe("JudgeReply refuses", () => {
   test("a low score whose listed mistakes are all of kinds that don't touch it", () => {
     expect(JudgeReply.safeParse(reply({ agency: 4 }, [mistake("picture", "minor")])).success).toBe(false);
     expect(JudgeReply.safeParse(reply({ agency: 4 }, [mistake("pcVoiced", "minor")])).success).toBe(true);
+  });
+  test("but takes a character mistake behind characters, and any mistake naming a feature behind state", () => {
+    expect(JudgeReply.safeParse(reply({ characters: 4 }, [mistake("character", "minor")])).success).toBe(true);
+    expect(JudgeReply.safeParse(reply({ state: 4 }, [mistake("secret", "minor", "choices")])).success).toBe(true);
   });
   test("a place that is neither a Message nor a round", () => {
     expect(JudgeReply.safeParse(reply({}, [{ ...mistake("secret", "major"), where: "early on" }])).success).toBe(false);

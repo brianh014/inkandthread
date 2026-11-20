@@ -4,11 +4,15 @@ import { dayPart, type State } from "../src/state-applier";
 /** Steps that tell new story; a Rewrite, Regenerate or Edit replaces a reply, so its time and Loose Ends may rightly go back. */
 const TURNS = new Set(["opening", "choice", "move", "continue", "continue (no Choices)"]);
 const wordsOf = (text: string) => new Set(text.toLowerCase().match(/\p{L}{4,}/gu) ?? []);
-/** The same fact in other words: most of the longer words shared, as reworded repeats got past the app's exact match. */
+const denies = (text: string) => /\b(?:not|never|no|nothing|none|nobody)\b|n't\b/i.test(text);
+/**
+ * The same fact in other words: three or more longer words shared, most of them, and both saying or both denying it, as reworded
+ * repeats got past the app's exact match while "is alive" and "is not alive" are a correction, not a repeat.
+ */
 function alike(a: string, b: string) {
   const [one, two] = [wordsOf(a), wordsOf(b)];
   const shared = [...one].filter((word) => two.has(word)).length;
-  return shared > 0 && shared / new Set([...one, ...two]).size >= 0.7;
+  return shared >= 3 && shared / new Set([...one, ...two]).size >= 0.7 && denies(a) === denies(b);
 }
 
 /**

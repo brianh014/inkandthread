@@ -628,9 +628,11 @@ async function play(
     flat,
     stateFaults(
       changes,
-      logged("Operations ignored").flatMap(({ reason }) => String(reason).split(", ")),
+      [...logged("Operations ignored"), ...logged("Upkeep operations dropped")].flatMap(({ reason }) => String(reason).split(", ")),
     ),
   );
+  // The last Message, so a judge's mistake can't be placed past the story.
+  flat.messages = saves.messages(id).at(-1)?.id ?? 0;
   flat["cost.total"] = calls.reduce((sum, { cost }) => sum + cost, 0);
   flat["cost.perRound"] = flat["cost.total"] / rounds;
   for (const side of ["narrator", "reviewer"] as const) {
@@ -678,7 +680,10 @@ function transcript(world: z.infer<typeof World>, saves: ReturnType<typeof saveS
     const pictured = scene ? `\n\n> Picture prompt: ${scene}${drawn}` : "";
     // Numbered, so a Scene Memory's range of Messages can be found in the story.
     const bench = benched.get(messageId);
-    return role === "player" ? `**Player (Message ${messageId}):** ${text}` : `${bench ? `> ${bench}\n\n` : ""}${text}${rolled}${pictured}`;
+    // Every Message numbered as a judge names it, the Narrator's too.
+    return role === "player"
+      ? `**Player (M${messageId}):** ${text}`
+      : `${bench ? `> ${bench}\n\n` : ""}**Narrator (M${messageId}):** ${text}${rolled}${pictured}`;
   });
   const portraits = gallery
     .filter(({ kind }) => kind === "portrait" || kind === "original")
@@ -722,7 +727,7 @@ function judged(result: Result, by: string, plays: JudgeReply[]) {
   plays.forEach((reply, at) => {
     const flat = result.plays[at]!;
     // A re-judged play keeps none of its last judge's numbers.
-    for (const key of Object.keys(flat)) if (key.startsWith("judge.") || key.startsWith("mistakes.")) delete flat[key];
+    for (const key of Object.keys(flat)) if (/^(judge|mistakes|mistakeCount)\./.test(key)) delete flat[key];
     Object.assign(flat, scorePlay(reply, flat.turns ?? 0));
     flat["judged.npcDied"] = reply.happened.npcDied ? 1 : 0;
     flat["judged.pcInMortalDanger"] = reply.happened.pcInMortalDanger ? 1 : 0;
@@ -770,7 +775,7 @@ function report(result: Result) {
   }
   if (result.judge) {
     const turns = result.summary.turns || 1;
-    const kinds = Object.keys(MISTAKES).map((kind) => `${kind} ${show(((result.summary[`mistakes.${kind}`] ?? 0) * 10) / turns)}`);
+    const kinds = Object.keys(MISTAKES).map((kind) => `${kind} ${show(((result.summary[`mistakeCount.${kind}`] ?? 0) * 10) / turns)}`);
     console.log(`  Mistakes per 10 Turns by kind: ${kinds.join(", ")}`);
   }
   console.log(tokenTable(result.summary));
@@ -1014,9 +1019,23 @@ function judgeRun() {
     .array(judgeReplyFor(worldNamed(result.world ?? DEFAULT_WORLD)))
     .length(result.runs)
     .parse(JSON.parse(readFileSync(scores, "utf8")));
+  plays.forEach(({ mistakes }, at) => {
+    const last = result.plays[at]?.messages;
+    const past = mistakes.filter(({ where }) => last && Number(where.match(/^M(\d+)/i)?.[1] ?? 0) > last);
+    if (past.length) fail(`Play ${at + 1} has mistakes placed past its last Message, M${last}: ${past.map(({ where }) => where).join(", ")}.`);
+  });
   judged(result, by, plays);
   writeFileSync(join(folder!, "result.json"), JSON.stringify(result, null, 2));
   report(result);
+  // A feature the bench's own checks found wrong, audited ok, says how closely the judge looked.
+  const checked = { storyTime: ["timeBack"], npcKnows: ["repeatKnows", "negativeKnows"], looseEnds: ["looseEndReopened"] } as const;
+  plays.forEach(({ audit }, at) => {
+    for (const [feature, faults] of Object.entries(checked)) {
+      const found = faults.reduce((sum, fault) => sum + (result.plays[at]?.[`stateFaults.${fault}`] ?? 0), 0);
+      if (found > 0 && audit[feature as keyof typeof checked] === "ok")
+        console.log(`Play ${at + 1}: the judge audited ${feature} ok, but the bench's checks found ${found} fault(s) there.`);
+    }
+  });
 }
 
 function keep() {

@@ -24,6 +24,13 @@ test("a knows entry repeating one in other words counts once when it arrives", (
   expect(faults["stateFaults.repeatKnows"]).toBe(1);
 });
 
+test("a correction or a fact sharing a word or two is no repeat", () => {
+  const was = state({ npcKnows: { Kit: ["Thorne's brother is alive and hiding."] } });
+  const now = (fact: string) => state({ npcKnows: { Kit: ["Thorne's brother is alive and hiding.", fact] } });
+  for (const fact of ["Thorne's brother is not alive and hiding.", "Thorne's brother keeps the inn."])
+    expect(stateFaults([{ action: "choice", before: was, after: now(fact) }])["stateFaults.repeatKnows"]).toBe(0);
+});
+
 test("repeats and negatives the app turned away still count, from its ignored operations", () => {
   const faults = stateFaults([], ["npc_learns: already there", "npc_learns: only what they don't know", "add_loose_end: already there"]);
   expect(faults["stateFaults.repeatKnows"]).toBe(1);

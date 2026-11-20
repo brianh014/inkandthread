@@ -198,7 +198,7 @@ a {
 /* The name, written by hand. */
 .brand h1 {
   font:
-    700 clamp(80px, 9vw, 128px) / 1 "Tangerine",
+    700 clamp(64px, 7.5vw, 108px) / 1 "Tangerine",
     var(--display);
 }
 

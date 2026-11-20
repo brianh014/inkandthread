@@ -915,7 +915,7 @@ export const CommandField = ({ line, onLine }: { line: string; onLine: (line: st
   </>
 );
 
-/** The reviewer that takes a second look at a new world and at World Changes: the Narrator's model, or another one, on any provider. */
+/** The Scribe: keeps the story's record after every reply and reviews the world and World Changes. The Narrator's model, or another one, on any provider. */
 export function ReviewSettings({
   draft,
   saved,
@@ -951,17 +951,19 @@ export function ReviewSettings({
   const models = own ? (ownSaved ? ownModels : undefined) : draft.textBaseUrl === saved.textBaseUrl ? narratorModels : undefined;
   return (
     <fieldset>
-      <legend>Review</legend>
+      <legend>Scribe</legend>
       <p className="muted">
-        After the world is built, and before a change to it is made, the AI takes a second look for contradictions, plot holes and thin storylines, and quietly
-        fixes them. Another model catches what the Narrator's own misses: pick a capable one from a different family, which needn't be the most expensive, such
-        as GPT-6.1 Luna, on Medium thinking. After each reply, it also keeps the scene, inventory and time in step with the story.
+        After every reply, the Scribe keeps the story's record straight: where you are, who's there, what you wear and carry, what people learn, and the time.
+        It also reviews a new world, and any change to it, for contradictions and plot holes. Its calls are small, so a smart model costs little.
       </p>
       <label className="toggle">
         <input type="checkbox" checked={draft.reviewOtherModel} onChange={(e) => set({ reviewOtherModel: e.target.checked })} />
-        Review with another model
+        Use another model as the Scribe
       </label>
-      <p className="muted">A different model can catch what the Narrator's misses. Off, the Narrator's model reviews.</p>
+      <p className="muted">
+        We recommend one from a different family than the Narrator's, at least as smart, on Medium thinking, as it catches what the Narrator misses. Off, the
+        Narrator's model is the Scribe.
+      </p>
       {draft.reviewOtherModel && (
         <>
           <label className="toggle">
@@ -971,14 +973,14 @@ export function ReviewSettings({
           {own && (
             <>
               <Picker
-                label="Review provider"
+                label="Scribe provider"
                 value={choice}
                 choices={[...TEXT_CHOICES]}
                 onChange={(provider) => set({ reviewBaseUrl: provider === "local" ? "http://localhost:1234/v1" : TEXT_PROVIDERS[provider], reviewModel: "" })}
               />
               {choice === "local" && (
                 <label>
-                  Review server address
+                  Scribe server address
                   <input
                     type="url"
                     required
@@ -989,7 +991,7 @@ export function ReviewSettings({
                 </label>
               )}
               <label>
-                Review API key
+                Scribe API key
                 <input
                   type="password"
                   autoComplete="new-password"
@@ -1001,24 +1003,24 @@ export function ReviewSettings({
             </>
           )}
           {!own && saved.textCommand.length > 0 ? (
-            <p className="muted">The review runs on the Narrator's command, which has no model to choose.</p>
+            <p className="muted">The Scribe runs on the Narrator's command, which has no model to choose.</p>
           ) : (
             <>
               <ModelField
                 key={own ? draft.reviewBaseUrl : draft.textBaseUrl}
-                label="Review model"
+                label="Scribe model"
                 value={draft.reviewModel}
                 list={models}
                 onChange={(reviewModel) => set({ reviewModel })}
               />
               {own && !ownSaved && <p className="muted">Save to choose from this provider's models.</p>}
-              {!draft.reviewModel.trim() && <p className="notice">Choose a model, or the world goes unreviewed.</p>}
+              {!draft.reviewModel.trim() && <p className="notice">Choose a model for the Scribe.</p>}
             </>
           )}
         </>
       )}
       <Picker
-        label="Review thinking"
+        label="Scribe thinking"
         value={draft.reviewThinking}
         choices={[
           { value: "same", label: "Same as the Narrator" },
@@ -1029,107 +1031,7 @@ export function ReviewSettings({
         ]}
         onChange={(reviewThinking) => set({ reviewThinking })}
       />
-      <p className="muted">On High, some models think past Longest thinking, and the world is then kept unreviewed.</p>
-    </fieldset>
-  );
-}
-
-/** The Consistency model: a chat model that checks each reply against the story and fixes a slip it can quote. None is the reviewer's. */
-export function ConsistencySettings({
-  draft,
-  saved,
-  set,
-  narratorModels,
-  consistencyKey,
-  setConsistencyKey,
-}: {
-  draft: Settings;
-  saved: Settings;
-  set: (change: Partial<Settings>) => void;
-  narratorModels?: string[];
-  consistencyKey: string;
-  setConsistencyKey: (key: string) => void;
-}) {
-  const own = !draft.consistencySameProvider;
-  const choice = textChoiceOf(draft.consistencyBaseUrl);
-  // A list is only ever the saved server's, so only while the form shows the server that was saved.
-  const ownSaved = !saved.consistencySameProvider && saved.consistencyBaseUrl === draft.consistencyBaseUrl;
-  const [ownModels, setOwnModels] = useState<string[]>();
-
-  useEffect(() => {
-    setOwnModels(undefined);
-    if (!ownSaved) return;
-    let current = true;
-    const show = (list: string[]) => current && setOwnModels(list);
-    getTextModels("consistency").then(show, () => show([]));
-    return () => {
-      current = false;
-    };
-  }, [ownSaved, saved]);
-
-  const models = own ? (ownSaved ? ownModels : undefined) : draft.textBaseUrl === saved.textBaseUrl ? narratorModels : undefined;
-  return (
-    <fieldset>
-      <legend>Consistency</legend>
-      <p className="muted">
-        Before you read on, the AI asks a few narrow questions of each reply, such as whether its time of day fits the story's, and quietly fixes a slip it can
-        point to. It adds a few seconds to a reply. It is sent parts of the story, so for privacy pick a provider that keeps no data.
-      </p>
-      <label className="toggle">
-        <input type="checkbox" checked={draft.consistencyEnabled} onChange={(e) => set({ consistencyEnabled: e.target.checked })} />
-        Check replies for slips
-      </label>
-      {draft.consistencyEnabled && (
-        <>
-          <label className="toggle">
-            <input type="checkbox" checked={draft.consistencySameProvider} onChange={(e) => set({ consistencySameProvider: e.target.checked })} />
-            Same provider as the Narrator
-          </label>
-          {own && (
-            <>
-              <Picker
-                label="Consistency provider"
-                value={choice}
-                choices={[...TEXT_CHOICES]}
-                onChange={(provider) =>
-                  set({ consistencyBaseUrl: provider === "local" ? "http://localhost:1234/v1" : TEXT_PROVIDERS[provider], consistencyChatModel: "" })
-                }
-              />
-              {choice === "local" && (
-                <label>
-                  Consistency server address
-                  <input
-                    type="url"
-                    required
-                    placeholder="http://localhost:1234/v1"
-                    value={draft.consistencyBaseUrl}
-                    onChange={(e) => set({ consistencyBaseUrl: e.target.value })}
-                  />
-                </label>
-              )}
-              <label>
-                Consistency API key
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  placeholder={saved.hasConsistencyApiKey && ownSaved ? "Saved. Type a new key to replace it." : "None saved"}
-                  value={consistencyKey}
-                  onChange={(e) => setConsistencyKey(e.target.value)}
-                />
-              </label>
-            </>
-          )}
-          <ModelField
-            key={own ? draft.consistencyBaseUrl : draft.textBaseUrl}
-            label="Consistency model"
-            value={draft.consistencyChatModel}
-            list={models}
-            onChange={(consistencyChatModel) => set({ consistencyChatModel })}
-          />
-          {own && !ownSaved && <p className="muted">Save to choose from this provider's models.</p>}
-          {!draft.consistencyChatModel.trim() && <p className="muted">With no model chosen, the Review model checks.</p>}
-        </>
-      )}
+      <p className="muted">On High, some models think past Longest thinking, and the Scribe's work is then skipped.</p>
     </fieldset>
   );
 }
@@ -1151,7 +1053,6 @@ function InstallSettings({
   const [textKey, setTextKey] = useState("");
   const [imageKey, setImageKey] = useState("");
   const [reviewKey, setReviewKey] = useState("");
-  const [consistencyKey, setConsistencyKey] = useState("");
   const set = (change: Partial<Settings>) => setDraft({ ...draft, ...change });
   const command = useCommandLine(initial, set);
 
@@ -1215,32 +1116,19 @@ function InstallSettings({
       textCommand: [],
       ...(saved.textProfiles[textBaseUrl] ?? { textModel: "", textHost: "" }),
       ...(draft.reviewSameProvider && { reviewModel: "" }),
-      ...(draft.consistencySameProvider && { consistencyChatModel: "" }),
     });
   };
   const needsKey = saved.hasTextApiKey && draft.textBaseUrl !== saved.textBaseUrl && !saved.textKeysFor.includes(draft.textBaseUrl) && !textKey.trim();
   const keyHint = (stored: boolean) => (stored ? "Saved. Type a new key to replace it." : "None saved");
 
   const { busy, submit, feedback } = useSubmit(async () => {
-    const {
-      hasTextApiKey,
-      hasImageApiKey,
-      hasReviewApiKey,
-      hasConsistencyApiKey,
-      textKeysFor,
-      imageKeysFor,
-      textProfiles,
-      imageProfiles,
-      workflowProblem,
-      commandHere,
-      ...change
-    } = draft;
+    const { hasTextApiKey, hasImageApiKey, hasReviewApiKey, textKeysFor, imageKeysFor, textProfiles, imageProfiles, workflowProblem, commandHere, ...change } =
+      draft;
     const next = await saveSettings({
       ...change,
       ...(textKey.trim() && { textApiKey: textKey.trim() }),
       // Likewise hidden unless the reviewer has its own provider.
       ...(draft.reviewOtherModel && !draft.reviewSameProvider && reviewKey.trim() && { reviewApiKey: reviewKey.trim() }),
-      ...(draft.consistencyEnabled && !draft.consistencySameProvider && consistencyKey.trim() && { consistencyApiKey: consistencyKey.trim() }),
       // Its field is hidden for Local, and a key the player can't see must not be stored.
       ...(draft.imageProvider !== "local" && imageKey.trim() && { imageApiKey: imageKey.trim() }),
     });
@@ -1249,7 +1137,6 @@ function InstallSettings({
     setTextKey("");
     setImageKey("");
     setReviewKey("");
-    setConsistencyKey("");
     applyLook(next);
     // Most local servers need no key, so only an online provider is asked for one.
     const online = Object.values(TEXT_PROVIDERS).includes(next.textBaseUrl);
@@ -1398,6 +1285,7 @@ function InstallSettings({
           <textarea rows={5} value={draft.modelInstructions} onChange={(e) => set({ modelInstructions: e.target.value })} />
         </label>
         <p className="muted">Your own guidance to the Narrator, for every Save.</p>
+        <ReviewSettings draft={draft} saved={saved} set={set} narratorModels={models} reviewKey={reviewKey} setReviewKey={setReviewKey} />
         <label>
           Longest reply, in tokens
           <input
@@ -1474,15 +1362,6 @@ function InstallSettings({
         <p className="muted">
           The Narrator is asked for about 60 words and at most 80. An answer over this limit is thrown out and asked for again, up to three tries.
         </p>
-        <ReviewSettings draft={draft} saved={saved} set={set} narratorModels={models} reviewKey={reviewKey} setReviewKey={setReviewKey} />
-        <ConsistencySettings
-          draft={draft}
-          saved={saved}
-          set={set}
-          narratorModels={models}
-          consistencyKey={consistencyKey}
-          setConsistencyKey={setConsistencyKey}
-        />
         <TestBox
           title="Test text"
           hint="Sends this prompt to your saved model, with the saved Extra Narrator Instructions above. A paid provider may charge for each test."

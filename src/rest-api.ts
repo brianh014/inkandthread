@@ -9,7 +9,7 @@ import { errorFields, log, setLogLevel } from "./logger";
 import { saveRoutes } from "./save-routes";
 import { MAX_IMPORT_BYTES, saveStore } from "./save-store";
 import { settingsRoutes } from "./settings-routes";
-import { consistencySettings, OnlineImageProvider, reviewerSettings } from "./settings-store";
+import { OnlineImageProvider, reviewerSettings } from "./settings-store";
 import { turnRoutes } from "./turn-routes";
 import { relaunch, updater } from "./updater";
 import { countedImages, countedText, usageStore } from "./usage-store";
@@ -67,19 +67,12 @@ async function cappedBody(req: Request) {
 export function startServer(given: ServerOptions) {
   const { settings } = given;
   const usage = given.usage ?? usageStore();
-  const checker = given.consistencyProvider ?? given.reviewProvider;
   // Counted here, before anything holds the Text Provider, so every call for every route and picture prompt is counted.
   const options = {
     ...given,
     usage,
     textProvider: countedText(given.textProvider, usage, settings),
     reviewProvider: given.reviewProvider && countedText(given.reviewProvider, usage, reviewerSettings(settings)),
-    consistency: checker && {
-      provider: countedText(checker, usage, consistencySettings(settings)),
-      settings: consistencySettings(settings),
-      enabled: () => settings.read().consistencyEnabled,
-      logOnly: !!given.consistencyLogOnly,
-    },
   };
   const saves = saveStore(options.savesDir);
   const turns = liveTurns();

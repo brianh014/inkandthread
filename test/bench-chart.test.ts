@@ -37,6 +37,17 @@ test("several runs of a setup pool their plays into one point; unlike or unjudge
   expect(found.find((p) => p.setup === "full")!.label).toBe("mimo · flash · d1");
 });
 
+test("a run from before the Consistency check was removed, with it off, pools with one made after", () => {
+  const scribe = { narrator: "x/mimo", reviewer: "y/flash", reviewThinking: "medium" };
+  const found = points(
+    [run("x/mimo", [6], 0.01, { setup: "full", models: { ...scribe, consistency: "off" } }), run("x/mimo", [8], 0.01, { setup: "full", models: scribe })],
+    "0.5.0.1",
+    30,
+  );
+  expect(found).toHaveLength(1);
+  expect(found[0]).toMatchObject({ label: "mimo · flash", runs: 2, score: 7 });
+});
+
 test("the same short name from another vendor, or at another Thinking, is a setup of its own", () => {
   const found = points([run("x/mimo", [6], 0.01), run("y/mimo", [7], 0.01), run("x/mimo", [8], 0.01, { thinking: "high" })], "0.5.0.1", 30);
   expect(found).toHaveLength(3);

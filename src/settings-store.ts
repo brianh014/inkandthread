@@ -58,14 +58,6 @@ export const SettingsUpdate = z
     reviewApiKey: z.string(),
     // Its own, so reviews can think harder than Turns. Same follows the Narrator's Thinking.
     reviewThinking: z.enum(["same", "default", "low", "medium", "high"]),
-    // Narrow questions of each reply on a chat model, each quoting and fixing a slip it finds. No model is the reviewer's.
-    consistencyEnabled: z.boolean(),
-    // A new name, as the old consistencyModel held a decision model's id, which the chat endpoint refuses; dropped as unknown.
-    consistencyChatModel: z.string(),
-    // The Narrator's provider and key, or its own.
-    consistencySameProvider: z.boolean(),
-    consistencyBaseUrl: z.url({ protocol: /^https?$/ }),
-    consistencyApiKey: z.string(),
     // Recent Messages sent in full each Turn. Older ones reach the Narrator as Scene Memories, written in batches of 20, so it can't go below two batches.
     textRecentMessages: z.number().int().min(40).max(400),
     // A Question's answer over this many words is retried. Not below the 80 the prompt asks for.
@@ -182,11 +174,6 @@ const defaults = {
   reviewBaseUrl: "https://openrouter.ai/api/v1",
   reviewApiKey: "",
   reviewThinking: "same",
-  consistencyEnabled: false,
-  consistencyChatModel: "",
-  consistencySameProvider: true,
-  consistencyBaseUrl: "https://openrouter.ai/api/v1",
-  consistencyApiKey: "",
   textRecentMessages: 80,
   answerRejectWords: 120,
   imageProvider: "openrouter",
@@ -245,20 +232,6 @@ export const reviewerSettings = (settings: TextSettings): TextSettings => ({
   },
 });
 
-/**
- * The Consistency model's settings: the reviewer's when none is chosen, or its model on the Narrator's server, with the player's
- * host pin as the reviewer keeps it, or on its own. Always at Low, as it quotes rather than reasons; a model that won't take Low
- * is raised by the Text Provider.
- */
-export const consistencySettings = (settings: TextSettings): TextSettings => ({
-  read: () => {
-    const all = settings.read();
-    if (!all.consistencyChatModel) return { ...reviewerSettings(settings).read(), textThinking: "low" };
-    const server = all.consistencySameProvider ? {} : { textBaseUrl: all.consistencyBaseUrl, textApiKey: all.consistencyApiKey, textHost: "", textCommand: [] };
-    return { ...all, ...server, textModel: all.consistencyChatModel, textThinking: "low" };
-  },
-});
-
 /** Whether text calls run the player's command rather than reach a server. */
 export const usesCommand = ({ textCommand }: { textCommand: string[] }) => textCommand.length > 0;
 
@@ -290,7 +263,6 @@ export function settingsStore(path: string) {
     // A key must only ever reach the server it was entered for, and that server is no longer known.
     if ("textBaseUrl" in fields && !("textBaseUrl" in kept)) delete kept.textApiKey;
     if ("reviewBaseUrl" in fields && !("reviewBaseUrl" in kept)) delete kept.reviewApiKey;
-    if ("consistencyBaseUrl" in fields && !("consistencyBaseUrl" in kept)) delete kept.consistencyApiKey;
     // Likewise a provider this build doesn't know, from a newer one, say, which would read as OpenRouter and get the other's key.
     if ("imageProvider" in fields && !("imageProvider" in kept)) delete kept.imageApiKey;
     return { ...(kept as SettingsChange), ...PutAway.parse(fields) };
@@ -326,7 +298,6 @@ export function settingsStore(path: string) {
       }
       // shortcut: the reviewer keeps one server and key, not a profile per server, so a switch drops its key, file them by address if players switch often.
       if (next.reviewBaseUrl !== current.reviewBaseUrl && !("reviewApiKey" in change)) next.reviewApiKey = "";
-      if (next.consistencyBaseUrl !== current.consistencyBaseUrl && !("consistencyApiKey" in change)) next.consistencyApiKey = "";
       if (next.imageProvider !== current.imageProvider) {
         const own = { imageApiKey: "", imageModel: "", ...current.imageProfiles[next.imageProvider] };
         Object.assign(next, restored(change, own, IMAGE_TIED));

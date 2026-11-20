@@ -32,7 +32,7 @@ test("until the Narrator is set up, the Menu offers Setup, which walks the setti
   await page.getByRole("textbox", { name: "Text model" }).fill("fake-narrator");
   await next.click();
 
-  for (const later of ["A second reader", "A careful eye", "Pictures", "Reading"]) {
+  for (const later of ["The Scribe", "Pictures", "Reading"]) {
     await expect(page.getByRole("heading", { name: later })).toBeVisible();
     await next.click();
   }

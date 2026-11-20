@@ -13,7 +13,7 @@ import { GOOGLE_URL, NANOGPT_URL, OPENROUTER_URL, storyName, UNREADABLE_SAVE } f
 
 // Only the online providers have a list. ComfyUI's models come from /settings/comfy-models.
 const ImageModelsQuery = z.object({ provider: OnlineImageProvider });
-const TextModelsQuery = z.strictObject({ for: z.enum(["review", "consistency"]).optional() });
+const TextModelsQuery = z.strictObject({ for: z.enum(["review"]).optional() });
 const UsageQuery = z.strictObject({ by: z.enum(["day", "week", "month"]) });
 
 /** `profiles` with each one's key taken out. */
@@ -51,11 +51,6 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
       reviewBaseUrl,
       reviewApiKey,
       reviewThinking,
-      consistencyEnabled,
-      consistencyChatModel,
-      consistencySameProvider,
-      consistencyBaseUrl,
-      consistencyApiKey,
       textRecentMessages,
       answerRejectWords,
       imageProvider,
@@ -118,11 +113,6 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
       reviewBaseUrl,
       hasReviewApiKey: reviewApiKey !== "",
       reviewThinking,
-      consistencyEnabled,
-      consistencyChatModel,
-      consistencySameProvider,
-      consistencyBaseUrl,
-      hasConsistencyApiKey: consistencyApiKey !== "",
       textRecentMessages,
       answerRejectWords,
       imageProvider,
@@ -199,13 +189,11 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
         return Response.json(publicSettings(here));
       },
     },
-    // Only ever the saved server, so a key can't reach an address that is still being typed. `for=review` lists the reviewer's,
-    // and `for=consistency` its own server's, which Settings asks for only when it has one.
+    // Only ever the saved server, so a key can't reach an address that is still being typed. `for=review` lists the reviewer's.
     "/settings/text-models": {
       GET: async (req) => {
         const { for: whose } = TextModelsQuery.parse(Object.fromEntries(new URL(req.url).searchParams));
-        const own = () => ({ ...settings.read(), textBaseUrl: settings.read().consistencyBaseUrl, textApiKey: settings.read().consistencyApiKey });
-        const listed = whose === "review" ? reviewerSettings(settings) : whose === "consistency" ? { read: own } : settings;
+        const listed = whose === "review" ? reviewerSettings(settings) : settings;
         return Response.json({ models: await textModels(listed, req.signal) });
       },
     },

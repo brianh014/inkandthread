@@ -38,8 +38,8 @@ export const CommandCaveats = () => (
       <b>Content rules</b>: a subscription brings its company's content rules into your story.
     </li>
     <li>
-      <b>Limits</b>: one Turn is several calls (the Narrator, the review, keeping the scene in step, the world moving on, picture prompts). A subscription's
-      limits can run out mid-story, and play stops until they reset.
+      <b>Limits</b>: one Turn is several calls (the Narrator, the Scribe, the world moving on, picture prompts). A subscription's limits can run out mid-story,
+      and play stops until they reset.
     </li>
     <li>
       <b>Speed</b>: each call starts the program again, which adds time before every reply.
@@ -80,8 +80,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <ol>
           <li>
             Choose <b>Setup NovelForge</b> on the Menu. Until the AI that writes your story is set up, it takes the place of New Story and Load Story. Its pages
-            go one at a time, with what to pick beside each: the AI that writes your story, its key and model, a second AI to review it, a check on each reply,
-            pictures or text only, and how the story reads. Only the first AI is needed; the rest can be skipped. Beside the model,{" "}
+            go one at a time, with what to pick beside each: the AI that writes your story, its key and model, the Scribe, a second AI that keeps the story's
+            record, pictures or text only, and how the story reads. Only the first AI is needed; the rest can be skipped. Beside the model,{" "}
             {tool(ChartIcon, "How the AIs compare")} shows how each AI told our test stories and what a Turn cost. {link("models", "Choosing your AI")} says
             more about which to pick.
           </li>
@@ -480,6 +480,16 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             <b>Extra Narrator Instructions</b>: your own guidance for the Narrator in every story, such as "Keep replies short" or "No romance".
           </li>
           <li>
+            <b>Scribe</b>: after every reply, the Scribe keeps the story's record straight: where you are, who's there, what you wear and carry, what people
+            have learned, and the time, so the next reply starts from what's true. It also looks over your new world, and any change to it, for contradictions
+            and plot holes, and quietly fixes them, keeping its secrets from you. It works after the reply shows, so you don't wait on it. Tick{" "}
+            <b>Use another model as the Scribe</b> to have a different AI do it: we recommend one from another family than the Narrator's, at least as smart, on
+            Medium thinking, such as GPT-6 Luna. Its calls are small, so a smart one costs little, but a closed AI like that one sends what it reads to its
+            maker. It uses the Narrator's provider unless you untick <b>Same provider as the Narrator</b> and give it its own. Its calls show in Usage under its
+            own model. <b>Scribe thinking</b> lets it think harder, or less, than the story. On High, some AIs think past <b>Longest thinking</b>, and its work
+            is then skipped.
+          </li>
+          <li>
             <b>Longest reply, in tokens</b> and <b>in minutes</b>: limits on one reply.
           </li>
           <li>
@@ -492,22 +502,6 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           </li>
           <li>
             <b>Longest Question answer, in words</b>: for Ask the Narrator.
-          </li>
-          <li>
-            <b>Review</b>: after your world is built, and before any change to it is made, the AI takes a second look for contradictions, plot holes and thin
-            storylines, and quietly fixes them, keeping its secrets from you. Tick <b>Review with another model</b> to have a different AI do it, such as a
-            capable but cheaper one like GPT-6.1 Luna, as one can catch what another misses. It uses the Narrator's provider unless you untick{" "}
-            <b>Same provider as the Narrator</b> and give it its own. Its calls show in Usage under its own model. <b>Review thinking</b> lets reviews think
-            harder, or less, than the story. On High, some AIs think past <b>Longest thinking</b>, and the world is then kept unreviewed. After each reply, the
-            same AI also brings where you are, who's there, what you wear and carry, and the time in line with what just happened, so the next reply starts from
-            what's true. The choices and picture wait a moment for it.
-          </li>
-          <li>
-            <b>Consistency</b>: off unless you tick <b>Check replies for slips</b>. The AI then asks a few narrow questions of each reply, such as whether its
-            time of day fits the story's, and quietly fixes a slip only when it can quote both the reply's words and what the story had set down that they
-            contradict. A fixed reply takes the place of the one you began reading. It adds a few seconds to a reply, and its calls show in Usage under its
-            model. With no <b>Consistency model</b> chosen, the Review model checks. It uses the Narrator's provider unless you untick{" "}
-            <b>Same provider as the Narrator</b> and give it its own. That AI is sent parts of the story, so for privacy choose one that keeps no data.
           </li>
           <li>
             <b>Test text</b>: sends a short prompt to check the AI works. A paid provider may charge for it.

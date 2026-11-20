@@ -8,7 +8,7 @@ Ink & Thread is a single-player story game, played like a Telltale game or a cho
 
 It runs on your own computer and talks to models you choose. Bring an OpenAI-compatible text API (OpenRouter, DeepInfra, a local server) and, for pictures, OpenRouter, Wiro or your own ComfyUI.
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-desktop-dark.jpg"><img src="docs/screenshots/menu-desktop-light.jpg" alt="Ink &amp; Thread's Menu: New Story, Load Story, Reader's Guide and Settings beside the logo" width="620"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-mobile-dark.jpg"><img src="docs/screenshots/menu-mobile-light.jpg" alt="The Menu on a phone" width="160"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-desktop-dark.jpg"><img src="docs/screenshots/menu-desktop-light.jpg" alt="Ink &amp; Thread's Menu: New Story, Load Story, Reader's Guide and Settings beside the logo" width="620"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-mobile-dark.jpg"><img src="docs/screenshots/menu-mobile-light.jpg" alt="The Menu on a phone" width="179"></picture></p>
 
 ## Features
 

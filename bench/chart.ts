@@ -15,7 +15,8 @@ export type ChartResult = {
   /** `consistency` only on runs from before the Consistency check was removed. */
   models: { narrator: string; reviewer: string; reviewThinking: string; consistency?: string };
   /** Each play's rubric items, which make the overall, and its genre scores (romance, horror and the like), asked only of a story of that kind. */
-  judge: { plays: { scores: Record<string, { score: number }>; genres?: Record<string, { score: number }> }[] } | null;
+  // `overall` is given from the second rubric on, when caps and a penalty for mistakes make it more than the items' mean.
+  judge: { plays: { scores: Record<string, { score: number }>; genres?: Record<string, { score: number }>; overall?: number }[] } | null;
   plays: Record<string, number>[];
 };
 
@@ -75,7 +76,8 @@ export function points(results: ChartResult[], version: string, rounds: number, 
       const play = result.judge!.plays[at];
       const judged = play?.scores ?? {};
       const item = judged[score] ?? play?.genres?.[score];
-      const scores = score === OVERALL ? Object.values(judged).map(({ score }) => score) : item ? [item.score] : [];
+      const scores =
+        score === OVERALL ? (play?.overall !== undefined ? [play.overall] : Object.values(judged).map(({ score }) => score)) : item ? [item.score] : [];
       if (!scores.length) return;
       group.plays.push({
         score: mean(scores),

@@ -9,7 +9,7 @@ Start a session with: "Run the bench loop in `bench/LOOP.md`", adding any change
 - A clean branch other than `main`, with the work so far committed.
 - `bench/settings.json` set up (git-ignored, holds keys; never print it). Local ComfyUI running if pictures are drawn.
 - An OpenRouter key limit you're happy to hit: it is the loop's money stop.
-- The rubric (`RUBRIC`, `GENRES` and `JUDGE_RULES` in `bench/bench.ts`) settled first. It stays fixed for the whole loop, or scores stop comparing.
+- The rubric (`bench/rubric.ts`) settled first. It stays fixed for the whole loop, or scores stop comparing.
 
 ## Defaults
 
@@ -20,7 +20,7 @@ Start a session with: "Run the bench loop in `bench/LOOP.md`", adding any change
 | Judge | A blind Fable 5.2 subagent at high effort. Self-judging ran about a point generous. |
 | Fixer | An Opus subagent, test-first |
 | Pictures | `--draw` on local ComfyUI; without it if ComfyUI is down, noted in the ledger |
-| Stop | Each pairing's last two runs are within 0.3 of its own best overall, and the judge finds no app bug. Then one 45-round check each on the other genre worlds (adventure, romance, horror), fixing only app bugs they show. |
+| Stop | Each pairing's last two runs are within 0.3 of its own best overall and no more than one major per 10 Turns above its own fewest, and the judge finds no app bug. Then one 45-round check each on the other genre worlds (adventure, romance, horror), fixing only app bugs they show. |
 
 The first run of each pairing is its baseline: runs with other models, or before a rubric change, don't compare.
 
@@ -30,9 +30,9 @@ The first run of each pairing is its baseline: runs with other models, or before
 - **Allowed:** any change to code, prompts, retries, thinking levels or which call does what, within `CLAUDE.md`'s product rules.
 - **Not allowed:** stats or visible Checks, a setting the player must touch, changing the models in `bench/settings.json`, editing bench worlds, or changing the rubric. A rubric problem goes in the ledger for a human.
 - **Prompts stay general** (`CLAUDE.md` → Model prompts). A rule written for one kind of story is kept only if it helps across genres. It must hold on a second world (one 45-round run scoring no lower there than its last), and is marked "specific" in the ledger.
-- **Noise:** one play moves about a quarter point.
+- **Noise:** one play moves about a quarter point. The mistake tally is the steadier measure: read it before the overall.
   - Bug fixes stay whatever the score does.
-  - A radical change is reverted (`git revert`) if the next run on the same pairing drops more than 0.5.
+  - A radical change is trialled on two plays (`--runs 2`), and reverted (`git revert`) if those plays on the same pairing hold two or more majors more between them than the two before, or their overall drops more than 0.5.
 - **Commits:** one commit per fix round on the loop's branch, bumping `BENCH_ITERATION`. Never on `main`, never a `v` tag. Pushing is the human's call; say so when starting.
 
 ## Each round
@@ -41,7 +41,7 @@ The main session only coordinates and keeps the ledger, so its context stays sma
 
 1. **Run** in the background:
    `bun bench run --world <world> --rounds 45 --runs 1 --judge self --label <pairing>-<iteration> --draw --keep-save --yes <pairing flags>`
-   On the notification, read only its summary lines: `grep -vE "play 1 round|judge\.|^\s*$"` on the output.
+   with `--runs 2` when trialling a radical change. On the notification, read only its summary lines: `grep -vE "play [0-9]+ round|judge\.|^\s*$"` on the output.
 2. **Judge** with a general-purpose subagent, model Fable, high effort, given the brief below.
 3. **Decide** which findings to fix, after a targeted grep of the log or code confirms each bug. Don't read the transcript in full.
 4. **Fix** with an Opus general-purpose subagent, given the chosen findings with their evidence and the fixer brief below.
@@ -53,15 +53,16 @@ The main session only coordinates and keeps the ledger, so its context stays sma
 >
 > 1. Read `<run folder>/judge.md` (the rubric and schema), the world file, and the whole `play-1/transcript.md`.
 > 2. Look at the pictures in `play-1/pictures`.
-> 3. Grep `play-1/inkandthread.log` (never read it whole) for "Turn committed", "State Upkeep", "World moved on", "dropped", "Choices", "Unusable Narrator reply" and "failed". Check what State Upkeep recorded and what slipped through.
-> 4. Score strictly by the rubric.
-> 5. Write the JSON array to `<run folder>/fable-scores.json` and run `bun bench judge <run folder> --by claude-fable-5-2 --scores <that file>`.
-> 6. Write your full report to `<run folder>/fable.md`.
+> 3. Read it as a reader would, in order, and ask where a reader would stop believing the story. List every mistake before scoring anything, as `judge.md` says, then audit each feature of the state against the hidden timeline.
+> 4. Grep `play-1/inkandthread.log` (never read it whole) only to find the cause of a mistake already listed, such as "Turn committed", "State Upkeep", "World moved on", "dropped" or "failed".
+> 5. Score each item by its anchors.
+> 6. Write the JSON array to `<run folder>/fable-scores.json` and run `bun bench judge <run folder> --by claude-fable-5-2 --scores <that file>`.
+> 7. Write your full report to `<run folder>/fable.md`.
 >
 > Last round changed: `<list>`. Say whether each held.
 >
 > Return at most 300 words:
-> - the overall and genre scores;
+> - the mistake tally (majors and minors by kind), then the overall and genre scores;
 > - which changes held;
 > - your top three findings with evidence (Message or round numbers), each with the likely cause in the code and a general fix;
 > - any app bugs.

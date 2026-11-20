@@ -93,7 +93,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
               <li>
                 In <b>Settings → Text</b>, paste it into <b>Text API key</b>, choose a <b>Text model</b> and press <b>Test text</b>. We recommend DeepSeek V4.1
                 Flash (<code>deepseek/deepseek-v4.1-flash-1017</code>): in our tests it wrote the better stories of the low-cost AIs we tried, for under half a
-                cent a Turn. MiMo V2.6 Pro (<code>xiaomi/mimo-v2.6-pro</code>) has a richer style some prefer, at several times the cost a Turn.
+                cent a Turn.
               </li>
             </ol>
             You can also choose which of its providers serves the model, and how it routes. The same AI can write noticeably worse on one provider than another,

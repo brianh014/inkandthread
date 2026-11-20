@@ -304,10 +304,10 @@ function Steps({ initial }: { initial: Settings }) {
           {
             {
               openrouter:
-                "We recommend DeepSeek V4.1 Flash (search “deepseek flash”): in our tests it wrote the better stories of the low-cost AIs we tried, for under half a cent a Turn. MiMo V2.6 Pro (search “mimo pro”) has a richer style some prefer, at several times the cost a Turn.",
+                "We recommend DeepSeek V4.1 Flash (search “deepseek flash”): in our tests it wrote the better stories of the low-cost AIs we tried, for under half a cent a Turn.",
               google: "We recommend a Gemini Flash model.",
               nanogpt: "We recommend DeepSeek V4.1 Flash, though any model you like will do.",
-              local: "Choose the model your server runs. MiMo and DeepSeek write well if you can run them.",
+              local: "Choose the model your server runs. DeepSeek writes well if you can run it.",
             }[textChoice]
           }
         </p>

@@ -4,7 +4,7 @@ import type { ImageAdapter, ImagePayload } from "./image-adapter";
 import { errorType, log } from "./logger";
 import { type ImageTarget, imageType, OPENING_SNAPSHOT, type Pictured, type Save, SaveNotFound, type SaveStore } from "./save-store";
 import type { SettingsStore } from "./settings-store";
-import { findPerson, named, type State } from "./state-applier";
+import { findPerson, isBody, named, type State } from "./state-applier";
 import type { PictureAsk } from "./world-creation";
 
 export type ImagePipeline = ReturnType<typeof imagePipeline>;
@@ -20,6 +20,8 @@ export type Scene = {
   wearing: string[];
   portraits: Npc[];
   restyled?: (Npc | null)[];
+  /** Each person merged into another this Turn, as [name, into], whose portrait goes with them. */
+  merged?: [string, string][];
 };
 /**
  * A `redraw` key marks what the player asked for by hand, which draws whatever the Settings now say. `npc` is whose
@@ -43,7 +45,7 @@ export type EarlyImage = { prompt: string; bytes?: Uint8Array<ArrayBuffer> };
  * At most one image draws per Save. Portraits and Redraws go first, so a Scene Image can use them, and all of them wait
  * their turn, as each was asked for once. Of the scenes only the newest waits, so a run of quick Turns pays for two images.
  */
-type Work = { running?: Job & { controller: AbortController }; queue: Job[]; waiting?: Job };
+type Work = { running?: Job & { controller: AbortController }; queue: Job[]; waiting?: Job; drained?: Promise<void> };
 /** What one image of a moment is drawn from, with `description` as the prompt before its marks are expanded. */
 type Moment = Pick<Scene, "description" | "npcs" | "wearing">;
 
@@ -66,12 +68,17 @@ export const visibleNpcs = ({ scene, npcs }: State) => scene.visibleCast.flatMap
 export function portraitsDue(before: State, after: State) {
   const { scene, pcKnown } = after;
   const due = movedScene(before, after) ? [...scene.visibleCast, ...pcKnown.npcs] : pcKnown.npcs.filter((name) => !before.pcKnown.npcs.includes(name));
-  return [...new Set(due)].flatMap((name) => after.npcs.filter((npc) => npc.name === name));
+  // Not someone named as a body, as a portrait draws them alive.
+  const dead = (name: string) => isBody(after, name);
+  const bodies = [...new Set(due)].filter(dead).length;
+  if (bodies > 0) log.info("images", "No portrait for a body", { bodies });
+  return [...new Set(due)].filter((name) => !dead(name)).flatMap((name) => after.npcs.filter((npc) => npc.name === name));
 }
 
 /** Everyone whose looks a Turn changed: an NPC given new looks, and the PC, as null, when what they wear or how they look changed. */
 export function restyledBy(before: State, after: State): (Npc | null)[] {
-  const npcs = after.npcs.filter(({ name, appearance }) => before.npcs.some((npc) => npc.name === name && npc.appearance !== appearance));
+  // Only a change a head and shoulders frame shows, as soot to the wrists redrew a portrait that then drew it on the neck.
+  const npcs = after.npcs.filter(({ name, appearance }) => before.npcs.some((npc) => npc.name === name && chestUp(npc.appearance) !== chestUp(appearance)));
   const pc = JSON.stringify(before.inventory.wearing) !== JSON.stringify(after.inventory.wearing) || before.pcAppearance !== after.pcAppearance;
   return [...(pc ? [null] : []), ...npcs];
 }
@@ -111,23 +118,86 @@ export function pcLooks({ name, physicalTraits = "" }: Save["pc"], wearing: stri
  */
 export function expandMarks(text: string, npcs: Npc[], pcName: string, referenced: Pictured = []) {
   const pictured: Pictured = [];
+  const described = new Set<string | null>();
   const prompt = text
-    .replace(/\s*\{([^{}]*)\}/g, (_, likeness: string) => (referenced.length > 0 ? ` ${likeness.trim()}` : ""))
+    // JSON in braces, as DeepSeek once put the scene's fields after the likeness sentence, isn't a likeness sentence.
+    .replace(/\s*\{[^{}]*"\s*:[^{}]*(?:\}|$)/g, "")
+    // The likeness sentence ends the prompt, and what DeepSeek wrote after it was stray, from "Fill in all fields." to a note on
+    // the prompt's length or the reply's own fields, which were drawn.
+    // shortcut: a scene sentence put after the braces is cut too; keep it if models write the likeness sentence mid-prompt.
+    .replace(/(\{[^{}]*\})[\s\S]*$/, "$1")
+    // An unclosed brace at the end counts too, as models sometimes leave the closing one off.
+    .replace(/\s*\{([^{}]*)(?:\}|$)/g, (_, likeness: string) => (referenced.length > 0 ? ` ${likeness.trim()}` : ""))
     .replace(/\[([^[\]:]+)(?::([^[\]]*))?\]/g, (_, mark: string, phrase: string | undefined, at: number, whole: string) => {
       const brief = (phrase ?? "").trim();
       const isPc = named(pcName, mark.trim());
       const npc = isPc ? undefined : findPerson(npcs, mark.trim());
       if (!isPc && !npc) return brief || "a person";
       const person = isPc ? null : npc!.name;
-      if (pictured.includes(person)) return "the same person";
-      pictured.push(person);
+      // A described mark after a bare one keeps its words, as "the same person" there drew someone else in their place.
+      const firstDescribed = !!brief && !described.has(person);
+      if (brief) described.add(person);
+      if (pictured.includes(person) && !firstDescribed) return "the same person";
+      if (!pictured.includes(person)) pictured.push(person);
       const image = referenced.indexOf(person) + 1;
       if (!image) return brief || "a person";
       // A comma closes the phrase only when the sentence reads on, as in "the person from image 1, a tall woman, kneels".
       const readsOn = /^\s*[a-z]/i.test(whole.slice(at + _.length));
       return brief ? `the person from image ${image}, ${brief}${readsOn ? "," : ""}` : `the person from image ${image}`;
     });
-  return { prompt, pictured };
+  // A DeepSeek prompt ended with its likeness sentence some sixty times over.
+  const sentences = prompt.split(/(?<=[.!?])\s+/);
+  return { prompt: sentences.filter((sentence, at) => sentences.indexOf(sentence) === at).join(" "), pictured };
+}
+
+const NOT_A_NAME = new Set([
+  "The",
+  "A",
+  "An",
+  "Old",
+  "Young",
+  "Captain",
+  "Lady",
+  "Lord",
+  "Sir",
+  "Mr",
+  "Mrs",
+  "Miss",
+  "Doctor",
+  "Dr",
+  "Father",
+  "Mother",
+  "Sister",
+  "Brother",
+  "King",
+  "Queen",
+  "Prince",
+  "Princess",
+  "Master",
+]);
+
+/**
+ * Marks each person the prompt names without a [Name: phrase] mark, as a model sometimes writes "Ash, a short man," instead:
+ * unmarked, their name would reach the image model and their portrait wouldn't. Text already in a mark or the likeness
+ * sentence is left alone, and so is a possessive, as "Ash's boat" doesn't put Ash in the picture.
+ */
+export function markNames(text: string, npcs: Npc[], pcName: string) {
+  const names = [pcName, ...npcs.map(({ name }) => name)].filter(Boolean);
+  // A first or last name alone, as Narrators shorten names: the last only when no lowercase word, such as "of", joins it to a place.
+  // shortcut: titles and articles are listed, so a capitalised word starting a sentence isn't taken for a person; add any that misfire.
+  const parts = names
+    .flatMap((name) => {
+      const words = name.split(" ");
+      return words.some((word) => /^\p{Ll}/u.test(word)) ? words.slice(0, 1) : [words[0]!, words.at(-1)!];
+    })
+    .filter((part) => /^\p{Lu}/u.test(part) && !NOT_A_NAME.has(part) && names.filter((name) => named(name, part)).length === 1);
+  const candidates = [...new Set([...names, ...parts])].toSorted((a, b) => b.length - a.length);
+  if (candidates.length === 0) return text;
+  const pattern = new RegExp(`(?<![\\p{L}'’])(?:${candidates.map((name) => RegExp.escape(name)).join("|")})(?![\\p{L}'’])`, "gu");
+  return text
+    .split(/(\[[^[\]]*\]|\{[^{}]*\})/)
+    .map((part, at) => (at % 2 === 1 ? part : part.replace(pattern, (name) => `[${name}]`)))
+    .join("");
 }
 
 // What a head and shoulders frame can't show, as an image model squeezes the whole body in to fit a mention of feet.
@@ -317,8 +387,9 @@ export function imagePipeline(
   };
 
   async function drawMoment(id: string, { description: written, npcs }: Moment, signal: AbortSignal) {
-    const description = await reviewPicture(written, promptStyle(settings.read()), signal);
     const pcName = saves.read(id).pc.name;
+    // Before the review, which keeps every mark.
+    const description = await reviewPicture(markNames(written, npcs, pcName), promptStyle(settings.read()), signal);
     // Twice, as who is pictured decides which portraits go in, and those decide how each mark is written.
     const { pictured } = expandMarks(description, npcs, pcName);
     const { prompt } = expandMarks(description, npcs, pcName, referenced(id, pictured));
@@ -346,7 +417,7 @@ export function imagePipeline(
     const pc = pcNow(started, state);
     const looks = npc ? npc.appearance : pc.physicalTraits?.trim() && pcLooks(pc, state.inventory.wearing);
     if (!looks || saves.portraitOf(id, name)) return;
-    const prompt = await writer({ kind: "portrait", looks, theme, world: worldBrief, artStyle })(signal);
+    const prompt = await writer({ kind: "portrait", looks, theme, world: worldBrief, artStyle, era: state.era })(signal);
     const bytes = await adapter(portraitPayload(prompt), signal);
     session++;
     saves.addPortrait(id, messageId, name, bytes, prompt);
@@ -404,7 +475,7 @@ export function imagePipeline(
     add(jobs);
     if (busy || (jobs.queue.length === 0 && !jobs.waiting)) return;
     work.set(id, jobs);
-    void drain(id, jobs);
+    jobs.drained = drain(id, jobs);
   }
 
   /**
@@ -415,10 +486,13 @@ export function imagePipeline(
     const portrait = saves.portraits(id).find((candidate) => candidate.npc === (npc?.name ?? null));
     if (!portrait) return;
     const { pc: started, theme, worldBrief, artStyle } = saves.read(id);
-    const pc = pcNow(started, saves.latestState(id));
-    const looks = npc ? npc.appearance.trim() : pc.physicalTraits?.trim() && pcLooks(pc, wearing);
+    const state = saves.latestState(id);
+    const pc = pcNow(started, state);
+    // Chest up, as the text model moved what the frame can't show, soot on the wrists, onto the neck.
+    const looks = npc ? chestUp(npc.appearance) : pc.physicalTraits?.trim() && pcLooks(pc, wearing);
     if (!looks) return;
-    if (pipeline.redraw(id, { kind: "portrait", ref: portrait.id }, portrait.messageId, { kind: "portrait", looks, theme, world: worldBrief, artStyle })) {
+    const ask = { kind: "portrait" as const, looks, theme, world: worldBrief, artStyle, era: state.era };
+    if (pipeline.redraw(id, { kind: "portrait", ref: portrait.id }, portrait.messageId, ask)) {
       log.info("images", "Portrait updated to new looks", about(id, { kind: "portrait", messageId: portrait.messageId }));
     }
   }
@@ -535,6 +609,9 @@ export function imagePipeline(
       return failure;
     },
 
+    /** Settles once the Save has no picture left to draw, for the log's follow-up times. */
+    drawn: (id: string) => work.get(id)?.drained ?? Promise.resolve(),
+
     /** How many requested images are on the way. */
     drawing(id: string) {
       const jobs = work.get(id);
@@ -555,10 +632,19 @@ export function imagePipeline(
      */
     sceneChanged(id: string, messageId: number, scene: Scene) {
       const { drawScenes, updatePortraits } = settings.read();
+      // First, so a job for the merged name finds the portrait and draws none.
+      const moved = (scene.merged ?? []).filter(([from, to]) => saves.renamePortrait(id, from, to)).length;
+      if (moved > 0) log.info("images", "Portraits moved to merged names", { save: id, count: moved });
       enqueue(id, (jobs) => {
         if (scene.moved) jobs.queue.push(portraitJob(id, OPENING_SNAPSHOT));
         jobs.queue.push(...scene.portraits.map((npc) => portraitJob(id, messageId, npc)));
-        if (drawScenes && scene.changed && scene.description) {
+        // A lone word, such as one object named alone, was drawn as that thing with no place or people.
+        // shortcut: only a lone word in lower case, the fragment a reply sent, as tests draw from one capitalised word; count words if a real one shows.
+        const fragment = /^\p{Ll}\S*$/u.test(scene.description.trim());
+        // No words too, as a reply cut where it ran on never wrote its picture's prompt.
+        if (drawScenes && scene.changed && (fragment || !scene.description.trim()))
+          log.info("images", "Scene picture skipped", { save: id, message: messageId, words: fragment ? 1 : 0 });
+        if (drawScenes && scene.changed && scene.description && !fragment) {
           if (jobs.waiting) dropped(id, jobs.waiting, "a newer scene");
           jobs.waiting = queued(id, {
             kind: "scene",

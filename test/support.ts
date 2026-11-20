@@ -33,17 +33,20 @@ export const narration = (text: string, ...parts: object[]) =>
   JSON.stringify({ narration: text, state_operations: parts.filter((part) => "op" in part), ...Object.assign({}, ...parts.filter((part) => !("op" in part))) });
 
 /** Replies with each entry in turn, throwing Errors, and records every prompt. */
-export function scriptedTextProvider(...replies: (string | Error)[]) {
+export function scriptedTextProvider(...replies: (string | Error | Promise<string>)[]) {
   const prompts: Prompt[] = [];
   const schemas: unknown[] = [];
+  const budgets: (number | undefined)[] = [];
   const textProvider: TextProvider = async (prompt, request) => {
     prompts.push(prompt);
     schemas.push(request.schema);
-    const reply = replies.shift() ?? new Error("Text Provider script exhausted");
+    budgets.push(request.thinkingBudget);
+    // A promise stays in flight until it settles, like a slow model.
+    const reply = await (replies.shift() ?? new Error("Text Provider script exhausted"));
     if (reply instanceof Error) throw reply;
     return reply;
   };
-  return { textProvider, prompts, schemas };
+  return { textProvider, prompts, schemas, budgets };
 }
 
 /** A real one-pixel PNG. */
@@ -130,9 +133,12 @@ export function startApp(
   writePicture: PictureWriter = async (_ask, _style, fallback) => fallback,
   // Kept as written, for the same reason.
   reviewPicture: PictureReviewer = async (description) => description,
+  // Off unless given, so a scripted Narrator isn't also asked for State Upkeep.
+  reviewProvider?: TextProvider,
 ) {
   const settings = settingsStore(join(dirname(savesDir), "settings.json"));
-  const start = () => startServer({ savesDir, settings, textProvider, imageAdapter, dice, nearMissMargin, port: 0, writePicture, reviewPicture });
+  const start = () =>
+    startServer({ savesDir, settings, textProvider, imageAdapter, dice, nearMissMargin, port: 0, writePicture, reviewPicture, reviewProvider });
   let server = start();
   const post = (path: string, body: unknown) => postJson(new URL(path, server.url), body);
   return {

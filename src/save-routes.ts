@@ -4,7 +4,7 @@ import { ArtStyleRequest, imageResponse, NoFields, parseBody, routes, type Serve
 import { log } from "./logger";
 import { NoteNotFound, PlayMode, StaleTurn } from "./save-store";
 import { VisibleEdit } from "./state-applier";
-import { askForChapterTitle, TurnFailed } from "./turn-engine";
+import { askForChapterTitle, TurnFailed, worldMoved } from "./turn-engine";
 import { readable } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 import { NamedPc } from "./world-routes";
@@ -233,6 +233,7 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         const { id } = req.params;
         const release = turns.hold(id);
         try {
+          await worldMoved(id, req.signal);
           await applyWorldChange(options, saves, images, id, change, req.signal);
           return Response.json({});
         } catch (error) {

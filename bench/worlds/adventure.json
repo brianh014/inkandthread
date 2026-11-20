@@ -1,11 +1,12 @@
 {
-  "about": "The bench's fixed world, grown from scripts/consistency-cases/salt-road.json and shaped like one the New Story wizard builds. Invented, with no adult text. It is made to bring about everything the Narrator does: Checks on risky Choices, Plot Threads that move on and resolve (the first within a few days of story time), secrets for NPCs to learn, Loose Ends, lore to grow, a deadly crossing, and people who may die. actions holds the fixed words of the Rewrite, Edit and World Change the bench sends.",
+  "about": "The bench's fixed world, grown from scripts/consistency-cases/salt-road.json and shaped like one the New Story wizard builds. Invented, with no adult text. A journey through danger: it opens a day out on the road, half a day short of the first well, so the road's set pieces (the dust-riders, the sabotage at the well, the sandstorm and the Glass Flats) come within a run, and the riders come to the PC whatever they pick. It is made to bring about everything the Narrator does: Checks on risky Choices, Plot Threads that move on and resolve (the first within a day of story time), secrets for NPCs to learn, Loose Ends, lore to grow, a deadly crossing, and people who may die. actions holds the fixed words of the Rewrite, Edit and World Change the bench sends.",
+  "genres": ["adventure"],
   "save": {
     "title": "The Salt Road",
     "artStyle": "Cinematic Photorealism: Ultra-detailed photorealistic style capturing hyper-accurate physics, micro-surface textures, natural volumetric light dispersion, realistic lens depth of field, and true-to-life subsurface scattering, indistinguishable from high-resolution digital cinema footage.",
     "theme": "",
     "worldBrief": "A desert frontier where salt is carted by camel caravan from the coast to the inland city of Kesh, and water is worth more than coin. The Governor's water tax is choking the well-keepers, and the road between is long, hot and lawless.",
-    "startingHook": "Wren has joined Tamsin's salt caravan at Port Lell to carry a satchel of sealed letters inland to Governor Hale at Kesh. At the border post, Captain Vane of the Border Guard searched the wagons, took Wren's pistol and chose to ride along. The caravan sets out for the Well of Ashar.",
+    "startingHook": "Wren joined Tamsin's salt caravan at Port Lell to carry a satchel of sealed letters inland to Governor Hale at Kesh. At the border post, Captain Vane of the Border Guard searched the wagons, took Wren's pistol and chose to ride along. A day out, the caravan has halted in the shade of the Red Teeth to rest the camels before the last push to the Well of Ashar, and Jory has seen riders on the dunes behind them.",
     "pc": {
       "name": "Wren",
       "background": "A courier for the Lell merchants' guild for ten years, paid well to carry what others won't. She owes the guild for a lost cargo and needs this delivery to clear the debt.",
@@ -33,12 +34,20 @@
     ]
   },
   "opening": {
-    "storyTime": { "day": 1, "date": "6th of Dry Month", "timeOfDay": "early morning" },
+    "storyTime": {
+      "day": 2,
+      "date": "7th of Dry Month",
+      "timeOfDay": "late afternoon"
+    },
     "inventory": {
       "wearing": ["sand-coloured linen shirt", "brown canvas trousers", "knee-high riding boots", "wide-brimmed straw hat"],
       "carrying": ["satchel of sealed letters", "waterskin", "folding knife", "wool cloak"]
     },
-    "status": { "health": "unhurt", "injuries": [], "conditions": [] },
+    "status": {
+      "health": "unhurt",
+      "injuries": [],
+      "conditions": []
+    },
     "worldRules": [
       "Water is wealth: a day on the Glass Flats without water can kill, and every caravan counts its skins.",
       "There is no magic; the desert's dangers are heat, storms, thirst and people.",
@@ -46,9 +55,9 @@
       "Breaking a Governor's seal is a hanging crime."
     ],
     "plotThreads": [
-      "Ossery, the well-keeper at the Well of Ashar, slits caravans' waterskins in the night so they must buy his water at ruinous prices, and Jory cut the first one for him for a coin. Captain Vane is hunting this saboteur, suspects Tamsin, and means to arrest her at the Well within two days unless someone shows him the truth.",
-      "The sealed letter to Governor Hale names his own steward, Marrick, as the man selling salt-tax receipts to the Free Wells; Marrick has paid dust-riders to take Wren's satchel before the caravan reaches Kesh.",
-      "The Free Wells, a league of well-keepers crushed by the water tax, are gathering to seize the Well of Ashar and close the salt road; Tamsin secretly carries their demand to the Governor, hidden in her saddle, and would sooner die than let it be found."
+      "Ossery, the well-keeper at the Well of Ashar, slits caravans' waterskins in the night so they must buy his water at ruinous prices, and Jory cut the first one for him for a coin. Captain Vane is hunting this saboteur, suspects Tamsin, and means to arrest her at the Well tomorrow unless someone shows him the truth.",
+      "The sealed letter to Governor Hale names his own steward, Marrick, as the man selling salt-tax receipts to the Free Wells; Marrick's dust-riders under Sefa have trailed the caravan from the border and will strike at dusk tonight, at the Red Teeth or on the road beyond, to take Wren's satchel.",
+      "The Free Wells, a league of well-keepers crushed by the water tax, will seize the Well of Ashar in three days and close the salt road; Tamsin secretly carries their demand to the Governor, hidden in her saddle, and would sooner die than let it be found."
     ],
     "worldBible": [
       {
@@ -96,7 +105,7 @@
       {
         "title": "The Free Wells",
         "keywords": ["Free Wells", "league", "well-keepers", "rebels"],
-        "content": "A league of desert well-keepers sworn to end the water tax. They mean to seize the Well of Ashar by the next new moon and close the salt road until the Governor gives way. Ossery is not one of them; they despise him.",
+        "content": "A league of desert well-keepers sworn to end the water tax. They mean to seize the Well of Ashar at the new moon, three nights off, and close the salt road until the Governor gives way. Ossery is not one of them; they despise him.",
         "alwaysOn": false
       },
       {

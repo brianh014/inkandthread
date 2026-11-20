@@ -121,10 +121,29 @@ test("a picture without set_scene is retried, so it never takes the last place's
   await playTurn(id);
 
   expect(script.prompts).toHaveLength(3);
-  expect(script.prompts[1]!.at(-1)!.content).not.toContain("without a set_scene");
-  expect(script.prompts[2]!.at(-1)!.content).toContain("without a set_scene");
+  const told = (prompt: { content: string }[]) => prompt.map(({ content }) => content).join(" ");
+  expect(told(script.prompts[1]!)).not.toContain("without a set_scene");
+  expect(told(script.prompts[2]!)).toContain("without a set_scene");
   expect((await settled(id)).images.map(({ caption }) => caption)).toEqual(["The drowned street", "The ridge"]);
   expect(images.payloads[1]!.reference_images).toEqual([]);
+});
+
+test("with State Upkeep, a picture without set_scene is placed by it, without writing the reply again", async () => {
+  const unplaced = turn({ scene_changed: true, visual_description: "A ridge at dusk" });
+  const upkeep = scriptedTextProvider(JSON.stringify({ state_operations: [] }), JSON.stringify({ state_operations: moveTo("The ridge") }));
+  images = scriptedImages(png(1), png(2));
+  script = scriptedTextProvider(newScene(), unplaced);
+  app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter, undefined, undefined, upkeep.textProvider);
+  await app.patch("/settings", { textModel: "narrator/model" });
+  await enableImages();
+  const id = await app.createSave();
+  await playTurn(id);
+  await settled(id);
+
+  await playTurn(id);
+
+  expect(script.prompts).toHaveLength(2);
+  expect((await settled(id)).images.map(({ caption }) => caption)).toEqual(["The drowned street", "The ridge"]);
 });
 
 test("a picture still without set_scene on the last try keeps the Turn but isn't drawn, as the last scene's people may have gone", async () => {
@@ -213,6 +232,20 @@ test("a move with no description draws nothing, as a location alone leaves the m
 
   expect((await settled(id)).images).toHaveLength(0);
   expect(images.payloads).toHaveLength(0);
+});
+
+test("a scene change described in one stray word draws nothing, as that draws the thing alone, with no place or people", async () => {
+  play([newScene("bead")], PNG);
+  await enableImages();
+  const id = await app.createSave();
+
+  const log = await logOf(async () => {
+    await playTurn(id);
+    await settled(id);
+  });
+
+  expect(images.payloads).toHaveLength(0);
+  expect(log).toContain("Scene picture skipped");
 });
 
 test("a scene change with nothing to draw asks for no image", async () => {

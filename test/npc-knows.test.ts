@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { saveStore } from "../src/save-store";
+import { knownOnly } from "../src/state-applier";
 import { narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -39,4 +40,25 @@ test("a Save from before What an NPC Knows upgrades with no lists, and a Turn th
   expect((await turn(id)).status).toBe(201);
 
   expect(store().latestState(id).npcKnows).toEqual({ Nadia: ["Saw the fire"] });
+});
+
+test("what someone learns keeps only what they know, never a clause of what they don't", () => {
+  expect(knownOnly("Thorne pays Price, but he does not yet know the lad saw the boat.")).toBe("Thorne pays Price.");
+  expect(knownOnly("Kit knows nothing of the plot yet; he has only his own sight of the lamp, told to Ash alone.")).toBe(
+    "He has only his own sight of the lamp, told to Ash alone.",
+  );
+  expect(knownOnly("He has never heard of Kit, nor of any lantern.")).toBe("");
+  expect(knownOnly("Kit saw the boat and told Ash.")).toBe("Kit saw the boat and told Ash.");
+});
+
+test("what someone doesn't know is left out however it's worded, and what they did or kept quiet stays", () => {
+  expect(knownOnly("He knows only that a man drowned; he has not heard of the will or the claim.")).toBe("He knows only that a man drowned.");
+  expect(knownOnly("He took the verdict; he knows of no hand behind it.")).toBe("He took the verdict.");
+  expect(knownOnly("He has the evidence before him but has heard nothing of a ledger.")).toBe("He has the evidence before him.");
+  expect(knownOnly("He knows the lad sleeps in the loft, but not what the lad saw.")).toBe("He knows the lad sleeps in the loft.");
+  expect(knownOnly("She knows the court holds it, but nothing yet of the letter.")).toBe("She knows the court holds it.");
+  expect(knownOnly("He drowned the man, and saw nothing of the woman in the gorse.")).toBe("He drowned the man.");
+  expect(knownOnly("She searched the cottage and found nothing, and has told no one.")).toBe(
+    "She searched the cottage and found nothing, and has told no one.",
+  );
 });

@@ -434,6 +434,19 @@ test("a World Change whose reply changes one fact twice is kept whole, with its 
   expect(hidden(id).worldRules).toEqual(["Smuggling pays.", WORLD.worldRules[1]!]);
 });
 
+test("a thread a World Change adds keeps its truth, now and plan apart", async () => {
+  const truth = "A cutter's officer has come to ask about the night landings.";
+  play(update({ plot_threads: [{ old: null, new: truth, now: "The cutter lies off the bar.", plan: "At dawn the officer rows ashore." }] }));
+  const id = createSave();
+
+  expect((await change(id, "a revenue cutter anchors offshore")).status).toBe(200);
+
+  const { plotThreads, threadsNow, threadsPlan } = store().latestState(id);
+  expect(plotThreads).toEqual([...WORLD.plotThreads, truth]);
+  expect(threadsNow[truth]).toBe("The cutter lies off the bar.");
+  expect(threadsPlan[truth]).toBe("At dawn the officer rows ashore.");
+});
+
 test("a World Change can fix what the PC wears and carries, and their status, which the Journal shows", async () => {
   play(update({ inventory: { wearing: ["oilskin coat"], carrying: ["brass lantern"] }, status: { health: "bruised", injuries: [], conditions: ["soaked"] } }));
   const id = createSave();
@@ -446,21 +459,35 @@ test("a World Change can fix what the PC wears and carries, and their status, wh
   expect(prompts[0]![0]!.content).toContain('"inventory":{"wearing":[],"carrying":[]}');
 });
 
-test("a World Change can rewrite an NPC's looks, which stay hidden, and one for a name it doesn't know is retried", async () => {
+test("a World Change can rewrite an NPC's looks, which stay hidden, and one for someone not in the story is left out", async () => {
   play(
-    update({ npc_looks: [{ name: "Nobody", appearance: "a ghost" }] }),
-    update({ npc_looks: [{ name: "Corvin", appearance: "a man in a hooded wool cloak" }] }),
+    update({
+      npc_looks: [
+        { name: "Nobody", appearance: "a ghost" },
+        { name: "Corvin", appearance: "a man in a hooded wool cloak" },
+      ],
+      npc_summaries: [{ name: "Nobody", summary: "A ghost." }],
+    }),
   );
   const id = createSave();
 
-  const response = await change(id, "Corvin dresses for his era");
+  const log = await logged(async () => expect((await change(id, "Corvin dresses for his era")).status).toBe(200));
 
-  expect(response.status).toBe(200);
-  expect(prompts).toHaveLength(2);
+  expect(prompts).toHaveLength(1);
   expect(store().latestState(id).npcs).toEqual([NPCS[0]!, { name: "Corvin", appearance: "a man in a hooded wool cloak" }]);
+  expect(log).toContain('"dropped":2');
   expect(prompts[0]![0]!.content).toContain('"npcs":{"Hesper":"a woman","Corvin":"a man"}');
   expect(prompts[0]![0]!.content).toContain("name each garment by its period form");
   expect(JSON.stringify(await journal(id))).not.toContain("hooded wool cloak");
+});
+
+test("a misquoted change is asked again with the check that refused it", async () => {
+  play(update({ plot_threads: [{ old: "a thread that isn't there", new: "x" }] }), update({ removed_lore: ["The Tide"] }));
+  const id = createSave();
+
+  expect((await change(id)).status).toBe(200);
+
+  expect(prompts[1]!.at(-1)!.content).toContain("a change misquotes a thread");
 });
 
 test("a World Change can rewrite the PC's looks from those they have now, which stay hidden", async () => {
@@ -513,6 +540,16 @@ test("a World Change can change the Journal's text as well as the hidden world",
   expect(summary).toBe("The city sank.");
   expect(pcKnown.facts).toContain("The city sank.");
   expect(plotThreads[0]).toBe("A new plot.");
+});
+
+test("news a World Change only adds to the summary is kept as a known fact too, as the next Turn rewrites the summary", async () => {
+  play(update({ summary: "It began to rain. A grey ship anchored off the harbour." }));
+  const id = createSave();
+
+  const log = await logged(async () => expect((await change(id, "a ship anchors off the harbour")).status).toBe(200));
+
+  expect(facts(id)).toEqual([...KNOWN.facts, "A grey ship anchored off the harbour."]);
+  expect(log).toContain('"news":1');
 });
 
 test("a World Change that only changes the Journal counts as a change", async () => {

@@ -225,7 +225,7 @@ ${modelInstructions(context)}`,
     },
     playerChoices({ theme, ...world, ...(pc && { pc }) }),
   ];
-  return askForJson(context.textProvider, prompt, reply, REFUSAL, signal);
+  return askForJson(context.textProvider, prompt, reply, REFUSAL, signal, { call: "pickForMe" });
 }
 
 /** Rewrites one box from what the player wrote, or writes it if it's empty. Like `pickForMe`, it knows only the player's choices. */
@@ -309,8 +309,8 @@ ${modelInstructions(context)}`,
     playerChoices({ ...(idea && { idea }), ...(change && { change }), ...choices }),
   ];
   const written = byEdits
-    ? edited((await askForJson(context.textProvider, prompt, EditsReply, REFUSAL, signal)).edits)!
-    : (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal)).text;
+    ? edited((await askForJson(context.textProvider, prompt, EditsReply, REFUSAL, signal, { call: "enhance" })).edits)!
+    : (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal, { call: "enhance" })).text;
   log.info("world", "Box written", { field, how: change ? "nudge" : idea ? "enhance" : "write" });
   return written;
 }
@@ -348,7 +348,7 @@ ${modelInstructions(context)}`,
       recent_story: messages.slice(-RECENT_STORY),
     }),
   ];
-  return (await askForJson(context.textProvider, prompt, PickReply, REFUSAL, signal)).text;
+  return (await askForJson(context.textProvider, prompt, PickReply, REFUSAL, signal, { call: "decideForPc" })).text;
 }
 
 // A plain number, as unlimited replies ran long.
@@ -393,7 +393,7 @@ ${modelInstructions(context)}`,
       lore: lore.map(({ title, content }) => ({ title, content })),
     }),
   ];
-  return (await askForJson(context.textProvider, prompt, answerReply(context.settings.read().answerRejectWords), REFUSAL, signal)).text;
+  return (await askForJson(context.textProvider, prompt, answerReply(context.settings.read().answerRejectWords), REFUSAL, signal, { call: "question" })).text;
 }
 
 // The player's own words for a pose win over how the story last left the people.
@@ -432,12 +432,16 @@ ${imageInstructions(context)}`,
       recent_story: messages.slice(-RECENT_STORY).map(plainMessage),
     }),
   ];
-  return askForJson(context.textProvider, prompt, RequestedReply, "The Narrator refused this picture. Reword it and try again.", signal, { picture: true });
+  return askForJson(context.textProvider, prompt, RequestedReply, "The Narrator refused this picture. Reword it and try again.", signal, {
+    call: "requestedPrompt",
+    picture: true,
+  });
 }
 
 /** Where and how any picture of a story is drawn: its world, and the player's Art Style. An empty theme is a Save from before themes. */
 /** `nudge` is the player's own few words for this one picture, such as "smiling". */
-export type PictureSetting = { theme: string; world: string; artStyle: string; nudge?: string };
+/** `era` is the one every picture of a story keeps to, once its Narrator has named it. */
+export type PictureSetting = { theme: string; world: string; artStyle: string; era?: string; nudge?: string };
 /** What a Cover or portrait shows, all of it text the player can read, with nobody named. */
 /** A portrait's `was` is the prompt of the portrait an Update edits, so the new prompt says only what changes. */
 /** `was` is the prompt of a portrait being edited, and `face` says a portrait goes with it for its face alone. */
@@ -478,14 +482,20 @@ const editReply = z.object({
     `One short sentence saying this is the same person with their face preserved, as in "The same woman with their face preserved." Never over ${KEEP_WORDS} words.`,
   ),
   changes: atMost(CHANGE_WORDS).describe(
-    `How they look now, in plain short sentences, as in "She is wearing a cream knit sweater showing the collarbone. Her hair is in a high ponytail. She has a bruise on her throat.", then a last sentence placing them in front of a plain neutral background, as in "Standing in front of a plain neutral background." Never over ${CHANGE_WORDS} words.`,
+    `How they look now, in plain short sentences, as in "She is wearing a cream knit sweater showing the collarbone. Her hair is in a high ponytail. A thin silver chain hangs at her throat.", then a last sentence placing them in front of a plain neutral background, as in "Standing in front of a plain neutral background." Never over ${CHANGE_WORDS} words.`,
   ),
 });
+
+// shortcut: a list of the marks seen added; widen it if redraws invent others. "mark" too, as a "faint red mark" was painted as blood.
+const MARKS =
+  /\b(?:soot\w*|smudge\w*|smear\w*|stain\w*|streak\w*|grime\w*|dirt\w*|mud\w*|ash|ashes|blood\w*|bruise\w*|scar\w*|scratch\w*|cut|cuts|wound\w*|mark|marks|marked)\b/g;
 
 // The scene rules' limits, and a review may keep one already over them, as it changes only what fails.
 const SCENE_WORDS: Record<PromptStyle, number> = { prose: 150, keywords: 80 };
 // The marks name who is drawn, so a review may take a person out but never add or change one, and keeps the curly sentence.
-const marksOf = (prompt: string) => prompt.match(/\[[^[\]]*\]|\{[^{}]*\}/g) ?? [];
+const marksOf = (prompt: string) => withoutStrayQuote(prompt).match(/\[[^[\]]*\]|\{[^{}]*\}/g) ?? [];
+// A review closed the curly sentence with a quote, as in `here."}`, on all 14 of a play's refusals, drawing two prompts unchecked.
+const withoutStrayQuote = (prompt: string) => prompt.replace(/["“”\s]+\}/g, "}");
 const keepsMarks = (original: string[], reviewed: string[]) => {
   const left = [...original];
   for (const mark of reviewed) {
@@ -501,7 +511,10 @@ const keepsMarks = (original: string[], reviewed: string[]) => {
  * the prompt is sent, as the check is whether the picture holds together, which keeps the call small. Any failure draws
  * the prompt as it was, and the log gets the failure's type only, as a provider's error can repeat the prompt.
  */
-export async function reviewScenePrompt(context: Context, description: string, style: PromptStyle, signal: AbortSignal) {
+export async function reviewScenePrompt(context: Context, written: string, style: PromptStyle, signal: AbortSignal) {
+  // Closed, as a Narrator left one open and every review that closed it was refused for adding a mark.
+  const description = /\{[^{}]*$/.test(written) ? `${written.trimEnd()}}` : written;
+  if (description !== written) log.info("images", "A picture's open likeness sentence closed");
   const limit = Math.max(SCENE_WORDS[style], countWords(description));
   const marks = marksOf(description);
   const reply = z.object({ prompt: atMost(limit).refine((prompt) => keepsMarks(marks, marksOf(prompt)), "changed a mark") });
@@ -519,7 +532,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
     playerChoices({ prompt: description }),
   ];
   try {
-    return (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal, { picture: true })).prompt.trim();
+    return withoutStrayQuote((await askForJson(context.textProvider, prompt, reply, REFUSAL, signal, { call: "scenePrompt", picture: true })).prompt).trim();
   } catch (error) {
     if (signal.aborted) throw error;
     log.warning("images", "A picture's prompt was drawn unchecked", errorType(error));
@@ -539,7 +552,12 @@ export async function writePicturePrompt(context: Context, ask: PictureAsk, styl
   const lettered = (prompt: string) => ask.kind !== "cover" || quoted(ask.title.toLowerCase()).some((title) => prompt.toLowerCase().includes(title));
   const edit = ask.kind === "portrait" && !!ask.was;
   const whole = z.object({ text: atMost(words).refine(lettered, "no title in quotation marks") });
-  const edited = editReply;
+  // No mark the looks or nudge don't name, as redraws added soot smudges that drew a beard.
+  const given = ask.kind === "portrait" ? `${ask.looks} ${ask.nudge ?? ""}`.toLowerCase() : "";
+  const edited = editReply.refine(
+    ({ changes }) => (changes.toLowerCase().match(MARKS) ?? []).every((mark) => given.includes(mark.replace(/(?:e?s|ed)$/, ""))),
+    "a mark the looks don't have",
+  );
   const reply = edit ? edited : whole;
   const { kind, face, ...details } = { face: false, ...ask };
   const prompt: Prompt = [
@@ -553,9 +571,14 @@ ${imageInstructions(context)}`,
     playerChoices(details),
   ];
   try {
-    if (!edit) return (await askForJson(context.textProvider, prompt, whole, REFUSAL, signal, { picture: true })).text;
-    const { keep, changes } = await askForJson(context.textProvider, prompt, edited, REFUSAL, signal, { picture: true });
-    return `${keep.trim()} ${changes.trim()}`;
+    const call = `${ask.kind}Prompt`;
+    if (!edit) return (await askForJson(context.textProvider, prompt, whole, REFUSAL, signal, { call, picture: true })).text;
+    const { keep, changes } = await askForJson(context.textProvider, prompt, edited, REFUSAL, signal, { call, picture: true });
+    // The Art Style in code, last so the face stays up front, as edits without it came out as photographs.
+    return [keep, changes, ask.artStyle]
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(" ");
   } catch (error) {
     if (signal.aborted) throw error;
     // No template drawn in its place, as one drew a poor picture the player paid for. They can try again instead.
@@ -579,7 +602,7 @@ ${modelInstructions(context)}`,
 
 /** What the PC wears and carries and their opening status, which the player reads, so it never sees the world. */
 export async function pcSheet(context: Context, pc: Save["pc"], inventory: string, signal: AbortSignal) {
-  const sheet = await askForJson(context.textProvider, sheetPrompt(context, pc, inventory), SheetReply, REFUSAL, signal);
+  const sheet = await askForJson(context.textProvider, sheetPrompt(context, pc, inventory), SheetReply, REFUSAL, signal, { call: "pcSheet" });
   // shortcut: the Narrator's split is trusted to keep every item, as the player never sees the list, check it against the text if items go missing.
   const stocked = (["wearing", "carrying"] as const).flatMap((slot) => sheet[slot].map((item): StateOperation => ({ op: "add_item", slot, item })));
   const { next } = applyOperations(openingState, [...stocked, ...statusOperations(sheet)]);
@@ -590,6 +613,8 @@ const words = z.string().trim().min(1);
 
 /** A World Change's reply: the hidden `WorldUpdate`, and whatever it contradicts in the Journal, which the player reads. */
 const WorldChange = WorldUpdate.extend({
+  // Apart from the truth in new, as a thread added without them was written as one "Truth: Now: Plan:" text with no now.
+  plot_threads: z.array(ListChange.extend({ now: words.nullable().default(null), plan: words.nullable().default(null) })),
   world_brief: words.nullable().default(null),
   summary: words.nullable().default(null),
   facts: z.array(ListChange).default([]),
@@ -628,41 +653,67 @@ const quotes = (list: string[], changes: { old: string | null }[]) => changes.ev
 
 // A misquoted entry can't be matched, and a reply with no change would tell the player it was done when it wasn't.
 // A player's change must change something, but settling Journal edits may find nothing to.
-const fitsWorld = ({ worldBible, worldRules, plotThreads, pcKnown, npcs }: State, mayKeep: boolean) =>
-  WorldChange.refine((reply) => {
-    const { removed_lore, world_rules, plot_threads, facts, npc_summaries, npc_looks, status } = reply;
-    const changed = changesSomething(reply);
-    // The same rule as a Turn's status.
-    const statusInWords = status === null || ![status.health, ...status.injuries, ...status.conditions].some(hasNumber);
-    // Past the limit a thread never reaches a Turn's prompt, so the change would do nothing. A Save from before the limit may hold more, but not gain any.
-    const threadsFit = plot_threads.reduce(changeList, plotThreads).length <= Math.max(MAX_PLOT_THREADS, plotThreads.length);
-    return (
-      (changed || mayKeep) &&
-      statusInWords &&
-      threadsFit &&
-      removed_lore.every((title) => worldBible.some((entry) => entry.title === title)) &&
-      quotes(worldRules, world_rules) &&
-      quotes(plotThreads, plot_threads) &&
-      quotes(pcKnown.facts, facts) &&
-      npc_summaries.every(({ name }) => pcKnown.npcs.includes(name)) &&
-      npc_looks.every(({ name }) => npcs.some((npc) => npc.name === name))
-    );
-  });
+// Apart, so the log and the request to write it again both say which one refused it.
+const fitsWorld = (state: State, mayKeep: boolean) => {
+  const { worldBible, worldRules, plotThreads, pcKnown } = state;
+  return (
+    WorldChange.refine((reply) => mayKeep || changesSomething(known(state, reply)), "it changes nothing")
+      // The same rule as a Turn's status.
+      .refine(({ status }) => status === null || ![status.health, ...status.injuries, ...status.conditions].some(hasNumber), "the status has digits")
+      // Past the limit a thread never reaches a Turn's prompt, so the change would do nothing. A Save from before the limit may hold more, but not gain any.
+      .refine(
+        ({ plot_threads }) => plot_threads.reduce(changeList, plotThreads).length <= Math.max(MAX_PLOT_THREADS, plotThreads.length),
+        "it leaves too many threads",
+      )
+      .refine(({ removed_lore }) => removed_lore.every((title) => worldBible.some((entry) => entry.title === title)), "a removed lore title isn't in the world")
+      .refine(({ world_rules }) => quotes(worldRules, world_rules), "a change misquotes a world rule")
+      .refine(({ plot_threads }) => quotes(plotThreads, plot_threads), "a change misquotes a thread")
+      .refine(({ facts }) => quotes(pcKnown.facts, facts), "a change misquotes a fact")
+  );
+};
+
+/** The change without looks and Journal summaries for anyone not yet in the story, which have nowhere to go. */
+const known = <T extends z.infer<typeof WorldChange>>({ pcKnown, npcs }: State, change: T): T => ({
+  ...change,
+  npc_summaries: change.npc_summaries.filter(({ name }) => pcKnown.npcs.includes(name)),
+  npc_looks: change.npc_looks.filter(({ name }) => npcs.some((npc) => npc.name === name)),
+});
+
+// Left out rather than refused, as refusing the whole change for them cost players changes that were otherwise right. Logs the count only.
+function withoutStrangers<T extends z.infer<typeof WorldChange>>(state: State, change: T): T {
+  const kept = known(state, change);
+  const dropped = change.npc_summaries.length + change.npc_looks.length - kept.npc_summaries.length - kept.npc_looks.length;
+  if (dropped > 0) log.info("world", "World Change left out people not in the story", { dropped });
+  return kept;
+}
 
 /** How a World Change is written, for the Narrator that writes one and the review that corrects it. */
 const CHANGE_FORM = `List only what changes, as everything you leave out stays exactly as it is, and never repeat what stays the same.
 lore_entries holds each entry you add or rewrite. To rewrite one, use its exact title and give its whole new content and keywords. Give each at least three keywords, including names, nicknames and everyday paraphrases. removed_lore holds the exact title of each entry that no longer holds.
-Each change in world_rules, plot_threads and facts has old, copied exactly from the world or null to add a new one, and new, the text to put there or null to remove it. Keep at most ${MAX_PLOT_THREADS} plot_threads, so to add one when that many are there, rewrite or remove one.
+Each change in world_rules, plot_threads and facts has old, copied exactly from the world (a thread's truth) or null to add a new one, and new, the text to put there or null to remove it. A thread's new is its truth alone: give a thread you add or rewrite its now and plan apart, as the world shows them, and null otherwise. Keep at most ${MAX_PLOT_THREADS} plot_threads, so to add one when that many are there, rewrite or remove one.
 world_brief, summary, facts and npc_summaries are the Journal, which the player reads. Change them only where they no longer hold, and give null or an empty list otherwise. Write them as the PC knows the world: a secret stays out of them, even when the player's instruction names it, and goes in the hidden parts. Each of npc_summaries holds a new summary with the exact name of an NPC already in the Journal.
 inventory and status are what the PC wears and carries, and their health, injuries and conditions, which the player also reads. Give the whole new inventory or status only when the instruction changes it, keeping everything it doesn't change, and null otherwise. Write status in words with no digits: health in at most five words, and at most three injuries and three conditions of at most eight words each.
 npc_looks holds new looks only for each NPC whose looks or clothing the instruction changes, with their exact name from npcs, ${LOOKS}. These are hidden, and they are what pictures of that NPC are drawn from.
 pc_looks is the PC's new looks, only when the instruction changes how their body or face looks, such as their hair, a scar, a tattoo or makeup, and null otherwise: start from pc_looks in the world, keep all it doesn't change, and write only how their body and face look in at most 40 words, never clothing, gear, temperament or history. Pictures of the PC are drawn from it.`;
 
-const worldAsItStands = ({ worldBrief, worldBible, worldRules, plotThreads, summary, pcKnown, inventory, status, npcs, pcAppearance }: State) => ({
+const worldAsItStands = ({
+  worldBrief,
+  worldBible,
+  worldRules,
+  plotThreads,
+  threadsNow,
+  threadsPlan,
+  summary,
+  pcKnown,
+  inventory,
+  status,
+  npcs,
+  pcAppearance,
+}: State) => ({
   world_brief: worldBrief,
   lore_entries: worldBible.map(({ title, keywords, content }) => ({ title, keywords, content })),
   world_rules: worldRules,
-  plot_threads: plotThreads,
+  plot_threads: plotThreads.map((truth) => ({ truth, now: threadsNow[truth] ?? "", ...(threadsPlan[truth] && { plan: threadsPlan[truth] }) })),
   npcs: Object.fromEntries(npcs.map(({ name, appearance }) => [name, appearance])),
   pc_looks: pcAppearance,
   journal: {
@@ -693,12 +744,16 @@ The world as it stands, as JSON: ${JSON.stringify(worldAsItStands(state))}`,
  */
 export async function changeWorld(context: Context, state: State, change: string, signal: AbortSignal, mayKeep = false) {
   const fits = fitsWorld(state, mayKeep);
-  const proposed = await askForJson(
-    context.textProvider,
-    worldChangePrompt(context, state, change),
-    fits,
-    "The Narrator refused this change. Reword it and try again.",
-    signal,
+  const proposed = withoutStrangers(
+    state,
+    await askForJson(
+      context.textProvider,
+      worldChangePrompt(context, state, change),
+      fits,
+      "The Narrator refused this change. Reword it and try again.",
+      signal,
+      { call: "worldChange" },
+    ),
   );
   // Settling Journal edits may find nothing to change, and nothing is no change to review.
   if (!changesSomething(proposed)) return proposed;
@@ -720,8 +775,8 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
     playerChoices({ instruction: change, world: worldAsItStands(state), proposed_change: proposed }),
   ];
   return reviewed(context, "World Change", proposed, signal, async (reviewer) => {
-    const { fixed, change: corrected } = await askForJson(reviewer, prompt, reply, REFUSAL, signal);
-    return corrected ? { result: corrected, reasons: fixed } : { result: proposed, reasons: [] };
+    const { fixed, change: corrected } = await askForJson(reviewer, prompt, reply, REFUSAL, signal, { call: "worldChangeReview", reviewer: true });
+    return corrected ? { result: withoutStrangers(state, corrected), reasons: fixed } : { result: proposed, reasons: [] };
   });
 }
 
@@ -774,17 +829,26 @@ export async function applyWorldChange(
   const before = stateOf();
   // The PC's looks as they stand, so a change to them keeps all they don't change.
   const looksNow = pcNow(saves.read(id).pc, before).physicalTraits ?? "";
-  const { world_brief, summary, facts, npc_summaries, npc_looks, pc_looks, inventory, status, ...update } = await changeWorld(
+  const { world_brief, summary, facts, npc_summaries, npc_looks, pc_looks, inventory, status, plot_threads, ...rest } = await changeWorld(
     context,
     { ...before, pcAppearance: looksNow },
     change,
     signal,
     mayKeep,
   );
+  // What a change only adds to the summary is a known fact too, as the next Turn rewrites the summary: a cutter the player
+  // anchored offshore was written there alone, dropped a Turn later, and never reached the page.
+  // shortcut: only when it keeps every old sentence and writes no fact, so a rewrite or a fact of the same news isn't doubled.
+  const sentences = (text: string) => text.split(/(?<=[.!?])\s+/).filter(Boolean);
+  const old = sentences(before.summary);
+  const news =
+    summary === null || facts.length > 0 || !old.every((sentence) => summary.includes(sentence))
+      ? []
+      : sentences(summary).filter((sentence) => !old.includes(sentence));
   const journal: WorldEdit[] = [
     ...(world_brief === null ? [] : [{ edit: "worldBrief" as const, text: world_brief }]),
     ...(summary === null ? [] : [{ edit: "summary" as const, text: summary }]),
-    ...facts.map((fact) => ({ edit: "fact" as const, ...fact })),
+    ...[...facts, ...news.map((sentence) => ({ old: null, new: sentence }))].map((fact) => ({ edit: "fact" as const, ...fact })),
     ...npc_summaries.map(({ name, summary }) => ({ edit: "npcSummary" as const, name, text: summary })),
     ...(inventory === null ? [] : [{ edit: "inventory" as const, ...inventory }]),
     ...(status === null ? [] : [{ edit: "status" as const, ...status }]),
@@ -794,7 +858,9 @@ export async function applyWorldChange(
     ...(pc_looks === null ? [] : [{ edit: "pcLooks" as const, appearance: pc_looks }]),
   ];
   const made = [...looks, ...journal];
-  saves.addWorldChange(id, basedOn, [...made, { edit: "world", update, made: made.length }]);
+  const update = { ...rest, plot_threads: plot_threads.map(({ old, new: truth }) => ({ old, new: truth })) };
+  const by = (part: "now" | "plan") => Object.fromEntries(plot_threads.flatMap((change) => (change.new && change[part] ? [[change.new, change[part]]] : [])));
+  saves.addWorldChange(id, basedOn, [...made, { edit: "world", update, now: by("now"), plan: by("plan"), made: made.length }]);
   const after = stateOf();
   images.restyled(id, restyledBy(before, after), after.inventory.wearing);
   log.info("world", "World Change applied", () => ({
@@ -803,6 +869,7 @@ export async function applyWorldChange(
     rules: update.world_rules.length,
     threads: update.plot_threads.length,
     journal: journal.length,
+    news: news.length,
     looks: looks.length,
   }));
 }
@@ -875,7 +942,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
     playerChoices({ choices: worldChoicesData(choices, pc), world }),
   ];
   return reviewed(context, "World", world, signal, async (reviewer) => {
-    const review = await askForJson(reviewer, prompt, reply, REFUSAL, signal);
+    const review = await askForJson(reviewer, prompt, reply, REFUSAL, signal, { call: "worldReview", reviewer: true });
     const faults = [
       ...[review.world_overview, review.calendar, review.start].filter((edit) => edit !== null),
       ...review.lore_entries,
@@ -889,7 +956,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
 /** Only `overview` may reach the player. */
 export async function generateWorld(context: Context, choices: WorldChoices, pc: WorldPc, signal: AbortSignal) {
   // The review looks for a leak in the Overview, but past that it is Narrator free text, kept clean only by the prompts.
-  const written = await askForJson(context.textProvider, worldPrompt(context, choices, pc), WorldReply, REFUSAL, signal);
+  const written = await askForJson(context.textProvider, worldPrompt(context, choices, pc), WorldReply, REFUSAL, signal, { call: "world" });
   const { world_overview, lore_entries, world_rules, plot_threads, calendar, start_date, start_time_of_day } = await reviewWorld(
     context,
     choices,

@@ -19,7 +19,24 @@ export type State = {
   sceneMemories: SceneMemory[];
   worldBible: LoreEntry[];
   worldRules: string[];
+  /** Each Plot Thread's truth: what really happened, who is behind it, what they want and what is hidden. It changes only when play reveals it. */
   plotThreads: string[];
+  /**
+   * Each Plot Thread's now, by its truth: what its people have done out of the PC's sight, which is true. World Moves On
+   * rewrites it freely, as rewriting a thread's one text lost who was behind it and what it hid. A Save from before it has none.
+   */
+  threadsNow: Record<string, string>;
+  /**
+   * Each Plot Thread's plan, by its truth: the deed its people mean to do next and by when, which hasn't happened, apart from
+   * the now, as a planned deed read as done had someone act on news the PC had outrun. A Save from before it has none, so its
+   * now, which held both, reads as done.
+   */
+  threadsPlan: Record<string, string>;
+  /**
+   * By each Plot Thread's truth, who World Moves On gave their own part of it, kept in npcKnows. Apart from what they learn in
+   * play, as a move took anything in npcKnows for their part and never gave the people with only that one. A Save from before it has none.
+   */
+  threadParts: Record<string, string[]>;
   summary: string;
   /** Just the last few scenes, for the player. The Narrator never reads it back. */
   recentSummary: string;
@@ -34,6 +51,8 @@ export type State = {
   storyTime: StoryTime | null;
   /** How the PC's body and face look now, once the story changes them. Empty until then, when the PC's own physicalTraits stand. */
   pcAppearance: string;
+  /** The real era and region every picture resembles, set once so pictures don't drift between eras. Empty until the Narrator sets it. */
+  era: string;
 };
 
 /** `day` counts days since the Opening, as Narrators add whole numbers far better than they work an in-world calendar. The player never sees it. */
@@ -53,6 +72,9 @@ export const openingState: State = {
   worldBible: [],
   worldRules: [],
   plotThreads: [],
+  threadsNow: {},
+  threadsPlan: {},
+  threadParts: {},
   summary: "",
   recentSummary: "",
   directorsNotes: [],
@@ -61,6 +83,7 @@ export const openingState: State = {
   chapterReady: false,
   storyTime: null,
   pcAppearance: "",
+  era: "",
 };
 
 const stringList = z.array(z.string());
@@ -78,6 +101,9 @@ export const StateSections = {
   worldBible: z.array(z.object({ title: z.string(), keywords: stringList, content: z.string(), alwaysOn: z.boolean() })),
   worldRules: stringList,
   plotThreads: stringList,
+  threadsNow: z.record(z.string(), z.string()),
+  threadsPlan: z.record(z.string(), z.string()),
+  threadParts: z.record(z.string(), stringList),
   summary: z.string(),
   recentSummary: z.string(),
   directorsNotes: stringList,
@@ -86,6 +112,7 @@ export const StateSections = {
   chapterReady: z.boolean(),
   storyTime: z.object({ day: z.number().int(), date: z.string(), timeOfDay: z.string() }).nullable(),
   pcAppearance: z.string(),
+  era: z.string(),
 } satisfies { [Section in keyof State]: z.ZodType<State[Section]> };
 
 const nonEmpty = z.string().min(1);
@@ -126,10 +153,16 @@ export const StateOperation = z.discriminatedUnion("op", [
     content: nonEmpty,
   }),
   z.object({ op: z.literal("remove_lore_entry"), title: nonEmpty }),
-  z.object({ op: z.literal("add_plot_thread"), thread: nonEmpty }),
-  z.object({ op: z.literal("update_plot_thread"), thread: nonEmpty, replacement: nonEmpty }),
+  z.object({
+    op: z.literal("update_plot_thread"),
+    thread: nonEmpty,
+    now: nonEmpty,
+    plan: nonEmpty.nullable().default(null),
+    truth: nonEmpty.nullable().default(null),
+  }),
   z.object({ op: z.literal("resolve_plot_thread"), thread: nonEmpty }),
   z.object({ op: z.literal("set_pc_appearance"), appearance: nonEmpty }),
+  z.object({ op: z.literal("set_era"), era: nonEmpty }),
   z.object({ op: z.literal("set_story_time"), days_passed: z.number().int().min(0), date: nonEmpty.nullable(), time_of_day: nonEmpty }),
 ]);
 export type StateOperation = z.infer<typeof StateOperation>;
@@ -142,9 +175,24 @@ export const named = (full: string, mark: string) => full.toLowerCase() === mark
 export function findPerson<Npc extends { name: string }>(npcs: Npc[], mark: string) {
   const exact = npcs.find(({ name }) => name === mark);
   if (exact) return exact;
-  const partly = npcs.filter(({ name }) => named(name, mark));
+  // Or every word of it a name of theirs, as a speaker named without their title was added as a second person and portrait.
+  const words = mark.split(/\s+/);
+  const partly = npcs.filter(({ name }) => named(name, mark) || words.every((word) => nameForms(name).includes(word)));
   return partly.length === 1 ? partly[0] : undefined;
 }
+
+const itemWords = (item: string) =>
+  ` ${
+    item
+      .toLowerCase()
+      .match(/[\p{L}\p{N}]+/gu)
+      ?.join(" ") ?? ""
+  } `;
+/** Whether two items are one: the same words, or one holding all of the other's two words or more in a row. */
+const sameItem = (held: string, item: string) => {
+  const [shorter, longer] = [itemWords(held), itemWords(item)].sort((a, b) => a.length - b.length) as [string, string];
+  return shorter === longer || (shorter.trim().includes(" ") && longer.includes(shorter));
+};
 
 function take(list: string[], value: string) {
   const index = list.indexOf(value);
@@ -165,6 +213,30 @@ export const MAX_PLOT_THREADS = 8;
 
 /** The most an NPC's list of what they know keeps, newest last, so the lists of a crowded scene stay a few lines each. */
 export const MAX_NPC_KNOWS = 12;
+
+// Saying what someone doesn't know, which an NPC's list read as what they do, and which goes stale once they learn it.
+// Any verb of knowing or learning denied, or with nothing or no one as what is known, as "has not heard of", "heard nothing of"
+// and "knows of no" reached the lists.
+const UNKNOWING =
+  /\b(?:(?:does|did|do|has|have|had|is|was|were)(?:n't| not)(?: yet)? (?:know|heard|seen|learned|learnt|been told|aware)|(?:knows?|knew|heard|seen|saw|learned|learnt|been told)(?: yet)? (?:nothing|none|of no(?:ne|thing)?|no one|of no one)|knows? no\b|but nothing (?:yet )?(?:of|about)|(?:has|have|had) (?:never|no idea)|never (?:learned|learnt|heard|knew|saw|been told)|no idea|unaware|but not (?:what|who|whom|where|when|why|how|whether|that|of|about)\b)/i;
+// Clauses split where a fact goes on, keeping the joining word with the clause it starts. "But" without a comma too, as "has
+// the evidence but has heard nothing of" was one clause.
+const CLAUSES = /(\s*;\s*|,\s+(?=(?:but|and|though|yet|while|nor)\b)|\s+(?=but\b))/i;
+
+/** A fact an NPC learns without its clauses saying what they don't know, or "" when that is all it says. */
+export function knownOnly(fact: string) {
+  if (!UNKNOWING.test(fact)) return fact;
+  const pieces = fact.split(CLAUSES);
+  const kept: string[] = [];
+  for (let at = 0; at < pieces.length; at += 2) {
+    const clause = pieces[at]!;
+    if (UNKNOWING.test(clause) || /^nor\b/i.test(clause)) continue;
+    kept.push(kept.length === 0 ? clause.replace(/^(?:but|and|though|yet|while)\s+/i, "") : `${pieces[at - 1]}${clause}`);
+  }
+  const text = kept.join("").trim();
+  if (!/\p{L}{2}/u.test(text)) return "";
+  return `${text[0]!.toUpperCase()}${text.slice(1).replace(/[\s,;:]+$/, "")}${/[.!?]$/.test(text) ? "" : "."}`;
+}
 
 function addOnce(list: string[], value: string) {
   if (list.includes(value)) return false;
@@ -243,6 +315,10 @@ function mergeNpc(state: State, name: string, into: string) {
   if (scene.visibleCast.includes(name)) replaceOnce(scene.visibleCast, name, into);
   const { [name]: summary, ...summaries } = pcKnown.summaries ?? {};
   if (summary !== undefined) pcKnown.summaries = { [into]: summary, ...summaries };
+  mergeNpcKnows(state, name, into);
+}
+
+function mergeNpcKnows(state: State, name: string, into: string) {
   if (!Object.hasOwn(state.npcKnows, name)) return;
   const { [name]: knew = [], ...knows } = state.npcKnows;
   const kept = Object.hasOwn(knows, into) ? knows[into]! : [];
@@ -250,20 +326,19 @@ function mergeNpc(state: State, name: string, into: string) {
   state.npcKnows = { ...knows, [into]: [...knew.filter((fact) => !kept.includes(fact)), ...kept].slice(-MAX_NPC_KNOWS) };
 }
 
-/** What this reply made of each Plot Thread it changed, its replacement or null once resolved, and those still waiting to be added because the list was full. */
-type ThreadsSoFar = { became: Map<string, string | null>; waiting: string[] };
+/** What this reply made of each Plot Thread's truth it changed, its amended truth or null once resolved. */
+type ThreadsSoFar = { became: Map<string, string | null>; held?: Set<string> };
 
 /**
  * The open thread `text` names, followed to what this reply made of it, so that a thread already changed is never matched
- * to another that shares its words. `resolved` when this reply closed it, and `wait` when it is still waiting to be added.
+ * to another that shares its words. `resolved` when this reply closed it.
  */
-function namedThread(state: State, text: string, { became, waiting }: ThreadsSoFar) {
+function namedThread(state: State, text: string, { became }: ThreadsSoFar) {
   // Only those the prompt showed, as a Save from before the limit can hold more.
   const shown = state.plotThreads.slice(0, MAX_PLOT_THREADS);
   // Once each, as a thread in two lists would tie with itself and match nothing.
-  const named = closestThread([...new Set([...shown, ...became.keys(), ...waiting])], text);
+  const named = closestThread([...new Set([...shown, ...became.keys()])], text);
   if (named === undefined || shown.includes(named)) return { thread: named };
-  if (waiting.includes(named)) return { wait: true };
   let now: string | null | undefined = named;
   // A few steps at most, in case a reply rewrites a thread back and forth.
   for (let step = 0; typeof now === "string" && !shown.includes(now) && became.has(now) && step < MAX_PLOT_THREADS; step++) now = became.get(now);
@@ -271,13 +346,27 @@ function namedThread(state: State, text: string, { became, waiting }: ThreadsSoF
 }
 
 /** Changes `state` and returns nothing, or returns why `operation` is disproved, having changed nothing. The reason goes to the Server Log, so it never quotes the operation. */
-function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = { became: new Map(), waiting: [] }): string | undefined {
+function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = { became: new Map() }): string | undefined {
   switch (operation.op) {
-    case "add_item":
+    case "add_item": {
+      // Worn or carried, the same thing held twice was the same notebook three times and a shawl both worn and carried. A fuller
+      // name replaces the old where it is, as models restate what is held with how it is now.
+      // The same words twice in one reply may be two of a thing, as "two lengths of rope" are, so only one held before it repeats.
+      for (const list of [state.inventory.wearing, state.inventory.carrying]) {
+        const at = list.findIndex((held) => sameItem(held, operation.item));
+        if (at < 0) continue;
+        if (itemWords(list[at]!) !== itemWords(operation.item)) list[at] = operation.item;
+        else if (!threads.held?.has(itemWords(operation.item))) break;
+        else return "already there";
+        return;
+      }
       state.inventory[operation.slot].push(operation.item);
       return;
+    }
     case "remove_item":
-      return take(state.inventory.carrying, operation.item) || take(state.inventory.wearing, operation.item) ? undefined : "not held";
+      if (take(state.inventory.carrying, operation.item) || take(state.inventory.wearing, operation.item)) return;
+      // The old name of what an add just gave a fuller one, as a reply adds the new and removes the old: it is the same thing, still held.
+      return [...state.inventory.wearing, ...state.inventory.carrying].some((held) => sameItem(held, operation.item)) ? undefined : "not held";
     case "set_health":
       if (hasNumber(operation.health)) return "has a number";
       state.status.health = operation.health;
@@ -293,14 +382,19 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
     case "add_npc": {
       // No two people share a name, so adding someone already there gives them the looks they now have, as update_npc would.
       const npc = findNpc(state, operation.name);
-      if (npc) npc.appearance = operation.appearance;
-      else state.npcs.push({ name: operation.name, appearance: operation.appearance });
+      if (npc) npc.appearance = lasting(operation.appearance);
+      else state.npcs.push({ name: operation.name, appearance: lasting(operation.appearance) });
+      // What World Moves On gave them to know before they were met, under the name a thread gave them.
+      const unmet = Object.keys(state.npcKnows).find(
+        (name) => name !== operation.name && !findNpc(state, name) && (named(operation.name, name) || named(name, operation.name)),
+      );
+      if (unmet) mergeNpcKnows(state, unmet, operation.name);
       return;
     }
     case "update_npc": {
       const npc = findNpc(state, operation.name);
       if (!npc) return "no such NPC";
-      npc.appearance = operation.appearance;
+      npc.appearance = lasting(operation.appearance);
       return;
     }
     case "merge_npc":
@@ -311,9 +405,11 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const name = findPerson(state.npcs, operation.name)?.name;
       if (!name) return "no such NPC";
       if (!/\p{L}/u.test(operation.fact)) return "no words";
+      const fact = knownOnly(operation.fact);
+      if (!fact) return "only what they don't know";
       // Own keys only, as a name such as "constructor" would find what every object has.
       const knows = Object.hasOwn(state.npcKnows, name) ? state.npcKnows[name]! : [];
-      if (!addOnce(knows, operation.fact)) return "already there";
+      if (!addOnce(knows, fact)) return "already there";
       state.npcKnows = { ...state.npcKnows, [name]: knows.slice(-MAX_NPC_KNOWS) };
       return;
     }
@@ -366,48 +462,101 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
     case "remove_lore_entry":
       state.worldBible = state.worldBible.filter(({ title, alwaysOn }) => alwaysOn || title !== operation.title);
       return;
-    case "add_plot_thread":
-      if (state.plotThreads.includes(operation.thread)) return "already there";
-      if (state.plotThreads.length >= MAX_PLOT_THREADS) {
-        threads.waiting.push(operation.thread);
-        return "full";
-      }
-      state.plotThreads.push(operation.thread);
-      return;
     case "update_plot_thread": {
-      const { thread, wait, resolved } = namedThread(state, operation.thread, threads);
+      const { thread, resolved } = namedThread(state, operation.thread, threads);
       // Closed earlier in this reply, so a rewrite mustn't open it again.
       if (resolved) return;
-      // A thread that matches none would be added, so it meets the same limit.
-      if (wait || (thread === undefined && state.plotThreads.length >= MAX_PLOT_THREADS)) {
-        threads.waiting.push(operation.replacement);
-        return "full";
-      }
-      replaceOnce(state.plotThreads, thread ?? operation.thread, operation.replacement);
-      if (thread !== undefined && thread !== operation.replacement) threads.became.set(thread, operation.replacement);
+      // Not added, as a Turn adds no thread: World Moves On does. A DeepSeek Turn's unmatched rewrites took three threads to six.
+      if (thread === undefined) return "matches no thread";
+      const truth = operation.truth ?? thread;
+      const { [thread]: _was, ...others } = state.threadsNow;
+      state.threadsNow = { ...others, [truth]: operation.now };
+      const { [thread]: _planned, ...otherPlans } = state.threadsPlan;
+      state.threadsPlan = operation.plan ? { ...otherPlans, [truth]: operation.plan } : otherPlans;
+      const { [thread]: parts, ...otherParts } = state.threadParts;
+      if (parts) state.threadParts = { ...otherParts, [truth]: parts };
+      replaceOnce(state.plotThreads, thread, truth);
+      if (thread !== truth) threads.became.set(thread, truth);
       return;
     }
     case "resolve_plot_thread": {
-      const { thread, wait, resolved } = namedThread(state, operation.thread, threads);
-      if (wait) return "full";
+      const { thread, resolved } = namedThread(state, operation.thread, threads);
       if (resolved) return;
-      if (thread === undefined || !take(state.plotThreads, thread)) return "not there";
+      // Ignored, not refused, as DeepSeek resolved threads long gone, which failed whole Turns.
+      if (thread === undefined || !take(state.plotThreads, thread)) return "matches no thread";
+      const { [thread]: _gone, ...open } = state.threadsNow;
+      state.threadsNow = open;
+      const { [thread]: _plan, ...openPlans } = state.threadsPlan;
+      state.threadsPlan = openPlans;
+      const { [thread]: _parts, ...openParts } = state.threadParts;
+      state.threadParts = openParts;
       threads.became.set(thread, null);
       return;
     }
     case "set_pc_appearance":
       state.pcAppearance = operation.appearance;
       return;
+    case "set_era":
+      // Set once, as changing it later is the drift it exists to stop.
+      if (state.era) return "already there";
+      state.era = operation.era;
+      return;
     case "set_story_time": {
-      const { days_passed, time_of_day } = operation;
+      const { time_of_day } = operation;
+      // The date wins over days_passed when they disagree, as models gave the day count there, doubling it each time (day 280 in 30 rounds).
+      const days_passed = operation.date === state.storyTime?.date ? 0 : operation.days_passed;
       // A new day kept on the old date would put the story on the wrong day, so it waits for a Turn that names one.
       const date = operation.date ?? (days_passed === 0 ? state.storyTime?.date : undefined);
       if (date === undefined) return "no date";
-      state.storyTime = { day: (state.storyTime?.day ?? 1) + days_passed, date, timeOfDay: time_of_day };
+      // Never back within a day, as a reply that did so had started the story over from its first morning.
+      const [was, now] = [dayPart(state.storyTime?.timeOfDay), dayPart(time_of_day)];
+      // From night on, the small hours and the next morning come after, as "past midnight" refused them all for five rounds.
+      const wraps = was !== undefined && was >= NIGHT && now !== undefined && (now >= NIGHT || now <= MORNING);
+      if (days_passed === 0 && date === state.storyTime?.date && was !== undefined && now !== undefined && now < was && !wraps) return "earlier than now";
+      state.storyTime = { day: (state.storyTime?.day ?? 1) + days_passed, date, timeOfDay: withoutDate(time_of_day, date) };
       return;
     }
   }
 }
+
+/** The time of day without the parts that only repeat the date, as "mid-morning, Tuesday 16th October" showed the date twice. */
+function withoutDate(timeOfDay: string, date: string) {
+  const words = (text: string) => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+  const inDate = new Set(words(date));
+  const parts = timeOfDay.split(/\s*,\s*/).filter((part) => !words(part).every((word) => inDate.has(word)));
+  return parts.length > 0 ? parts.join(", ") : timeOfDay;
+}
+
+// First match wins, so "afternoon" isn't read as "noon" nor "midnight" as "night".
+const DAY_PARTS: [RegExp, number][] = [
+  [/midnight/i, 7],
+  [/afternoon/i, 4],
+  [/evening|dusk|sunset/i, 5],
+  [/night/i, 6],
+  [/noon|midday/i, 3],
+  [/dawn|sunrise|daybreak|early morning/i, 1],
+  [/morning/i, 2],
+];
+// What someone holds, or where they are or what they are doing, which passes with the scene, as a looks of "hat in hand, gone
+// out into the rain" redrew a portrait. The weather and the road's dirt too, as "rain-dark shoulders" redrew one soaked, and a
+// passing pallor, bonds or a garment taken off and put down, as "coat folded over a barrel" redrew one coatless, or carried on
+// an arm, as another man's coat "under his arm" stayed in a constable's looks.
+// shortcut: whole comma clauses by these words; add a word when another passing state sticks.
+const PASSING =
+  /\b(?:holding|carrying|carried|clutch(?:ing|ed)|gripp(?:ing|ed)|kneeling|crouching|sitting|seated|lying|leaning|standing (?:at|in|by|on|beside|over|before)|gone (?:out|off|away|into|to|back)|in (?:his|her|their|one) (?:other )?hand|in hand|held (?:high|low|up|out)|rain-\w+|wet|soaked|sodden|drenched|dripping|damp|dusty|dust|mud-\w+|muddied|windblown|caked|crusted|drained|ashen|flushed|(?:wrists|hands|arms|ankles) (?:bound|tied)|(?:bound|tied) (?:before|behind)|manacled|shackled|in irons|(?:taken|pulled|shrugged) off|(?:coat|jacket|cloak|hat|cap|shirt|boots) off|folded (?:over|on|across)|left (?:below|behind)|(?:under|over|across) (?:his|her|their|one|an?) arms?|tucked)\b/i;
+/** The looks without their passing clauses, or as written if nothing else is left. */
+const lasting = (appearance: string) => {
+  const kept = appearance
+    .split(",")
+    .filter((clause) => !PASSING.test(clause))
+    .join(",")
+    .trim();
+  return kept || appearance;
+};
+
+const [MORNING, NIGHT] = [2, 6];
+/** Where in the day a time of day falls, in order, or undefined for words that don't say. */
+const dayPart = (timeOfDay = "") => DAY_PARTS.find(([words]) => words.test(timeOfDay))?.[1];
 
 const isRepeat = ({ pcKnown, looseEnds }: State, operation: StateOperation) =>
   (operation.op === "add_known_fact" && pcKnown.facts.includes(operation.fact)) ||
@@ -416,27 +565,19 @@ const isRepeat = ({ pcKnown, looseEnds }: State, operation: StateOperation) =>
 
 // None of these contradict the narration, so they aren't worth a whole response. Someone nameless is added once they're named.
 const IGNORABLE: StateOperation["op"][] = ["resolve_loose_end", "add_known_npc", "set_known_npc_summary", "set_story_time", "npc_learns"];
-// A full list of Plot Threads is the Narrator's to tidy later, not worth a whole response.
-const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }) => IGNORABLE.includes(op) || reason === "already there" || reason === "full";
+const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }) =>
+  IGNORABLE.includes(op) || reason === "already there" || reason === "matches no thread";
 
-/** Applies operations in order, so each is judged against the ones before it, except that a Plot Thread change refused as full is tried once more at the end. */
+/** Applies operations in order, so each is judged against the ones before it. */
 export function applyOperations(state: State, operations: StateOperation[]) {
   const next = structuredClone(state);
   let repeats = 0;
-  const full: StateOperation[] = [];
-  const threads: ThreadsSoFar = { became: new Map(), waiting: [] };
+  const threads: ThreadsSoFar = { became: new Map(), held: new Set([...state.inventory.wearing, ...state.inventory.carrying].map(itemWords)) };
   const refusals = operations.flatMap(({ ...operation }) => {
     if (isRepeat(next, operation)) repeats++;
     const reason = apply(next, operation, threads);
-    if (reason === "full") full.push(operation);
-    return reason && reason !== "full" ? [{ op: operation.op, reason }] : [];
+    return reason ? [{ op: operation.op, reason }] : [];
   });
-  // Tried again after the reply's resolves, which may have made room for them.
-  threads.waiting = [];
-  for (const operation of full) {
-    const reason = apply(next, operation, threads);
-    if (reason) refusals.push({ op: operation.op, reason });
-  }
   return { next, refused: refusals.filter((refusal) => !isHarmless(refusal)), ignored: refusals.filter(isHarmless), repeats };
 }
 
@@ -507,7 +648,20 @@ export const WorldEdit = z.discriminatedUnion("edit", [
   ...VisibleEdit.options,
   // `made` counts the edits just before it that the same World Change wrote, which a Save from before it lacks.
   // `moved` marks World Moves On's, which settles none of the player's Journal edits and rests on the reply it followed.
-  z.object({ edit: z.literal("world"), update: WorldUpdate, made: z.number().int().min(0).optional(), moved: z.boolean().optional() }),
+  // `now` sets the now of each thread it names by its truth, after `update`, which a Save from before it lacks, and `plan` the
+  // plan of each, which a thread whose now it sets without one loses.
+  z.object({
+    edit: z.literal("world"),
+    update: WorldUpdate,
+    now: z.record(z.string(), z.string()).optional(),
+    plan: z.record(z.string(), z.string()).optional(),
+    made: z.number().int().min(0).optional(),
+    moved: z.boolean().optional(),
+    // World Moves On's: by name, each person's own part of the threads it wrote, kept as what they know.
+    knows: z.record(z.string(), z.array(z.string())).optional(),
+    // By truth, who those parts went to.
+    parts: z.record(z.string(), z.array(z.string())).optional(),
+  }),
   // Whole lists, as a World Change rewrites what the player says is wrong rather than one item at a time.
   z.object({ edit: z.literal("inventory"), wearing: z.array(z.string()), carrying: z.array(z.string()) }),
   z.object({ edit: z.literal("status"), health: z.string(), injuries: z.array(z.string()), conditions: z.array(z.string()) }),
@@ -549,8 +703,32 @@ export function applyEdit(state: State, edit: WorldEdit): State {
         ...state,
         sceneMemories: state.sceneMemories.map((memory) => (memory.firstMessage === edit.firstMessage ? { ...memory, text: edit.text } : memory)),
       };
-    case "world":
-      return { ...state, ...mergeWorldUpdate(state, edit.update) };
+    case "world": {
+      const merged = mergeWorldUpdate(state, edit.update);
+      // A truth a World Change rewrites starts with no now, as the old one may no longer fit it, until the world next moves on.
+      const now = { ...state.threadsNow, ...edit.now };
+      const threadsNow = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(now, truth) ? [[truth, now[truth]!]] : [])));
+      const plans = Object.fromEntries(Object.entries(state.threadsPlan).filter(([truth]) => !Object.hasOwn(edit.now ?? {}, truth)));
+      const plan = { ...plans, ...edit.plan };
+      const threadsPlan = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(plan, truth) ? [[truth, plan[truth]!]] : [])));
+      // Under the name of someone met, or as named until they are, when add_npc takes it up.
+      const npcKnows = { ...state.npcKnows };
+      for (const [name, parts] of Object.entries(edit.knows ?? {})) {
+        const key = findPerson(state.npcs, name)?.name ?? name;
+        const knew = Object.hasOwn(npcKnows, key) ? npcKnows[key]! : [];
+        const known = parts.map(knownOnly).filter((part) => part && !knew.includes(part));
+        if (known.length > 0 || knew.length > 0) npcKnows[key] = [...knew, ...known].slice(-MAX_NPC_KNOWS);
+      }
+      const had = (truth: string) => (Object.hasOwn(state.threadParts, truth) ? state.threadParts[truth]! : []);
+      const given = (truth: string) => (edit.parts && Object.hasOwn(edit.parts, truth) ? edit.parts[truth]! : []);
+      const threadParts = Object.fromEntries(
+        merged.plotThreads.flatMap((truth) => {
+          const names = [...new Set([...had(truth), ...given(truth)])];
+          return names.length > 0 ? [[truth, names]] : [];
+        }),
+      );
+      return { ...state, ...merged, threadsNow, threadsPlan, npcKnows, threadParts };
+    }
     case "inventory":
       return { ...state, inventory: { wearing: edit.wearing, carrying: edit.carrying } };
     case "pcLooks":
@@ -637,3 +815,23 @@ export function givenName(name: string) {
   if (words.some((word, at) => at > 0 && /^\p{Ll}/u.test(word) && !PARTICLES.has(word))) return undefined;
   return words.map((word) => word.toLowerCase().replace(/\.$/, "")).find((word) => !TITLES.has(word));
 }
+
+/**
+ * A name and each word of it that tells it apart, so "Dacre" names Mr Dacre and "Crane" names Crane's cottage, as a phrase
+ * matched whole dropped writing that shortened it. A word counts if capitalised, past two letters and not a title.
+ */
+/**
+ * Whether someone is named as a body, or their own Lore Entry is keyed as one. shortcut: by name and keyword, as an NPC has no
+ * alive or dead, so one who dies in play still counts as alive; add a field if that misleads.
+ */
+export const isBody = (state: Pick<State, "worldBible">, name: string) =>
+  DEAD.test(name) || state.worldBible.some(({ title, keywords }) => title === name && keywords.some((keyword) => DEAD.test(keyword)));
+const DEAD = /\b(body|corpse|remains)\b/i;
+
+export const nameForms = (name: string) => [
+  name,
+  ...name
+    .split(" ")
+    .map((part) => part.replace(/['’]s$/u, ""))
+    .filter((part) => part.length > 2 && /^\p{Lu}/u.test(part) && !TITLES.has(part.toLowerCase().replace(/\.$/, ""))),
+];

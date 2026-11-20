@@ -120,7 +120,7 @@ export function galleryRoutes({ options, saves, turns, images }: ServerContext) 
           const met = [...new Set([...scene.visibleCast, ...saves.recentCast(id)])].filter((name) => pcKnown.npcs.includes(name)).slice(0, COVER_NPCS);
           return [pcLooksNow, ...met.map(looksOf)].filter(Boolean);
         };
-        const setting = { theme, world: worldBrief, artStyle, ...(nudge && { nudge }) };
+        const setting = { theme, world: worldBrief, artStyle, era: state.era, ...(nudge && { nudge }) };
         const ask: PictureAsk =
           kind === "cover"
             ? { kind, title, ...setting, people: coverCast() }

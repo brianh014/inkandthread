@@ -35,6 +35,23 @@ test("each chapter's heading sits above its first Message, and its large letter 
   expect([4, 9, 14, 40, 1994].map(roman)).toEqual(["IV", "IX", "XIV", "XL", "MCMXCIV"]);
 });
 
+test("a reply still being written gets the heading and big first letter it will have once saved, so nothing jumps", () => {
+  const open = [{ title: "", lastMessage: null }];
+  // The opening: no Message yet, so the reply opens Chapter I.
+  expect(chapterOpenings(open, []).next).toEqual({ head: { numeral: "I", title: "" }, opens: true });
+  // A chapter closed after Message 4: the next reply opens Chapter II.
+  const closed = [{ title: "The Quay", lastMessage: 4 }, ...open];
+  const four = [
+    { id: 3, role: "player" },
+    { id: 4, role: "narrator" },
+  ] as const;
+  expect(chapterOpenings(closed, [...four]).next).toEqual({ head: { numeral: "II", title: "" }, opens: true });
+  // Mid-chapter, neither.
+  expect(chapterOpenings(open, [...four]).next).toEqual({ opens: false });
+  // A Regenerate of a chapter's first reply, with the player's move kept: the heading is there already, but the letter is the reply's.
+  expect(chapterOpenings(open, [{ id: 3, role: "player" }]).next).toEqual({ opens: true });
+});
+
 test("a Continue shows as a rule in the story, and the Stage box skips it", () => {
   const [beat] = messageBeats({ role: "player", text: CONTINUE });
   expect(renderToStaticMarkup(<BeatLine beat={beat!} style="script" pc="Ash" />)).toContain('<hr class="continued"');
@@ -66,6 +83,11 @@ test("a colon in narration doesn't make a speaker", () => {
   for (const line of ["He says one thing: “Run.”", "Dov Marchetti: he never answers.", "The sign reads: “Closed”"]) {
     expect(narrator(line)).toEqual([{ text: line }]);
   }
+});
+
+test("a picture's [Name: looks] mark written into narration shows as the name alone", () => {
+  expect(narrator("[Harriet Vell: a tall woman in a black dress] stands in the doorway.")).toEqual([{ text: "Harriet Vell stands in the doorway." }]);
+  expect(narrator("She turns to [Kit: a wiry lad] and waits.")).toEqual([{ text: "She turns to Kit and waits." }]);
 });
 
 test("text with no spoken lines is plain narration", () => {

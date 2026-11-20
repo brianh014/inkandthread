@@ -134,7 +134,7 @@ test("a reply in another key order shows no narration until done, as it could st
 
   const events = await turnEvents(await streamTurn(id, "I leap the gap."));
 
-  expect(events.map(({ event }) => event)).toEqual(["narration", "done"]);
+  expect(events.map(({ event }) => event)).toEqual(["narration", "reply", "done"]);
   expect(events[0]!.data).toEqual({ text: "The tide rises." });
 });
 
@@ -229,17 +229,14 @@ test("a stream that stalls is reported as stopped", async () => {
 });
 
 test("a stream of keep-alives with no text is reported as stopped, as a stuck upstream sends them forever", async () => {
-  playLocal(
-    [
-      async function* () {
-        for (;;) {
-          yield ": keep-alive\n\n";
-          await Bun.sleep(20);
-        }
-      },
-    ],
-    { limits: { silenceMs: 100, listMs: 50 } },
-  );
+  const keepAlives = async function* () {
+    for (;;) {
+      yield ": keep-alive\n\n";
+      await Bun.sleep(20);
+    }
+  };
+  // Twice, as a reply that sent nothing at all is asked for once more.
+  playLocal([keepAlives, keepAlives], { limits: { silenceMs: 100, listMs: 50 } });
   const id = await app.createSave();
 
   const events = await turnEvents(await streamTurn(id, "I wade forward."));

@@ -1,0 +1,117 @@
+{
+  "about": "A bench world for romance and slower drama: attraction and desire, guarded hearts, family loyalty and quiet scenes that must not stall. Invented. It opens with the PC and the man she is drawn to alone in her bedroom at night, brings him back to her door that same night, gives her reasons to keep seeking him out, and makes the pull between them a Plot Thread of its own, with the sale and the sabotage as what stands between them rather than the story. Set up as a romance novel is, between two adults who want each other and are thrown close, so it can turn sexual if play leads there, though it never starts there. It brings about Checks on persuasion and risky moves, a Plot Thread that resolves by the next night (the sale at the harvest feast), secrets for NPCs to learn, Loose Ends, lore to grow, a wildfire, and people who may die. actions holds the fixed words of the Rewrite, Edit and World Change the bench sends.",
+  "genres": ["romance"],
+  "judge": "This is a romance first: rate romance on the pull between Mara and Anselm. The sale, the sabotage and the deed are there to stand between them; a play where they replace the romance with a mystery scores low on romance however well the mystery plays.",
+  "save": {
+    "title": "The Last Harvest at Corra",
+    "artStyle": "Luminous Fluid Watercolor: Soft semi-translucent aesthetic characterized by delicate watery washes, soft-edge color bleeding, visible paper grain texture, expressive paint splatters, and vibrant pigment pooling along fine hand-drawn ink contours.",
+    "theme": "",
+    "worldBrief": "The Corra estate, an old family vineyard on the dry hills above a sea town in a sunny southern country of the present day, with stone farmhouses, olive terraces and a small frescoed chapel. It is the last week of the grape harvest, the hot wind has dried the hills to tinder, and everyone on the estate is keeping something from someone.",
+    "startingHook": "Mara Quell, an art restorer, has arrived at the Corra estate late on a warm night to save the crumbling fresco in its chapel before the harvest ends. Ilse Corra, the old woman who hired her by letter, insists Mara stay in the main house, and once supper is cleared sends her grandson Anselm Corra, the widowed winemaker, to carry Mara's suitcase up to the guest bedroom across the landing from his own and give her the chapel key. Anselm, far cooler than his grandmother's warm letters, is standing by the bed with the key when Mara comes in, and through its window Bette Sorell, who runs the estate, watches by lamplight from the terrace below.",
+    "pc": {
+      "name": "Mara Quell",
+      "background": "A restorer of wall paintings from the capital, freelance since she walked out of a museum job and a long engagement in the same month two years ago. She took this commission because it pays well and is far from everyone she knows.",
+      "physicalTraits": "A slight woman in her early thirties with olive skin, dark curly hair usually tied up, brown eyes, paint and plaster always under her nails, and a small tattoo of a swallow on her wrist.",
+      "skills": "Restoring frescoes and old plaster, reading old inscriptions, chemistry of pigments, climbing scaffolds, noticing what people do with their hands.",
+      "personality": "Warm, funny and impulsive, quick to care and quicker to leave before she can be hurt, and hungry to be touched after two years alone. Honest to a fault once she trusts someone. She has promised herself one reckless summer before she goes back to the capital.",
+      "other": "The work needs Anselm at every step: he holds the chapel key and the founders' papers in his study, and only he knows the cellar where the old lime for the plaster is kept. Ilse has put her in the room across the landing from Anselm's, with the one bathroom between them."
+    },
+    "importantCharacters": [
+      {
+        "name": "Anselm Corra",
+        "description": "A tall man of about forty with a lean weathered face, close-cut greying dark hair, a short beard, grey-green eyes, rolled shirtsleeves and work trousers stained with grape must. The winemaker, guarded, gentle with the vines and short with people.",
+        "onCover": true
+      },
+      {
+        "name": "Ilse Corra",
+        "description": "A tiny woman of eighty-five with white hair in a neat bun, bright black eyes, a black dress, a cardigan in all weathers and a walking stick of olive wood. Anselm's grandmother, sharp-tongued and matchmaking.",
+        "onCover": true
+      },
+      {
+        "name": "Bette Sorell",
+        "description": "A striking woman in her late thirties with sun-streaked blonde hair in a plait, a strong jaw, a linen work shirt, jeans and boots, a clipboard always in hand. The estate manager, efficient and cold to strangers.",
+        "onCover": false
+      }
+    ]
+  },
+  "opening": {
+    "storyTime": { "day": 1, "date": "Monday, 22nd September", "timeOfDay": "late evening" },
+    "inventory": {
+      "wearing": ["faded denim overalls", "white cotton T-shirt", "canvas sneakers", "silver swallow pendant"],
+      "carrying": ["restoration kit in a canvas roll", "phone", "sketchbook", "suitcase"]
+    },
+    "status": { "health": "unhurt", "injuries": [], "conditions": [] },
+    "worldRules": [
+      "There is no magic; the dangers are fire, heat, the steep terraces, the sea and people's hearts.",
+      "The harvest ends with the feast on Tuesday night, when the estate's year is settled.",
+      "Phones have little signal on the hills; the house has a landline and the town is twenty minutes down a winding road.",
+      "The fire brigade warns that one spark on these hills in this wind can burn a valley in an hour."
+    ],
+    "plotThreads": [
+      "Anselm wants Mara from the first and is losing the fight against it: he has let no one close since his wife Chiara died, and he has secretly agreed to sell the estate, so he believes he has nothing to offer anyone, yet he finds reasons to be near her. Tonight, once the house is asleep, he will come back to her door with a bottle of the year's first wine to say what he would not say in daylight. The more he gives, the harder it will be to tell her about the sale, which would cost him her trust if she heard it from anyone else, and more once they are lovers.",
+      "Anselm has secretly agreed to sell the estate to Victor Haldane, a hotel developer, to pay the debts Chiara left, and signs on Tuesday night after the harvest feast; he has told no one but Bette. Bette Sorell, who still loves him and was to marry him before Chiara, sees how he looks at the restorer and is quietly ruining the fresco work, wetting the plaster at night, so Mara fails and leaves before the feast.",
+      "Ilse Corra's heart is failing and she has told only the town doctor; she means to live to see one last harvest and to see Anselm happy, so she throws him and Mara together at every turn, sending them on errands and telling Mara what he would never say himself. She knows an old family story that the chapel fresco hides the deed that forbids the estate ever being sold, but not where."
+    ],
+    "worldBible": [
+      {
+        "title": "The Corra estate",
+        "keywords": ["Corra", "estate", "vineyard", "farmhouse", "terraces"],
+        "content": "Eighty acres of old vines and olive terraces on steep dry hills above the sea, with a big stone farmhouse, a cellar dug into the hill, workers' cottages and a small chapel on a rise among cypresses. The family has made wine here for three hundred years. Pickers come up from the town each harvest.",
+        "alwaysOn": true
+      },
+      {
+        "title": "Anselm Corra",
+        "keywords": ["Anselm", "winemaker", "Corra"],
+        "content": "A tall man of about forty with a lean weathered face, close-cut greying dark hair, a short beard, grey-green eyes, rolled shirtsleeves and work trousers stained with grape must. Widowed two years ago when his wife Chiara died in a car crash on the coast road; he found out after that she had borrowed heavily against the estate. Proud, private and lonely, he has not let anyone close since, and he is ashamed of the sale he has agreed to. He wants Mara from the first and is losing the fight against it: he finds reasons to be near her, lets his hand linger when it touches hers and says more than he means, then is short with her for it.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Ilse Corra",
+        "keywords": ["Ilse", "grandmother", "Nonna"],
+        "content": "A tiny woman of eighty-five with white hair in a neat bun, bright black eyes, a black dress, a cardigan in all weathers and a walking stick of olive wood. She raised Anselm. She hired Mara herself, hoping the fresco hides the deed and hoping Anselm might feel something again. Her heart is failing and she hides her pills. She wants Anselm happy before she dies, likes Mara on sight, and dislikes Bette for reasons she won't say. She contrives to leave Mara and Anselm alone together whenever she can: errands to the town, suppers she is too tired to attend, the chapel key she forgets to give back, the room across the landing from his.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Bette Sorell",
+        "keywords": ["Bette", "Sorell", "manager"],
+        "content": "A striking woman in her late thirties with sun-streaked blonde hair in a plait, a strong jaw, a linen work shirt, jeans and boots, a clipboard always in hand. She grew up on the estate, the foreman's daughter, and was to marry Anselm before he met Chiara. She runs the estate brilliantly and has nowhere else to go. She would lie, but never let the vines or the people come to harm.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Victor Haldane",
+        "keywords": ["Haldane", "Victor", "developer", "hotel", "sale"],
+        "content": "A smooth, tanned developer in his fifties in pale linen suits, who builds luxury hotels on the coast. He wants the hill for its view and means to tear out the vines. He arrives for the feast on Tuesday with the papers.",
+        "alwaysOn": false
+      },
+      {
+        "title": "The chapel fresco",
+        "keywords": ["fresco", "chapel", "painting", "plaster", "saints"],
+        "content": "A fresco of the harvest with saints and the family's founders, painted in 1720 across the chapel's east wall, flaking from damp. Under the painted vine at the lower right, a later layer of plaster hides a painted inscription: the founder's deed binding the land to the family forever, which a court would honour. Wet plaster speeds the flaking. Restoring it needs the chapel key and the founders' papers, both kept by Anselm, and lime slaked years ago in the estate cellar.",
+        "alwaysOn": false
+      },
+      {
+        "title": "The hot wind",
+        "keywords": ["wind", "fire", "drought", "hills", "brush"],
+        "content": "A hot dry wind off the inland plain blows in the last weeks of summer. The scrub on the hills above the estate has not had rain since spring. A fire there would race down to the vines and the house within the hour.",
+        "alwaysOn": false
+      },
+      {
+        "title": "The harvest feast",
+        "keywords": ["feast", "harvest", "feast night", "pickers"],
+        "content": "On the last night of the harvest the family feeds every picker at long tables under the pergola, with music and the year's first wine. It is when the estate settles its debts and makes its announcements.",
+        "alwaysOn": false
+      },
+      {
+        "title": "Dr Paolo Ferri",
+        "keywords": ["doctor", "Ferri", "Paolo", "town"],
+        "content": "The town's old doctor, a kind tired man who has treated the Corras for forty years. He knows Ilse's heart is failing and has begged her to rest; he will not break her confidence unless she is in danger.",
+        "alwaysOn": false
+      }
+    ]
+  },
+  "actions": {
+    "rewrite": "Slow down, and let the people present react to what just happened before anything new happens.",
+    "edit": "Above the terraces, a thin thread of smoke was rising from the scrub.",
+    "worldChange": "Victor Haldane has arrived unannounced and is staying at the house as Anselm's guest."
+  }
+}

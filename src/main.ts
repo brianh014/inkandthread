@@ -3,11 +3,11 @@ import { existsSync, mkdirSync } from "node:fs";
 import { homedir, networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
 import { z } from "zod";
-import { fakeDecisions, fakeImages, fakeTextProvider } from "./fake-services";
+import { fakeImages, fakeTextProvider } from "./fake-services";
 import { googleImages, imageModelLists, nanoGptImages, openRouterImages, wiroImages } from "./image-adapter";
 import { defaultLevelFor, log, startLog } from "./logger";
 import { startServer } from "./rest-api";
-import { reviewerSettings, settingsStore } from "./settings-store";
+import { consistencySettings, reviewerSettings, settingsStore } from "./settings-store";
 import { textProvider } from "./text-provider";
 import { isCompiled, removeReplacedPrograms } from "./updater";
 import { usageStore } from "./usage-store";
@@ -71,9 +71,8 @@ const server = startServer({
   textProvider: fake ? fakeTextProvider : textProvider(settings),
   reviewProvider: fake ? fakeTextProvider : textProvider(reviewerSettings(settings)),
   moveWorld: true,
-  decisionProvider: fake ? fakeDecisions : undefined,
-  decisionModels: fake ? async () => ["fake-decisions", "fake/other-decisions"] : undefined,
-  // To watch the questions in real play against untouched replies, tuned or not.
+  consistencyProvider: fake ? fakeTextProvider : textProvider(consistencySettings(settings)),
+  // To watch the questions in real play against untouched replies.
   consistencyLogOnly: process.argv.includes("--consistency-log-only"),
   imageAdapter: fake
     ? fakeImages

@@ -9,11 +9,12 @@
       "perf/**",
       "scripts/**",
       "bench/*.ts",
-      "bench/world.json",
+      "bench/worlds/*.json",
       "*.ts",
       "*.json",
       "!src/web/art-examples",
       "!src/web/fonts",
+      "!src/web/bench-results.json",
       "!**/*.svg"
     ]
   },

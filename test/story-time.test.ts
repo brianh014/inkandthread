@@ -17,6 +17,10 @@ test("days passing add to the day count, with the new date the Narrator worked o
   expect(applyOperations(at(DUSK), [set(2, "5th of Lowtide", "dawn")]).next.storyTime).toEqual({ day: 5, date: "5th of Lowtide", timeOfDay: "dawn" });
 });
 
+test("days passing on the same date count no days, as models gave the day count as days_passed and doubled it", () => {
+  expect(applyOperations(at(DUSK), [set(3, "3rd of Lowtide", "night")]).next.storyTime).toEqual({ ...DUSK, timeOfDay: "night" });
+});
+
 test("a new day with no date, or a first Story Time with none, is ignored and changes nothing", () => {
   for (const [state, operation] of [
     [at(DUSK), set(1, null, "dawn")],
@@ -27,6 +31,41 @@ test("a new day with no date, or a first Story Time with none, is ignored and ch
     expect(refused).toEqual([]);
     expect(ignored).toEqual([{ op: "set_story_time", reason: "no date" }]);
   }
+});
+
+test("a time of day that repeats the date keeps only the time", () => {
+  const date = "Tuesday, 16th October 1894";
+  expect(applyOperations(at(DUSK), [set(1, date, "mid-morning, Tuesday 16th October")]).next.storyTime?.timeOfDay).toBe("mid-morning");
+  expect(applyOperations(at(DUSK), [set(1, date, "Tuesday morning")]).next.storyTime?.timeOfDay).toBe("Tuesday morning");
+});
+
+test("time moving back within the same day is ignored, as a reply that did so had started the story again", () => {
+  const evening = at({ ...DUSK, timeOfDay: "early evening" });
+  for (const operation of [set(0, null, "mid-morning"), set(0, "3rd of Lowtide", "late afternoon")]) {
+    const { next, ignored } = applyOperations(evening, [operation]);
+    expect(next.storyTime).toEqual(evening.storyTime);
+    expect(ignored).toEqual([{ op: "set_story_time", reason: "earlier than now" }]);
+  }
+  for (const [from, to] of [
+    ["late afternoon", "ten past eight at night"],
+    ["night", "midnight"],
+    ["dawn", "mid-morning"],
+    ["morning", "afternoon"],
+  ]) {
+    expect(applyOperations(at({ ...DUSK, timeOfDay: from! }), [set(0, null, to!)]).next.storyTime?.timeOfDay).toBe(to!);
+  }
+  expect(applyOperations(evening, [set(1, "4th of Lowtide", "mid-morning")]).next.storyTime?.timeOfDay).toBe("mid-morning");
+});
+
+test("past midnight on the same date, the small hours and the next morning still count as later", () => {
+  for (const [from, to] of [
+    ["past midnight", "the small hours of Monday night"],
+    ["past midnight", "near two of the morning"],
+    ["the small hours of Monday night", "first light on Tuesday morning"],
+  ]) {
+    expect(applyOperations(at({ ...DUSK, timeOfDay: from! }), [set(0, null, to!)]).next.storyTime?.timeOfDay).toBe(to!);
+  }
+  expect(applyOperations(at({ ...DUSK, timeOfDay: "past midnight" }), [set(0, null, "late afternoon")]).ignored).toHaveLength(1);
 });
 
 test("a Save from before Story Time starts counting from day 1", () => {
@@ -109,5 +148,7 @@ test("people are asked to stay true to what they said they intend, time included
   const text = prompt(DUSK, true);
 
   expect(text).toContain("People stay true to what they have said they intend, such as how long they can stay");
-  expect(text).toContain("Record an intention that will matter later with add_known_fact");
+  expect(text).toContain(
+    "Record an intention that will matter later, and what the PC is told of where someone out of sight is and what they are doing, with add_known_fact",
+  );
 });

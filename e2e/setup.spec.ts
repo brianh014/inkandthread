@@ -22,6 +22,13 @@ test("until the Narrator is set up, the Menu offers Setup, which walks the setti
   // No model, no going on: play needs one.
   await expect(page.getByRole("heading", { name: "Its model" })).toBeVisible();
   await expect(next).toHaveAttribute("aria-disabled", "true");
+  // The bench chart is there to pick by, behind a button.
+  await expect(page.getByRole("dialog", { name: "How the AIs compare" })).toHaveCount(0);
+  await page.getByRole("button", { name: "How the AIs compare" }).click();
+  const chart = page.getByRole("dialog", { name: "How the AIs compare" });
+  await expect(chart).toBeVisible();
+  await chart.getByRole("button", { name: "Close" }).click();
+  await expect(chart).toHaveCount(0);
   await page.getByRole("textbox", { name: "Text model" }).fill("fake-narrator");
   await next.click();
 

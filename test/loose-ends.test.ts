@@ -29,8 +29,8 @@ const play = (...replies: (string | Error)[]) => {
 
 const SECRET = "ZQX-SECRET";
 const THREAD = `${SECRET} a plot.`;
-const MISSING = "Where is Renata?";
-const SOCIAL = "The Summer Social is on Friday.";
+const MISSING = "Where is the missing guide?";
+const SOCIAL = "The summer social is on the last day.";
 const ASK_TO_FILL = "fill it now";
 const add = (loose_end: string): StateOperation => ({ op: "add_loose_end", loose_end });
 const resolve = (loose_end: string): StateOperation => ({ op: "resolve_loose_end", loose_end });
@@ -73,7 +73,7 @@ test("resolve_loose_end takes out the exact item", () => {
 });
 
 test("resolve_loose_end on an item not in the list is ignored with a reason, and changes nothing", () => {
-  const { next, refused, ignored } = applyOperations(withEnds(SOCIAL), [resolve("Where is Renata")]);
+  const { next, refused, ignored } = applyOperations(withEnds(SOCIAL), [resolve("Where is the guide")]);
 
   expect(next.looseEnds).toEqual([SOCIAL]);
   expect(refused).toEqual([]);
@@ -92,13 +92,51 @@ test("a miscopied resolve costs no Turn or second call, and logs why with no sto
   expect(line).not.toContain("ZQX");
 });
 
+test("an Edit that keeps the response whole keeps the Loose Ends it resolved, though the Narrator misses them the second time", async () => {
+  play(narration("You find the guide.", resolve(MISSING)), narration("You find the guide.\n\nA bell rings."));
+  const id = createSave(MISSING, SOCIAL);
+  expect((await turn(id)).status).toBe(201);
+
+  const line = await logOf(() => app.post(`/saves/${id}/messages/2/edit`, { text: "You find the guide.\n\nA bell rings." }), "info");
+
+  expect(ends(id)).toEqual([SOCIAL]);
+  expect(line).toContain('"looseEndsKept":1');
+});
+
+test("an Edit that keeps the response whole keeps the Loose Ends it opened and the looks it changed, though the Narrator misses them", async () => {
+  const OPENED = "Where did Kit run to?";
+  play(
+    narration("Owen waits.", { op: "add_npc", name: "Owen", appearance: "a tall man in a grey coat" }),
+    narration("Owen shaves his beard. Kit runs off.", add(OPENED), {
+      op: "update_npc",
+      name: "Owen",
+      appearance: "a tall man, clean-shaven, in a grey coat",
+    }),
+    narration("Owen shaves his beard. Kit runs off.\n\nA bell rings."),
+  );
+  const id = createSave(SOCIAL);
+  expect((await turn(id)).status).toBe(201);
+  expect((await turn(id)).status).toBe(201);
+
+  const line = await logOf(() => app.post(`/saves/${id}/messages/4/edit`, { text: "Owen shaves his beard. Kit runs off.\n\nA bell rings." }), "info");
+
+  expect(ends(id)).toEqual([SOCIAL, OPENED]);
+  expect(
+    store()
+      .latestState(id)
+      .npcs.find(({ name }) => name === "Owen")?.appearance,
+  ).toBe("a tall man, clean-shaven, in a grey coat");
+  expect(line).toContain('"looksKept":1');
+});
+
 test("a repeated Loose End logs only its count, at Info", async () => {
   play(narration("A line.", add("ZQX"), add("ZQX")));
   const id = createSave();
 
   const line = await logOf(() => turn(id).then((r) => r.text()), "info");
 
-  expect(line).toMatch(/Repeats ignored .*"count":1/);
+  // Repeated within one reply, it goes as a loop does.
+  expect(line).toMatch(/Looping operations dropped .*"sent":2,"kept":1/);
   expect(line).not.toContain("ZQX");
 });
 

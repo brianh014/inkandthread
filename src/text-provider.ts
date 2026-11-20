@@ -2,7 +2,17 @@ import { z } from "zod";
 import { commandReply } from "./command-provider";
 import { errorFields, log } from "./logger";
 import { type SettingsStore, type TextSettings, usesCommand } from "./settings-store";
-import { ContentRefused, ReplyCutOff, StoppedOnPurpose, type TextProvider, TextProviderFailed, type TextUsage, ThoughtTooLong } from "./turn-engine";
+import {
+  ContentRefused,
+  ReplyCutOff,
+  StoppedOnPurpose,
+  type TextProvider,
+  SilentFromStart,
+  TextProviderFailed,
+  type TextUsage,
+  ThinkingBudgetReached,
+  ThoughtTooLong,
+} from "./turn-engine";
 import { GOOGLE_URL, NANOGPT_URL } from "./web/api";
 
 // The player sees these with a retry hint after them, so none ends in a full stop.
@@ -11,6 +21,8 @@ const STOPPED = "The Text Provider stopped responding, so make sure it isn't stu
 const TOO_LONG = "The Narrator's reply ran far too long and was stopped, so nothing was saved";
 const THOUGHT_TOO_LONG = "The AI thought for too long without writing and was stopped, so nothing was saved";
 const REJECTED = "The Text Provider returned an error, so look over its address, the text model and any API key in Settings";
+// Its own, as a rate limit is no fault in the player's Settings.
+const BUSY = "The Text Provider is busy or limiting how often it's asked, so try again in a moment";
 
 const LIMITS = {
   // Generous, as a local server can spend minutes loading a model before its first byte.
@@ -25,7 +37,7 @@ const LIMITS = {
 // shortcut: a shorter echo, such as a few words of player input, passes this, drop provider text altogether if one is seen.
 const ECHO_CHARS = 16;
 
-type ProviderError = { metadata?: { error_type?: string; reasons?: string[] } };
+type ProviderError = { code?: number | string; metadata?: { error_type?: string; reasons?: string[] } };
 
 type Chunk = {
   id?: string;
@@ -74,9 +86,15 @@ const HostList = z.object({
   }),
 });
 
-// `supported_parameters` is OpenRouter's, and a local server may put anything there or nothing.
+// `supported_parameters` and `reasoning` are OpenRouter's, and a local server may put anything there or nothing.
 const ModelList = z.object({
-  data: z.array(z.object({ id: z.string(), supported_parameters: z.array(z.string()).catch([]) })),
+  data: z.array(
+    z.object({
+      id: z.string(),
+      supported_parameters: z.array(z.string()).catch([]),
+      reasoning: z.object({ supports_max_tokens: z.boolean().catch(false) }).catch({ supports_max_tokens: false }),
+    }),
+  ),
 });
 
 // NanoGPT's detailed listing, which says which models think under `capabilities` instead.
@@ -133,9 +151,14 @@ const routing = ({ textRouting, textHost, textHostFallback }: Routing) =>
   textHost ? { order: [textHost], allow_fallbacks: textHostFallback } : textRouting === "default" ? {} : { sort: textRouting };
 
 /** The one Text Provider: any OpenAI-compatible server, using the Settings at the time of each call. */
+// Never None, as with thinking off a reviewer's fixes came back empty and State Upkeep invented what the reply never showed.
 const LEVELS = ["low", "medium", "high"];
-/** `steps` levels below `level`, and never below Low. The model's own level is taken as one that thinks too long, so it goes to Low. */
-const lowerThinking = (level: string, steps: number) => LEVELS[Math.max(0, LEVELS.indexOf(level) - steps)] ?? "low";
+/** `steps` levels below `level`, and never below Low. The model's own level is taken as one that thinks too long, so it goes a step below Medium. */
+export const lowerThinking = (level: string, steps: number) => LEVELS[Math.max(0, (level === "default" ? 1 : LEVELS.indexOf(level)) - steps)]!;
+// Each call's lines share its number, as calls run at once (State Upkeep, pictures) can't be paired with their prompts by order.
+// Led by when this server started, so a log spanning a restart never repeats one.
+const RUN = Date.now().toString(36).slice(-5);
+let calls = 0;
 
 export function textProvider(
   settings: TextSettings,
@@ -145,6 +168,12 @@ export function textProvider(
   // Whether a model takes `reasoning`, by its provider's listing, or false after it refused one. Sent to a model that doesn't, on
   // OpenRouter it would leave a schema call, which requires every parameter, no host.
   const thinks = new Map<string, boolean>();
+  // Whether OpenRouter's listing says a model takes a thinking budget in tokens, which it then gets in place of a level.
+  const budgets = new Map<string, boolean>();
+  // The lowest level a model took after refusing a lower one, by its index in LEVELS, so it isn't sent the refused one again.
+  const lowestTaken = new Map<string, number>();
+  // Models that refused thinking off, so a hurried try isn't sent it again until the app restarts.
+  const offRefused = new Set<string>();
   // Servers that refused `stream_options`, so they aren't asked again until the app restarts.
   const usageRefused = new Set<string>();
 
@@ -156,9 +185,11 @@ export function textProvider(
     const models = await listModels(url, headers, signal, listMs);
     // Without an answer, JSON validation and retries still work, so ask again on the next call.
     if (!models) return false;
-    const params = models.find(({ id }) => id === model)?.supported_parameters ?? [];
+    const listed = models.find(({ id }) => id === model);
+    const params = listed?.supported_parameters ?? [];
     const supported = params.includes("structured_outputs");
     schemaSupport.set(`${url} ${model}`, supported);
+    budgets.set(`${url} ${model}`, !!listed?.reasoning.supports_max_tokens);
     if (!thinks.has(`${url} ${model}`)) thinks.set(`${url} ${model}`, params.includes("reasoning"));
     return supported;
   }
@@ -196,10 +227,10 @@ export function textProvider(
     return takes ?? false;
   }
 
-  return async (prompt, request) => {
-    const all = settings.read();
-    if (usesCommand(all)) return commandReply(prompt, request, all);
-    const { schema, picture, lessThinking = 0, onText, onGeneration, onUsage, signal } = request;
+  const once: TextProvider = async (
+    prompt,
+    { call, schema, picture, lessThinking = 0, thinkingBudget, thinkingMs, thinkingOff = false, onText, onGeneration, onUsage, onCall, signal },
+  ) => {
     const {
       textBaseUrl,
       textApiKey,
@@ -210,11 +241,13 @@ export function textProvider(
       textThinkingTokens,
       pictureThinkingTokens,
       ...chosen
-    } = all;
-    const textThinking = lessThinking ? lowerThinking(chosenThinking, lessThinking) : chosenThinking;
+    } = settings.read();
     const thinkingTokens = picture ? pictureThinkingTokens : textThinkingTokens;
     if (!textModel) throw new TextProviderFailed("No text model is set, so choose one in Settings");
     const url = textBaseUrl.replace(/\/$/, "");
+    const modelKey = `${url} ${textModel}`;
+    const lowered = lessThinking ? lowerThinking(chosenThinking, lessThinking) : chosenThinking;
+    let textThinking = LEVELS.includes(lowered) ? LEVELS[Math.max(LEVELS.indexOf(lowered), lowestTaken.get(modelKey) ?? 0)]! : lowered;
     const openRouter = url.includes("openrouter.ai");
     // shortcut: https stands for a hosted API, as local servers run on http; a self-hosted server behind https that loads models
     // slowly gets the hosted limit too, give it a setting if a player hits that.
@@ -229,18 +262,21 @@ export function textProvider(
       return short;
     };
     // Story in log is the one place a log holds story text, as the player chose it for debugging. Never the key, should the text hold it.
-    if (chosen.storyInLog) log.story("text", "Prompt text", { prompt: prompt.map(({ role, content }) => ({ role, content: unkeyed(content) })) });
+    const named = { ...(call && { call }), id: `${RUN}-${++calls}` };
+    onCall?.(named.id);
+    if (chosen.storyInLog) log.story("text", "Prompt text", { ...named, prompt: prompt.map(({ role, content }) => ({ role, content: unkeyed(content) })) });
     const failure = (error: ProviderError | undefined, status: number) => {
       if (isRefusal(error)) return new ContentRefused();
-      log.verbose("text", "Text Provider error", () => ({ detail: redacted(JSON.stringify({ status, error })) }));
-      return new TextProviderFailed(REJECTED);
+      log.verbose("text", "Text Provider error", () => ({ ...named, detail: redacted(JSON.stringify({ status, error })) }));
+      return new TextProviderFailed(status === 429 || Number(error?.code) === 429 ? BUSY : REJECTED);
     };
 
     // For the Server Log, so it holds how the reply went and none of its text.
     const started = Date.now();
-    const seen: Record<string, unknown> = { model: textModel, thinking: textThinking, thinkingLimit: thinkingTokens };
+    const seen: Record<string, unknown> = { ...named, model: textModel, thinking: textThinking, thinkingLimit: thinkingTokens };
     let reply = "";
     let thought = 0;
+    let thoughtFrom: number | undefined;
 
     const silence = new AbortController();
     let timer: Timer | undefined;
@@ -253,9 +289,11 @@ export function textProvider(
     };
 
     let withThinking = false;
+    let budget: number | undefined;
+    let off = thinkingOff && !offRefused.has(modelKey);
     const send = async (useSchema: boolean, askUsage: boolean) => {
       heardFrom();
-      log.verbose("text", "Prompt sent", () => ({ model: textModel, messages: prompt.length, chars: sent.length, schema: useSchema }));
+      log.verbose("text", "Prompt sent", () => ({ ...named, model: textModel, messages: prompt.length, chars: sent.length, schema: useSchema }));
       const response = await fetch(`${url}/chat/completions`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
@@ -270,7 +308,10 @@ export function textProvider(
           ...(askUsage && { stream_options: { include_usage: true } }),
           max_tokens: textMaxTokens,
           // Changes nothing in the prompt, so the provider's cache still holds. Google takes only OpenAI's own field.
-          ...(withThinking && (isGoogle(url) ? { reasoning_effort: textThinking } : { reasoning: { effort: textThinking } })),
+          ...(withThinking &&
+            (isGoogle(url)
+              ? { reasoning_effort: off ? "none" : textThinking }
+              : { reasoning: off ? { enabled: false } : budget ? { max_tokens: budget } : { effort: textThinking } })),
           ...(useSchema && { response_format: { type: "json_schema", json_schema: { name: "narrator_response", strict: true, schema } } }),
           // OpenRouter only: a strict server such as OpenAI refuses a field it does not know.
           ...(openRouter && { provider: { ...(useSchema && { require_parameters: true }), ...routing(chosen) } }),
@@ -283,19 +324,45 @@ export function textProvider(
     try {
       const useSchema = schema !== undefined && (await supportsSchema(url, textModel, headers, signal));
       withThinking = textThinking !== "default" && (await takesReasoning(url, textModel, textApiKey, headers, signal, schema !== undefined));
+      // shortcut: a refused budget goes down the level path below still sending it; drop it there if a host refuses one.
+      if (withThinking && thinkingBudget && budgets.get(modelKey)) budget = seen.thinkingBudget = thinkingBudget;
       seen.schema = useSchema;
       const askUsage = !openRouter && !usageRefused.has(url);
       let response = await send(useSchema, askUsage);
       // Tried first, as a host or model that won't take the level would otherwise be read below as refusing the schema, which then goes for good.
-      if (withThinking && (response.status === 400 || response.status === 404)) {
+      const refused = () => response.status === 400 || response.status === 404;
+      // A model that must think refuses thinking off, so it's sent its level instead, and never asked for none again.
+      if (withThinking && off && refused()) {
         await response.body?.cancel();
-        withThinking = false;
-        const status = response.status;
+        offRefused.add(modelKey);
+        off = false;
+        log.warning("text", "Thinking off refused", { ...named, model: textModel, status: response.status });
         response = await send(useSchema, askUsage);
-        if (response.ok) {
-          log.warning("text", "Thinking level refused", { model: textModel, thinking: textThinking, status });
-          thinks.set(`${url} ${textModel}`, false);
+      }
+      if (off && withThinking) seen.thinking = "off";
+      if (withThinking && refused()) {
+        const status = response.status;
+        const asked = textThinking;
+        // Sent no level at all a model thinks at its own length, so a lowered call first tries the levels above, up to the player's own.
+        const top = chosenThinking === "default" ? 1 : LEVELS.indexOf(chosenThinking);
+        for (let at = LEVELS.indexOf(textThinking) + 1; refused() && at <= top; at++) {
+          await response.body?.cancel();
+          textThinking = LEVELS[at]!;
+          response = await send(useSchema, askUsage);
         }
+        if (refused()) {
+          await response.body?.cancel();
+          withThinking = false;
+          response = await send(useSchema, askUsage);
+          if (response.ok) {
+            log.warning("text", "Thinking level refused", { ...named, model: textModel, thinking: asked, status });
+            thinks.set(modelKey, false);
+          }
+        } else if (response.ok && textThinking !== asked) {
+          lowestTaken.set(modelKey, LEVELS.indexOf(textThinking));
+          log.warning("text", "Thinking level raised", { ...named, model: textModel, refused: asked, sent: textThinking, status });
+        }
+        seen.thinking = textThinking;
       }
       seen.thinkingSent = withThinking;
       // A tally must never fail a Turn, so a server that won't take the ask for usage is sent the prompt without it.
@@ -303,15 +370,15 @@ export function textProvider(
         await response.body?.cancel();
         response = await send(useSchema, false);
         if (response.ok) {
-          log.warning("text", "Usage ask refused", { model: textModel });
+          log.warning("text", "Usage ask refused", { ...named, model: textModel });
           usageRefused.add(url);
         }
       }
       // A listing can claim schema support that the routed provider then rejects, and that must not fail every Turn.
       if (useSchema && (response.status === 400 || response.status === 404)) {
-        log.warning("text", "Schema mode rejected", { model: textModel, status: response.status });
+        log.warning("text", "Schema mode rejected", { ...named, model: textModel, status: response.status });
         const detail = await response.text();
-        log.verbose("text", "Schema mode rejection", () => ({ detail: redacted(detail) }));
+        log.verbose("text", "Schema mode rejection", () => ({ ...named, detail: redacted(detail) }));
         schemaSupport.set(`${url} ${textModel}`, false);
         seen.schema = false;
         response = await send(false, false);
@@ -351,6 +418,21 @@ export function textProvider(
         thought += (delta?.reasoning ?? delta?.reasoning_content ?? "").length;
         // About four characters a token, as estimateTokens counts.
         if (thought / 4 > thinkingTokens) throw new ThoughtTooLong(THOUGHT_TOO_LONG);
+        if (thought > 0) thoughtFrom ??= Date.now();
+        // A budget the model can't take is kept here by time alone, as reviewers without one thought 12,000 characters and more
+        // and never answered, and a stop by length cut fixes at 9 to 12 s that had time left to answer.
+        const ms = thoughtFrom === undefined ? 0 : Date.now() - thoughtFrom;
+        // Not a call asked to think not at all of a model that must, as it is then the last try, and the same budget stopped it
+        // again on the bench: it has only its caller's time limit.
+        const mustThink = thinkingOff && withThinking && !off;
+        if (mustThink && thinkingBudget && !budget && thinkingMs && !reply && ms > thinkingMs && !seen.budgetWaived) {
+          seen.budgetWaived = true;
+          log.info("text", "Thinking budget waived", { ...named, model: textModel, budget: thinkingBudget, ms });
+        }
+        if (thinkingBudget && !budget && thinkingMs && !reply && ms > thinkingMs && !mustThink) {
+          log.info("text", "Thinking budget reached", { ...named, model: textModel, budget: thinkingBudget, thoughtChars: thought, ms });
+          throw new ThinkingBudgetReached(THOUGHT_TOO_LONG);
+        }
         const text = delta?.content ?? message?.content;
         if (text) {
           reply += text;
@@ -362,9 +444,12 @@ export function textProvider(
     } catch (cause) {
       // A caller that stops a reply for its own reason gives it in the app's own words: as a string, or as a stop on purpose.
       const reason = signal.reason instanceof StoppedOnPurpose ? signal.reason.why : signal.reason;
-      seen.failed = signal.aborted ? (typeof reason === "string" ? reason : "the client left") : (cause as Error).name;
+      // A caller's own time limit, as a review's, aborts with a TimeoutError, which isn't the player leaving.
+      const timedOut = reason instanceof DOMException && reason.name === "TimeoutError";
+      seen.failed = signal.aborted ? (typeof reason === "string" ? reason : timedOut ? "time limit" : "the client left") : (cause as Error).name;
       const known = cause instanceof ContentRefused || cause instanceof TextProviderFailed;
       if (known || signal.aborted || cause instanceof SyntaxError) throw cause;
+      if (silence.signal.aborted && !overrun.signal.aborted && !reply && !thought) throw new SilentFromStart(STOPPED, { cause });
       throw new TextProviderFailed(overrun.signal.aborted ? TOO_LONG : silence.signal.aborted ? STOPPED : UNREACHABLE, { cause });
     } finally {
       clearTimeout(timer);
@@ -374,8 +459,30 @@ export function textProvider(
       // Usage comes in the last chunk, so a reply cut off, refused or stopped part-way has none, though it's billed. OpenRouter keeps it by the reply's id.
       if (seen.usage) onUsage?.(seen.usage as TextUsage);
       else if (openRouter && onUsage && typeof seen.generation === "string")
-        void generationUsage(url, seen.generation, headers).then((found) => found && onUsage(found));
+        void generationUsage(url, seen.generation, headers, named).then((found) => found && onUsage(found));
       if (chosen.storyInLog && reply) log.story("text", "Text reply text", { text: unkeyed(reply) });
+    }
+  };
+  // Asked once more, as a hosted stream silent from its first byte twice failed a DeepSeek Turn at 125 s, and a fresh request
+  // mostly isn't stuck. Never one that streamed something, which may be a model stuck mid-reply.
+  return async (prompt, request) => {
+    const all = settings.read();
+    if (usesCommand(all)) return commandReply(prompt, request, all);
+    const started = Date.now();
+    let id: string | undefined;
+    try {
+      return await once(prompt, {
+        ...request,
+        onCall: (each) => {
+          id = each;
+          request.onCall?.(each);
+        },
+      });
+    } catch (cause) {
+      if (!(cause instanceof SilentFromStart) || request.signal.aborted) throw cause;
+      const call = request.call;
+      log.warning("text", "Silent reply asked again", { ...(call && { call }), id, model: settings.read().textModel, ms: Date.now() - started });
+      return once(prompt, request);
     }
   };
 }
@@ -387,7 +494,7 @@ type Generation = { total_cost?: number; native_tokens_prompt?: number; native_t
  * appear, so it asks a few times. Never throws, as only Usage waits on it.
  * shortcut: the fields are as OpenRouter's /generation docs give them, unchecked against a real reply; if a cut-off reply shows no cost, look there.
  */
-async function generationUsage(url: string, id: string, headers: Record<string, string>): Promise<TextUsage | undefined> {
+async function generationUsage(url: string, id: string, headers: Record<string, string>, named: object): Promise<TextUsage | undefined> {
   for (const wait of [2_000, 5_000, 15_000]) {
     // Unref'd, so a lookup still waiting never holds the app (or a test run) open.
     await new Promise((done) => setTimeout(done, wait).unref());
@@ -403,7 +510,7 @@ async function generationUsage(url: string, id: string, headers: Record<string, 
         cost: data.total_cost,
       };
     } catch (error) {
-      log.verbose("text", "Reply usage not found yet", () => ({ generation: id, ...errorFields(error) }));
+      log.verbose("text", "Reply usage not found yet", () => ({ ...named, generation: id, ...errorFields(error) }));
     }
   }
   return undefined;

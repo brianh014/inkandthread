@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { OPENING_INPUT } from "../src/prompt-assembler";
 import { saveStore } from "../src/save-store";
 import { readable } from "../src/web/chat-style";
-import { narration, png, scriptedDice, scriptedImages, scriptedTextProvider, startApp, tempFolder } from "./support";
+import { logOf, narration, png, scriptedDice, scriptedImages, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
 let savesDir: string;
@@ -137,6 +137,38 @@ test("the opening is a first Turn that asks for the whole picture, without showi
   expect(messages.map(({ role }) => role)).toEqual(["player", "narrator"]);
   expect(readable(messages).map(({ text }) => text)).toEqual(["The rain never stops."]);
   expect(script.prompts[0]!.at(-2)!.content).toContain("fully up to speed");
+});
+
+test("the opening removes no Lore Entry, as the world it starts from was just written", async () => {
+  const script = scriptedTextProvider(narration("It begins.", { op: "remove_lore_entry", title: "The mill" }));
+  app = startApp(savesDir, script.textProvider);
+  const mill = { title: "The mill", keywords: ["mill"], content: "The mill hides a still.", alwaysOn: false };
+  const id = saveStore(savesDir).create({ worldBrief: "A drowned city", pc: { name: "Ash" }, opening: { worldBible: [mill] } });
+
+  const log = await logOf(async () => expect((await app.post(`/saves/${id}/opening`, {})).status).toBe(201));
+
+  expect(saveStore(savesDir).latestState(id).worldBible).toEqual([mill]);
+  expect(log).toContain('"openingLoreRemoves":1');
+});
+
+test("a Turn removes no Lore Entry of someone in the story, as it holds who they are and how they look", async () => {
+  const script = scriptedTextProvider(
+    narration("He confesses.", { op: "remove_lore_entry", title: "Owen Price" }),
+    narration("The mill burns.", { op: "remove_lore_entry", title: "The mill" }),
+  );
+  app = startApp(savesDir, script.textProvider);
+  const owen = { title: "Owen Price", keywords: ["Price"], content: "The constable.", alwaysOn: false };
+  const mill = { title: "The mill", keywords: ["mill"], content: "The mill hides a still.", alwaysOn: false };
+  const opening = { npcs: [{ name: "Owen Price", appearance: "a broad man" }], worldBible: [owen, mill] };
+  const id = saveStore(savesDir).create({ worldBrief: "A drowned city", pc: { name: "Ash" }, opening });
+
+  const log = await logOf(async () => {
+    expect((await app!.post(`/saves/${id}/turns`, { input: "I listen." })).status).toBe(201);
+    expect((await app!.post(`/saves/${id}/turns`, { input: "I watch." })).status).toBe(201);
+  });
+
+  expect(saveStore(savesDir).latestState(id).worldBible).toEqual([owen]);
+  expect(log).toContain('"personLoreRemoves":1');
 });
 
 test("the opening rolls no Check, and can't overwrite a story already under way", async () => {

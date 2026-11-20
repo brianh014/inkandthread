@@ -80,6 +80,22 @@ test("an NPC gets a portrait on entering the visible cast, not on being added, a
   expect((await journalOf(id)).portraits).toEqual([{ id: expect.any(Number), npc: "Hesper", redraws: 0, messageId: expect.any(Number) }]);
 });
 
+test("someone named later keeps the portrait drawn while they had no name", async () => {
+  play(
+    [turn(meet("Woman in grey"), inView("Woman in grey"), know("Woman in grey")), turn({ op: "merge_npc", name: "Woman in grey", into: "Ilse Corra" })],
+    png(1),
+    png(2),
+  );
+  await enableImages();
+  const id = await app.createSave();
+
+  await playSettled(id);
+  await playSettled(id);
+
+  expect(portraitPrompts()).toHaveLength(1);
+  expect((await journalOf(id)).portraits).toEqual([{ id: expect.any(Number), npc: "Ilse Corra", redraws: 0, messageId: expect.any(Number) }]);
+});
+
 test("a portrait is served as an image, read from its bytes", async () => {
   const jpeg = Uint8Array.of(0xff, 0xd8, 0xff, 0xe0, 0);
   play([turn(meet("Hesper"), know("Hesper"), inView("Hesper"))], jpeg, png(1));

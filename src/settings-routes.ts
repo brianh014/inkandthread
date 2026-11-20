@@ -5,7 +5,6 @@ import { chosenModels, drawSteps, localIsSetUp } from "./graph-builder";
 import { fromThisComputer, imageResponse, parseBody, PromptRequest, routes, type ServerContext } from "./http";
 import type { ImageAdapter } from "./image-adapter";
 import { defaultLogLevel, errorFields, errorType, log, setLogLevel } from "./logger";
-import { decisionModels } from "./decisions";
 import { estimateTokens } from "./lore-activation";
 import { commandSeenFrom, modelName, OnlineImageProvider, reviewerSettings, type SettingsChange, SettingsUpdate } from "./settings-store";
 import { textHosts, textModels } from "./text-provider";
@@ -53,7 +52,7 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
       reviewApiKey,
       reviewThinking,
       consistencyEnabled,
-      consistencyModel,
+      consistencyChatModel,
       consistencySameProvider,
       consistencyBaseUrl,
       consistencyApiKey,
@@ -120,7 +119,7 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
       hasReviewApiKey: reviewApiKey !== "",
       reviewThinking,
       consistencyEnabled,
-      consistencyModel,
+      consistencyChatModel,
       consistencySameProvider,
       consistencyBaseUrl,
       hasConsistencyApiKey: consistencyApiKey !== "",
@@ -201,13 +200,13 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
       },
     },
     // Only ever the saved server, so a key can't reach an address that is still being typed. `for=review` lists the reviewer's,
-    // and `for=consistency` the Consistency model's decision models.
+    // and `for=consistency` its own server's, which Settings asks for only when it has one.
     "/settings/text-models": {
       GET: async (req) => {
         const { for: whose } = TextModelsQuery.parse(Object.fromEntries(new URL(req.url).searchParams));
-        if (whose === "consistency")
-          return Response.json({ models: (await options.decisionModels?.()) ?? (await decisionModels(settings, req.signal)).map(({ id }) => id) });
-        return Response.json({ models: await textModels(whose === "review" ? reviewerSettings(settings) : settings, req.signal) });
+        const own = () => ({ ...settings.read(), textBaseUrl: settings.read().consistencyBaseUrl, textApiKey: settings.read().consistencyApiKey });
+        const listed = whose === "review" ? reviewerSettings(settings) : whose === "consistency" ? { read: own } : settings;
+        return Response.json({ models: await textModels(listed, req.signal) });
       },
     },
     // Public catalogs, so the provider the form shows now is asked, saved or not.
@@ -248,7 +247,11 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
           const onText = () => (firstSeconds ??= elapsed());
           const { modelInstructions: content } = settings.read();
           const system = content.trim() ? [{ role: "system" as const, content }] : [];
-          const reply = await options.textProvider([...system, { role: "user", content: prompt }], { onText, signal: req.signal });
+          const reply = await options.textProvider([...system, { role: "user", content: prompt }], {
+            call: "settingsTest",
+            onText,
+            signal: req.signal,
+          });
           const seconds = elapsed();
           return Response.json({
             reply,

@@ -213,7 +213,7 @@ test("a stranger with no record or a repeated status is ignored, so the Turn isn
 
 test("a refused Turn logs why, a retry its generation, and a repeat a count", async () => {
   const provider = fakeOpenAi([
-    [`data: ${JSON.stringify({ id: "gen-bad", choices: [{ delta: { content: narration("ZQX", { op: "remove_item", item: "ZQX" }) } }] })}\n\n`],
+    [`data: ${JSON.stringify({ id: "gen-bad", choices: [{ delta: { content: narration("ZQX.", { op: "remove_item", item: "ZQX" }) } }] })}\n\n`],
     [delta(narration("A line.", { op: "add_known_fact", fact: "ZQX" }, { op: "add_known_fact", fact: "ZQX" }))],
   ]);
   const settingsPath = join(folder.path, "settings.json");
@@ -225,7 +225,7 @@ test("a refused Turn logs why, a retry its generation, and a repeat a count", as
 
   expect(line).toContain("refused operations: remove_item: not held");
   expect(line).toContain('"generation":"gen-bad"');
-  expect(line).toMatch(/Repeats ignored .*"count":1/);
+  expect(line).toMatch(/Looping operations dropped .*"sent":2,"kept":1/);
   expect(line).toContain('"kind":"turn"');
   expect(line).toContain(`"save":"${id}"`);
   expect(line).not.toContain("ZQX");
@@ -343,7 +343,7 @@ test("a Turn, Rewrite, World Change and Requested Image log none of the story at
     delta(
       JSON.stringify({
         check: null,
-        narration: hide("NARRATION"),
+        narration: `${hide("NARRATION")}.`,
         state_operations: [{ op: "set_scene", location: "A place", visible_cast: [] }],
         scene_changed: true,
         visual_description,

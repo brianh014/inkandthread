@@ -340,6 +340,12 @@ const toVersion25 = (db: Database) =>
 /** What each NPC knows, which starts empty, as nothing could record it yet. */
 const toVersion26 = addMissingSections;
 
+/** The era every picture keeps to, which starts empty, as nothing could set it yet. */
+const toVersion27 = addMissingSections;
+
+/** Each Plot Thread's plan, which starts empty, so an older now, which held both, reads as done. */
+const toVersion28 = addMissingSections;
+
 /** One step per schema version, where step N takes a Save from version N to N + 1. New Saves take them too, so they can't drift from old ones. */
 const MIGRATIONS = [
   toVersion1,
@@ -368,6 +374,8 @@ const MIGRATIONS = [
   toVersion24,
   toVersion25,
   toVersion26,
+  toVersion27,
+  toVersion28,
 ];
 
 function schemaVersion(db: Database) {
@@ -574,9 +582,9 @@ function latestTurn(db: Database, messageId: number) {
   if (narrator!.id !== messageId || narrator!.role !== "narrator") throw new StaleTurn();
   // Director's Notes changed since the player Message must carry across, or the replacement would undo them. So must edits.
   const { directorsNotes } = currentState(db);
-  // A pending move of the world rests on the response being replaced, so it goes with it; one stored on that response came before it.
-  const pending = pendingEdits(db).filter((edit) => !(edit.edit === "world" && edit.moved));
-  const edits = [...parseEdits(narrator!.edits), ...pending];
+  // A pending move of the world is kept too, though it read the response being replaced, as dropping it lost paid moves and left
+  // the threads' nows stale for rounds; what its people did out of sight mostly stands whatever the replacement says.
+  const edits = [...parseEdits(narrator!.edits), ...pendingEdits(db)];
   const state = edits.reduce(applyEdit, { ...toState(sectionsAt(db, player!.id)), directorsNotes });
   return { narrator: narrator!, player: player!, state, edits };
 }
@@ -1011,6 +1019,15 @@ export function saveStore(savesDir: string) {
       return mediaType ? { bytes: portrait!.bytes, mediaType } : undefined;
     },
 
+    /**
+     * Moves `from`'s portrait to `to`, the name a merge gave them, unless `to` has one, so a person named later keeps their face.
+     * shortcut: a Revert or Regenerate past the merge leaves it under the new name, so the old name is drawn again; move it back if players notice.
+     */
+    renamePortrait(id: string, from: string, to: string) {
+      using db = open(id);
+      return db.run("UPDATE portraits SET npc = ?1 WHERE npc = ?2 AND NOT EXISTS (SELECT 1 FROM portraits WHERE npc = ?1)", [to, from]).changes > 0;
+    },
+
     /** Stores nothing if the Message that asked has gone, like `addSceneImage`. An NPC's goes by their first appearance, or by that Message if they have been in no Scene. */
     addPortrait(id: string, messageId: number, npc: string | null, bytes: Uint8Array, prompt: string | null = null) {
       if (!imageType(bytes)) throw new Error("The image model returned something that isn't a PNG, JPEG or WebP");
@@ -1262,7 +1279,7 @@ export function saveStore(savesDir: string) {
     },
 
     /**
-     * Swaps the latest Narrator Message for a new one that keeps its Check. The new Message gets a new id, so any
+     * Swaps the latest Narrator Message for a new one with the replacement's own Check. The new Message gets a new id, so any
      * Turn or replacement in flight from the old response is caught as stale.
      */
     /** In place, so the Message keeps its id and with it its Scene Image, Requested Images and portraits. */
@@ -1283,8 +1300,16 @@ export function saveStore(savesDir: string) {
       })();
     },
 
-    /** A Rewrite's `direction` replaces the old response's, and a Regenerate keeps it. */
-    replaceTurn(id: string, messageId: number, narration: string, advance: (state: State) => State, direction?: string, choices?: string[]): Reply[] {
+    /** A Rewrite's `direction` replaces the old response's, and a Regenerate keeps it. The replacement's Check is its own, rated afresh. */
+    replaceTurn(
+      id: string,
+      messageId: number,
+      narration: string,
+      check: Check | undefined,
+      advance: (state: State) => State,
+      direction?: string,
+      choices?: string[],
+    ): Reply[] {
       using db = open(id);
       return db.transaction(() => {
         const { narrator, player, state, edits } = latestTurn(db, messageId);
@@ -1293,7 +1318,13 @@ export function saveStore(savesDir: string) {
           .query<ChoicesRow, [string, string | null, string | null, string | null, string | null]>(
             `INSERT INTO messages (role, text, hidden_check, edits, direction, choices, created_at) VALUES ('narrator', ?, ?, ?, ?, ?, ${NOW}) RETURNING id, role, text, choices`,
           )
-          .get(narration, narrator.hidden_check, edits.length > 0 ? JSON.stringify(edits) : null, direction ?? narrator.direction, choicesText(choices))!;
+          .get(
+            narration,
+            check ? JSON.stringify(check) : null,
+            edits.length > 0 ? JSON.stringify(edits) : null,
+            direction ?? narrator.direction,
+            choicesText(choices),
+          )!;
         writeSnapshot(db, replacement.id, advance(state));
         return [withChoices(replacement)];
       })();

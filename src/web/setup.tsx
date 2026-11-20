@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
-import { askTextTest, getImageModels, getSettings, getTextModels, offersDecisions, type Settings, saveSettings, setupProblem } from "./api";
+import { askTextTest, getImageModels, getSettings, getTextModels, type Settings, saveSettings, setupProblem } from "./api";
 import type { SettingsChange } from "../settings-store";
+import { BenchChartButton } from "./bench-chart";
 import { roman } from "./chat-style";
 import { MenuRibbon, Sheet } from "./menu";
 import { CHAT_STYLES, ReadingSamples, THEMES } from "./reading-samples";
@@ -28,7 +29,7 @@ const [PROVIDER, MODEL, REVIEW, CONSISTENCY, PICTURES, READING, READY] = [1, 2, 
 const SKIPPABLE = [REVIEW, CONSISTENCY, PICTURES, READING];
 // What each step's Next saves, by setting name, and nothing else, so leaving halfway loses nothing done.
 const STEP_FIELDS: Record<number, RegExp> = {
-  [PROVIDER]: /^(textBaseUrl|textCommand|textModel|textHost|reviewModel|consistencyModel)$/,
+  [PROVIDER]: /^(textBaseUrl|textCommand|textModel|textHost|reviewModel|consistencyChatModel)$/,
   [MODEL]: /^text(Model|Host|Thinking)$/,
   [REVIEW]: /^review/,
   [CONSISTENCY]: /^consistency/,
@@ -158,7 +159,7 @@ function Steps({ initial }: { initial: Settings }) {
   const keys = (): SettingsChange & { imageKeyFromText?: boolean } => {
     if (here === PROVIDER) return textKey.trim() ? { textApiKey: textKey.trim() } : {};
     if (here === REVIEW && draft.reviewOtherModel && !draft.reviewSameProvider && reviewKey.trim()) return { reviewApiKey: reviewKey.trim() };
-    if (here === CONSISTENCY && draft.consistencyEnabled && (!draft.consistencySameProvider || !offersDecisions(draft.textBaseUrl)) && consistencyKey.trim())
+    if (here === CONSISTENCY && draft.consistencyEnabled && !draft.consistencySameProvider && consistencyKey.trim())
       return { consistencyApiKey: consistencyKey.trim() };
     if (here === PICTURES && pictures === "online") {
       // Copied by the server as the image key, so changing one later leaves the other.
@@ -268,7 +269,7 @@ function Steps({ initial }: { initial: Settings }) {
                   textCommand: [],
                   ...(saved.textProfiles[textBaseUrl] ?? { textModel: "", textHost: "" }),
                   ...(draft.reviewSameProvider && { reviewModel: "" }),
-                  ...(draft.consistencySameProvider && { consistencyModel: "" }),
+                  ...(draft.consistencySameProvider && { consistencyChatModel: "" }),
                 });
               }}
             />
@@ -330,12 +331,16 @@ function Steps({ initial }: { initial: Settings }) {
               {
                 {
                   openrouter:
-                    "Two good choices: MiMo V2.6 Pro (search “mimo pro”), for richer role-play and writing at a little more a Turn, or DeepSeek V4.1 Flash (search “deepseek flash”), much cheaper a Turn, with writing not quite as rich. Try both on one story and keep the one you like.",
+                    "We recommend DeepSeek V4.1 Flash (search “deepseek flash”): in our tests it wrote the better stories of the low-cost AIs we tried, for under half a cent a Turn.",
                   google: "We recommend a Gemini Flash model.",
-                  nanogpt: "We recommend MiMo or DeepSeek, though any model you like will do.",
-                  local: "Choose the model your server runs. MiMo and DeepSeek write well if you can run them.",
+                  nanogpt: "We recommend DeepSeek V4.1 Flash, though any model you like will do.",
+                  local: "Choose the model your server runs. DeepSeek writes well if you can run it.",
                 }[textChoice]
               }
+            </p>
+            <p className="muted bench-chart-hint">
+              <BenchChartButton />
+              How well each AI told our test stories, and what a Turn cost.
             </p>
             <ModelField
               key={draft.textBaseUrl}
@@ -388,10 +393,15 @@ function Steps({ initial }: { initial: Settings }) {
     ),
     [CONSISTENCY]: (
       <>
-        {/* The Guide and README name the same model, so change them together. */}
-        <p>Recommended: checks catch slips before you read them. We recommend pplx-decider (search “pplx decider”).</p>
-        {!offersDecisions(draft.textBaseUrl) && <p className="muted">Decision models come from OpenRouter or NanoGPT, so this needs a key for one of them.</p>}
-        <ConsistencySettings draft={draft} saved={saved} set={set} consistencyKey={consistencyKey} setConsistencyKey={setConsistencyKey} />
+        <p>Checks catch slips before you read them, at a few seconds a reply. With no model chosen, the Review model checks.</p>
+        <ConsistencySettings
+          draft={draft}
+          saved={saved}
+          set={set}
+          narratorModels={models}
+          consistencyKey={consistencyKey}
+          setConsistencyKey={setConsistencyKey}
+        />
       </>
     ),
     [PICTURES]: (
@@ -518,7 +528,7 @@ function Steps({ initial }: { initial: Settings }) {
           <dt>Second reader</dt>
           <dd>{saved.reviewOtherModel && saved.reviewModel ? saved.reviewModel : "The Narrator's own"}</dd>
           <dt>Consistency</dt>
-          <dd>{saved.consistencyEnabled && saved.consistencyModel ? saved.consistencyModel : "Off"}</dd>
+          <dd>{saved.consistencyEnabled ? saved.consistencyChatModel || "The Review model" : "Off"}</dd>
           <dt>Pictures</dt>
           <dd>
             {!saved.imagesEnabled

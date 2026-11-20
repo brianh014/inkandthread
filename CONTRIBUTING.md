@@ -20,6 +20,8 @@ Every pull request runs these in CI, and they should pass locally first:
 | `bun run e2e` | The Playwright specs in `e2e/`, against `--fake` on port 4630 |
 | `bun run format` | Formats every file the way `check` expects |
 
+A change to how the story is written (the Narrator's prompts, its checks and retries, State Upkeep, World Moves On, the consistency check or picture prompts), or a new text provider, also needs the Narrator bench run on a real model before it merges: `bun bench run`, with usage at the top of `bench/bench.ts`. Put the run's headline numbers and judged scores, compared with the kept result, in the pull request. The judged scores must stay the same or improve: a change that lowers them doesn't merge until it no longer does. One play's score moves about a quarter point by chance, so a drop that small counts only once more runs confirm it. Try it free first with `--fake`. A change to the prompts, the checks or a bench world also bumps `BENCH_ITERATION` in `bench/bench.ts`.
+
 Unit tests use the fakes in `test/` and never a real key. `SLOW_TESTS=1 bun test` also runs the slow idle-timeout test. In e2e specs, find elements by role and label first, and add a `data-testid` only where those can't tell things apart.
 
 ## Conventions
@@ -35,7 +37,7 @@ Unit tests use the fakes in `test/` and never a real key. `SLOW_TESTS=1 bun test
 ## Sending a change
 
 1. Keep it to one purpose, and say why in the description.
-2. Run `bun run check` and `bun run e2e`.
+2. Run `bun run check` and `bun run e2e`, and the bench when the change touches how the story is written or adds a text provider (see Checks).
 3. A visible change needs a look in the browser with `--fake`, and a screenshot in the pull request helps.
 4. Pull requests are squash-merged, so the pull request's title and description become its one commit on `main`. Write them as that commit's summary of the whole change, and keep them accurate if the branch changes before it merges.
 

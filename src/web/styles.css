@@ -2927,6 +2927,73 @@ dialog blockquote {
   margin: 1.4em 0 0.4em;
 }
 
+.bench-chart {
+  display: block;
+  width: 100%;
+  min-height: 40rem;
+  border: 0;
+}
+
+/* The chart's tool sits in its top corner, level with the chart page's heading. */
+.bench-chart-box {
+  position: relative;
+}
+
+.bench-chart-box > button.icon {
+  position: absolute;
+  top: 20px;
+  right: 16px;
+}
+
+/* Setup's line about the chart, its button leading. */
+.bench-chart-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+button.bench-chart-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+button.bench-chart-open svg {
+  flex: none;
+  width: 1.1em;
+  height: 1.1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Almost the whole window; the chart inside is sized to fit it whole. */
+dialog.bench-chart-full {
+  width: calc(100vw - 32px);
+  max-width: none;
+  height: calc(100dvh - 32px);
+  max-height: none;
+  padding: 0;
+}
+
+dialog.bench-chart-full[open] {
+  display: block;
+}
+
+dialog.bench-chart-full .bench-chart {
+  height: 100%;
+  min-height: 0;
+}
+
+dialog.bench-chart-full > button {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+}
+
 .guide li {
   margin-bottom: 0.4em;
 }

@@ -82,11 +82,11 @@ A second AI call after each reply, on the reviewer model, that brings the scene,
 _Avoid_: State sync, bookkeeping call
 
 **World Moves On**:
-A Narrator call at a natural pause (a new place, a new day, or every fifth reply), run after the Turn is saved while the player reads, that rewrites each Plot Thread by what its people did out of the PC's sight, true to the Lore Entries it names, removes one play has brought to an end, and adds one while fewer than three remain. The next Turn waits for it. It changes only the hidden Plot Threads, so the player never sees it, only its results in play.
+A Narrator call at a natural pause (a Turn moving story time on by hours, a new day, or every fifth reply), run after the Turn is saved while the player reads, that rewrites each Plot Thread's now by what its people did out of the PC's sight, leaving its truth as it is, true to the Lore Entries it names, removes one play has brought to an end, and adds one while fewer than three remain. The next Turn waits for it. It changes only the hidden Plot Threads, so the player never sees it, only its results in play.
 _Avoid_: Off-screen turn, world tick
 
 **Consistency model**:
-An optional decision model, chosen in Settings, that answers consistency questions of each reply: narrow yes-or-no questions, each sent only the slice of the story it needs, such as whether the reply's time of day fits Story Time. A question over its cut-off has the reviewer fix the reply before it is saved.
+An optional chat model, chosen in Settings and the reviewer's when none is, that answers consistency questions of each reply: narrow questions, each in its own call with only the slice of the story it needs, such as whether the reply's time of day fits Story Time. One that finds a slip quotes the reply's words, what was established that they contradict, and a fix; the fix is made before the reply is saved only when both quotes are found.
 _Avoid_: Checker, judge, Check model (a Check is the hidden test of a risky PC action)
 
 **Command**:
@@ -116,7 +116,7 @@ People besides the PC that the player wants in the story, added on the New Story
 _Avoid_: Cast, NPCs (those are whoever the story meets)
 
 **Plot Thread**:
-A secret storyline held by the Narrator that play can reveal.
+A secret storyline held by the Narrator that play can reveal. Its truth is what really happened, who is behind it and what is hidden, and changes only as play reveals it; its now is what its people have done out of the PC's sight, which is true, and its plan the one deed they mean to do next and by when, which has not happened until its time comes and play hasn't prevented it. World Moves On rewrites both.
 _Avoid_: Hook (alone), plot
 
 **Loose End**:

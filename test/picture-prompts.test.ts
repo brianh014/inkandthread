@@ -55,7 +55,7 @@ test("a review sends only the prompt, checks the picture holds together, and its
 test("a review that changes a mark or the portrait sentence, or runs long, is retried, and then the prompt is drawn as written", async () => {
   const lostMark = checked("[Ash: a tall person in red] kneels by the fire. {The people from the images are the same people.}");
   const lostLikeness = checked("[Ash: a short person in grey] kneels by the fire.");
-  const long = checked(`[Ash: a short person in grey] kneels. {The people from the images are the same people.} ${"word ".repeat(200)}`);
+  const long = checked(`[Ash: a short person in grey] kneels. {The people from the images are the same people.} ${"word ".repeat(400)}`);
   const { reviewed, prompts } = review("prose", lostMark, lostLikeness, long);
 
   const line = await logOf(() => reviewed, "warning");
@@ -64,6 +64,25 @@ test("a review that changes a mark or the portrait sentence, or runs long, is re
   expect(prompts).toHaveLength(3);
   expect(line).toContain("drawn unchecked");
   expect(line).not.toContain("fire");
+});
+
+test("a review that leaves a stray quote at the end of the portrait sentence is drawn, without the quote", async () => {
+  const fixed = "[Ash: a short person in grey] kneels by the fire, a cup in one hand.";
+  const { reviewed, prompts } = review("prose", checked(`${fixed} {The people from the images are the same people."}`));
+
+  expect(await reviewed).toBe(`${fixed} {The people from the images are the same people.}`);
+  expect(prompts).toHaveLength(1);
+});
+
+test("a prompt whose likeness sentence was never closed is closed before review, so a review that closes it is drawn", async () => {
+  const open = SCENE.slice(0, -1);
+  const script = scriptedTextProvider(checked(SCENE));
+  const settings = settingsStore(join(folder.path, "settings.json"));
+
+  const reviewed = await reviewScenePrompt({ textProvider: script.textProvider, settings }, open, "prose", new AbortController().signal);
+
+  expect(reviewed).toBe(SCENE);
+  expect(script.prompts).toHaveLength(1);
 });
 
 test("a review may take out someone who shouldn't be in the picture, and is told never to add a name or writing", async () => {
@@ -107,8 +126,8 @@ test("a Cover's prompt is written whole, Art Style and world included, from only
 test.each([
   ["prose", 120],
   ["keywords", 60],
-] as const)("a %s portrait's prompt keeps to %i words, retrying one a quarter over", async (style, words) => {
-  const { written, prompts } = write(portrait, style, text("tall ".repeat(Math.ceil(words * 1.25) + 1)), text("A tall woman in an oilskin coat."));
+] as const)("a %s portrait's prompt keeps to %i words, retrying one half over", async (style, words) => {
+  const { written, prompts } = write(portrait, style, text("tall ".repeat(Math.ceil(words * 1.5) + 1)), text("A tall woman in an oilskin coat."));
 
   expect(await written).toBe("A tall woman in an oilskin coat.");
   expect(prompts[0]![0]!.content).toContain(`about ${Math.round(words * 0.75)} words and never over ${words}`);
@@ -175,6 +194,20 @@ test("a nudge is the player's request for that picture, which the prompt must sh
   expect(plain.prompts[0]![0]!.content).not.toContain("nudge");
 });
 
+test("an Update's portrait prompt is written again when it adds a mark the looks don't have, as soot smudges drew a beard", async () => {
+  const keep = "The same man with his face preserved.";
+  const marked = JSON.stringify({ keep, changes: "Soot-grey smudges mark his neck. He wears a black coat." });
+  const plain = JSON.stringify({ keep, changes: "He wears a black coat." });
+  const ask = { ...portrait, looks: "a huge man in a black coat, soot grey to the wrists", was: "A huge man." };
+  const { written, prompts } = write(ask, "prose", marked, plain);
+  expect(await written).toBe(`${keep} He wears a black coat. ${setting.artStyle}`);
+  expect(prompts).toHaveLength(2);
+  // A plain "mark" too, as a faint red one was painted as blood, and the schema's example names no mark to prime one.
+  const red = write(ask, "prose", JSON.stringify({ keep, changes: "A faint red mark shows on his neck. He wears a black coat." }), plain);
+  expect(await red.written).toBe(`${keep} He wears a black coat. ${setting.artStyle}`);
+  expect(red.prompts[0]![0]!.content).not.toMatch(/bruise/i);
+});
+
 test("an Update's portrait prompt is a short edit of the old portrait: the same face, then how they look now", async () => {
   const reply = JSON.stringify({
     keep: "The same woman with her face preserved.",
@@ -182,8 +215,10 @@ test("an Update's portrait prompt is a short edit of the old portrait: the same 
   });
   const { written, prompts } = write({ ...portrait, was: "A tall woman in a green shirt." }, "prose", reply);
 
-  // The person first, as the text model ignored the order it was given, and nothing added that the model didn't write.
-  expect(await written).toBe("The same woman with her face preserved. She is wearing an oilskin coat. Standing in front of a plain neutral background.");
+  // The person first, as the text model ignored the order it was given, and the Art Style last, as an edit without it came out a photograph.
+  expect(await written).toBe(
+    "The same woman with her face preserved. She is wearing an oilskin coat. Standing in front of a plain neutral background. Ink wash: loose black brushwork",
+  );
   const system = prompts[0]![0]!.content;
   expect(system).toContain("The image model is given the portrait that was describes, and edits it.");
   expect(system).toContain("the same person with their face preserved");

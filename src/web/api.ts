@@ -133,9 +133,6 @@ export const hostOf = (url: string) => {
     return "";
   }
 };
-// shortcut: OpenRouter and NanoGPT only, which take the same body. Google's Gemini Decision 1 blocked 26 of 61 adult replies in the trial and its request shape is unconfirmed; add it once tested.
-/** Whether a text server has decision models the Consistency model can use. */
-export const offersDecisions = (url: string) => [OPENROUTER_URL, NANOGPT_URL].some((server) => hostOf(server) === hostOf(url));
 
 export const getSettings = () => request<Settings>("/settings");
 
@@ -189,7 +186,7 @@ export async function drawComfyTest(prompt: string, signal: AbortSignal) {
 export const getImageModels = (provider: "openrouter" | "wiro" | "google" | "nanogpt") =>
   request<{ models: string[] }>(`/settings/image-models?provider=${provider}`).then(({ models }) => models);
 /** The saved text server's models, or with `review`, the saved reviewer server's. */
-/** The Narrator's models, the reviewer's, or the Consistency model's decision models. */
+/** The Narrator's models, the reviewer's, or those on the Consistency model's own server. */
 export const getTextModels = (whose?: "review" | "consistency") =>
   request<{ models: string[] }>(`/settings/text-models${whose ? `?for=${whose}` : ""}`).then(({ models }) => models);
 export const getTextHosts = (model: string) =>
@@ -472,8 +469,8 @@ async function streamTurn(
         narration += data.text;
         show(narration, retry);
       }
-      // A fixed reply, shown in place of the streamed one, with nothing said.
-      if (event === "revise") {
+      // A fixed reply, or the final one, shown in place of the streamed one, with nothing said.
+      if (event === "revise" || event === "reply") {
         narration = data.text;
         show(narration, retry);
       }

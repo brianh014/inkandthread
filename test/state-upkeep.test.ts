@@ -290,6 +290,26 @@ test("State Upkeep is sent the Loose Ends and resolves one the reply settled, as
   expect(store().latestState(id).looseEnds).toEqual([]);
 });
 
+test("State Upkeep is sent what only those in view or named in the replies know, as everyone's crowded its prompt", async () => {
+  const { upkeep } = play(
+    [
+      narration(
+        "Ash tells Kit the key is under the mat.",
+        { op: "add_npc", name: "Kit", appearance: "a boy in a cap" },
+        { op: "npc_learns", name: "Kit", fact: "Ash came home wet." },
+        { op: "add_npc", name: "Orin", appearance: "an old ferryman" },
+        { op: "npc_learns", name: "Orin", fact: "Ash owes him a fare." },
+      ),
+    ],
+    [upkept()],
+  );
+  const id = createSave();
+
+  expect((await turn(id)).ok).toBe(true);
+
+  expect(JSON.parse(upkeep.prompts[0]!.at(-1)!.content).state.npc_knows).toEqual({ Kit: ["Ash came home wet."] });
+});
+
 test("State Upkeep records what someone learned that the Narrator missed, held to the checks a Turn's is, as NPCs never learned anything", async () => {
   const { upkeep } = play(
     [

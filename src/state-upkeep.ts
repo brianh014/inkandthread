@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Check } from "./check-resolver";
 import { errorType, log } from "./logger";
-import { plainMessage, type Prompt } from "./prompt-assembler";
+import { knowsOfPresent, plainMessage, type Prompt } from "./prompt-assembler";
 import { modelName, reviewerSettings, type TextSettings } from "./settings-store";
 import { type State, StateOperation } from "./state-applier";
 import { lowerThinking } from "./text-provider";
@@ -109,7 +109,8 @@ export async function upkeepOperations(
         state: {
           pc_name: pcName,
           known_facts: state.pcKnown.facts,
-          npc_knows: state.npcKnows,
+          // Only those the replies could show learning, as everyone's was about a fifth of the prompt.
+          npc_knows: knowsOfPresent(state, [previous, input, reply].join("\n")),
           // As the Narrator seldom resolves one, and long stories ended with a dozen that play had long settled.
           loose_ends: state.looseEnds,
           // After the lists that only grow, as looks change in place.

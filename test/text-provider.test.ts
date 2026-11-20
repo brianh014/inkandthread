@@ -17,7 +17,6 @@ import {
   usableFix,
   usableOperations,
   withKnownSpeakers,
-  withoutBareSpeech,
   withoutCut,
   withoutJsonTail,
   withoutLoop,
@@ -1158,6 +1157,16 @@ test("someone a reply names by part of their name is the person already in the s
   expect(await knownPeople(id)).toEqual(["Owen Kade"]);
 });
 
+test("someone a reply names without their title is the person already in the story", async () => {
+  play([meeting("Reverend Owen Kade"), meeting("Owen Kade")]);
+  const id = await app.createSave();
+
+  for (const input of ["I look.", "I wait."]) expect((await app.post(`/saves/${id}/turns`, { input })).status).toBe(201);
+
+  expect(provider.requests).toHaveLength(2);
+  expect(await knownPeople(id)).toEqual(["Reverend Owen Kade"]);
+});
+
 test("a reply whose narration is a JSON object, such as its Check request, is written again", async () => {
   const request = JSON.stringify({ action: "Ask him what he knows", stakes: "He could walk away", difficulty: "Moderate" });
   play([narrated(request), narrated("He shrugs.")]);
@@ -1678,12 +1687,15 @@ test("a reply changes a record once, so a chain of rewrites keeps only its first
   expect(withoutLoop(moves, 30)).toEqual(moves);
 });
 
-test("a line that is only quoted speech after the PC's paragraph is dropped, and speaker lines and speech in the prose are kept", () => {
-  const reply =
-    'Wren rides up beside Tamsin.\n\n"I know it\'s the boy. Leave him to me."\n\n[Tamsin]: "Is that so?"\n\n“Fine,” she said.\n\nA sign reads\n"THE RED LION"';
-  expect(withoutBareSpeech(reply, "Wren Hale")).toBe(
-    'Wren rides up beside Tamsin.\n\n[Tamsin]: "Is that so?"\n\n“Fine,” she said.\n\nA sign reads\n"THE RED LION"',
-  );
+test("a bare quoted line after the PC's paragraph is kept as written, as it may be someone else's question", async () => {
+  const text = 'Ash took the back bench while the coroner opened the report.\n\n"Do you stand by it?"\n\n"I do, sir."';
+  play([narrated(text)]);
+  const id = await app.createSave();
+
+  const log = await logOf(() => streamTurn(id, "I sit down.").then(turnEvents));
+
+  expect((await storedMessages(id)).at(-1)!.text).toBe(text);
+  expect(log).not.toContain("Bare speech dropped");
 });
 
 test("a speaker label that shortens one known name, by its first words or initials, is written as that name", () => {
@@ -1691,14 +1703,6 @@ test("a speaker label that shortens one known name, by its first words or initia
   const reply = '[Reverend Amos T.]: "A sad morning."\n\n[Reverend A. Thorne]: "Yes."\n\n[Amos]: "Two Amoses."\n\n[Kit]: "Me."\n\n[Voice in the dark]: "Who?"';
   expect(withKnownSpeakers(reply, names)).toBe(
     '[Reverend Amos Thorne]: "A sad morning."\n\n[Reverend Amos Thorne]: "Yes."\n\n[Amos]: "Two Amoses."\n\n[Kit]: "Me."\n\n[Voice in the dark]: "Who?"',
-  );
-});
-
-test("a bare quoted line after someone else's paragraph is kept, as models write NPC speech that way too", () => {
-  const reply =
-    'Wren waits.\n\nShe sets the paper on the counter, flat.\n\n"He was on the harbour steps on Sunday night."\n\nPrice nods. Wren turns to him.\n\n"Then he lied."';
-  expect(withoutBareSpeech(reply, "Wren Hale")).toBe(
-    'Wren waits.\n\nShe sets the paper on the counter, flat.\n\n"He was on the harbour steps on Sunday night."\n\nPrice nods. Wren turns to him.',
   );
 });
 

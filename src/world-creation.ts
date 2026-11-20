@@ -613,6 +613,8 @@ const words = z.string().trim().min(1);
 
 /** A World Change's reply: the hidden `WorldUpdate`, and whatever it contradicts in the Journal, which the player reads. */
 const WorldChange = WorldUpdate.extend({
+  // Apart from the truth in new, as a thread added without them was written as one "Truth: Now: Plan:" text with no now.
+  plot_threads: z.array(ListChange.extend({ now: words.nullable().default(null), plan: words.nullable().default(null) })),
   world_brief: words.nullable().default(null),
   summary: words.nullable().default(null),
   facts: z.array(ListChange).default([]),
@@ -688,7 +690,7 @@ function withoutStrangers<T extends z.infer<typeof WorldChange>>(state: State, c
 /** How a World Change is written, for the Narrator that writes one and the review that corrects it. */
 const CHANGE_FORM = `List only what changes, as everything you leave out stays exactly as it is, and never repeat what stays the same.
 lore_entries holds each entry you add or rewrite. To rewrite one, use its exact title and give its whole new content and keywords. Give each at least three keywords, including names, nicknames and everyday paraphrases. removed_lore holds the exact title of each entry that no longer holds.
-Each change in world_rules, plot_threads and facts has old, copied exactly from the world (a thread's truth) or null to add a new one, and new, the text to put there or null to remove it. Keep at most ${MAX_PLOT_THREADS} plot_threads, so to add one when that many are there, rewrite or remove one.
+Each change in world_rules, plot_threads and facts has old, copied exactly from the world (a thread's truth) or null to add a new one, and new, the text to put there or null to remove it. A thread's new is its truth alone: give a thread you add or rewrite its now and plan apart, as the world shows them, and null otherwise. Keep at most ${MAX_PLOT_THREADS} plot_threads, so to add one when that many are there, rewrite or remove one.
 world_brief, summary, facts and npc_summaries are the Journal, which the player reads. Change them only where they no longer hold, and give null or an empty list otherwise. Write them as the PC knows the world: a secret stays out of them, even when the player's instruction names it, and goes in the hidden parts. Each of npc_summaries holds a new summary with the exact name of an NPC already in the Journal.
 inventory and status are what the PC wears and carries, and their health, injuries and conditions, which the player also reads. Give the whole new inventory or status only when the instruction changes it, keeping everything it doesn't change, and null otherwise. Write status in words with no digits: health in at most five words, and at most three injuries and three conditions of at most eight words each.
 npc_looks holds new looks only for each NPC whose looks or clothing the instruction changes, with their exact name from npcs, ${LOOKS}. These are hidden, and they are what pictures of that NPC are drawn from.
@@ -827,7 +829,7 @@ export async function applyWorldChange(
   const before = stateOf();
   // The PC's looks as they stand, so a change to them keeps all they don't change.
   const looksNow = pcNow(saves.read(id).pc, before).physicalTraits ?? "";
-  const { world_brief, summary, facts, npc_summaries, npc_looks, pc_looks, inventory, status, ...update } = await changeWorld(
+  const { world_brief, summary, facts, npc_summaries, npc_looks, pc_looks, inventory, status, plot_threads, ...rest } = await changeWorld(
     context,
     { ...before, pcAppearance: looksNow },
     change,
@@ -856,7 +858,9 @@ export async function applyWorldChange(
     ...(pc_looks === null ? [] : [{ edit: "pcLooks" as const, appearance: pc_looks }]),
   ];
   const made = [...looks, ...journal];
-  saves.addWorldChange(id, basedOn, [...made, { edit: "world", update, made: made.length }]);
+  const update = { ...rest, plot_threads: plot_threads.map(({ old, new: truth }) => ({ old, new: truth })) };
+  const by = (part: "now" | "plan") => Object.fromEntries(plot_threads.flatMap((change) => (change.new && change[part] ? [[change.new, change[part]]] : [])));
+  saves.addWorldChange(id, basedOn, [...made, { edit: "world", update, now: by("now"), plan: by("plan"), made: made.length }]);
   const after = stateOf();
   images.restyled(id, restyledBy(before, after), after.inventory.wearing);
   log.info("world", "World Change applied", () => ({

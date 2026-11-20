@@ -582,9 +582,9 @@ function latestTurn(db: Database, messageId: number) {
   if (narrator!.id !== messageId || narrator!.role !== "narrator") throw new StaleTurn();
   // Director's Notes changed since the player Message must carry across, or the replacement would undo them. So must edits.
   const { directorsNotes } = currentState(db);
-  // A pending move of the world rests on the response being replaced, so it goes with it; one stored on that response came before it.
-  const pending = pendingEdits(db).filter((edit) => !(edit.edit === "world" && edit.moved));
-  const edits = [...parseEdits(narrator!.edits), ...pending];
+  // A pending move of the world is kept too, though it read the response being replaced, as dropping it lost paid moves and left
+  // the threads' nows stale for rounds; what its people did out of sight mostly stands whatever the replacement says.
+  const edits = [...parseEdits(narrator!.edits), ...pendingEdits(db)];
   const state = edits.reduce(applyEdit, { ...toState(sectionsAt(db, player!.id)), directorsNotes });
   return { narrator: narrator!, player: player!, state, edits };
 }

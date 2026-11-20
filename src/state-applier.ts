@@ -175,7 +175,9 @@ export const named = (full: string, mark: string) => full.toLowerCase() === mark
 export function findPerson<Npc extends { name: string }>(npcs: Npc[], mark: string) {
   const exact = npcs.find(({ name }) => name === mark);
   if (exact) return exact;
-  const partly = npcs.filter(({ name }) => named(name, mark));
+  // Or every word of it a name of theirs, as a speaker named without their title was added as a second person and portrait.
+  const words = mark.split(/\s+/);
+  const partly = npcs.filter(({ name }) => named(name, mark) || words.every((word) => nameForms(name).includes(word)));
   return partly.length === 1 ? partly[0] : undefined;
 }
 

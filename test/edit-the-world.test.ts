@@ -434,6 +434,19 @@ test("a World Change whose reply changes one fact twice is kept whole, with its 
   expect(hidden(id).worldRules).toEqual(["Smuggling pays.", WORLD.worldRules[1]!]);
 });
 
+test("a thread a World Change adds keeps its truth, now and plan apart", async () => {
+  const truth = "A cutter's officer has come to ask about the night landings.";
+  play(update({ plot_threads: [{ old: null, new: truth, now: "The cutter lies off the bar.", plan: "At dawn the officer rows ashore." }] }));
+  const id = createSave();
+
+  expect((await change(id, "a revenue cutter anchors offshore")).status).toBe(200);
+
+  const { plotThreads, threadsNow, threadsPlan } = store().latestState(id);
+  expect(plotThreads).toEqual([...WORLD.plotThreads, truth]);
+  expect(threadsNow[truth]).toBe("The cutter lies off the bar.");
+  expect(threadsPlan[truth]).toBe("At dawn the officer rows ashore.");
+});
+
 test("a World Change can fix what the PC wears and carries, and their status, which the Journal shows", async () => {
   play(update({ inventory: { wearing: ["oilskin coat"], carrying: ["brass lantern"] }, status: { health: "bruised", injuries: [], conditions: ["soaked"] } }));
   const id = createSave();

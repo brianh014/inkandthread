@@ -945,9 +945,8 @@ async function narrate(
       ];
       const cleaned = withKnownSpeakers(unlabelled, [...new Set(speakers)]);
       if (cleaned !== unlabelled && edited === undefined) log.info("turn", "Speaker labels given in full", { attempt, generation });
-      let narration = edited ?? withoutBareSpeech(cleaned, pcName);
-      if (narration !== cleaned && edited === undefined)
-        log.info("turn", "Bare speech dropped", { attempt, generation, lines: lineCount(cleaned) - lineCount(narration) });
+      // A bare quoted line is left as written: no rule told the PC's from someone else's, and dropping them cut an NPC's question.
+      let narration = edited ?? cleaned;
       // The last attempt keeps such a reply, as losing the Turn costs more than a long speech.
       // A picture without set_scene would be drawn from the last scene's place and people, which may have moved on. State Upkeep
       // brings the scene up to date, so with it the picture is kept; without it the reply is written again, then the picture dropped.
@@ -1012,7 +1011,7 @@ async function narrate(
           signal,
         );
         checked = result.checked;
-        narration = withoutBareSpeech(withoutStrayMarks(result.narration), pcName);
+        narration = withoutStrayMarks(result.narration);
         description = result.visualDescription;
         // Nothing tells the player, but the fixed reply takes the streamed one's place.
         if (narration !== told) {
@@ -1381,27 +1380,6 @@ export const speechOutsideLines = (narration: string) =>
     .map((line) => line.trim())
     // Speech ends on its own punctuation inside the quote, which a sign or a title, such as "THE RED LION". doesn't.
     .some((line) => !line.startsWith("[") && /(^|[\s(—-])(“[^”]{2,}[.,!?…—-]”|"[^"]{2,}[.,!?…—-]"|['‘]\p{Lu}[^'‘’]*[.,!?…—-]['’](?!\p{L}))/u.test(line));
-/**
- * The narration without the PC's lines that are only quoted speech, which GLM wrote in half the Turns of an 80-round play despite
- * the rule, adding arguments the player never gave. Only after a paragraph whose last sentence opens on the PC, as 7 of 8 such
- * lines dropped by any paragraph were an NPC's, clues among them.
- * shortcut: a note or letter quoted whole after the PC's paragraph goes too; tell it apart if one is seen.
- */
-export const withoutBareSpeech = (narration: string, pc: string) => {
-  const pcs = new RegExp(`^(${[...nameForms(pc), "you"].map(RegExp.escape).join("|")})(?![\\p{L}\\p{N}])`, "iu");
-  return narration
-    .replace(/(^|\n)[ \t]*(“[^”\n]*[.,!?…—-]”|"[^"\n]*[.,!?…—-]")[ \t]*(?=\n|$)\n*/g, (line, start: string, _speech, at: number) => {
-      const before = narration.slice(0, at).trimEnd();
-      const last =
-        before
-          .slice(before.lastIndexOf("\n") + 1)
-          .split(/(?<=[.!?…])\s+/)
-          .at(-1) ?? "";
-      return pcs.test(last) ? start : line;
-    })
-    .trimEnd();
-};
-const lineCount = (text: string) => text.split("\n").filter((line) => line.trim()).length;
 const TAG_WITHOUT_BRACKET = "a speaker tag without its [";
 const PC_LINE = "a spoken line for the PC";
 

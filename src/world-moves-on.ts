@@ -90,6 +90,12 @@ const ThreadMove = z.object({
 });
 type ThreadMove = z.infer<typeof ThreadMove>;
 
+const SOMEWHERE_ELSE = "a now puts someone with the PC somewhere else";
+const SECRET = "a now gives someone what only a secret holds";
+const PC_TOLD = "a now has the PC told, or telling, what only a secret holds, which the PC learns only on the page";
+// Faults that fired falsely often, so a re-ask still faulted by these alone keeps its newer now rather than one the page has passed.
+const LOOSE_FAULTS = [SOMEWHERE_ELSE, SECRET, PC_TOLD];
+
 const countOf = (reasons: string[]) => Object.fromEntries([...new Set(reasons)].map((why) => [why, reasons.filter((each) => each === why).length]));
 
 /**
@@ -200,6 +206,8 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const here = state.scene.location.match(/\p{L}{4,}/gu) ?? [];
   const lore = state.worldBible.filter(({ alwaysOn }) => !alwaysOn);
   const secrets = [...plotThreads, ...lore.map(({ content }) => content)].join("\n");
+  // The whole Journal is told already, as nows were faulted for secrets the page had given the PC.
+  const journal = [...state.pcKnown.facts, ...state.pcKnown.npcs, ...Object.values(state.pcKnown.summaries ?? {}), ...state.looseEnds];
   /** What a now's people know: what they learned and their parts, their own Lore Entries, and what anyone could, so a now hands them nothing more. */
   const theirs = (names: string[], { thread, knows }: ThreadMove) =>
     [
@@ -212,9 +220,18 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
       state.worldBrief,
       state.summary,
       ...state.worldRules,
+      ...journal,
       ...latestReplies,
     ].join("\n");
   const withPc = (text: string) => people(text).some((name) => state.scene.visibleCast.includes(name));
+  // Each clause of a now that opens on someone with the PC, which places them or has them act, as faulting any now that only named
+  // one, or had another act on them, reverted true nows to stale ones.
+  const opensOn = state.scene.visibleCast.flatMap(nameForms).map((form) => new RegExp(String.raw`^(?:the\s+)?${RegExp.escape(form)}(?![\p{L}\p{N}])`, "iu"));
+  const pcsPeopleAct = (text: string) =>
+    text
+      .split(/(?<=[.!?;])\s+|,\s+(?:and|while|but|then)\s+/u)
+      .map((clause) => clause.trim())
+      .filter((clause) => opensOn.some((name) => name.test(clause)));
   // The PC named beside a telling, either way, as a re-asked now had someone tell the PC a secret off the page, which play then took as known.
   const pc = pcNames.join("|");
   const told = String.raw`(?:told|tells?|telling|warn(?:s|ed|ing)?|show(?:s|ed|n|ing)?|confid(?:es|ed) in|confess(?:es|ed) to|let slip to|wr(?:ote|ites?) to|informs?|informed|hand(?:s|ed|ing)|read to)`;
@@ -225,7 +242,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   // the PC called by her trade alone.
   const toldSomeone = new RegExp(String.raw`\b${told}\s+(?:her|him|them)\b`, "iu");
   const toldPc = { test: (sentence: string) => toldPcByName.test(sentence) || (toldSomeone.test(sentence) && people(sentence).length <= 1) };
-  const pcKnew = [state.worldBrief, state.summary, ...state.worldRules, ...state.pcKnown.facts, ...messages.map(({ text }) => text)].join("\n");
+  const pcKnew = [state.worldBrief, state.summary, ...state.worldRules, ...journal, ...messages.map(({ text }) => text)].join("\n");
   /**
    * Whether a now tells as done the plan it had, by two of the plan's own long words (or its one) that its old now lacked, as a
    * move had someone carry out a call at four while the page sat them with the PC.
@@ -249,11 +266,9 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
       const faults: string[] = [];
       if (waits.test(both)) faults.push("a now waits on what the PC might do");
       // Placed by a word of the PC's place, as a now put someone in a cottage while the page had them in a crypt with the PC.
-      if (here.length > 0 && withPc(change.now) && !here.some((word) => mentions(change.now!, word)))
-        faults.push("a now puts someone with the PC somewhere else");
-      if (named.length > 0 && secretWords(both, secrets, theirs(named, change)).length > 0) faults.push("a now gives someone what only a secret holds");
-      if (both.split(/(?<=[.!?;])\s+/).some((sentence) => toldPc.test(sentence) && secretWords(sentence, secrets, pcKnew).length > 0))
-        faults.push("a now has the PC told, or telling, what only a secret holds, which the PC learns only on the page");
+      if (here.length > 0 && pcsPeopleAct(change.now).some((clause) => !here.some((word) => mentions(clause, word)))) faults.push(SOMEWHERE_ELSE);
+      if (named.length > 0 && secretWords(both, secrets, theirs(named, change)).length > 0) faults.push(SECRET);
+      if (both.split(/(?<=[.!?;])\s+/).some((sentence) => toldPc.test(sentence) && secretWords(sentence, secrets, pcKnew).length > 0)) faults.push(PC_TOLD);
       const plan = change.thread === null ? "" : (threadsPlan[change.thread] ?? "");
       if (withPc(plan) && tellsDone(plan, threadsNow[change.thread!] ?? "", change.now))
         faults.push("a now tells as done a plan whose people were with the PC");
@@ -333,24 +348,41 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
     },
   ];
   const started = Date.now();
+  let again: ReturnType<typeof sorted> | undefined;
   try {
     const reply = await askForJson(textProvider, prompt, Reply, "The Narrator refused to move the world on.", signal, { call: "moveWorld" });
-    const again = sorted(reply.plot_threads);
-    const { faults, overflow } = first ?? again;
+    again = sorted(reply.plot_threads);
+  } catch (error) {
+    // A re-ask that fails settles from the first reply, as discarding the whole move left every now twelve rounds stale.
+    if (!first) {
+      log.warning("world", "World didn't move on", { save: id, ...errorType(error) });
+      return;
+    }
+    log.warning("world", "Nows not asked again", { save: id, ...errorType(error) });
+  }
+  try {
+    const { faults, overflow } = first ?? again!;
     const faulted = (change: ThreadMove) => nowFaults([change]).length > 0;
     // Each faulted change of the first reply swapped for the re-ask's of the same thread (an add, the add in its place) if
     // that one is sound. shortcut: a re-ask for a missing part in the same reply loses that part on the first's sound changes;
     // take the re-ask's knows too if withoutPart counts rise.
     const firstAdds = first?.kept.filter(adds) ?? [];
     const swapped = (change: ThreadMove) => {
-      if (!faulted(change)) return change;
+      if (!faulted(change) || !again) return change;
       const other = change.thread === null ? again.kept.filter(adds)[firstAdds.indexOf(change)] : again.kept.find(({ thread }) => thread === change.thread);
       return other && !faulted(other) ? other : change;
     };
-    const sent = first ? first.kept.map(swapped) : again.kept;
+    const sent = first ? first.kept.map(swapped) : again!.kept;
+    // A thread's now from before the newest reply, which a still-faulted rewrite never brings back for the faults that misfire.
+    const lastReply = messages.findLastIndex(({ role }) => role === "narrator");
+    const prior = messages[lastReply - 1];
+    const nowsBefore = prior ? saves.snapshot(id, prior.id).threadsNow : undefined;
+    const stale = (thread: string) => nowsBefore === undefined || nowsBefore[thread] === threadsNow[thread];
+    const newer = (change: ThreadMove) => stale(change.thread!) && nowFaults([change]).every((why) => LOOSE_FAULTS.includes(why));
     // A rewrite still faulted once asked again keeps its thread's old now and plan, as kept ones handed a vicar a ledger only a
     // secret knew of. An add has no old one to keep, so it stands.
-    const reverted = sent.filter((change) => change.thread !== null && change.now !== null && nowFaults([change]).length > 0);
+    const stillFaulted = sent.filter((change) => change.thread !== null && change.now !== null && faulted(change));
+    const reverted = stillFaulted.filter((change) => !newer(change));
     const kept = sent.filter((change) => !reverted.includes(change));
     if (first) {
       const asked = first.kept.filter(faulted);
@@ -360,6 +392,8 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
         reAsked: asked.length,
         replaced: sent.filter((change) => !first!.kept.includes(change)).length,
         reverted: reverted.length,
+        ...(stillFaulted.length > reverted.length && { newerKept: stillFaulted.length - reverted.length }),
+        ...(!again && { reAskFailed: true }),
       });
     }
     // A rewrite's truth is never used, as only play reveals a truth: World Moves On writes one only for a thread it adds.

@@ -17,6 +17,8 @@
 // --reviewer <model>, the Scribe. The copy's pinned provider stays, so a model it doesn't offer fails, never reroutes.
 //   --host <provider>   pins the OpenRouter provider (DeepInfra, say) with no fallback, on the copy only, for the Narrator and
 //                       a Scribe on the same server.
+//   --reviewer-anywhere  leaves the Scribe unpinned, on the same server, for a Scribe the Narrator's host doesn't offer.
+//   --review-thinking <same|default|low|medium|high>   the Scribe's Thinking, on the copy only.
 // Each result and transcript header records the host.
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -909,6 +911,13 @@ async function run() {
   // Last, as the host is kept per server address and a change of address above loads that server's own.
   const host = option("--host");
   if (host) settings.update({ textHost: host, textHostFallback: false });
+  // The Scribe on the Narrator's own server and key, but as another server, which keeps no host.
+  if (flag("--reviewer-anywhere")) {
+    const { textBaseUrl, textApiKey } = settings.read();
+    settings.update({ reviewSameProvider: false, reviewBaseUrl: textBaseUrl, reviewApiKey: textApiKey });
+  }
+  const reviewThinking = option("--review-thinking");
+  if (reviewThinking) settings.update({ reviewThinking: reviewThinking as ReturnType<typeof settings.read>["reviewThinking"] });
   const all = settings.read();
   const reviewer = reviewerSettings(settings).read();
   const provider = fake ? "fake" : providerOf(all.textBaseUrl);

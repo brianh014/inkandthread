@@ -306,15 +306,12 @@ const ResponseShape = z.object({
       "true only when a Scene has just resolved and the story is about to move to a new place, a new time, or a new stage in a Plot Thread, which suggests ending the chapter here",
     ),
 });
-// Last, so the narration streams first. Only sent in Choices mode, and its rule is beside it, as a rule mid-prompt gets ignored.
+// For the Choices, written apart from the reply in a call that sees no secret, and beside their field, as a rule mid-prompt gets ignored.
 export const CHOICES_RULE =
   "exactly three things the PC might say or do next, each one first-person sentence of at most 25 words, built only on what the replies show has happened and the PC knows, naming no event, place or thing they don't show, fitting what they now hold, wear and have just done, and each taking a clearly different approach, at most one of them only watching, waiting or carrying word to someone and at least one of them moving the story on toward what comes next that the PC knows of, such as setting out, acting on a plan, facing what waits or taking up what someone offers or the PC wants. Never hint at risk, difficulty, dice or a Check";
-const ChoicesShape = ResponseShape.extend({ choices: z.array(z.string()).describe(CHOICES_RULE) });
 // Once a Check is rolled, or none can be, the schema itself forbids one and asks for the story, as the prompt's "Do not request another check" was ignored three times running.
-const SCHEMAS = {
-  free: { any: jsonSchemaOf(ResponseShape), noCheck: jsonSchemaOf(ResponseShape.extend({ check: z.null(), narration: z.string() })) },
-  choices: { any: jsonSchemaOf(ChoicesShape), noCheck: jsonSchemaOf(ChoicesShape.extend({ check: z.null(), narration: z.string() })) },
-};
+// Never with Choices, in either Play Mode, as Choices the Narrator wrote beside the secrets in its prompt named them in everyday words.
+const SCHEMAS = { any: jsonSchemaOf(ResponseShape), noCheck: jsonSchemaOf(ResponseShape.extend({ check: z.null(), narration: z.string() })) };
 
 /**
  * A text field without JSON punctuation or invisible characters a model left at its end, such as `:null,`, `]]}` or `"],`.
@@ -379,7 +376,7 @@ const isNoteAboutTurn = (narration: string) => {
 // A reply once left a bare "state_operations:[]" line in its narration, which was saved as the story. The fields come after the
 // narration, so such a line starts a tail that isn't story, and the narration ends before it. A line that starts with a field
 // whose name no prose has, as "state_operations has more ops" did, needs no colon.
-const FIELDS = Object.keys(ChoicesShape.shape);
+const FIELDS = [...Object.keys(ResponseShape.shape), "choices"];
 const FIELD_LINE = new RegExp(String.raw`^\s*"?(?:(?:${FIELDS.join("|")})"?\s*:|(?:${FIELDS.filter((field) => field.includes("_")).join("|")})\b)`, "m");
 // A reply also once ended its narration with its JSON's closing brace and a tool-call tag, as "}</arg_value>".
 const JSON_TAIL = /\s*\}?(?:\s*<\/\w+>)*\s*$/;
@@ -515,8 +512,7 @@ function turnPrompt(
         state.sceneMemories.map(({ firstMessage }) => firstMessage),
       ),
       input,
-      // shortcut: the schema is in the cached start of the prompt, so switching Play Mode costs one uncached Turn. Move the choices rule below the cache if players switch often.
-      responseSchema: JSON.stringify(SCHEMAS[save.playMode].any),
+      responseSchema: JSON.stringify(SCHEMAS.any),
       promptStyle: picture ? promptStyle(current) : null,
     }),
     memory: nextMemory(textProvider, messages, state.sceneMemories, memoryStart, current.textRecentMessages, signal),
@@ -837,8 +833,8 @@ async function narrate(
   }: Narrated,
 ) {
   const schemas = {
-    any: threadsHeld(SCHEMAS[playMode].any, before.plotThreads.slice(0, MAX_PLOT_THREADS)),
-    noCheck: threadsHeld(SCHEMAS[playMode].noCheck, before.plotThreads.slice(0, MAX_PLOT_THREADS)),
+    any: threadsHeld(SCHEMAS.any, before.plotThreads.slice(0, MAX_PLOT_THREADS)),
+    noCheck: threadsHeld(SCHEMAS.noCheck, before.plotThreads.slice(0, MAX_PLOT_THREADS)),
   };
   // Kept across attempts, so an invalid reply can never change the outcome.
   let check: Check | undefined;
@@ -975,9 +971,6 @@ async function narrate(
       // checked on every reply, it doubled a Turn's calls on a model that writes speech in the prose, and the retry didn't change it.
       const inline = edited === undefined && kind === "opening" && speechOutsideLines(narration) ? INLINE_SPEECH : undefined;
       const unmet = edited === undefined && kind === "opening" && peopleLeftOut(narration, mustMeet).length > 0 ? LEFT_OUT : undefined;
-      const choices = playMode === "choices" ? usableChoices(response.choices) : undefined;
-      // A reply good but for its Choices keeps its story, and the Choices are asked for alone once it's checked.
-      const unchosen = playMode === "choices" && !choices;
       // A long speech is only logged, as rewriting it restarted too many Turns the player could see.
       const noted = edited === undefined && isNoteAboutTurn(narration) ? NOTE_ABOUT_TURN : undefined;
       const fault =
@@ -1067,7 +1060,7 @@ async function narrate(
           looseEnds: narrated.next.looseEnds,
           storyTime: narrated.next.storyTime,
         }).then((written) =>
-          // Held to what the PC knows, as the Choices the reply came with are.
+          // Held to what the PC knows, as a Choice may still build on a word only the secrets hold.
           written && upkeep && seen !== undefined ? knownChoices(written, narrated.next, seen(), narration, upkeep.settings.read().storyInLog) : written,
         );
       // Merged with what each ask kept, up to two asks, as taking one set or the other offered two Choices when each had lost one to a leak.
@@ -1092,19 +1085,15 @@ async function narrate(
               )
             : undefined,
         ),
+        // Always asked for alone, in a call that sees no secret, as the Narrator's own named its secrets in everyday words.
         followUp(
           "choices",
-          choices && upkeep && seen !== undefined
-            ? (() => {
-                const kept = knownChoices(choices, narrated.next, seen(), narration, upkeep.settings.read().storyInLog);
-                // Asked for alone, as a lone Choice left after dropping leaks lost a play its clue, and two were left in four rounds.
-                if (kept.length >= 3) return kept;
-                log.info("turn", "Too few Choices kept", { attempt, generation, kept: kept.length });
-                return refilled(kept);
-              })()
-            : unchosen
-              ? refilled([])
-              : choices,
+          playMode === "choices"
+            ? refilled([]).then((kept) => {
+                log.info("turn", "Choices written apart from the reply", { kept: kept.length });
+                return kept;
+              })
+            : undefined,
         ),
       ]);
       const dropped = !!unplaced && !upkept;

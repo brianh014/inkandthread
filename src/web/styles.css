@@ -200,6 +200,8 @@ a {
   font:
     700 clamp(64px, 7.5vw, 108px) / 1 "Tangerine",
     var(--display);
+  /* The final d's swash hangs past the box on the right, so the lettering moves left to look centred. */
+  translate: -0.2em;
 }
 
 /* A rule with a diamond, between the name and the line under it. */
@@ -209,6 +211,8 @@ a {
   width: 220px;
   height: 7px;
   margin: 10px auto 16px;
+  /* Undoes the name's shift, so the rule stays centred. */
+  translate: 0.2em;
   background:
     linear-gradient(var(--accent), var(--accent)) center / 7px 7px no-repeat,
     linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat;
@@ -2743,7 +2747,7 @@ dialog blockquote {
   }
 
   .brand h1 {
-    font-size: 72px;
+    font-size: min(64px, 17vw);
   }
 
   .brand h1::after {

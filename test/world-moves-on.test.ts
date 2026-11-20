@@ -204,6 +204,25 @@ test("a move reads the Lore Entries the story names too, not only its threads', 
   expect(told.prompts[1]!.at(-1)!.content).toContain("Gulls nest");
 });
 
+test("a move reads the replies the summary doesn't cover yet, as the summary is written only every few replies", async () => {
+  const told = play(
+    narration("Ash enters the archive.", { summary: "Ash entered the archive." }),
+    narration("Ash finds the ledger."),
+    narration("Ash reads the ledger."),
+    narration("Ash hides the ledger.", nextDay()),
+    moved(),
+    narration("Ash sleeps."),
+  );
+  const id = createSave();
+  for (const move of ["I go in.", "I search.", "I read.", "I hide it."]) expect((await turn(id, move)).ok).toBe(true);
+  expect((await turn(id, "I sleep.")).ok).toBe(true);
+
+  const sent = JSON.parse(told.prompts[4]!.at(-1)!.content);
+  expect(sent.summary).toBe("Ash entered the archive.");
+  expect(sent.earlier_replies).toEqual([expect.stringContaining("finds the ledger")]);
+  expect(sent.latest_replies).toEqual([expect.stringContaining("reads the ledger"), expect.stringContaining("hides the ledger")]);
+});
+
 test("a Turn's resolve only asks the next move to close the thread, which the move removes or keeps", async () => {
   const told = play(
     narration(

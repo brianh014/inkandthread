@@ -18,6 +18,8 @@ import {
   type Prompt,
   replacementInstruction,
   resultInstruction,
+  narratorReplies,
+  summaryDue,
   SET_SCENE_NOTE,
 } from "./prompt-assembler";
 import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } from "./save-store";
@@ -460,6 +462,8 @@ type Narrated = {
   narration?: string;
   /** The Scene Memory this Turn adds, if one is due and came back. */
   memory: Promise<SceneMemory | null>;
+  /** The Narrator's replies before this one, which say whether the summary is due and how many a new one covers. */
+  replies: number;
   /** Left out when no new roll is allowed, which makes a Check request an invalid reply. */
   rollCheck?: (request: z.infer<typeof CheckRequest>) => Check;
   playMode: PlayMode;
@@ -513,6 +517,7 @@ function turnPrompt(
       promptStyle: picture ? promptStyle(current) : null,
     }),
     memory: nextMemory(textProvider, messages, state.sceneMemories, memoryStart, current.textRecentMessages, signal),
+    replies: narratorReplies(messages),
   };
 }
 
@@ -597,7 +602,7 @@ export async function playTurn(
   const basedOn = saves.latestMessageId(id);
   const state = saves.latestState(id);
   const messages = saves.messages(id);
-  const { prompt, memory, playMode } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, memory, playMode, replies } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -625,6 +630,7 @@ export async function playTurn(
         ? (saves.read(id).importantCharacters ?? []).map(({ name }) => name).filter((name) => (saves.read(id).startingHook ?? "").includes(name))
         : [],
     memory,
+    replies,
     // The PC attempts nothing in a Continue, so there is nothing to roll for.
     rollCheck: mayCheck && !isContinueInput(input) ? (request) => resolveCheck(request, dice, nearMissMargin) : undefined,
     playMode,
@@ -635,8 +641,7 @@ export async function playTurn(
     askClose: (threads, rewrites) => askToClose(id, threads, rewrites),
     times,
   });
-  const replies = messages.filter(({ role }) => role === "narrator").length + 1;
-  if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies)) {
+  if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies + 1)) {
     // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
     const move = moveWorldOn(textProvider, settings, saves, id, AbortSignal.timeout(MOVE_LIMIT.ms)).finally(() => moving.delete(id));
     moving.set(id, move);
@@ -669,7 +674,7 @@ export async function replaceResponse(
   const { input, narration, check, state, messages, sceneImage, journalEdits } = saves.turnToReplace(id, messageId);
   // The old picture goes with its response, so the new one always gets its own, whatever the Narrator decides.
   const hadPicture = !!sceneImage || images.sceneDrawing(id, messageId);
-  const { prompt, memory, playMode } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, memory, playMode, replies } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -694,6 +699,7 @@ export async function replaceResponse(
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     memory,
+    replies,
     rollCheck: mayRate ? (request) => resolveCheck(request, dice, nearMissMargin) : undefined,
     playMode,
     commit: (text, rolled, advance, choices) => {
@@ -742,7 +748,7 @@ export async function editResponse(
   const resolved = whole ? state.looseEnds.filter((end) => !after.looseEnds.includes(end)) : [];
   const opened = whole ? after.looseEnds.filter((end) => !state.looseEnds.includes(end)) : [];
   const restyled = whole ? after.npcs.filter(({ name, appearance }) => state.npcs.some((npc) => npc.name === name && npc.appearance !== appearance)) : [];
-  const { prompt, memory, playMode } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, memory, playMode, replies } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -763,6 +769,7 @@ export async function editResponse(
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     narration: text,
     memory,
+    replies,
     playMode,
     commit: (narration, _check, advance, choices) =>
       saves.editTurn(
@@ -815,6 +822,7 @@ async function narrate(
     mustMeet = [],
     narration: edited,
     memory: pendingMemory,
+    replies,
     rollCheck,
     playMode,
     commit,
@@ -1099,9 +1107,14 @@ async function narrate(
           ignored = harmless;
           // Kept when cut below two-fifths of the last, as replies that started the story again cut it to 36-39% (bench logs),
           // while sound ones, shortening one past its 500 words, kept half.
-          const words = { was: countWords(next.summary), now: countWords(summary) };
-          if (words.now * 5 < words.was * 2) log.warning("turn", "Summary kept", words);
-          else if (summary.trim()) next.summary = summary.trim();
+          const written = summary.trim();
+          const words = { was: countWords(next.summary), now: countWords(written) };
+          // Empty on a Turn the summary isn't due. One written anyway is taken too, and moves on when the next is due.
+          if (written && words.now * 5 < words.was * 2) log.warning("turn", "Summary kept", words);
+          else if (written) {
+            next.summary = written;
+            next.summaryReplies = replies + 1;
+          }
           if (recent_summary?.trim()) next.recentSummary = recent_summary.trim();
           if (memory) next.sceneMemories.push(memory);
           next.chapterReady = !!chapter_ends;
@@ -1151,6 +1164,8 @@ async function narrate(
         check: check ? { difficulty: check.difficulty, roll: check.roll, outcome: check.outcome, degree: check.degree } : false,
         narration: narration.length,
         summary: summary.trim().length,
+        // As the prompt asked, so a due summary that didn't come shows beside summary 0.
+        summaryDue: summaryDue(before, replies),
         ...(memory && { memoryFirst: memory.firstMessage, memoryLast: memory.lastMessage, memoryLength: memory.text.length }),
         people: people.length,
         operations,

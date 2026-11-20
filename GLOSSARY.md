@@ -127,6 +127,10 @@ _Avoid_: Open thread, Plot Thread (that is secret, and says where the story coul
 About 100 words on what happened in a batch of 20 older Messages, written by the Narrator before they leave the prompt and sent on every Turn after. The server records which Messages it covers. Only the player can change it, in the Journal. The player sees it as an **Old Memory**; code and prompts keep the name Scene Memory.
 _Avoid_: Summary (that is the one rolling account of the whole story), Scene (that is a place and situation in the story)
 
+**Story Summary**:
+The one rolling account of the whole story so far, under 500 words, which the Narrator rewrites every fifth reply, leaning on the latest scenes, and reads on every Turn. The player reads and edits it in the Journal, beside the **Recent summary** of the last few scenes, which is written every Turn. Code and prompts call it the summary.
+_Avoid_: Scene Memory (that covers one batch of older Messages)
+
 **World Overview**:
 A short, spoiler-free description of the world as the PC would plausibly know it.
 _Avoid_: World Bible, World Brief

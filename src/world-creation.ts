@@ -836,7 +836,7 @@ export async function applyWorldChange(
     signal,
     mayKeep,
   );
-  // What a change only adds to the summary is a known fact too, as the next Turn rewrites the summary: a cutter the player
+  // What a change only adds to the summary is a known fact too, as a later Turn rewrites the summary: a cutter the player
   // anchored offshore was written there alone, dropped a Turn later, and never reached the page.
   // shortcut: only when it keeps every old sentence and writes no fact, so a rewrite or a fact of the same news isn't doubled.
   const sentences = (text: string) => text.split(/(?<=[.!?])\s+/).filter(Boolean);

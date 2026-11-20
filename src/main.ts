@@ -7,7 +7,7 @@ import { fakeImages, fakeTextProvider } from "./fake-services";
 import { googleImages, imageModelLists, nanoGptImages, openRouterImages, wiroImages } from "./image-adapter";
 import { defaultLevelFor, log, startLog } from "./logger";
 import { startServer } from "./rest-api";
-import { consistencySettings, reviewerSettings, settingsStore } from "./settings-store";
+import { reviewerSettings, settingsStore } from "./settings-store";
 import { textProvider } from "./text-provider";
 import { isCompiled, removeReplacedPrograms } from "./updater";
 import { usageStore } from "./usage-store";
@@ -71,9 +71,6 @@ const server = startServer({
   textProvider: fake ? fakeTextProvider : textProvider(settings),
   reviewProvider: fake ? fakeTextProvider : textProvider(reviewerSettings(settings)),
   moveWorld: true,
-  consistencyProvider: fake ? fakeTextProvider : textProvider(consistencySettings(settings)),
-  // To watch the questions in real play against untouched replies.
-  consistencyLogOnly: process.argv.includes("--consistency-log-only"),
   imageAdapter: fake
     ? fakeImages
     : {

@@ -11,13 +11,9 @@ import {
   spokenLineFault,
   ThinkingBudgetReached,
   type TextProvider,
-  cutWords,
-  repeatsPrevious,
   usableChoices,
-  usableFix,
   usableOperations,
   withKnownSpeakers,
-  withoutCut,
   withoutJsonTail,
   withoutLoop,
 } from "../src/turn-engine";
@@ -1609,35 +1605,6 @@ test("speech left in the prose is found, but never a speaker line, an apostrophe
   expect(speechOutsideLines("[Tamsin]: 'Thirty years.'")).toBe(false);
   expect(speechOutsideLines("Wren's satchel was heavy. The camels' hooves rang.")).toBe(false);
   expect(speechOutsideLines("She called it 'the old road' once.")).toBe(false);
-});
-
-test("after a fix, what the PC learns of words the fix took out is dropped, and the rest kept", () => {
-  const told = "Thorne sighed. He admitted he paid the constable thirty pounds.";
-  const fixed = "Thorne sighed. He said nothing more.";
-  const operations = [
-    { op: "add_known_fact", fact: "Thorne admitted paying the constable." },
-    { op: "npc_learns", name: "Thorne", fact: "Nell heard his admission about the constable." },
-    { op: "add_loose_end", loose_end: "Thorne is hiding something." },
-    { op: "set_scene", location: "The lane", visible_cast: [] },
-  ] as Parameters<typeof withoutCut>[0];
-  expect(withoutCut(operations, cutWords(told, fixed))).toEqual(operations.slice(2));
-  expect(cutWords(told, told)).toEqual([]);
-});
-
-test("a fix that cuts more than a fifth of the reply isn't used, as one erased a clue a high roll had found", () => {
-  const told = "She lifts the glass. Inside the tube a slip of paper lies curled, with dates in Crane's hand. Kit pockets the tide pad.";
-  expect(usableFix("She lifts the glass. It holds nothing.", "Nell", told)).toBe(false);
-  expect(usableFix("She lifts the glass. Inside the tube a slip of paper lies curled, with dates in his hand. Kit pockets the tide pad.", "Nell", told)).toBe(
-    true,
-  );
-});
-
-test("a fix that copies a long sentence of the previous reply isn't used", () => {
-  const previous = "I gave him back as good, and we shook hands after, in front of everyone.";
-  expect(repeatsPrevious(`He sighed. ${previous}`, "He sighed. He told me the truth.", previous)).toBe(true);
-  expect(repeatsPrevious("He sighed. He said no more.", "He sighed. He told me the truth.", previous)).toBe(false);
-  // Already in the reply before the fix, so the fix didn't copy it.
-  expect(repeatsPrevious(`He sighed. ${previous}`, `He sighed. ${previous} Then more.`, previous)).toBe(false);
 });
 
 test("placeholder operations, a known fact that is only a name, and a reply's resolves of more than one thread are dropped", () => {

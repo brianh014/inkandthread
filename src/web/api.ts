@@ -14,11 +14,10 @@ export type { Character, EnhanceField, ImageKind, Message, PcDraft, PlayMode, Sa
 export type ListedSave = ReturnType<SaveStore["list"]>[number];
 export type OpenSave = ReturnType<SaveStore["read"]>;
 export type Status = State["status"];
-export type Settings = Omit<Required<SettingsChange>, "textApiKey" | "imageApiKey" | "reviewApiKey" | "consistencyApiKey"> & {
+export type Settings = Omit<Required<SettingsChange>, "textApiKey" | "imageApiKey" | "reviewApiKey"> & {
   defaultLogLevel: LogLevel;
   hasTextApiKey: boolean;
   hasReviewApiKey: boolean;
-  hasConsistencyApiKey: boolean;
   hasImageApiKey: boolean;
   /** Each text server's and image provider's own settings, for switching to, without their keys. */
   textProfiles: Record<string, Omit<TextProfile, "textApiKey">>;
@@ -185,9 +184,8 @@ export async function drawComfyTest(prompt: string, signal: AbortSignal) {
 
 export const getImageModels = (provider: "openrouter" | "wiro" | "google" | "nanogpt") =>
   request<{ models: string[] }>(`/settings/image-models?provider=${provider}`).then(({ models }) => models);
-/** The saved text server's models, or with `review`, the saved reviewer server's. */
-/** The Narrator's models, the reviewer's, or those on the Consistency model's own server. */
-export const getTextModels = (whose?: "review" | "consistency") =>
+/** The saved text server's models, or with `review`, the saved Scribe server's. */
+export const getTextModels = (whose?: "review") =>
   request<{ models: string[] }>(`/settings/text-models${whose ? `?for=${whose}` : ""}`).then(({ models }) => models);
 export const getTextHosts = (model: string) =>
   request<{ hosts: TextHost[] }>(`/settings/text-hosts?model=${encodeURIComponent(model)}`).then(({ hosts }) => hosts);
@@ -469,8 +467,8 @@ async function streamTurn(
         narration += data.text;
         show(narration, retry);
       }
-      // A fixed reply, or the final one, shown in place of the streamed one, with nothing said.
-      if (event === "revise" || event === "reply") {
+      // The final reply, shown in place of the streamed one, with nothing said.
+      if (event === "reply") {
         narration = data.text;
         show(narration, retry);
       }

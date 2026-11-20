@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { settingsStore } from "../src/settings-store";
 import { narration, scriptedTextProvider, startApp, tempFolder } from "./support";
@@ -59,11 +59,6 @@ test("a fresh install has images on, Prose, medium type, blank Model Instruction
     reviewBaseUrl: "https://openrouter.ai/api/v1",
     hasReviewApiKey: false,
     reviewThinking: "same",
-    consistencyEnabled: false,
-    consistencyChatModel: "",
-    consistencySameProvider: true,
-    consistencyBaseUrl: "https://openrouter.ai/api/v1",
-    hasConsistencyApiKey: false,
     textRecentMessages: 80,
     answerRejectWords: 120,
     imageProvider: "openrouter",
@@ -164,11 +159,6 @@ test("every setting survives a restart, and no key comes back", async () => {
     reviewBaseUrl: "https://nano-gpt.com/api/v1",
     reviewApiKey: "review-key-value",
     reviewThinking: "high",
-    consistencyEnabled: true,
-    consistencyChatModel: "z-ai/glm-5",
-    consistencySameProvider: false,
-    consistencyBaseUrl: "https://api.nano-gpt.com/api/v1",
-    consistencyApiKey: "consistency-key-value",
     textRecentMessages: 120,
     answerRejectWords: 200,
     imageProvider: "local",
@@ -232,11 +222,6 @@ test("every setting survives a restart, and no key comes back", async () => {
     reviewBaseUrl: "https://nano-gpt.com/api/v1",
     hasReviewApiKey: true,
     reviewThinking: "high",
-    consistencyEnabled: true,
-    consistencyChatModel: "z-ai/glm-5",
-    consistencySameProvider: false,
-    consistencyBaseUrl: "https://api.nano-gpt.com/api/v1",
-    hasConsistencyApiKey: true,
     textRecentMessages: 120,
     answerRejectWords: 200,
     imageProvider: "local",
@@ -543,13 +528,16 @@ test("a text server that won't read takes its key with it, and a stray built-in 
   expect(read.textApiKey).toBe("");
 });
 
-test("the Consistency model's own key never goes to another provider, and never reaches a response", async () => {
-  const saved = await change({ consistencySameProvider: false, consistencyApiKey: "consistency-key-value" }).then((r) => r.text());
-  expect(saved).not.toContain("consistency-key-value");
-  expect(JSON.parse(saved)).toMatchObject({ hasConsistencyApiKey: true });
+test("settings from a build with the Consistency check load, and its key is gone from the file once saved", async () => {
+  const path = join(folder.path, "settings.json");
+  writeFileSync(
+    path,
+    JSON.stringify({ textModel: "x/narrator", consistencyEnabled: true, consistencyChatModel: "z-ai/glm-5", consistencyApiKey: "consistency-key-value" }),
+  );
+  expect(store().read()).toMatchObject({ textModel: "x/narrator" });
 
-  const moved = await change({ consistencyBaseUrl: "https://api.nano-gpt.com/api/v1" }).then((r) => r.json());
+  const saved = await change({ textModel: "x/other" });
 
-  expect(moved).toMatchObject({ hasConsistencyApiKey: false });
-  expect(store().read().consistencyApiKey).toBe("");
+  expect(saved.status).toBe(200);
+  expect(readFileSync(path, "utf8")).not.toContain("consistency");
 });

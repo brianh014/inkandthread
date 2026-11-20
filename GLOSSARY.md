@@ -74,23 +74,23 @@ Drawing a Cover or portrait again from a new Image Prompt written from the story
 _Avoid_: Redo
 
 **Review**:
-A second AI call that checks a new world, or a World Change before it is applied, for faults such as contradictions and plot holes, and quietly fixes them. It runs on the Narrator's model, or on a reviewer model the player chooses.
+A second AI call that checks a new world, or a World Change before it is applied, for faults such as contradictions and plot holes, and quietly fixes them. It is the Scribe's work.
 _Avoid_: Critic, judge, validator
 
+**Scribe**:
+The AI that keeps the story's record and reviews the world: State Upkeep after every reply, and the Review of a new world and of each World Change. It is the Narrator's model unless the player chooses another in Settings. The stored settings keep their old `review` names.
+_Avoid_: Reviewer, Review model, Lore Keeper (Lore is the World Bible's)
+
 **State Upkeep**:
-A second AI call after each reply, on the reviewer model, that brings the scene, cast, inventory, Story Time and known facts in line with what the reply showed happening. It never changes a Plot Thread, which is World Moves On's. It records only changes the reply shows, never a detail to fit a passing mention. The Turn is saved once it finishes; if it fails, the Narrator's own state is kept.
+A second AI call after each reply, the Scribe's, that brings the scene, cast, inventory, Story Time and known facts in line with what the reply showed happening. It never changes a Plot Thread, which is World Moves On's. It records only changes the reply shows, never a detail to fit a passing mention. The Turn is saved once it finishes; if it fails, the Narrator's own state is kept.
 _Avoid_: State sync, bookkeeping call
 
 **World Moves On**:
 A Narrator call at a natural pause (a Turn moving story time on by hours, a new day, or every fifth reply), run after the Turn is saved while the player reads, that rewrites each Plot Thread's now by what its people did out of the PC's sight, leaving its truth as it is, true to the Lore Entries it names, removes one play has brought to an end, and adds one while fewer than three remain. The next Turn waits for it. It changes only the hidden Plot Threads, so the player never sees it, only its results in play.
 _Avoid_: Off-screen turn, world tick
 
-**Consistency model**:
-An optional chat model, chosen in Settings and the reviewer's when none is, that answers consistency questions of each reply: narrow questions, each in its own call with only the slice of the story it needs, such as whether the reply's time of day fits Story Time. One that finds a slip quotes the reply's words, what was established that they contradict, and a fix; the fix is made before the reply is saved only when both quotes are found.
-_Avoid_: Checker, judge, Check model (a Check is the hidden test of a risky PC action)
-
 **Command**:
-A Text Provider that is a program the player sets up, such as a provider's own command-line tool, in place of a server: it reads each prompt on its input and prints only the reply. As it runs a program, only Settings opened on the computer NovelForge runs on can set or change it. The reviewer uses it unless it has its own server; the Consistency model never does.
+A Text Provider that is a program the player sets up, such as a provider's own command-line tool, in place of a server: it reads each prompt on its input and prints only the reply. As it runs a program, only Settings opened on the computer NovelForge runs on can set or change it. The Scribe uses it unless it has its own server.
 _Avoid_: CLI provider, shell command (it runs with no shell)
 
 **Check**:

@@ -10,7 +10,6 @@ import {
   CommandField,
   useCommandLine,
   ComfySettings,
-  ConsistencySettings,
   LockedCommand,
   ModelField,
   narratorChoices,
@@ -23,16 +22,15 @@ import {
   textChoiceOf,
 } from "./settings";
 
-const STEPS = ["Welcome", "The storyteller", "Its model", "A second reader", "A careful eye", "Pictures", "Reading", "Ready"];
-const [PROVIDER, MODEL, REVIEW, CONSISTENCY, PICTURES, READING, READY] = [1, 2, 3, 4, 5, 6, 7];
-// From the second reader on, a step can be passed over.
-const SKIPPABLE = [REVIEW, CONSISTENCY, PICTURES, READING];
+const STEPS = ["Welcome", "The storyteller", "Its model", "The Scribe", "Pictures", "Reading", "Ready"];
+const [PROVIDER, MODEL, REVIEW, PICTURES, READING, READY] = [1, 2, 3, 4, 5, 6];
+// From the Scribe on, a step can be passed over.
+const SKIPPABLE = [REVIEW, PICTURES, READING];
 // What each step's Next saves, by setting name, and nothing else, so leaving halfway loses nothing done.
 const STEP_FIELDS: Record<number, RegExp> = {
-  [PROVIDER]: /^(textBaseUrl|textCommand|textModel|textHost|reviewModel|consistencyChatModel)$/,
+  [PROVIDER]: /^(textBaseUrl|textCommand|textModel|textHost|reviewModel)$/,
   [MODEL]: /^text(Model|Host|Thinking)$/,
   [REVIEW]: /^review/,
-  [CONSISTENCY]: /^consistency/,
   [PICTURES]: /^(image|comfy)/,
   [READING]: /^(theme|chatStyle|fontSize|showChecks)$/,
 };
@@ -110,7 +108,6 @@ function Steps({ initial }: { initial: Settings }) {
   // Only what the player types now, as the server never sends a stored key.
   const [textKey, setTextKey] = useState("");
   const [reviewKey, setReviewKey] = useState("");
-  const [consistencyKey, setConsistencyKey] = useState("");
   const [imageKey, setImageKey] = useState("");
   // Unset follows whether this provider already has its own image key.
   const [useTextKey, setUseTextKey] = useState<boolean>();
@@ -159,8 +156,6 @@ function Steps({ initial }: { initial: Settings }) {
   const keys = (): SettingsChange & { imageKeyFromText?: boolean } => {
     if (here === PROVIDER) return textKey.trim() ? { textApiKey: textKey.trim() } : {};
     if (here === REVIEW && draft.reviewOtherModel && !draft.reviewSameProvider && reviewKey.trim()) return { reviewApiKey: reviewKey.trim() };
-    if (here === CONSISTENCY && draft.consistencyEnabled && !draft.consistencySameProvider && consistencyKey.trim())
-      return { consistencyApiKey: consistencyKey.trim() };
     if (here === PICTURES && pictures === "online") {
       // Copied by the server as the image key, so changing one later leaves the other.
       if (textKeyDraws) return { imageKeyFromText: true };
@@ -178,7 +173,6 @@ function Steps({ initial }: { initial: Settings }) {
     setDraft(next);
     setTextKey("");
     setReviewKey("");
-    setConsistencyKey("");
     setImageKey("");
     applyLook(next);
   }
@@ -269,7 +263,6 @@ function Steps({ initial }: { initial: Settings }) {
                   textCommand: [],
                   ...(saved.textProfiles[textBaseUrl] ?? { textModel: "", textHost: "" }),
                   ...(draft.reviewSameProvider && { reviewModel: "" }),
-                  ...(draft.consistencySameProvider && { consistencyChatModel: "" }),
                 });
               }}
             />
@@ -387,21 +380,8 @@ function Steps({ initial }: { initial: Settings }) {
     [REVIEW]: (
       <>
         {/* The Guide and README name the same model, so change them together. */}
-        <p>Recommended: a second model makes the story better. We recommend GPT-6.1 Luna (search “luna”) on Medium thinking.</p>
+        <p>We recommend GPT-6 Luna (search “luna”) on Medium thinking. It is a closed model, so OpenAI sees what it is sent.</p>
         <ReviewSettings draft={draft} saved={saved} set={set} narratorModels={models} reviewKey={reviewKey} setReviewKey={setReviewKey} />
-      </>
-    ),
-    [CONSISTENCY]: (
-      <>
-        <p>Checks catch slips before you read them, at a few seconds a reply. With no model chosen, the Review model checks.</p>
-        <ConsistencySettings
-          draft={draft}
-          saved={saved}
-          set={set}
-          narratorModels={models}
-          consistencyKey={consistencyKey}
-          setConsistencyKey={setConsistencyKey}
-        />
       </>
     ),
     [PICTURES]: (
@@ -525,10 +505,8 @@ function Steps({ initial }: { initial: Settings }) {
         <dl className="test-stats">
           <dt>Narrator</dt>
           <dd>{saved.textCommand.length > 0 ? `Command, ${saved.textCommand[0]}` : `${textName(saved.textBaseUrl)}, ${saved.textModel || "no model"}`}</dd>
-          <dt>Second reader</dt>
+          <dt>Scribe</dt>
           <dd>{saved.reviewOtherModel && saved.reviewModel ? saved.reviewModel : "The Narrator's own"}</dd>
-          <dt>Consistency</dt>
-          <dd>{saved.consistencyEnabled ? saved.consistencyChatModel || "The Review model" : "Off"}</dd>
           <dt>Pictures</dt>
           <dd>
             {!saved.imagesEnabled

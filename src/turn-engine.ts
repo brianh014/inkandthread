@@ -36,7 +36,6 @@ import {
   type State,
   StateOperation,
 } from "./state-applier";
-import { type Checked, type Consistency, checkConsistency, replyToCheck } from "./consistency";
 import { countWords, withinLimit } from "./limits";
 import { knownChoices, withoutUnread, writeChoices } from "./known-choices";
 import { wholeWord } from "./lore-activation";
@@ -91,7 +90,7 @@ export type TextProvider = (
 ) => Promise<string>;
 
 /** `reply` carries the reply's final text, sent before its follow-ups (State Upkeep, Choices) run, and never changed after. */
-export type TurnEvents = (event: "narration" | "restart" | "revise" | "reply", data: object) => void;
+export type TurnEvents = (event: "narration" | "restart" | "reply", data: object) => void;
 
 /** When a reply's work began, and how long each follow-up took once the reply was shown, for the Server Log. */
 type FollowUpTimes = { started: number; upkeep?: number; choices?: number };
@@ -451,9 +450,7 @@ type Narrated = {
   before: State;
   /** Left out when there's no reviewer to keep the state, as in a test's script. */
   upkeep?: Upkeep;
-  /** Left out for an Edit, which is the player's own words. */
-  consistency?: Consistency;
-  /** The Narrator's last reply before this one, which the questions check this one against. */
+  /** The Narrator's last reply before this one. */
   previous?: string;
   /** All the player has read so far, the Starting Hook and the Messages, so a Choice is never built on what the PC hasn't. Built only when asked, as a long story's is large. */
   seen?: () => string;
@@ -547,7 +544,7 @@ function followedUp(id: string, kind: string, images: ImagePipeline, times: Foll
 }
 
 /** What a World Change needs: the Narrator, the reviewer and the pictures a change can restyle. */
-type WorldContext = { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline; reviewProvider?: TextProvider; consistency?: Consistency };
+type WorldContext = { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline; reviewProvider?: TextProvider };
 
 /**
  * Brings the hidden world in line with the player's Journal edits in a call of its own, as a Turn busy writing the
@@ -577,7 +574,6 @@ export async function playTurn(
     images,
     usage,
     reviewProvider,
-    consistency,
     moveWorld,
   }: {
     textProvider: TextProvider;
@@ -587,7 +583,6 @@ export async function playTurn(
     images: ImagePipeline;
     usage?: UsageStore;
     reviewProvider?: TextProvider;
-    consistency?: Consistency;
     /** Whether the world moves on at natural pauses. See `moveWorldOn`. */
     moveWorld?: boolean;
   },
@@ -623,7 +618,6 @@ export async function playTurn(
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     before: state,
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
-    consistency,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     mustMeet:
@@ -663,7 +657,7 @@ export function playOpening(saves: SaveStore, engine: Parameters<typeof playTurn
  */
 export async function replaceResponse(
   saves: SaveStore,
-  { textProvider, settings, images, reviewProvider, consistency, dice, nearMissMargin }: WorldContext & { dice: Dice; nearMissMargin: number },
+  { textProvider, settings, images, reviewProvider, dice, nearMissMargin }: WorldContext & { dice: Dice; nearMissMargin: number },
   id: string,
   messageId: number,
   feedback: string | undefined,
@@ -697,7 +691,6 @@ export async function replaceResponse(
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     before: state,
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
-    consistency,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     memory,
@@ -817,7 +810,6 @@ async function narrate(
     pcTraits,
     before,
     upkeep,
-    consistency,
     previous = "",
     seen,
     mustMeet = [],
@@ -903,7 +895,6 @@ async function narrate(
         log.warning("turn", "Run-on reply kept", { attempt, generation, sent: withoutThinking(partial).length, kept: closed.length });
         return closed;
       });
-      const streamed = Date.now();
       const response = parseReply<z.infer<typeof NarratorResponse | typeof EditedTurn>>(reply, edited === undefined ? NarratorResponse : EditedTurn);
       if (response.check) {
         if (check || !rollCheck || ratedNone) throw new InvalidResponse();
@@ -987,44 +978,7 @@ async function narrate(
       // Both together, as a reply that did so had started the story over, while either alone was a sound reply's slip.
       const restarted = narrated.repeats > 0 && narrated.ignored.some(({ reason }) => reason === "earlier than now");
       if (restarted && attempt < MAX_ATTEMPTS) throw new InvalidResponse(undefined, { cause: RESTARTED });
-      let description = withoutJsonTail(visual_description ?? "");
-      // The long words a consistency fix took out of the reply.
-      let cut: string[] = [];
-      let checked: Checked | undefined;
-      if (consistency?.enabled()) {
-        const told = narration;
-        const reply = replyToCheck(before, {
-          previous,
-          // A Continue in plain words, not its marker.
-          input: plainMessage({ role: "player", text: upkeep?.input ?? input }).text,
-          timeAfter: narrated.next.storyTime,
-          pc: pcName,
-          pcTraits,
-          narration,
-          visualDescription: description,
-          check,
-        });
-        const result = await checkConsistency(
-          consistency,
-          reply,
-          (text) => usableFix(withoutStrayMarks(text), pcName, told, check) && !repeatsPrevious(text, told, previous),
-          signal,
-        );
-        checked = result.checked;
-        narration = withoutStrayMarks(result.narration);
-        description = result.visualDescription;
-        // Nothing tells the player, but the fixed reply takes the streamed one's place.
-        if (narration !== told) {
-          emit("revise", { text: narration });
-          // How long the player read the streamed reply before it changed, which is what the check costs them.
-          log.info("turn", "Reply revised", { attempt, generation, ms: Date.now() - streamed });
-        }
-        cut = cutWords(told, narration);
-        const kept = withoutCut(state_operations, cut);
-        if (kept.length < state_operations.length)
-          log.info("turn", "What was learned of a fixed slip dropped", { attempt, generation, operations: state_operations.length - kept.length });
-        state_operations = kept;
-      }
+      const description = withoutJsonTail(visual_description ?? "");
       const story = seen?.() ?? "";
       const threads = turnThreadChanges(state_operations, before, narration);
       if (Object.keys(threads.dropped).length > 0) log.info("turn", "Thread changes dropped", { attempt, generation, ...threads.dropped });
@@ -1083,12 +1037,11 @@ async function narrate(
       };
       // Side by side, as neither needs the other, so a slow reviewer holds the Choices back once, not twice.
       const [upkept, offered] = await Promise.all([
-        // Held to the fix's cut as the Narrator's are, as Upkeep's npc_learns can carry what the fix took out.
         followUp(
           "upkeep",
           upkeep
             ? upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal, timed).then(
-                (ops) => ops && withoutCut(withoutRelearned(ops, state_operations, narrated.next.npcs), cut),
+                (ops) => ops && withoutRelearned(ops, state_operations, narrated.next.npcs),
               )
             : undefined,
         ),
@@ -1146,8 +1099,6 @@ async function narrate(
           // while sound ones, shortening one past its 500 words, kept half.
           const words = { was: countWords(next.summary), now: countWords(summary) };
           if (words.now * 5 < words.was * 2) log.warning("turn", "Summary kept", words);
-          // Written before the fix, so it may tell what the fix took out.
-          else if (cut.some((word) => wholeWord(word, "iu").test(summary))) log.info("turn", "Summary kept after a fix", words);
           else if (summary.trim()) next.summary = summary.trim();
           if (recent_summary?.trim()) next.recentSummary = recent_summary.trim();
           if (memory) next.sceneMemories.push(memory);
@@ -1200,7 +1151,6 @@ async function narrate(
         people: people.length,
         operations,
         ...(upkeep && { upkeep: (upkept ?? []).map(({ op }) => op), upkeepRefused }),
-        ...(checked && { consistency: checked }),
         sceneChanged: !!scene_changed,
         chapterEnds: !!chapter_ends,
         // The asks that matched an open thread, as the Narrator's own count logged asks of threads that never existed.
@@ -1225,30 +1175,6 @@ const sameApproach = (one: string, other: string) => {
   const shared = [...a].filter((word) => b.has(word)).length;
   return one === other || (shared >= 4 && shared * 2 >= Math.min(a.size, b.size));
 };
-const longWords = (text: string) => new Set(text.toLowerCase().match(/\p{L}{6,}/gu) ?? []);
-/** The long words a fix took out of the reply, which what the PC learns in that Turn mustn't keep. */
-export const cutWords = (told: string, fixed: string) => {
-  const kept = longWords(fixed);
-  return [...longWords(told)].filter((word) => !kept.has(word));
-};
-// What the PC or someone else learns from the reply, which the Narrator wrote before the fix.
-const LEARNED: StateOperation["op"][] = ["add_known_fact", "npc_learns", "add_loose_end", "set_known_npc_summary"];
-/**
- * The operations without what the PC or an NPC learns that names a word a fix took out, as a fix cut an admission from the reply
- * and the known facts kept it, and later Choices were built on it.
- */
-export const withoutCut = <Operation extends StateOperation>(operations: Operation[], cut: string[]) =>
-  operations.filter(
-    (operation) =>
-      !LEARNED.includes(operation.op) ||
-      !cut.some((word) =>
-        wholeWord(word, "iu").test(
-          Object.values(operation)
-            .filter((value) => typeof value === "string")
-            .join(" "),
-        ),
-      ),
-  );
 /**
  * State Upkeep's operations without an npc_learns that says again in other words what the Narrator's own gave that person in
  * the same Turn, as Upkeep repeated them most Turns of a bench play.
@@ -1262,10 +1188,6 @@ export function withoutRelearned<Operation extends StateOperation>(upkept: Opera
   if (kept.length < upkept.length) log.info("turn", "Upkeep's repeats of what someone learned dropped", { count: upkept.length - kept.length });
   return kept;
 }
-/** Whether a fix put in a sentence of eight words or more copied from the previous reply, as one swapped an earned admission for a speech already made. */
-export const repeatsPrevious = (fixed: string, told: string, previous: string) =>
-  fixed.split(/(?<=[.!?…]["”]?)\s+/).some((sentence) => countWords(sentence) >= 8 && !told.includes(sentence) && previous.includes(sentence));
-
 /** Whether four in five of a reply's words are in sentences of eight words or more from the previous reply, as one came back as the last reply whole after ": ". */
 const copiesPrevious = (text: string, previous: string) =>
   countWords(
@@ -1279,20 +1201,6 @@ const copiesPrevious = (text: string, previous: string) =>
   countWords(text) * 4;
 const COPIED = "the previous reply written again";
 const RESTARTED = "the story started over, its clock set back and what the PC knew added again";
-
-/** Whether a fix passes what a Narrator reply must. It may run a little longer than the reply it fixes. */
-export function usableFix(text: string, pcName: string, told: string, check?: Check) {
-  return (
-    hasWords(text) &&
-    !isJsonObject(text) &&
-    !FIELD_LINE.test(text) &&
-    !(check && declined(text)) &&
-    ![PC_LINE, TAG_WITHOUT_BRACKET].includes(spokenLineFault(text, pcName) ?? "") &&
-    // A fix changes the fewest words, and one that cut a passage to a third erased the clue a high roll had found.
-    countWords(text) * 5 >= countWords(told) * 4 &&
-    withinLimit(text, Math.max(REPLY_WORDS, countWords(told)))
-  );
-}
 
 /**
  * Why the spoken lines break the reply's shape, if they do: a tag missing its "[", a line for the PC, or someone speaking more than three times.

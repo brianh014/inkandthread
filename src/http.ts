@@ -31,12 +31,8 @@ export type ServerOptions = {
   textProvider: TextProvider;
   /** Reviews the world and World Changes, sent with the reviewer's settings. Without one, as in tests with a scripted Narrator, nothing is reviewed. */
   reviewProvider?: TextProvider;
-  /** The Consistency model, sent with its settings; without one, the reviewer checks. It asks nothing until Settings turn it on. */
-  consistencyProvider?: TextProvider;
   /** Whether the world moves on at natural pauses (`moveWorldOn`): on in the app and the bench, off in tests, whose scripted Narrator would answer it. */
   moveWorld?: boolean;
-  /** `--consistency-log-only`: every question is asked and logged, and nothing is fixed. */
-  consistencyLogOnly?: boolean;
   /**
    * One adapter for every online provider, as tests and --fake use, or one per provider. A list must name them all, so a provider
    * added later can't fall back to another's adapter and send it that provider's key.

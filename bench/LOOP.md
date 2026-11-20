@@ -16,7 +16,7 @@ Start a session with: "Run the bench loop in `bench/LOOP.md`", adding any change
 | | |
 |---|---|
 | World | `bench/worlds/mystery.json`, 45 rounds, 1 run per round |
-| Pairings, alternating | GLM narrates and DeepSeek reviews: `--narrator z-ai/glm-5.3-flash --reviewer deepseek/deepseek-v4.1-flash-1017`. Then DeepSeek narrates and GLM reviews: the two swapped. The Consistency model stays as the settings have it. Pass models by flag only. |
+| Pairings, alternating | GLM narrates and DeepSeek reviews: `--narrator z-ai/glm-5.3-flash --reviewer deepseek/deepseek-v4.1-flash-1017`. Then DeepSeek narrates and GLM reviews: the two swapped. Pass models by flag only. |
 | Judge | A blind Fable 5.2 subagent at high effort. Self-judging ran about a point generous. |
 | Fixer | An Opus subagent, test-first |
 | Pictures | `--draw` on local ComfyUI; without it if ComfyUI is down, noted in the ledger |
@@ -53,7 +53,7 @@ The main session only coordinates and keeps the ledger, so its context stays sma
 >
 > 1. Read `<run folder>/judge.md` (the rubric and schema), the world file, and the whole `play-1/transcript.md`.
 > 2. Look at the pictures in `play-1/pictures`.
-> 3. Grep `play-1/novelforge.log` (never read it whole) for "Turn committed", "State Upkeep", "World moved on", "dropped", "Choices", "narration_edits", "Unusable Narrator reply" and "failed". Check whether each consistency fix was right and what slipped through.
+> 3. Grep `play-1/novelforge.log` (never read it whole) for "Turn committed", "State Upkeep", "World moved on", "dropped", "Choices", "Unusable Narrator reply" and "failed". Check what State Upkeep recorded and what slipped through.
 > 4. Score strictly by the rubric.
 > 5. Write the JSON array to `<run folder>/fable-scores.json` and run `bun bench judge <run folder> --by claude-fable-5-2 --scores <that file>`.
 > 6. Write your full report to `<run folder>/fable.md`.

@@ -1,5 +1,5 @@
 // `bun bench chart`: the kept runs as two charts, judged score against cost per Turn, coloured by Turn time, one for the Narrator
-// alone and one for the Narrator with a reviewer and Consistency model. A self-contained page whose one small script picks the bench
+// alone and one for the Narrator with a Scribe. A self-contained page whose one small script picks the bench
 // version, the score (overall or one rubric item) and the story to show; every pick is drawn up front.
 
 /** The parts of a bench result the chart reads (bench.ts's `Result`). */
@@ -12,7 +12,8 @@ export type ChartResult = {
   drawn?: boolean;
   provider: string;
   thinking: string;
-  models: { narrator: string; reviewer: string; reviewThinking: string; consistency: string };
+  /** `consistency` only on runs from before the Consistency check was removed. */
+  models: { narrator: string; reviewer: string; reviewThinking: string; consistency?: string };
   /** Each play's rubric items, which make the overall, and its genre scores (romance, horror and the like), asked only of a story of that kind. */
   judge: { plays: { scores: Record<string, { score: number }>; genres?: Record<string, { score: number }> }[] } | null;
   plays: Record<string, number>[];
@@ -60,11 +61,13 @@ export function points(results: ChartResult[], version: string, rounds: number, 
       (world === ALL_STORIES || (result.world ?? "adventure.json") === world);
     if (!like || !result.drawn || !result.setup || !result.judge) continue;
     const { narrator, reviewer, reviewThinking, consistency } = result.models;
-    const label = result.setup === "narrator" ? short(narrator) : [narrator, reviewer, consistency].map(short).join(" · ");
+    // A check that was off says nothing, so those runs sit with the ones made after it was removed.
+    const checked = consistency && consistency !== "off" ? consistency : undefined;
+    const label = result.setup === "narrator" ? short(narrator) : [narrator, reviewer, ...(checked ? [checked] : [])].map(short).join(" · ");
     const detail =
       result.setup === "narrator"
         ? `${result.provider} ${narrator}, Thinking ${result.thinking}`
-        : `${result.provider} ${narrator}, Thinking ${result.thinking}; reviewer ${reviewer}, Thinking ${reviewThinking}; consistency ${consistency}`;
+        : `${result.provider} ${narrator}, Thinking ${result.thinking}; Scribe ${reviewer}, Thinking ${reviewThinking}${checked ? `; consistency ${checked}` : ""}`;
     const key = `${result.setup}|${detail}`;
     const group = groups.get(key) ?? { setup: result.setup, label, detail, runs: 0, plays: [] };
     group.runs++;
@@ -204,7 +207,7 @@ ${note}</section>`;
 // Each setup is its own chart, picked with the Setup selector, and says so when it has no runs in a pick.
 const SETUPS: [Point["setup"], string][] = [
   ["narrator", "Narrator alone"],
-  ["full", "Narrator, reviewer and Consistency model"],
+  ["full", "Narrator and Scribe"],
 ];
 
 /** The key and both setups' charts for one pick, coloured by the Turn times of that pick alone, `shown` the one not hidden. */
@@ -309,7 +312,7 @@ ${select(
   "Setup",
   SETUPS.map(([setup]) => setup),
   pick.setup,
-  (setup) => (setup === "narrator" ? "Narrator only" : "With reviewer and Consistency model"),
+  (setup) => (setup === "narrator" ? "Narrator only" : "With a Scribe"),
 )}
 </div>
 ${views.length ? views.join("\n") : view([], pick.setup)}

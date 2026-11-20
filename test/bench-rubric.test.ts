@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { FEATURES, JudgeReply, MISTAKES, RUBRIC, scorePlay } from "../bench/rubric";
+import { capsOf, FEATURES, JudgeReply, MISTAKES, RUBRIC, scorePlay } from "../bench/rubric";
 
 // Every feature audited, faulty where a mistake names it.
 const audited = (mistakes: unknown[]) =>
@@ -34,25 +34,30 @@ describe("scorePlay", () => {
     expect(flat["mistakes.major"]).toBe(0);
   });
 
-  test("one major leak caps secrets, surprise and a mystery score at 4, keeping the judge's own", () => {
+  test("one major leak caps secrets and surprise at 4, keeping the judge's own, but leaves the genre score to the judge", () => {
     const flat = scored(reply({ secrets: 6, surprise: 8 }, [mistake("secret", "major")], { mystery: { score: 7, reason: "r" } }));
     expect(flat["judge.secrets"]).toBe(4);
     expect(flat["judge.surprise"]).toBe(4);
-    expect(flat["judge.mystery"]).toBe(4);
+    expect(flat["judge.mystery"]).toBe(7);
     expect(flat["judge.raw.surprise"]).toBe(8);
     expect(flat["judge.craft"]).toBeGreaterThan(flat["judge.overall"]!);
   });
 
-  test("minors cap only at a rate of one per 10 Turns", () => {
-    const twoIn50 = scored(reply({}, [mistake("contradiction", "minor"), mistake("contradiction", "minor")]));
-    expect(twoIn50["judge.continuity"]).toBe(7);
+  test("minors never cap, however many", () => {
     const fiveIn50 = scored(
       reply(
         {},
         Array.from({ length: 5 }, () => mistake("contradiction", "minor")),
       ),
     );
-    expect(fiveIn50["judge.continuity"]).toBe(4);
+    expect(fiveIn50["judge.continuity"]).toBe(7);
+  });
+
+  test("capsOf names each capped item, its cap and the majors behind it", () => {
+    const parsed = JudgeReply.parse(reply({ surprise: 8 }, [mistake("secret", "major"), mistake("secret", "minor")]));
+    const caps = capsOf(parsed);
+    expect(caps.map(({ item, at, from }) => `${item} ${from}→${at}`)).toEqual(["surprise 8→4", "secrets 7→4"]);
+    expect(caps[0]!.behind).toHaveLength(1);
   });
 
   test("knowledge crossing caps secrets but not characters, which only a character mistake caps", () => {
@@ -91,7 +96,7 @@ describe("scorePlay", () => {
       ),
       50,
     );
-    expect(flat["judge.overall"]).toBeCloseTo(7 - 0.25 - 0.2);
+    expect(flat["judge.overall"]).toBeCloseTo(7 - 0.2);
     const worst = scored(
       reply(
         Object.fromEntries(Object.keys(RUBRIC).map((key) => [key, 1])),

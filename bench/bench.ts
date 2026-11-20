@@ -35,7 +35,7 @@ import { VERSION } from "../src/updater";
 import { askForJson, type TextProvider, worldMoved } from "../src/turn-engine";
 import { chartPage } from "./chart";
 import { resultFiles } from "./result-files";
-import { GENRES, type GenreKey, JUDGE_RULES, JudgeReply, MISTAKES, RUBRIC, RUBRIC_VERSION, scorePlay } from "./rubric";
+import { capsOf, GENRES, type GenreKey, JUDGE_RULES, JudgeReply, MISTAKES, RUBRIC, RUBRIC_VERSION, scorePlay } from "./rubric";
 import { stateFaults } from "./state-checks";
 import { type Call, tokenTable, tokenUse } from "./token-use";
 
@@ -777,6 +777,13 @@ function report(result: Result) {
     const turns = result.summary.turns || 1;
     const kinds = Object.keys(MISTAKES).map((kind) => `${kind} ${show(((result.summary[`mistakeCount.${kind}`] ?? 0) * 10) / turns)}`);
     console.log(`  Mistakes per 10 Turns by kind: ${kinds.join(", ")}`);
+    // Which major capped which score, as a silent cut read as unfair.
+    result.judge.plays.forEach((reply, at) => {
+      const caps = capsOf(reply).map(
+        ({ item, at: cap, from, behind }) => `${item} ${from}→${cap} (${behind.map(({ kind, where }) => `${kind} ${where}`).join(", ")})`,
+      );
+      if (caps.length) console.log(`  Play ${at + 1} capped: ${caps.join("; ")}`);
+    });
   }
   console.log(tokenTable(result.summary));
   const never = Object.entries(result.coverage).filter(([, plays]) => plays === 0);

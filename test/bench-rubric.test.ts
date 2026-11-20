@@ -55,17 +55,24 @@ describe("scorePlay", () => {
     expect(fiveIn50["judge.continuity"]).toBe(4);
   });
 
+  test("knowledge crossing caps secrets but not characters, which only a character mistake caps", () => {
+    const flat = scored(reply({}, [mistake("knowledge", "major")]));
+    expect(flat["judge.secrets"]).toBe(4);
+    expect(flat["judge.characters"]).toBe(7);
+    expect(scored(reply({}, [mistake("character", "major")]))["judge.characters"]).toBe(4);
+  });
+
   test("a restart caps continuity and pacing at 3", () => {
     const flat = scored(reply({}, [mistake("restart", "major")]));
     expect(flat["judge.continuity"]).toBe(3);
     expect(flat["judge.pacing"]).toBe(3);
   });
 
-  test("each major costs 0.2 flat, whatever the length, up to 1.5", () => {
+  test("each major costs 0.1 flat, whatever the length, up to 1", () => {
     const one = scored(reply({}, [mistake("picture", "major")]), 50);
     const longer = scored(reply({}, [mistake("picture", "major")]), 100);
-    // pictures capped 7 → 4 lowers the mean by 3/12 = 0.25, then 0.2 off.
-    expect(one["judge.overall"]).toBeCloseTo(7 - 0.25 - 0.2);
+    // pictures capped 7 → 4 lowers the mean by 3/12 = 0.25, then 0.1 off.
+    expect(one["judge.overall"]).toBeCloseTo(7 - 0.25 - 0.1);
     expect(longer["judge.overall"]).toBeCloseTo(one["judge.overall"]!);
     const many = scored(
       reply(
@@ -73,10 +80,10 @@ describe("scorePlay", () => {
         Array.from({ length: 20 }, () => mistake("pcVoiced", "major")),
       ),
     );
-    expect(many["judge.overall"]).toBeCloseTo(7 - 0.25 - 1.5);
+    expect(many["judge.overall"]).toBeCloseTo(7 - 0.25 - 1);
   });
 
-  test("minors cost at most 0.5, and the overall never drops below 1", () => {
+  test("minors cost at most 0.2, and the overall never drops below 1", () => {
     const flat = scored(
       reply(
         {},
@@ -84,7 +91,7 @@ describe("scorePlay", () => {
       ),
       50,
     );
-    expect(flat["judge.overall"]).toBeCloseTo(7 - 0.25 - 0.5);
+    expect(flat["judge.overall"]).toBeCloseTo(7 - 0.25 - 0.2);
     const worst = scored(
       reply(
         Object.fromEntries(Object.keys(RUBRIC).map((key) => [key, 1])),

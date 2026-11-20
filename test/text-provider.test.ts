@@ -10,6 +10,7 @@ import {
   speechOutsideLines,
   spokenLineFault,
   ThinkingBudgetReached,
+  type TextProvider,
   cutWords,
   repeatsPrevious,
   usableChoices,
@@ -748,6 +749,27 @@ test("a model that refuses Low is sent the next level up instead, and isn't sent
 
   expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([{ effort: "low" }, { effort: "medium" }, { effort: "medium" }, { effort: "medium" }]);
   expect(log).toContain("Thinking level raised");
+});
+
+test("a hurried call is sent thinking off, and a model that refuses it is sent its level then and never asked for none again", async () => {
+  const thinking = { data: [{ id: "fake/model", supported_parameters: ["reasoning"] }] };
+  const said = [delta("Hello."), "data: [DONE]\n\n"];
+  const refused = new Response(JSON.stringify({ error: { message: "Reasoning is mandatory" } }), { status: 400 });
+  play([said, refused, said, said], thinking, scriptedDice(), true);
+  const settings = settingsStore(join(folder.path, "settings.json"));
+  settings.update({ textThinking: "low" });
+  const send = (provide: TextProvider) =>
+    provide([{ role: "user", content: "Hi" }], { thinkingOff: true, onText: () => {}, signal: new AbortController().signal });
+  await send(textProvider(settings));
+  // A new provider, as one that took it would send it again.
+  const refusing = textProvider(settings);
+  const log = await logOf(async () => {
+    await send(refusing);
+    await send(refusing);
+  });
+
+  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([{ enabled: false }, { enabled: false }, { effort: "low" }, { effort: "low" }]);
+  expect(log).toContain("Thinking off refused");
 });
 
 test("a reply silent from its first byte is asked for once more, as a stuck request mostly isn't stuck twice", async () => {

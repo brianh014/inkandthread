@@ -5,9 +5,9 @@ import { logOf } from "./support";
 
 /** Answers with each reply in turn, keeping what each try was sent. */
 function scripted(...replies: (string | Error)[]) {
-  const tries: { prompt: Parameters<TextProvider>[0]; lessThinking: number | undefined }[] = [];
+  const tries: { prompt: Parameters<TextProvider>[0]; lessThinking: number | undefined; thinkingOff: boolean | undefined }[] = [];
   const provider: TextProvider = async (prompt, request) => {
-    tries.push({ prompt, lessThinking: request.lessThinking });
+    tries.push({ prompt, lessThinking: request.lessThinking, thinkingOff: request.thinkingOff });
     const reply = replies.shift()!;
     if (reply instanceof Error) throw reply;
     return reply;
@@ -47,11 +47,13 @@ test("a reply that thought too long is asked again a Thinking level lower each t
   expect(tries[2]!.prompt).toHaveLength(1);
 });
 
-test("a reply stopped at its thinking budget is asked again at the same level, told to answer now", async () => {
+test("a reply stopped at its thinking budget is asked again with thinking off, told to answer now", async () => {
   const { provider, tries } = scripted(new ThinkingBudgetReached("budget"), JSON.stringify({ text: "ok" }));
 
   expect(await ask(provider)).toEqual({ text: "ok" });
   expect(tries.map(({ lessThinking }) => lessThinking)).toEqual([0, 0]);
+  // As hurried tries at Low thought past the budget again.
+  expect(tries.map(({ thinkingOff }) => thinkingOff)).toEqual([false, true]);
   expect(tries[1]!.prompt.at(-1)!.content).toContain("give it now");
 });
 

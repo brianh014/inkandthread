@@ -126,6 +126,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     .slice(-2)
     .map(({ text }) => text);
   const shown = latestReplies.join("\n");
+  const played = `${state.summary}\n${shown}`;
   const { named, mentions } = threadPeople(state);
   const adds = ({ thread, truth, now }: ThreadMove) => thread === null && truth !== null && now !== null;
   // Why a change can't be used, named so the log and the request to write it again both say which.
@@ -214,6 +215,13 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
       ...latestReplies,
     ].join("\n");
   const withPc = (text: string) => people(text).some((name) => state.scene.visibleCast.includes(name));
+  // The PC named beside a telling, either way, as a re-asked now had someone tell the PC a secret off the page, which play then took as known.
+  const pc = pcNames.join("|");
+  const told = String.raw`(?:told|tells?|telling|warn(?:s|ed)?|show(?:s|ed)?|confid(?:es|ed) in|confess(?:es|ed) to|let slip to|wrote to|informs?|informed)`;
+  const toldPc = pc
+    ? new RegExp(String.raw`\b${told}\s+(?:${pc})\b|\b(?:${pc})\s+(?:has\s+|had\s+)?(?:${told}|learn(?:s|ed|t)?|heard|hears|was told|found out)\b`, "iu")
+    : /$^/;
+  const pcKnew = [state.worldBrief, state.summary, ...state.worldRules, ...state.pcKnown.facts, ...messages.map(({ text }) => text)].join("\n");
   /**
    * Whether a now tells as done the plan it had, by two of the plan's own long words (or its one) that its old now lacked, as a
    * move had someone carry out a call at four while the page sat them with the PC.
@@ -221,8 +229,12 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
    */
   const tellsDone = (plan: string, was: string, now: string) => {
     const words = [...new Set(plan.match(/(?<!\p{L})\p{Ll}\p{L}{4,}/gu) ?? [])].filter((word) => !EVERYDAY.has(word) && !mentions(was, word));
-    const echoed = words.filter((word) => mentions(now, word)).length;
-    return echoed > 0 && echoed >= Math.min(2, words.length);
+    const enough = (text: string) => {
+      const echoed = words.filter((word) => mentions(text, word)).length;
+      return echoed > 0 && echoed >= Math.min(2, words.length);
+    };
+    // Not a plan the page played out with the PC, as a true now of a search shown on the page was faulted and the stale one kept.
+    return enough(now) && !enough(played);
   };
   /** Why a now or plan can't stand: it waits on the PC, puts someone with the PC somewhere else, hands its people a secret, or tells as done a plan whose people were with the PC. */
   const nowFaults = (kept: ThreadMove[]) =>
@@ -236,12 +248,18 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
       if (here.length > 0 && withPc(change.now) && !here.some((word) => mentions(change.now!, word)))
         faults.push("a now puts someone with the PC somewhere else");
       if (named.length > 0 && secretWords(both, secrets, theirs(named, change)).length > 0) faults.push("a now gives someone what only a secret holds");
+      if (both.split(/(?<=[.!?;])\s+/).some((sentence) => toldPc.test(sentence) && secretWords(sentence, secrets, pcKnew).length > 0))
+        faults.push("a now has the PC told, or telling, what only a secret holds, which the PC learns only on the page");
       const plan = change.thread === null ? "" : (threadsPlan[change.thread] ?? "");
       if (withPc(plan) && tellsDone(plan, threadsNow[change.thread!] ?? "", change.now))
         faults.push("a now tells as done a plan whose people were with the PC");
       return faults;
     });
   let nowsAsked = false;
+  const whereIs = (change: ThreadMove, kept: ThreadMove[]) =>
+    change.thread === null
+      ? `the thread you added (${kept.filter(adds).indexOf(change) + 1} of ${kept.filter(adds).length})`
+      : `the now of plot_threads[${plotThreads.indexOf(change.thread)}]`;
   // Sent naming only the open truths, as models misquoted them; read as any text, so a provider that ignores the schema loses only that change.
   const Move = plotThreads.length === 0 ? ThreadMove : ThreadMove.extend({ thread: z.string().min(1).meta({ enum: plotThreads }).nullable() });
   // Asked again only when nothing usable is left.
@@ -255,7 +273,9 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     if (unfit.length > 0) {
       nowsAsked = true;
       log.info("world", "Nows asked again", { save: id, ...countOf(unfit) });
-      for (const message of new Set(unfit)) context.addIssue({ code: "custom", message });
+      // Named by where the thread is, never by its words, as the reason goes to the log too.
+      for (const message of new Set(kept.flatMap((change) => nowFaults([change]).map((why) => `${whereIs(change, kept)}: ${why}`))))
+        context.addIssue({ code: "custom", message });
     }
     // Adds past the limit alone are no move rather than a fault, so they aren't asked again.
     if (plot_threads.length === 0 || kept.length > 0 || faults.length === 0) return;

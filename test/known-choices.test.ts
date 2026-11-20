@@ -135,8 +135,12 @@ test("Choices asked for alone are sent the PC's Journal, so they build on what t
   await writeChoices(textProvider, "Jory looks away.", new AbortController().signal, "", "", {
     facts: ["Jory works the lead strings."],
     looseEnds: ["Who paid Jory?"],
+    storyTime: { day: 3, date: "3rd of Thaw", timeOfDay: "dusk" },
   });
   expect(JSON.parse(prompts[0]!.at(-1)!.content)).toMatchObject({ journal: { facts: ["Jory works the lead strings."], loose_ends: ["Who paid Jory?"] } });
+  // The story time too, as facts never retire and Choices offered to wait for an event the story had already held.
+  expect(JSON.parse(prompts[0]!.at(-1)!.content).story_time).toEqual({ day: 3, date: "3rd of Thaw", timeOfDay: "dusk" });
+  expect(prompts[0]![0]!.content).toContain("the story time now");
 });
 
 test("a Choice built on what the PC hasn't learned is dropped, not reworded, and the others are kept", () => {

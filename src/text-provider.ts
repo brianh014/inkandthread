@@ -169,6 +169,8 @@ export function textProvider(
   const budgets = new Map<string, boolean>();
   // The lowest level a model took after refusing a lower one, by its index in LEVELS, so it isn't sent the refused one again.
   const lowestTaken = new Map<string, number>();
+  // Models that refused thinking off, so a hurried try isn't sent it again until the app restarts.
+  const offRefused = new Set<string>();
   // Servers that refused `stream_options`, so they aren't asked again until the app restarts.
   const usageRefused = new Set<string>();
 
@@ -224,7 +226,7 @@ export function textProvider(
 
   const once: TextProvider = async (
     prompt,
-    { call, schema, picture, lessThinking = 0, thinkingBudget, thinkingMs, onText, onGeneration, onUsage, onCall, signal },
+    { call, schema, picture, lessThinking = 0, thinkingBudget, thinkingMs, thinkingOff = false, onText, onGeneration, onUsage, onCall, signal },
   ) => {
     const {
       textBaseUrl,
@@ -285,6 +287,7 @@ export function textProvider(
 
     let withThinking = false;
     let budget: number | undefined;
+    let off = thinkingOff && !offRefused.has(modelKey);
     const send = async (useSchema: boolean, askUsage: boolean) => {
       heardFrom();
       log.verbose("text", "Prompt sent", () => ({ ...named, model: textModel, messages: prompt.length, chars: sent.length, schema: useSchema }));
@@ -302,7 +305,10 @@ export function textProvider(
           ...(askUsage && { stream_options: { include_usage: true } }),
           max_tokens: textMaxTokens,
           // Changes nothing in the prompt, so the provider's cache still holds. Google takes only OpenAI's own field.
-          ...(withThinking && (isGoogle(url) ? { reasoning_effort: textThinking } : { reasoning: budget ? { max_tokens: budget } : { effort: textThinking } })),
+          ...(withThinking &&
+            (isGoogle(url)
+              ? { reasoning_effort: off ? "none" : textThinking }
+              : { reasoning: off ? { enabled: false } : budget ? { max_tokens: budget } : { effort: textThinking } })),
           ...(useSchema && { response_format: { type: "json_schema", json_schema: { name: "narrator_response", strict: true, schema } } }),
           // OpenRouter only: a strict server such as OpenAI refuses a field it does not know.
           ...(openRouter && { provider: { ...(useSchema && { require_parameters: true }), ...routing(chosen) } }),
@@ -322,6 +328,15 @@ export function textProvider(
       let response = await send(useSchema, askUsage);
       // Tried first, as a host or model that won't take the level would otherwise be read below as refusing the schema, which then goes for good.
       const refused = () => response.status === 400 || response.status === 404;
+      // A model that must think refuses thinking off, so it's sent its level instead, and never asked for none again.
+      if (withThinking && off && refused()) {
+        await response.body?.cancel();
+        offRefused.add(modelKey);
+        off = false;
+        log.warning("text", "Thinking off refused", { ...named, model: textModel, status: response.status });
+        response = await send(useSchema, askUsage);
+      }
+      if (off && withThinking) seen.thinking = "off";
       if (withThinking && refused()) {
         const status = response.status;
         const asked = textThinking;

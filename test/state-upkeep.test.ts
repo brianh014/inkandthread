@@ -312,6 +312,34 @@ test("State Upkeep records what someone learned that the Narrator missed, held t
   expect(log).not.toContain("under the mat");
 });
 
+test("State Upkeep doesn't record again in other words what the Narrator's own npc_learns gave, nor what someone doesn't know", async () => {
+  play(
+    [
+      narration(
+        "Ash tells Kit the brass key lies under the doormat.",
+        { op: "add_npc", name: "Kit", appearance: "a boy in a cap" },
+        { op: "npc_learns", name: "Kit", fact: "Ash told Kit the brass key lies hidden under the doormat outside." },
+      ),
+    ],
+    [
+      upkept(
+        { op: "npc_learns", name: "Kit", fact: "Ash told him that the brass key is hidden under the doormat." },
+        { op: "npc_learns", name: "Kit", fact: "Kit does not know who lit the lamp." },
+        { op: "npc_learns", name: "Kit", fact: "Kit saw the lamp burning in the boathouse, but does not know who lit it" },
+      ),
+    ],
+  );
+  const id = createSave();
+
+  const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
+
+  expect(store().latestState(id).npcKnows).toEqual({
+    Kit: ["Ash told Kit the brass key lies hidden under the doormat outside.", "Kit saw the lamp burning in the boathouse."],
+  });
+  expect(log).toContain("Upkeep's repeats of what someone learned dropped");
+  expect(log).toContain('"count":1');
+});
+
 test("State Upkeep may move time in a Turn where the Narrator didn't", async () => {
   const { upkeep } = play([narration("Ash waits until dark.")], [upkept({ op: "set_story_time", days_passed: 0, date: "1st of Thaw", time_of_day: "night" })]);
   const id = createSave();

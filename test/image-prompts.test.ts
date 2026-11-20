@@ -51,6 +51,10 @@ test("a person goes in once, and neither an unknown name nor a missing phrase re
     prompt: "a tall woman turns, and the same person sighs",
     pictured: ["Hesper"],
   });
+  // A described mark after a bare one keeps its words, as "the same person" there was drawn as someone else.
+  expect(expandMarks("[Orin: an old man] beckons [Hesper] in. [Hesper: a tall woman] sits", npcs, pc, ["Orin", "Hesper"]).prompt).toBe(
+    "the person from image 1, an old man, beckons the person from image 2 in. the person from image 2, a tall woman, sits",
+  );
   expect(expandMarks("[Tobin] waits", npcs, pc)).toEqual({ prompt: "a person waits", pictured: [] });
   expect(expandMarks("[Orin] waits", npcs, pc)).toEqual({ prompt: "a person waits", pictured: ["Orin"] });
 });
@@ -200,7 +204,10 @@ test("someone's looks keep no caked dirt, passing pallor, bonds or garment taken
   const passing = `${coat}, heavy boots caked at the treads with pale sand, drained grey now, his wrists bound before him with rope, coat off and folded over a barrel, his hat left below on a chair`;
   const { next } = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: passing }]);
   expect(next.npcs[0]!.appearance).toBe(coat);
-  const lasting = `${coat}, hair tied back, a scar left on his cheek`;
+  // Nor what they carry on an arm, as "another man's coat under his arm" stayed in a constable's looks.
+  const carried = `${coat}, and a stranger's black coat under his arm, a bundle tucked close, a shawl over one arm`;
+  expect(applyOperations(before, [{ op: "update_npc", name: "Price", appearance: carried }]).next.npcs[0]!.appearance).toBe(coat);
+  const lasting = `${coat}, hair tied back, a scar left on his cheek, an anchor inked on his arm`;
   expect(applyOperations(before, [{ op: "update_npc", name: "Price", appearance: lasting }]).next.npcs[0]!.appearance).toBe(lasting);
 });
 

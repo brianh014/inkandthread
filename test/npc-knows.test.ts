@@ -2,6 +2,7 @@ import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { saveStore } from "../src/save-store";
+import { knownOnly } from "../src/state-applier";
 import { narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -39,4 +40,13 @@ test("a Save from before What an NPC Knows upgrades with no lists, and a Turn th
   expect((await turn(id)).status).toBe(201);
 
   expect(store().latestState(id).npcKnows).toEqual({ Nadia: ["Saw the fire"] });
+});
+
+test("what someone learns keeps only what they know, never a clause of what they don't", () => {
+  expect(knownOnly("Thorne pays Price, but he does not yet know the lad saw the boat.")).toBe("Thorne pays Price.");
+  expect(knownOnly("Kit knows nothing of the plot yet; he has only his own sight of the lamp, told to Ash alone.")).toBe(
+    "He has only his own sight of the lamp, told to Ash alone.",
+  );
+  expect(knownOnly("He has never heard of Kit, nor of any lantern.")).toBe("");
+  expect(knownOnly("Kit saw the boat and told Ash.")).toBe("Kit saw the boat and told Ash.");
 });

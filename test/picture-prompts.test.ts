@@ -202,6 +202,10 @@ test("an Update's portrait prompt is written again when it adds a mark the looks
   const { written, prompts } = write(ask, "prose", marked, plain);
   expect(await written).toBe(`${keep} He wears a black coat. ${setting.artStyle}`);
   expect(prompts).toHaveLength(2);
+  // A plain "mark" too, as a faint red one was painted as blood, and the schema's example names no mark to prime one.
+  const red = write(ask, "prose", JSON.stringify({ keep, changes: "A faint red mark shows on his neck. He wears a black coat." }), plain);
+  expect(await red.written).toBe(`${keep} He wears a black coat. ${setting.artStyle}`);
+  expect(red.prompts[0]![0]!.content).not.toMatch(/bruise/i);
 });
 
 test("an Update's portrait prompt is a short edit of the old portrait: the same face, then how they look now", async () => {

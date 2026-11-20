@@ -118,6 +118,7 @@ export function pcLooks({ name, physicalTraits = "" }: Save["pc"], wearing: stri
  */
 export function expandMarks(text: string, npcs: Npc[], pcName: string, referenced: Pictured = []) {
   const pictured: Pictured = [];
+  const described = new Set<string | null>();
   const prompt = text
     // JSON in braces, as DeepSeek once put the scene's fields after the likeness sentence, isn't a likeness sentence.
     .replace(/\s*\{[^{}]*"\s*:[^{}]*(?:\}|$)/g, "")
@@ -133,8 +134,11 @@ export function expandMarks(text: string, npcs: Npc[], pcName: string, reference
       const npc = isPc ? undefined : findPerson(npcs, mark.trim());
       if (!isPc && !npc) return brief || "a person";
       const person = isPc ? null : npc!.name;
-      if (pictured.includes(person)) return "the same person";
-      pictured.push(person);
+      // A described mark after a bare one keeps its words, as "the same person" there drew someone else in their place.
+      const firstDescribed = !!brief && !described.has(person);
+      if (brief) described.add(person);
+      if (pictured.includes(person) && !firstDescribed) return "the same person";
+      if (!pictured.includes(person)) pictured.push(person);
       const image = referenced.indexOf(person) + 1;
       if (!image) return brief || "a person";
       // A comma closes the phrase only when the sentence reads on, as in "the person from image 1, a tall woman, kneels".

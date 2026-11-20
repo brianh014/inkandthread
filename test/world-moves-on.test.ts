@@ -723,6 +723,70 @@ test("a move that tells as done a plan whose people were with the PC is asked ag
   expect(store().latestState(id).threadsNow[drowned]).toBe(stayed);
 });
 
+test("a now that tells as done a plan the page played out with the PC stands, as a true now was faulted and the stale one kept", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  const plan = "Grout will go up to the apothecary at four and leave the dead man's letter.";
+  const part = { name: "Silas Grout", knows: "He held the harbourmaster under for the vicar." };
+  const done = "Grout went up to the apothecary with Ash and left the dead man's letter there.";
+  const told = play(
+    narration(
+      "Ash walks with the sexton up to the apothecary, where he leaves the dead man's letter on the counter.",
+      { op: "add_npc", name: "Silas Grout", appearance: "a huge man" },
+      { op: "set_scene", location: "The apothecary", visible_cast: ["Silas Grout"] },
+      nextDay(),
+    ),
+    moved({ ...change(drowned, done), knows: [part] }),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [drowned],
+      threadsNow: { [drowned]: "Grout dug a grave." },
+      threadsPlan: { [drowned]: plan },
+      worldBible: [],
+    },
+  });
+
+  for (const input of ["I go with him.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+
+  expect(told.prompts).toHaveLength(3);
+  expect(store().latestState(id).threadsNow[drowned]).toBe(done);
+});
+
+test("a now that has the PC told a secret off the page is asked again, naming that thread, and kept out if still so", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  const hidden = "The ledger is hidden in the cottage chimney, and the vicar is searching for it.";
+  const leak = "On Monday the ferryman told Ash the ledger lies hidden up the cottage chimney.";
+  const told = play(narration("Ash walks to the quay.", nextDay()), moved(change(hidden, leak)), moved(change(hidden, leak)), narration("Ash waits."));
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [drowned, hidden],
+      threadsNow: { [hidden]: "The vicar waits for night." },
+      worldBible: [],
+    },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I walk.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(told.prompts[2]!.at(-1)!.content).toContain("the now of plot_threads[1]: a now has the PC told, or telling, what only a secret holds");
+  expect(log).toContain('"a now has the PC told, or telling, what only a secret holds, which the PC learns only on the page":1');
+  expect(store().latestState(id).threadsNow[hidden]).toBe("The vicar waits for night.");
+});
+
 test("a move with no usable change is written again, saying why", async () => {
   const told = play(
     narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),

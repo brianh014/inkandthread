@@ -79,6 +79,8 @@ export type TextProvider = (
      */
     thinkingBudget?: number;
     thinkingMs?: number;
+    /** Asks for no thinking at all, where the model takes that, as a hurried try after thinking was cut. */
+    thinkingOff?: boolean;
     onText: (text: string) => void;
     onGeneration?: (id: string) => void;
     onUsage?: (usage: TextUsage) => void;
@@ -1063,6 +1065,7 @@ async function narrate(
         writeChoices(textProvider, narration, signal, previous, plainMessage({ role: "player", text: upkeep?.input ?? input }).text, {
           facts: narrated.next.pcKnown.facts,
           looseEnds: narrated.next.looseEnds,
+          storyTime: narrated.next.storyTime,
         }).then((written) =>
           // Held to what the PC knows, as the Choices the reply came with are.
           written && upkeep && seen !== undefined ? knownChoices(written, narrated.next, seen(), narration, upkeep.settings.read().storyInLog) : written,
@@ -1084,7 +1087,9 @@ async function narrate(
         followUp(
           "upkeep",
           upkeep
-            ? upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal, timed).then((ops) => ops && withoutCut(ops, cut))
+            ? upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal, timed).then(
+                (ops) => ops && withoutCut(withoutRelearned(ops, state_operations, narrated.next.npcs), cut),
+              )
             : undefined,
         ),
         followUp(
@@ -1248,6 +1253,19 @@ export const withoutCut = <Operation extends StateOperation>(operations: Operati
         ),
       ),
   );
+/**
+ * State Upkeep's operations without an npc_learns that says again in other words what the Narrator's own gave that person in
+ * the same Turn, as Upkeep repeated them most Turns of a bench play.
+ */
+export function withoutRelearned<Operation extends StateOperation>(upkept: Operation[], narrated: StateOperation[], npcs: State["npcs"]) {
+  const who = (name: string) => findPerson(npcs, name)?.name ?? name;
+  const learned = narrated.flatMap((operation) => (operation.op === "npc_learns" ? [operation] : []));
+  const kept = upkept.filter(
+    (operation) => operation.op !== "npc_learns" || !learned.some(({ name, fact }) => who(name) === who(operation.name) && sameApproach(fact, operation.fact)),
+  );
+  if (kept.length < upkept.length) log.info("turn", "Upkeep's repeats of what someone learned dropped", { count: upkept.length - kept.length });
+  return kept;
+}
 /** Whether a fix put in a sentence of eight words or more copied from the previous reply, as one swapped an earned admission for a speech already made. */
 export const repeatsPrevious = (fixed: string, told: string, previous: string) =>
   fixed.split(/(?<=[.!?…]["”]?)\s+/).some((sentence) => countWords(sentence) >= 8 && !told.includes(sentence) && previous.includes(sentence));
@@ -1544,6 +1562,7 @@ export async function askForJson<T>(
   let generation: string | undefined;
   let id: string | undefined;
   let lessThinking = fewer;
+  let thinkingOff = false;
   let asked = prompt;
   for (let attempt = 1; ; attempt++) {
     const request = {
@@ -1553,6 +1572,7 @@ export async function askForJson<T>(
       lessThinking,
       thinkingBudget,
       thinkingMs,
+      thinkingOff,
       onText: () => {},
       onGeneration: (each: string) => (generation = each),
       onCall: (each: string) => (id = each),
@@ -1567,6 +1587,8 @@ export async function askForJson<T>(
       // The same level would most likely think past the limit again.
       if (reason === OVERTHOUGHT) lessThinking++;
       else asked = [...prompt, couldNotUse([reason, ...toldModel(cause)].join("; "))];
+      // Sent without thinking, as hurried tries sent at Low thought past the budget again (11 State Upkeeps in one bench play).
+      if (reason === OVER_BUDGET) thinkingOff = true;
     }
   }
 }

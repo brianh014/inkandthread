@@ -212,6 +212,27 @@ export const MAX_PLOT_THREADS = 8;
 /** The most an NPC's list of what they know keeps, newest last, so the lists of a crowded scene stay a few lines each. */
 export const MAX_NPC_KNOWS = 12;
 
+// Saying what someone doesn't know, which an NPC's list read as what they do, and which goes stale once they learn it.
+const UNKNOWING =
+  /\b(?:(?:does|did|do)(?:n't| not)(?: yet)? know|knows? nothing|(?:has|have|had) (?:never heard|no idea)|never (?:learned|heard|knew)|unaware|not (?:yet )?aware)\b/i;
+// Clauses split where a fact goes on, keeping the joining word with the clause it starts.
+const CLAUSES = /(\s*;\s*|,\s+(?=(?:but|and|though|yet|while|nor)\b))/i;
+
+/** A fact an NPC learns without its clauses saying what they don't know, or "" when that is all it says. */
+export function knownOnly(fact: string) {
+  if (!UNKNOWING.test(fact)) return fact;
+  const pieces = fact.split(CLAUSES);
+  const kept: string[] = [];
+  for (let at = 0; at < pieces.length; at += 2) {
+    const clause = pieces[at]!;
+    if (UNKNOWING.test(clause) || /^nor\b/i.test(clause)) continue;
+    kept.push(kept.length === 0 ? clause.replace(/^(?:but|and|though|yet|while)\s+/i, "") : `${pieces[at - 1]}${clause}`);
+  }
+  const text = kept.join("").trim();
+  if (!/\p{L}{2}/u.test(text)) return "";
+  return `${text[0]!.toUpperCase()}${text.slice(1).replace(/[\s,;:]+$/, "")}${/[.!?]$/.test(text) ? "" : "."}`;
+}
+
 function addOnce(list: string[], value: string) {
   if (list.includes(value)) return false;
   list.push(value);
@@ -379,9 +400,11 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const name = findPerson(state.npcs, operation.name)?.name;
       if (!name) return "no such NPC";
       if (!/\p{L}/u.test(operation.fact)) return "no words";
+      const fact = knownOnly(operation.fact);
+      if (!fact) return "only what they don't know";
       // Own keys only, as a name such as "constructor" would find what every object has.
       const knows = Object.hasOwn(state.npcKnows, name) ? state.npcKnows[name]! : [];
-      if (!addOnce(knows, operation.fact)) return "already there";
+      if (!addOnce(knows, fact)) return "already there";
       state.npcKnows = { ...state.npcKnows, [name]: knows.slice(-MAX_NPC_KNOWS) };
       return;
     }
@@ -511,10 +534,11 @@ const DAY_PARTS: [RegExp, number][] = [
 ];
 // What someone holds, or where they are or what they are doing, which passes with the scene, as a looks of "hat in hand, gone
 // out into the rain" redrew a portrait. The weather and the road's dirt too, as "rain-dark shoulders" redrew one soaked, and a
-// passing pallor, bonds or a garment taken off and put down, as "coat folded over a barrel" redrew one coatless.
+// passing pallor, bonds or a garment taken off and put down, as "coat folded over a barrel" redrew one coatless, or carried on
+// an arm, as another man's coat "under his arm" stayed in a constable's looks.
 // shortcut: whole comma clauses by these words; add a word when another passing state sticks.
 const PASSING =
-  /\b(?:holding|carrying|carried|clutch(?:ing|ed)|gripp(?:ing|ed)|kneeling|crouching|sitting|seated|lying|leaning|standing (?:at|in|by|on|beside|over|before)|gone (?:out|off|away|into|to|back)|in (?:his|her|their|one) (?:other )?hand|in hand|held (?:high|low|up|out)|rain-\w+|wet|soaked|sodden|drenched|dripping|damp|dusty|dust|mud-\w+|muddied|windblown|caked|crusted|drained|ashen|flushed|(?:wrists|hands|arms|ankles) (?:bound|tied)|(?:bound|tied) (?:before|behind)|manacled|shackled|in irons|(?:taken|pulled|shrugged) off|(?:coat|jacket|cloak|hat|cap|shirt|boots) off|folded (?:over|on|across)|left (?:below|behind))\b/i;
+  /\b(?:holding|carrying|carried|clutch(?:ing|ed)|gripp(?:ing|ed)|kneeling|crouching|sitting|seated|lying|leaning|standing (?:at|in|by|on|beside|over|before)|gone (?:out|off|away|into|to|back)|in (?:his|her|their|one) (?:other )?hand|in hand|held (?:high|low|up|out)|rain-\w+|wet|soaked|sodden|drenched|dripping|damp|dusty|dust|mud-\w+|muddied|windblown|caked|crusted|drained|ashen|flushed|(?:wrists|hands|arms|ankles) (?:bound|tied)|(?:bound|tied) (?:before|behind)|manacled|shackled|in irons|(?:taken|pulled|shrugged) off|(?:coat|jacket|cloak|hat|cap|shirt|boots) off|folded (?:over|on|across)|left (?:below|behind)|(?:under|over|across) (?:his|her|their|one|an?) arms?|tucked)\b/i;
 /** The looks without their passing clauses, or as written if nothing else is left. */
 const lasting = (appearance: string) => {
   const kept = appearance
@@ -687,7 +711,8 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       for (const [name, parts] of Object.entries(edit.knows ?? {})) {
         const key = findPerson(state.npcs, name)?.name ?? name;
         const knew = Object.hasOwn(npcKnows, key) ? npcKnows[key]! : [];
-        npcKnows[key] = [...knew, ...parts.filter((part) => !knew.includes(part))].slice(-MAX_NPC_KNOWS);
+        const known = parts.map(knownOnly).filter((part) => part && !knew.includes(part));
+        if (known.length > 0 || knew.length > 0) npcKnows[key] = [...knew, ...known].slice(-MAX_NPC_KNOWS);
       }
       const had = (truth: string) => (Object.hasOwn(state.threadParts, truth) ? state.threadParts[truth]! : []);
       const given = (truth: string) => (edit.parts && Object.hasOwn(edit.parts, truth) ? edit.parts[truth]! : []);

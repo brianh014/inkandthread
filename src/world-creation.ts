@@ -482,13 +482,13 @@ const editReply = z.object({
     `One short sentence saying this is the same person with their face preserved, as in "The same woman with their face preserved." Never over ${KEEP_WORDS} words.`,
   ),
   changes: atMost(CHANGE_WORDS).describe(
-    `How they look now, in plain short sentences, as in "She is wearing a cream knit sweater showing the collarbone. Her hair is in a high ponytail. She has a bruise on her throat.", then a last sentence placing them in front of a plain neutral background, as in "Standing in front of a plain neutral background." Never over ${CHANGE_WORDS} words.`,
+    `How they look now, in plain short sentences, as in "She is wearing a cream knit sweater showing the collarbone. Her hair is in a high ponytail. A thin silver chain hangs at her throat.", then a last sentence placing them in front of a plain neutral background, as in "Standing in front of a plain neutral background." Never over ${CHANGE_WORDS} words.`,
   ),
 });
 
-// shortcut: a list of the marks seen added; widen it if redraws invent others.
+// shortcut: a list of the marks seen added; widen it if redraws invent others. "mark" too, as a "faint red mark" was painted as blood.
 const MARKS =
-  /\b(?:soot\w*|smudge\w*|smear\w*|stain\w*|streak\w*|grime\w*|dirt\w*|mud\w*|ash|ashes|blood\w*|bruise\w*|scar\w*|scratch\w*|cut|cuts|wound\w*)\b/g;
+  /\b(?:soot\w*|smudge\w*|smear\w*|stain\w*|streak\w*|grime\w*|dirt\w*|mud\w*|ash|ashes|blood\w*|bruise\w*|scar\w*|scratch\w*|cut|cuts|wound\w*|mark|marks|marked)\b/g;
 
 // The scene rules' limits, and a review may keep one already over them, as it changes only what fails.
 const SCENE_WORDS: Record<PromptStyle, number> = { prose: 150, keywords: 80 };

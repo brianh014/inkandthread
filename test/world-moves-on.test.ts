@@ -759,6 +759,42 @@ test("a now that tells as done a plan the page played out with the PC stands, as
   expect(store().latestState(id).threadsNow[drowned]).toBe(done);
 });
 
+test("a move asked again for a faulted now keeps the first reply's sound changes and takes only that thread from the re-ask", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  const hidden = "The ledger is hidden in the cottage chimney, and the vicar is searching for it.";
+  const waiting = "Grout will deal with Ash if she presses.";
+  const vicar = "The vicar has torn up the cottage floor and found nothing.";
+  const dug = "Grout has dug a fresh grave behind the chapel.";
+  const told = play(
+    narration("Ash walks to the quay.", nextDay()),
+    moved(change(drowned, waiting), change(hidden, vicar)),
+    // The re-ask rewrites the sound thread too, which is not taken, as the first reply's stands.
+    moved(change(drowned, dug), change(hidden, "The vicar sleeps.")),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [drowned, hidden],
+      threadsNow: { [drowned]: "Grout digs a grave.", [hidden]: "The vicar waits for night." },
+      worldBible: [],
+    },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I walk.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(told.prompts[2]!.at(-1)!.content).toContain("only the changes named here are taken from your next reply");
+  expect(store().latestState(id).threadsNow).toEqual({ [drowned]: dug, [hidden]: vicar });
+  expect(log).toMatch(/Faulted nows settled .*"kept":1,"reAsked":1,"replaced":1,"reverted":0/);
+});
+
 test("a now that has the PC told a secret off the page is asked again, naming that thread, and kept out if still so", async () => {
   const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
   const hidden = "The ledger is hidden in the cottage chimney, and the vicar is searching for it.";

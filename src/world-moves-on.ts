@@ -260,6 +260,9 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
       return faults;
     });
   let nowsAsked = false;
+  // The reply whose nows were asked again, sorted, so its changes that weren't faulted stand and only the faulted ones are
+  // taken from the re-ask, as using the re-ask's whole reply threw away most of each move's work on the bench.
+  let first: ReturnType<typeof sorted> | undefined;
   const whereIs = (change: ThreadMove, kept: ThreadMove[]) =>
     change.thread === null
       ? `the thread you added (${kept.filter(adds).indexOf(change) + 1} of ${kept.filter(adds).length})`
@@ -276,13 +279,15 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     const unfit = nowsAsked ? [] : nowFaults(kept);
     if (unfit.length > 0) {
       nowsAsked = true;
+      first = sorted(plot_threads);
       log.info("world", "Nows asked again", { save: id, ...countOf(unfit) });
       // Named by where the thread is, never by its words, as the reason goes to the log too.
       for (const message of new Set(kept.flatMap((change) => nowFaults([change]).map((why) => `${whereIs(change, kept)}: ${why}`))))
         context.addIssue({ code: "custom", message });
+      context.addIssue({ code: "custom", message: "only the changes named here are taken from your next reply, and the rest of this one stands" });
     }
-    // Adds past the limit alone are no move rather than a fault, so they aren't asked again.
-    if (plot_threads.length === 0 || kept.length > 0 || faults.length === 0) return;
+    // Adds past the limit alone are no move rather than a fault, so they aren't asked again; nor a re-ask, as the first reply's stand.
+    if (plot_threads.length === 0 || kept.length > 0 || faults.length === 0 || first !== undefined) return;
     for (const message of new Set(faults)) context.addIssue({ code: "custom", message });
   });
   const threads = plotThreads.map((truth) => {
@@ -330,11 +335,33 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
   const started = Date.now();
   try {
     const reply = await askForJson(textProvider, prompt, Reply, "The Narrator refused to move the world on.", signal, { call: "moveWorld" });
-    const { kept: sent, faults, overflow } = sorted(reply.plot_threads);
+    const again = sorted(reply.plot_threads);
+    const { faults, overflow } = first ?? again;
+    const faulted = (change: ThreadMove) => nowFaults([change]).length > 0;
+    // Each faulted change of the first reply swapped for the re-ask's of the same thread (an add, the add in its place) if
+    // that one is sound. shortcut: a re-ask for a missing part in the same reply loses that part on the first's sound changes;
+    // take the re-ask's knows too if withoutPart counts rise.
+    const firstAdds = first?.kept.filter(adds) ?? [];
+    const swapped = (change: ThreadMove) => {
+      if (!faulted(change)) return change;
+      const other = change.thread === null ? again.kept.filter(adds)[firstAdds.indexOf(change)] : again.kept.find(({ thread }) => thread === change.thread);
+      return other && !faulted(other) ? other : change;
+    };
+    const sent = first ? first.kept.map(swapped) : again.kept;
     // A rewrite still faulted once asked again keeps its thread's old now and plan, as kept ones handed a vicar a ledger only a
     // secret knew of. An add has no old one to keep, so it stands.
     const reverted = sent.filter((change) => change.thread !== null && change.now !== null && nowFaults([change]).length > 0);
     const kept = sent.filter((change) => !reverted.includes(change));
+    if (first) {
+      const asked = first.kept.filter(faulted);
+      log.info("world", "Faulted nows settled", {
+        save: id,
+        kept: first.kept.length - asked.length,
+        reAsked: asked.length,
+        replaced: sent.filter((change) => !first!.kept.includes(change)).length,
+        reverted: reverted.length,
+      });
+    }
     // A rewrite's truth is never used, as only play reveals a truth: World Moves On writes one only for a thread it adds.
     const plot_threads = kept.flatMap(({ thread, truth, now }): ListChange[] =>
       thread === null ? [{ old: null, new: truth }] : now === null ? [{ old: thread, new: null }] : [],

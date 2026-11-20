@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Check } from "./check-resolver";
 import { errorType, log } from "./logger";
-import { plainMessage, type Prompt } from "./prompt-assembler";
+import { knowsOfPresent, plainMessage, type Prompt } from "./prompt-assembler";
 import { modelName, reviewerSettings, type TextSettings } from "./settings-store";
 import { type State, StateOperation } from "./state-applier";
 import { lowerThinking } from "./text-provider";
@@ -104,17 +104,21 @@ export async function upkeepOperations(
     {
       role: "user",
       content: JSON.stringify({
+        // The long lists that mostly grow at their end come first and what changes every Turn last, so the provider's cache,
+        // which covers only an unchanged start, reaches past them.
         state: {
           pc_name: pcName,
+          known_facts: state.pcKnown.facts,
+          // Only those the replies could show learning, as everyone's was about a fifth of the prompt.
+          npc_knows: knowsOfPresent(state, [previous, input, reply].join("\n")),
+          // As the Narrator seldom resolves one, and long stories ended with a dozen that play had long settled.
+          loose_ends: state.looseEnds,
+          // After the lists that only grow, as looks change in place.
+          npcs: state.npcs,
           pc_appearance: state.pcAppearance,
           inventory: state.inventory,
           scene: state.scene,
           story_time: state.storyTime,
-          npcs: state.npcs,
-          npc_knows: state.npcKnows,
-          known_facts: state.pcKnown.facts,
-          // As the Narrator seldom resolves one, and long stories ended with a dozen that play had long settled.
-          loose_ends: state.looseEnds,
         },
         previous_reply: previous,
         // In plain words, as the Narrator's instruction for a Continue would tell this call not to move time on.

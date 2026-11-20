@@ -78,6 +78,9 @@ test("State Upkeep records what the reply showed and the Narrator missed, after 
   expect(sent).toMatchObject({ state: { inventory: { carrying: ["a key"] } }, previous_reply: "", player_move: "I walk home and hang up my coat." });
   expect(sent.reply).toContain("hangs the coat");
   expect(Object.keys(sent.state)).not.toContain("plot_threads");
+  // The long lists first and what changes every Turn last, so the provider's cache reaches past the lists.
+  expect(Object.keys(sent.state).slice(0, 3)).toEqual(["pc_name", "known_facts", "npc_knows"]);
+  expect(Object.keys(sent.state).at(-1)).toBe("story_time");
   expect(Object.keys(sent.state)).not.toContain("worldBible");
   expect(log).toContain('"operations":["set_scene","remove_item"]');
   expect(log).toContain('"upkeepRefused":0');
@@ -285,6 +288,26 @@ test("State Upkeep is sent the Loose Ends and resolves one the reply settled, as
   expect(JSON.parse(upkeep.prompts[0]!.at(-1)!.content).state.loose_ends).toEqual(["Find the key to the boathouse"]);
   expect(upkeep.prompts[0]![0]!.content).toContain("resolve_loose_end");
   expect(store().latestState(id).looseEnds).toEqual([]);
+});
+
+test("State Upkeep is sent what only those in view or named in the replies know, as everyone's crowded its prompt", async () => {
+  const { upkeep } = play(
+    [
+      narration(
+        "Ash tells Kit the key is under the mat.",
+        { op: "add_npc", name: "Kit", appearance: "a boy in a cap" },
+        { op: "npc_learns", name: "Kit", fact: "Ash came home wet." },
+        { op: "add_npc", name: "Orin", appearance: "an old ferryman" },
+        { op: "npc_learns", name: "Orin", fact: "Ash owes him a fare." },
+      ),
+    ],
+    [upkept()],
+  );
+  const id = createSave();
+
+  expect((await turn(id)).ok).toBe(true);
+
+  expect(JSON.parse(upkeep.prompts[0]!.at(-1)!.content).state.npc_knows).toEqual({ Kit: ["Ash came home wet."] });
 });
 
 test("State Upkeep records what someone learned that the Narrator missed, held to the checks a Turn's is, as NPCs never learned anything", async () => {

@@ -38,6 +38,8 @@ export type State = {
    */
   threadParts: Record<string, string[]>;
   summary: string;
+  /** How many of the Narrator's replies the summary covers, as it is written only every few replies. 0 in a Save from before it, so its next reply writes one. */
+  summaryReplies: number;
   /** Just the last few scenes, for the player. The Narrator never reads it back. */
   recentSummary: string;
   directorsNotes: string[];
@@ -76,6 +78,7 @@ export const openingState: State = {
   threadsPlan: {},
   threadParts: {},
   summary: "",
+  summaryReplies: 0,
   recentSummary: "",
   directorsNotes: [],
   worldBrief: "",
@@ -105,6 +108,7 @@ export const StateSections = {
   threadsPlan: z.record(z.string(), z.string()),
   threadParts: z.record(z.string(), stringList),
   summary: z.string(),
+  summaryReplies: z.number().int().nonnegative(),
   recentSummary: z.string(),
   directorsNotes: stringList,
   worldBrief: z.string(),

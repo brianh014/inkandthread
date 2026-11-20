@@ -204,6 +204,44 @@ test("a move reads the Lore Entries the story names too, not only its threads', 
   expect(told.prompts[1]!.at(-1)!.content).toContain("Gulls nest");
 });
 
+test("a move is told which of each thread's people are with the PC, so it never puts them elsewhere", async () => {
+  const told = play(
+    narration(
+      "Ash meets Kit in the library.",
+      { op: "add_npc", name: "Kit", appearance: "a boy in a cap" },
+      { op: "set_scene", location: "The library", visible_cast: ["Kit"] },
+      { op: "update_plot_thread", thread: THIEF, truth: null, now: "Kit watches the library stacks.", plan: null },
+      nextDay(),
+    ),
+    moved({ ...change(THIEF, "Kit watches the library stacks."), knows: [{ name: "Kit", knows: "A thief is coming." }] }),
+    narration("Ash reads."),
+  );
+  const id = createSave();
+  expect((await turn(id, "I go in.")).ok).toBe(true);
+  expect((await turn(id, "I read.")).ok).toBe(true);
+
+  expect(JSON.parse(told.prompts[1]!.at(-1)!.content).plot_threads[0].with_pc).toEqual(["Kit"]);
+});
+
+test("a move reads the replies the summary doesn't cover yet, as the summary is written only every few replies", async () => {
+  const told = play(
+    narration("Ash enters the archive.", { summary: "Ash entered the archive." }),
+    narration("Ash finds the ledger."),
+    narration("Ash reads the ledger."),
+    narration("Ash hides the ledger.", nextDay()),
+    moved(),
+    narration("Ash sleeps."),
+  );
+  const id = createSave();
+  for (const move of ["I go in.", "I search.", "I read.", "I hide it."]) expect((await turn(id, move)).ok).toBe(true);
+  expect((await turn(id, "I sleep.")).ok).toBe(true);
+
+  const sent = JSON.parse(told.prompts[4]!.at(-1)!.content);
+  expect(sent.summary).toBe("Ash entered the archive.");
+  expect(sent.earlier_replies).toEqual([expect.stringContaining("finds the ledger")]);
+  expect(sent.latest_replies).toEqual([expect.stringContaining("reads the ledger"), expect.stringContaining("hides the ledger")]);
+});
+
 test("a Turn's resolve only asks the next move to close the thread, which the move removes or keeps", async () => {
   const told = play(
     narration(

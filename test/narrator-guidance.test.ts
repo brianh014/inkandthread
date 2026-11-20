@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
+import { SUMMARY_EVERY } from "../src/prompt-assembler";
 import { saveStore } from "../src/save-store";
 import { narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
@@ -38,6 +39,22 @@ test("each finished Turn's summary becomes the story's", async () => {
   await playTurn(id);
 
   expect(await summaryOf(id)).toBe("Ash left the docks.");
+});
+
+test("the summary is asked for every few replies, and again until one comes, in the tail, so the cached start never changes", async () => {
+  // Written in the first reply only, so the one due a round later doesn't come and is asked for again.
+  const turns = SUMMARY_EVERY + 2;
+  play(summed("Ash reached the docks."), ...Array.from({ length: turns - 1 }, () => summed("")));
+  const id = await app.createSave();
+
+  const due: boolean[] = [];
+  for (let turn = 0; turn < turns; turn++) {
+    await playTurn(id);
+    due.push(lastSystem().includes("The summary is due in this Turn."));
+  }
+
+  expect(due).toEqual(Array.from({ length: turns }, (_, turn) => turn === 0 || turn >= SUMMARY_EVERY));
+  expect(new Set(prompts.map((prompt) => prompt[0]!.content)).size).toBe(1);
 });
 
 test("each finished Turn's recent_summary becomes the Journal's recent summary, and a blank one keeps the last", async () => {

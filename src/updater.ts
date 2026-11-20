@@ -25,7 +25,7 @@ type Release = z.infer<typeof Release>;
 
 const CHECK_EVERY_MS = 6 * 60 * 60_000;
 const RETRY_FAILED_CHECK_MS = 10 * 60_000;
-const HEADERS = { Accept: "application/vnd.github+json", "User-Agent": "NovelForge" };
+const HEADERS = { Accept: "application/vnd.github+json", "User-Agent": "inkandthread" };
 
 /** Whether version `a` comes after `b`, as semver orders them: 0.1.0 after 0.1.0-alpha.4, and alpha.10 after alpha.9. */
 export function isNewer(a: string, b: string) {
@@ -48,8 +48,12 @@ export function isNewer(a: string, b: string) {
   return false;
 }
 
-/** The download this copy came from, as scripts/build-release.ts names them. The Server's build defines NOVELFORGE_MODE. */
-export function downloadName(platform = process.platform, arch = process.arch, server = process.env.NOVELFORGE_MODE === "server") {
+// shortcut: the NOVELFORGE_ names still work for the release that renamed the app; drop them in the one after.
+/** The Server's build defines INKANDTHREAD_MODE (scripts/build-release.ts). */
+export const serverBuild = (process.env.INKANDTHREAD_MODE ?? process.env.NOVELFORGE_MODE) === "server";
+
+/** The download this copy came from, as scripts/build-release.ts names them. */
+export function downloadName(platform = process.platform, arch = process.arch, server = serverBuild) {
   const system =
     platform === "win32"
       ? "Windows.zip"
@@ -58,14 +62,17 @@ export function downloadName(platform = process.platform, arch = process.arch, s
         : platform === "linux" && arch === "x64"
           ? "Linux.tar.gz"
           : undefined;
-  return system && `${server ? "NovelForge-Server" : "NovelForge"}-${system}`;
+  return system && `${server ? "inkandthread-server" : "inkandthread"}-${system}`;
 }
+
+/** The name copies before the rename look for, so the release that renamed the app publishes each download under it too. */
+export const oldDownloadName = (name: string) => name.replace(/^inkandthread(-server)?/, (_, server) => (server ? "NovelForge-Server" : "NovelForge"));
 
 /** The program inside a download: a .zip of one file, or a .tar.gz whose biggest file is the program (a Mac app's is beside its Info.plist). */
 export function unpack(name: string, archive: Uint8Array) {
   const bytes = Buffer.from(archive);
   if (name.endsWith(".zip")) {
-    if (bytes.readUInt32LE(0) !== 0x04034b50 || bytes.readUInt16LE(8) !== 8) throw new UpdateFailed("The download isn't the zip NovelForge expected.");
+    if (bytes.readUInt32LE(0) !== 0x04034b50 || bytes.readUInt16LE(8) !== 8) throw new UpdateFailed("The download isn't the zip Ink & Thread expected.");
     const start = 30 + bytes.readUInt16LE(26) + bytes.readUInt16LE(28);
     const program = new Uint8Array(inflateRawSync(bytes.subarray(start, start + bytes.readUInt32LE(18))));
     if (Bun.hash.crc32(program) !== bytes.readUInt32LE(14)) throw new UpdateFailed("The download was damaged. Try again.");
@@ -97,7 +104,7 @@ const replaced = (from: string) => `${process.execPath}.${from}.old`;
 
 /** Clears the programs earlier updates replaced. Only on a start of its own, as a just-updated one's parent may still be running its old program. */
 export function removeReplacedPrograms() {
-  if (!isCompiled || process.env.NOVELFORGE_UPDATED) return;
+  if (!isCompiled || (process.env.INKANDTHREAD_UPDATED ?? process.env.NOVELFORGE_UPDATED)) return;
   const name = basename(process.execPath);
   for (const file of readdirSync(dirname(process.execPath))) {
     if (!file.startsWith(`${name}.`) || !file.endsWith(".old")) continue;
@@ -168,7 +175,7 @@ export function updater(latestRelease = LATEST_RELEASE) {
     /** Puts the new program where this one is, keeping this one beside it. The caller restarts with `relaunch`. */
     async install() {
       // A second Install would replace the program the first one kept for a failed start.
-      if (installing) throw new UpdateFailed("NovelForge is already installing the new version.");
+      if (installing) throw new UpdateFailed("Ink & Thread is already installing the new version.");
       installing = true;
       try {
         return await installNewer();
@@ -194,7 +201,7 @@ export function updater(latestRelease = LATEST_RELEASE) {
       renameSync(process.execPath, old);
     } catch (error) {
       log.error("update", "Couldn't move the running program aside", errorFields(error));
-      throw new UpdateFailed("NovelForge can't replace its own program in this folder. Download the new version from its page.");
+      throw new UpdateFailed("Ink & Thread can't replace its own program in this folder. Download the new version from its page.");
     }
     try {
       await Bun.write(process.execPath, program);
@@ -202,7 +209,7 @@ export function updater(latestRelease = LATEST_RELEASE) {
     } catch (error) {
       renameSync(old, process.execPath);
       log.error("update", "Couldn't write the new program", errorFields(error));
-      throw new UpdateFailed("NovelForge couldn't write the new version, so it kept this one. Try again, or download it from its page.");
+      throw new UpdateFailed("Ink & Thread couldn't write the new version, so it kept this one. Try again, or download it from its page.");
     }
     log.startup(`Updated to ${release.tag_name}, restarting`);
     return { version: release.tag_name.slice(1) };
@@ -221,7 +228,7 @@ export async function relaunch() {
     Bun.spawn([process.execPath, ...process.argv.slice(2)], {
       stdio: ["inherit", "inherit", "inherit"],
       // The page already open reloads itself, so no new tab.
-      env: { ...process.env, NO_BROWSER: "1", NOVELFORGE_UPDATED: "1" },
+      env: { ...process.env, NO_BROWSER: "1", INKANDTHREAD_UPDATED: "1" },
     });
   const began = Date.now();
   let code = await start().exited;

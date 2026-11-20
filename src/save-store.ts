@@ -380,7 +380,7 @@ const MIGRATIONS = [
 
 function schemaVersion(db: Database) {
   const version = db.query<{ user_version: number }, []>("PRAGMA user_version").get()!.user_version;
-  if (version > MIGRATIONS.length) throw new InvalidSave("This Save was made by a newer version of NovelForge.");
+  if (version > MIGRATIONS.length) throw new InvalidSave("This Save was made by a newer version of Ink & Thread.");
   return version;
 }
 

@@ -222,7 +222,7 @@ function Steps({ initial }: { initial: Settings }) {
     0: (
       <>
         <p>
-          NovelForge brings no AI of its own. It needs one to write the story, and can use another to draw its pictures. A few pages set them up, with what we
+          Ink & Thread brings no AI of its own. It needs one to write the story, and can use another to draw its pictures. A few pages set them up, with what we
           recommend beside each.
         </p>
         <ul>
@@ -272,7 +272,7 @@ function Steps({ initial }: { initial: Settings }) {
                   openrouter:
                     "Recommended. One account and key reach every model, the drawing ones too, and you pay only for what you use. Sign up, add a few dollars of credit, then make a key and paste it below. It's shown only once, so keep a copy.",
                   google:
-                    "A free key with a Google account, to try NovelForge. The free tier limits how many Turns a day you get, and Google may use what you send, your story among it, to improve its products.",
+                    "A free key with a Google account, to try Ink & Thread. The free tier limits how many Turns a day you get, and Google may use what you send, your story among it, to improve its products.",
                   nanogpt: "Pay as you go for many models, with one key.",
                   local:
                     "An AI on your own computer, or any other OpenAI-compatible server. Nothing leaves your computer, but a long story outgrows a 10 GB graphics card, so it suits short stories, privacy and trying things out. Ollama is at http://localhost:11434/v1, LM Studio at http://localhost:1234/v1.",
@@ -386,7 +386,7 @@ function Steps({ initial }: { initial: Settings }) {
     ),
     [PICTURES]: (
       <>
-        <p>NovelForge can draw the Cover, a portrait of each person and the scene as the story moves.</p>
+        <p>Ink & Thread can draw the Cover, a portrait of each person and the scene as the story moves.</p>
         <fieldset className="setup-paths">
           <legend>Pictures</legend>
           <label className="toggle">
@@ -468,9 +468,9 @@ function Steps({ initial }: { initial: Settings }) {
         {pictures === "comfy" && (
           <>
             <p className="muted">
-              For a good graphics card. NovelForge draws a lot, the Cover, portraits, scenes and every redraw, and each costs money online but nothing here. We
-              recommend FLUX.2 or Qwen Image 2.1, which keep faces the same from picture to picture. The <a href="#/guide/models">Reader's Guide</a> says how to
-              install ComfyUI, and Advanced workflows are in Settings → Images.
+              For a good graphics card. Ink & Thread draws a lot, the Cover, portraits, scenes and every redraw, and each costs money online but nothing here.
+              We recommend FLUX.2 or Qwen Image 2.1, which keep faces the same from picture to picture. The <a href="#/guide/models">Reader's Guide</a> says how
+              to install ComfyUI, and Advanced workflows are in Settings → Images.
             </p>
             <ProviderLinks provider="comfy" />
             {saveHere}
@@ -501,7 +501,7 @@ function Steps({ initial }: { initial: Settings }) {
     ),
     [READY]: (
       <>
-        <p>{ready ? "NovelForge is ready." : "The story needs its Narrator set up first: go back to The storyteller."}</p>
+        <p>{ready ? "Ink & Thread is ready." : "The story needs its Narrator set up first: go back to The storyteller."}</p>
         <dl className="test-stats">
           <dt>Narrator</dt>
           <dd>{saved.textCommand.length > 0 ? `Command, ${saved.textCommand[0]}` : `${textName(saved.textBaseUrl)}, ${saved.textModel || "no model"}`}</dd>

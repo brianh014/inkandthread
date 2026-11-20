@@ -29,7 +29,7 @@ export type Settings = Omit<Required<SettingsChange>, "textApiKey" | "imageApiKe
   workflowProblem: string;
   /** Only the downloaded app, which has no window to close. A server keeps running for everyone. */
   canQuit: boolean;
-  /** The page is on the computer NovelForge runs on, so it may change the command. */
+  /** The page is on the computer Ink & Thread runs on, so it may change the command. */
   commandHere: boolean;
 };
 export type TextHost = Awaited<ReturnType<typeof textHosts>>[number];
@@ -78,7 +78,7 @@ const jsonBody = (body: object): RequestInit => ({
 async function errorMessage(response: Response) {
   const { error } = (await response.json().catch(() => ({}))) as { error?: string };
   // The page updates on a refresh but the server doesn't, so an older server won't have a newer route.
-  if (error === "Not found") return "The running app is older than this page. Restart NovelForge, then try again.";
+  if (error === "Not found") return "The running app is older than this page. Restart Ink & Thread, then try again.";
   return error ?? `Request failed (${response.status})`;
 }
 
@@ -155,7 +155,7 @@ export const installUpdate = () => request<{ version: string }>("/update", jsonB
 export const stillHere = () => void fetch("/alive", { method: "POST" }).catch(() => {});
 
 /** Fired with the saved Settings, so what is already on screen can follow a change, such as a new image family. */
-export const SETTINGS_SAVED = "novelforge-settings-saved";
+export const SETTINGS_SAVED = "inkandthread-settings-saved";
 
 /** `imageKeyFromText` draws with the Narrator's saved key, on the same service. */
 export const saveSettings = async (change: SettingsChange & { imageKeyFromText?: boolean }) => {
@@ -203,7 +203,7 @@ export function setupProblem({
   hasTextApiKey,
   textCommand,
 }: Pick<Settings, "textBaseUrl" | "textModel" | "hasTextApiKey" | "textCommand">) {
-  // A command has no model or key of NovelForge's, and a broken one fails its first call with what to fix.
+  // A command has no model or key of Ink & Thread's, and a broken one fails its first call with what to fix.
   if (textCommand.length > 0) return;
   if (!textModel) return "No text model is set.";
   // Every named provider needs a key; most local or other OpenAI-compatible servers need none.
@@ -428,7 +428,7 @@ async function awaitTurn(id: string, input: string, after: number, retryHint: st
     await new Promise((resolve) => setTimeout(resolve, turnPolling.everyMs));
   }
   reportEvent("polling-gave-up", { save: id, after, misses: turnPolling.tries });
-  return { error: "NovelForge can't be reached. Make sure it's still running, then reload this page.", input };
+  return { error: "Ink & Thread can't be reached. Make sure it's still running, then reload this page.", input };
 }
 
 /** Picks up a Turn this page didn't start or no longer holds, such as after a reload. */

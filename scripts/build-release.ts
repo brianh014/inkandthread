@@ -1,8 +1,9 @@
 // Builds the downloads into dist/release, one file per system, in two sets:
-// - The app: opens NovelForge in the browser with no terminal, for this computer only, and the Menu's Quit ends it.
+// - The app: opens Ink & Thread in the browser with no terminal, for this computer only, and the Menu's Quit ends it.
 // - The Server: serves the whole network from a terminal window, which shows its log, and closing it stops the server.
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { oldDownloadName } from "../src/updater";
 import { tarGz, zip } from "./zip";
 
 const root = join(import.meta.dir, "..");
@@ -15,7 +16,7 @@ mkdirSync(work, { recursive: true });
 
 async function compile(target: string, outfile: string, server: boolean, ...extra: string[]) {
   // A define, so the download needs no flag to start as a server. src/main.ts reads it.
-  const mode = server ? ["--define", 'process.env.NOVELFORGE_MODE="server"'] : [];
+  const mode = server ? ["--define", 'process.env.INKANDTHREAD_MODE="server"'] : [];
   const build = Bun.spawn(
     [process.execPath, "build", "src/main.ts", "--compile", "--production", `--target=${target}`, ...mode, ...extra, "--outfile", outfile],
     { cwd: root },
@@ -34,13 +35,17 @@ function icns(png: Uint8Array) {
   return Buffer.concat([head, png]);
 }
 
+// shortcut: each download is also published under its name from before the rename, which copies on 0.4 look for. Drop it in the release after.
+const publish = (file: string, bytes: Uint8Array) => Promise.all([Bun.write(join(out, file), bytes), Bun.write(join(out, oldDownloadName(file)), bytes)]);
+
 const text = (s: string) => new TextEncoder().encode(s);
 const png = new Uint8Array(await Bun.file(join(root, "src", "web", "icon.png")).arrayBuffer());
 const ico = join(root, "src", "web", "icon.ico");
 
 for (const server of [false, true]) {
-  const name = server ? "NovelForge-Server" : "NovelForge";
-  const appName = server ? "NovelForge Server" : "NovelForge";
+  const name = server ? "inkandthread-server" : "inkandthread";
+  const appName = server ? "Ink & Thread Server" : "Ink & Thread";
+  const plistName = appName.replace("&", "&amp;");
 
   // The app hides its console. The Server keeps it, as its window holds the log and closing it stops the server.
   const windows = await compile(
@@ -50,7 +55,7 @@ for (const server of [false, true]) {
     `--windows-icon=${ico}`,
     ...(server ? [] : ["--windows-hide-console"]),
   );
-  await Bun.write(join(out, `${name}-Windows.zip`), zip(`${appName}.exe`, windows));
+  await publish(`${name}-Windows.zip`, zip(`${name}.exe`, windows));
 
   for (const [arch, label] of [
     ["arm64", "AppleSilicon"],
@@ -61,10 +66,10 @@ for (const server of [false, true]) {
     const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>CFBundleName</key><string>${appName}</string>
-  <key>CFBundleDisplayName</key><string>${appName}</string>
-  <key>CFBundleIdentifier</key><string>local.novelforge${server ? ".server" : ""}</string>
-  <key>CFBundleExecutable</key><string>${server ? "open-in-terminal" : "NovelForge"}</string>
+  <key>CFBundleName</key><string>${plistName}</string>
+  <key>CFBundleDisplayName</key><string>${plistName}</string>
+  <key>CFBundleIdentifier</key><string>local.inkandthread${server ? ".server" : ""}</string>
+  <key>CFBundleExecutable</key><string>${server ? "open-in-terminal" : "inkandthread"}</string>
   <key>CFBundleIconFile</key><string>icon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <!-- No Dock icon, as the app's only window is the browser, and the Server's is Terminal. -->
@@ -74,16 +79,16 @@ for (const server of [false, true]) {
     // The Server opens in Terminal, which shows its log, and closing it stops the server.
     const opener = `#!/bin/sh
 here="$(cd "$(dirname "$0")" && pwd)"
-exec osascript -e 'on run argv' -e 'tell application "Terminal"' -e 'do script quoted form of item 1 of argv' -e 'activate' -e 'end tell' -e 'end run' "$here/NovelForge"
+exec osascript -e 'on run argv' -e 'tell application "Terminal"' -e 'do script quoted form of item 1 of argv' -e 'activate' -e 'end tell' -e 'end run' "$here/inkandthread"
 `;
-    await Bun.write(
-      join(out, `${name}-Mac-${label}.tar.gz`),
+    await publish(
+      `${name}-Mac-${label}.tar.gz`,
       tarGz([
         { name: `${appName}.app/`, mode: 0o755 },
         { name: `${app}/`, mode: 0o755 },
         { name: `${app}/Info.plist`, data: text(plist), mode: 0o644 },
         { name: `${app}/MacOS/`, mode: 0o755 },
-        { name: `${app}/MacOS/NovelForge`, data: program, mode: 0o755 },
+        { name: `${app}/MacOS/inkandthread`, data: program, mode: 0o755 },
         ...(server ? [{ name: `${app}/MacOS/open-in-terminal`, data: text(opener), mode: 0o755 }] : []),
         { name: `${app}/Resources/`, mode: 0o755 },
         { name: `${app}/Resources/icon.icns`, data: icns(png), mode: 0o644 },
@@ -92,7 +97,7 @@ exec osascript -e 'on run argv' -e 'tell application "Terminal"' -e 'do script q
   }
 
   const linux = await compile("bun-linux-x64", join(work, `${name}-linux`), server);
-  await Bun.write(join(out, `${name}-Linux.tar.gz`), tarGz([{ name, data: linux, mode: 0o755 }]));
+  await publish(`${name}-Linux.tar.gz`, tarGz([{ name, data: linux, mode: 0o755 }]));
 }
 
 rmSync(work, { recursive: true, force: true });

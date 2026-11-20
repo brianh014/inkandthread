@@ -36,8 +36,8 @@ export async function commandReply(
   // From the start, as a program that prints its reply in one go is silent until it ends.
   const overrun = AbortSignal.timeout(textReplyMinutes * 60 * 1000);
   const stop = AbortSignal.any([signal, overrun]);
-  // Empty, so a CLI that reads or changes its working folder finds nothing of NovelForge's, its keys and Saves among them.
-  const folder = mkdtempSync(join(tmpdir(), "novelforge-command-"));
+  // Empty, so a CLI that reads or changes its working folder finds nothing of Ink & Thread's, its keys and Saves among them.
+  const folder = mkdtempSync(join(tmpdir(), "inkandthread-command-"));
   let reply = "";
   let child: ReturnType<typeof Bun.spawn> | undefined;
   // On Windows a .cmd program is started through cmd.exe, so the whole tree is ended, or the real program would run on.

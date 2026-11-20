@@ -80,7 +80,7 @@ async function upload(url: string, { bytes, mediaType }: { bytes: Uint8Array; me
   const form = new FormData();
   const name = `${createHash("sha256").update(bytes).digest("hex")}.${mediaType.split("/")[1]}`;
   form.set("image", new File([bytes as Uint8Array<ArrayBuffer>], name, { type: mediaType }));
-  form.set("subfolder", "novelforge");
+  form.set("subfolder", "inkandthread");
   form.set("type", "temp");
   const response = await ask(url, "/upload/image", signal, { method: "POST", body: form });
   if (!response.ok) throw new Error(`ComfyUI refused a reference image: ${response.status}`);

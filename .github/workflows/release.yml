@@ -47,7 +47,7 @@ jobs:
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v5
         with:
-          name: novelforge-downloads
+          name: inkandthread-downloads
           path: dist/release
           retention-days: 7
 
@@ -64,5 +64,5 @@ jobs:
           else
             pre=""
             case "$version" in *-*) pre="--prerelease" ;; esac
-            gh release create "$GITHUB_REF_NAME" dist/release/* --verify-tag --title "NovelForge $version" --generate-notes $pre
+            gh release create "$GITHUB_REF_NAME" dist/release/* --verify-tag --title "Ink & Thread $version" --generate-notes $pre
           fi

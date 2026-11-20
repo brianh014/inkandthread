@@ -276,7 +276,7 @@ ${view(points(charted, version, rounds, world, score), pick.setup)}
   const gradient = (pair: string[]) => `linear-gradient(to right, ${pair[0]}, ${pair[1]})`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NovelForge Bench Chart</title>
+<title>Ink &amp; Thread Bench Chart</title>
 <style>
 :root { color-scheme: light; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --grid: #e4e3df; --ramp: ${gradient(LIGHT)}; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --grid: #34342f; --ramp: ${gradient(DARK)}; } }
@@ -301,7 +301,7 @@ select { font: inherit; color: var(--ink); background: var(--surface); border: 1
 table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px; } th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--grid); }
 summary { cursor: pointer; color: var(--ink-2); } .empty { font-style: italic; }
 </style></head><body>
-<h1>NovelForge bench</h1>
+<h1>Ink &amp; Thread bench</h1>
 <p>Kept and judged runs of ${rounds} rounds with pictures drawn, charted ${date}. Higher is better, further left is cheaper. Hover a dot for its numbers.</p>
 <div class="picks">
 ${select("version", "Bench version", versions, pick.version)}

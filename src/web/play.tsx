@@ -506,7 +506,7 @@ export function Play({ id }: { id: string }) {
 
   if (loadError) {
     return (
-      <Book left={<h1 className="big">NovelForge</h1>}>
+      <Book left={<h1 className="big">Ink & Thread</h1>}>
         <p role="alert" className="error">
           {loadError}
         </p>

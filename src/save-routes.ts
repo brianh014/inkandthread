@@ -118,7 +118,7 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         new Response(saves.export(req.params.id), {
           headers: {
             "Content-Type": "application/vnd.sqlite3",
-            "Content-Disposition": `attachment; filename="novelforge-save-${req.params.id}.sqlite"`,
+            "Content-Disposition": `attachment; filename="inkandthread-save-${req.params.id}.sqlite"`,
           },
         }),
     },

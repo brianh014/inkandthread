@@ -36,7 +36,7 @@ export function setLogLevel(level: LogLevel | null | undefined) {
 /** Called first thing, so that no line comes before it. Without a `folder`, nothing goes to a file. */
 export function startLog(level: LogLevel, folder?: string) {
   buildLevel = level;
-  logFile = folder && join(folder, "novelforge.log");
+  logFile = folder && join(folder, "inkandthread.log");
   fileFailed = false;
   if (!folder || !logFile) return;
   try {

@@ -8,7 +8,7 @@ import { tarGz, zip } from "./zip";
 
 const root = join(import.meta.dir, "..");
 const work = join(root, "dist", "try-update");
-const exe = process.platform === "win32" ? "NovelForge.exe" : "NovelForge";
+const exe = process.platform === "win32" ? "inkandthread.exe" : "inkandthread";
 const asset = downloadName();
 if (!asset) throw new Error("There's no download for this system.");
 
@@ -52,6 +52,6 @@ const release = Bun.serve({
 console.log(`Starting the old copy on http://127.0.0.1:4660/ from ${join(work, "app")}`);
 Bun.spawn([join(work, "app", exe), "--fake"], {
   cwd: join(work, "app"),
-  env: { ...process.env, PORT: "4660", NOVELFORGE_LATEST_RELEASE: new URL("/latest", release.url).href },
+  env: { ...process.env, PORT: "4660", INKANDTHREAD_LATEST_RELEASE: new URL("/latest", release.url).href },
   stdio: ["ignore", "inherit", "inherit"],
 });

@@ -1,5 +1,5 @@
 {
-  "name": "novelforge",
+  "name": "inkandthread",
   "version": "0.5.0",
   "description": "A choose-your-own visual novel, written as you play, by an AI you connect.",
   "license": "AGPL-3.0-only",
@@ -16,7 +16,7 @@
     "release": "bun scripts/build-release.ts",
     "publish-release": "bun scripts/publish-release.ts",
     "try-update": "bun scripts/try-update.ts",
-    "build": "bun build src/main.ts --compile --production --outfile dist/novelforge",
+    "build": "bun build src/main.ts --compile --production --outfile dist/inkandthread",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test",

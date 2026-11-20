@@ -23,6 +23,6 @@ const tagged = Bun.spawnSync(["git", "rev-parse", "--verify", "--quiet", `${tag}
   .trim();
 if (tagged && tagged !== head) throw new Error(`${tag} already names another commit. Raise the version in package.json for a new release.`);
 
-if (!tagged) git("tag", "-a", tag, "-m", `NovelForge ${version}`);
+if (!tagged) git("tag", "-a", tag, "-m", `Ink & Thread ${version}`);
 git("push", "origin", tag);
 console.log(`Pushed ${tag}. GitHub builds and publishes it: https://github.com/brianh014/novelforge/actions/workflows/release.yml`);

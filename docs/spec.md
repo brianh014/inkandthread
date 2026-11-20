@@ -1,4 +1,4 @@
-# NovelForge
+# Ink & Thread
 
 ## AI driven choose your own visual novel
 
@@ -323,7 +323,7 @@ Start Over begins a new story from a Save: the New Story form opens with its fir
 
 # Tech
 
-NovelForge is a single-player app that runs on one person's machine. The server listens on the LAN as well as localhost, so other devices at home can play, with no accounts, hosting or cloud. Anyone on that network can reach everything the player can, and setting `HOST=127.0.0.1` keeps it to this machine.
+Ink & Thread is a single-player app that runs on one person's machine. The server listens on the LAN as well as localhost, so other devices at home can play, with no accounts, hosting or cloud. Anyone on that network can reach everything the player can, and setting `HOST=127.0.0.1` keeps it to this machine.
 
 The app is a web based SPA with a local RESTful API server. Being API based, the coding agent building the app can easily test on its own and build its own testing harness.
 
@@ -333,7 +333,7 @@ The server uses `Bun.serve` with no web framework, and Zod validates Narrator JS
 
 ## Server Log
 
-Every part of the app logs through `src/logger.ts`, so a problem can be traced from the Server Log alone. A line is the time, Log Level, area, message and JSON fields, in that order. Lines go to the console and to `logs/novelforge.log` beside `Saves`, created owner-only, which rotates at 25 MB and keeps one older file. If the file can't be written, the app carries on with the console and warns once.
+Every part of the app logs through `src/logger.ts`, so a problem can be traced from the Server Log alone. A line is the time, Log Level, area, message and JSON fields, in that order. Lines go to the console and to `logs/inkandthread.log` beside `Saves`, created owner-only, which rotates at 25 MB and keeps one older file. If the file can't be written, the app carries on with the console and warns once.
 
 Each Log Level includes the ones above it here:
 
@@ -364,15 +364,15 @@ Each Save is one SQLite file holding its Messages, Snapshots and images (see [AD
 
 ## Models
 
-NovelForge uses its own thin harness: one HTTP client with a configurable base URL and no agent framework. OpenRouter and local text servers are reached through the same OpenAI-compatible API. Local text works with any OpenAI-compatible URL the user provides.
+Ink & Thread uses its own thin harness: one HTTP client with a configurable base URL and no agent framework. OpenRouter and local text servers are reached through the same OpenAI-compatible API. Local text works with any OpenAI-compatible URL the user provides.
 
-OpenRouter also provides image models, using its reference image support. Which content is allowed is decided by the provider and model the user picks. NovelForge has no content rating or filter of its own.
+OpenRouter also provides image models, using its reference image support. Which content is allowed is decided by the provider and model the user picks. Ink & Thread has no content rating or filter of its own.
 
 ### Local images
 
 ComfyUI is the only Local image backend in v1, and the user runs it themselves.
 
-**Simple Mode** is the default, and the user never sees a workflow. They enter the ComfyUI address, choose a model family, and pick their model from a dropdown listing what ComfyUI has installed. They can add as many LoRAs as they like, each with a strength and optional trigger words that are added to prompts automatically. NovelForge builds the graph. Model files must be in ComfyUI's model folders, and a refresh button updates the lists.
+**Simple Mode** is the default, and the user never sees a workflow. They enter the ComfyUI address, choose a model family, and pick their model from a dropdown listing what ComfyUI has installed. They can add as many LoRAs as they like, each with a strength and optional trigger words that are added to prompts automatically. Ink & Thread builds the graph. Model files must be in ComfyUI's model folders, and a refresh button updates the lists.
 
 A Resolution setting of 480p, 720p (the default), 1080p or 4K sizes every image, for both providers. On ComfyUI, in both modes, these are 848 x 480, 1280 x 720, 1920 x 1088 and 3840 x 2160 at 16:9, and other shapes keep the same area. On OpenRouter they ask for the size the model lists nearest to 768, 1K, 2K or 4K, and a model that lists no sizes is left to its own. Checkpoint type no longer sets the size: Settings warns when the resolution is too big for it.
 

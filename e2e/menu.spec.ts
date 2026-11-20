@@ -26,7 +26,7 @@ test("a new version's toast shows on any screen, and Install reloads the page on
   });
   await page.goto("/#/load");
   const toast = page.getByRole("complementary", { name: "New version" });
-  await expect(toast).toContainText("NovelForge 9.0.0 is out.");
+  await expect(toast).toContainText("Ink & Thread 9.0.0 is out.");
 
   await toast.getByRole("button", { name: "Install" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Install" }).click();
@@ -60,7 +60,7 @@ test("Settings → Updates checks GitHub on request and offers what it finds", a
   await expect(page.getByRole("button", { name: "Save settings" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Check now" }).click();
-  await expect(page.getByText("NovelForge 9.0.0 is out.")).toBeVisible();
+  await expect(page.getByText("Ink & Thread 9.0.0 is out.")).toBeVisible();
 
   // Installed from here, the toast put off for this version may show again.
   await page.route("**/update", (route) => {
@@ -75,7 +75,7 @@ test("Settings → Updates checks GitHub on request and offers what it finds", a
   await page.getByRole("dialog").getByRole("button", { name: "Install" }).click();
   await reloaded;
   await page.getByRole("button", { name: "Updates" }).click();
-  await expect(page.getByText("This is NovelForge 9.0.0.")).toBeVisible();
+  await expect(page.getByText("This is Ink & Thread 9.0.0.")).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("novelforge-dismissed-version"))).toBeNull();
 });
 
@@ -93,5 +93,5 @@ test("an install whose new version fails to start says the old one is back", asy
   const toast = page.getByRole("complementary", { name: "New version" });
   await toast.getByRole("button", { name: "Install" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Install" }).click();
-  await expect(toast.getByRole("alert")).toContainText("NovelForge 9.0.0 didn't start, so 0.1.0 is back.");
+  await expect(toast.getByRole("alert")).toContainText("Ink & Thread 9.0.0 didn't start, so 0.1.0 is back.");
 });

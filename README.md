@@ -8,7 +8,7 @@ Ink & Thread is a single-player story game, played like a Telltale game or a cho
 
 It runs on your own computer and talks to models you choose. Bring an OpenAI-compatible text API (OpenRouter, DeepInfra, a local server) and, for pictures, OpenRouter, Wiro or your own ComfyUI.
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-desktop-dark.jpg"><img src="docs/screenshots/menu-desktop-light.jpg" alt="Ink &amp; Thread's Menu: New Story, Load Story, Reader's Guide and Settings beside the logo" width="620"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-mobile-dark.jpg"><img src="docs/screenshots/menu-mobile-light.jpg" alt="The Menu on a phone" width="179"></picture></p>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/story-picture-desktop-dark.jpg"><img src="docs/screenshots/story-picture-desktop-light.jpg" alt="A story under way: a scene picture drawn as the scene changes, with the Recap, Loose Ends and recent characters beside it, and three Choices" width="620"></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/story-picture-mobile-dark.jpg"><img src="docs/screenshots/story-picture-mobile-light.jpg" alt="The same story on a phone" width="179"></picture></p>
 
 ## Features
 
@@ -26,30 +26,30 @@ Most AI roleplay is one long chat with a model that agrees with everything, forg
 
 <table>
   <tr>
-    <td width="75%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/new-story-desktop-dark.jpg"><img src="docs/screenshots/new-story-desktop-light.jpg" alt="The New Story wizard: choose a Theme, then describe your world and characters"></picture></td>
-    <td width="25%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/new-story-mobile-dark.jpg"><img src="docs/screenshots/new-story-mobile-light.jpg" alt="The New Story wizard: choose a Theme, then describe your world and characters, on a phone"></picture></td>
-  </tr>
-  <tr><td colspan="2"><sub>New Story: pick a Theme and describe as much or as little as you like.</sub></td></tr>
-  <tr>
     <td width="75%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/story-start-desktop-dark.jpg"><img src="docs/screenshots/story-start-desktop-light.jpg" alt="The opening of a story, with the Recap, Loose Ends and recent characters beside it, and three Choices"></picture></td>
     <td width="25%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/story-start-mobile-dark.jpg"><img src="docs/screenshots/story-start-mobile-light.jpg" alt="The opening of a story, with the Recap, Loose Ends and recent characters beside it, and three Choices, on a phone"></picture></td>
   </tr>
   <tr><td colspan="2"><sub>A story's opening, with three Choices or a box to write your own. Every screen comes in light and dark.</sub></td></tr>
   <tr>
-    <td width="75%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/story-picture-desktop-dark.jpg"><img src="docs/screenshots/story-picture-desktop-light.jpg" alt="A scene picture in the story, drawn as the scene changes"></picture></td>
-    <td width="25%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/story-picture-mobile-dark.jpg"><img src="docs/screenshots/story-picture-mobile-light.jpg" alt="A scene picture in the story, drawn as the scene changes, on a phone"></picture></td>
+    <td width="75%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/gallery-desktop-dark.jpg"><img src="docs/screenshots/gallery-desktop-light.jpg" alt="The Gallery: a portrait of each character and every scene picture"></picture></td>
+    <td width="25%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/gallery-mobile-dark.jpg"><img src="docs/screenshots/gallery-mobile-light.jpg" alt="The Gallery: a portrait of each character and every scene picture, on a phone"></picture></td>
   </tr>
-  <tr><td colspan="2"><sub>A picture whenever the scene changes, drawn from the characters' portraits.</sub></td></tr>
+  <tr><td colspan="2"><sub>The Gallery: every portrait and scene, to redraw, nudge or replace.</sub></td></tr>
   <tr>
     <td width="75%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/journal-desktop-dark.jpg"><img src="docs/screenshots/journal-desktop-light.jpg" alt="The Journal: Story Time, the World Brief, the Recent Summary, Loose Ends and Chapters"></picture></td>
     <td width="25%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/journal-mobile-dark.jpg"><img src="docs/screenshots/journal-mobile-light.jpg" alt="The Journal: Story Time, the World Brief, the Recent Summary, Loose Ends and Chapters, on a phone"></picture></td>
   </tr>
   <tr><td colspan="2"><sub>The Journal: what your character knows, Loose Ends and Chapters, all editable.</sub></td></tr>
   <tr>
-    <td width="75%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/gallery-desktop-dark.jpg"><img src="docs/screenshots/gallery-desktop-light.jpg" alt="The Gallery: a portrait of each character and every scene picture"></picture></td>
-    <td width="25%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/gallery-mobile-dark.jpg"><img src="docs/screenshots/gallery-mobile-light.jpg" alt="The Gallery: a portrait of each character and every scene picture, on a phone"></picture></td>
+    <td width="75%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/new-story-desktop-dark.jpg"><img src="docs/screenshots/new-story-desktop-light.jpg" alt="The New Story wizard: choose a Theme, then describe your world and characters"></picture></td>
+    <td width="25%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/new-story-mobile-dark.jpg"><img src="docs/screenshots/new-story-mobile-light.jpg" alt="The New Story wizard: choose a Theme, then describe your world and characters, on a phone"></picture></td>
   </tr>
-  <tr><td colspan="2"><sub>The Gallery: every portrait and scene, to redraw, nudge or replace.</sub></td></tr>
+  <tr><td colspan="2"><sub>New Story: pick a Theme and describe as much or as little as you like.</sub></td></tr>
+  <tr>
+    <td width="75%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-desktop-dark.jpg"><img src="docs/screenshots/menu-desktop-light.jpg" alt="Ink &amp; Thread's Menu: New Story, Load Story, Reader's Guide and Settings beside the logo"></picture></td>
+    <td width="25%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/menu-mobile-dark.jpg"><img src="docs/screenshots/menu-mobile-light.jpg" alt="Ink &amp; Thread's Menu: New Story, Load Story, Reader's Guide and Settings beside the logo, on a phone"></picture></td>
+  </tr>
+  <tr><td colspan="2"><sub>The Menu.</sub></td></tr>
 </table>
 
 ## Quick Install

@@ -27,23 +27,23 @@
 .theme-sample {
   color-scheme: light dark;
   --desk: light-dark(#23382c, #101112);
-  --page: light-dark(#eadfc5, #2b2b29);
+  --page: light-dark(#e2d0a2, #2b2b29);
   --ink: light-dark(#25221a, #e8e4d8);
-  --muted: light-dark(#5a5340, #b5b2a6);
-  --line: light-dark(#b4a581, #55544e);
+  --muted: light-dark(#51493a, #b5b2a6);
+  --line: light-dark(#a99363, #55544e);
   /* A warm, olive-leaning green, so it sits in the browns. */
   --accent: light-dark(#33552f, #c3c79f);
-  --on-accent: light-dark(#f2ead6, #16180f);
-  --soft: light-dark(#dccda9, #3a3a37);
-  --error: light-dark(#8f2f1c, #eda78f);
+  --on-accent: light-dark(#efe2bf, #16180f);
+  --soft: light-dark(#d4bf8b, #3a3a37);
+  --error: light-dark(#86291a, #eda78f);
   /* Usage's models, in this order. Checked for colour blindness against --page in each theme. */
   --series-0: light-dark(#2f6aa3, #5c97d6);
-  --series-1: light-dark(#c47320, #c97a30);
+  --series-1: light-dark(#a85f14, #c97a30);
   --series-2: light-dark(#8a4f9e, #b27bc9);
-  --series-3: light-dark(#4f8a3a, #5f9e48);
-  --series-other: light-dark(#8a826e, #85837b);
+  --series-3: light-dark(#437a30, #5f9e48);
+  --series-other: light-dark(#766f5c, #85837b);
   /* Light is aged parchment, with age spots. Dark is plain charcoal. */
-  --foxing: light-dark(rgb(120 80 30 / 0.1), transparent);
+  --foxing: light-dark(rgb(120 80 30 / 0.14), transparent);
   --gutter: light-dark(rgb(40 25 5 / 0.38), rgb(0 0 0 / 0.6));
   --display: "Libre Caslon Display", "Hoefler Text", Georgia, serif;
   --body: "Libre Caslon Text", "Hoefler Text", Georgia, serif;

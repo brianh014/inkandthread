@@ -269,7 +269,7 @@ test("a failed report never bothers the player", async () => {
 
 test("lines also go to the log file, at the same level, and it rotates at 25 MB keeping one older file", async () => {
   const logs = join(folder.path, "logs");
-  const file = join(logs, "novelforge.log");
+  const file = join(logs, "inkandthread.log");
   const quiet = spyOn(console, "warn").mockImplementation(() => {});
   const silent = spyOn(console, "error").mockImplementation(() => {});
 
@@ -288,7 +288,7 @@ test("lines also go to the log file, at the same level, and it rotates at 25 MB 
     expect(readFileSync(file, "utf8")).toContain(pass);
     expect(statSync(file).size).toBeLessThan(1000);
   }
-  expect(readdirSync(logs).toSorted()).toEqual(["novelforge.log", "novelforge.log.1"]);
+  expect(readdirSync(logs).toSorted()).toEqual(["inkandthread.log", "inkandthread.log.1"]);
 
   quiet.mockRestore();
   silent.mockRestore();
@@ -306,7 +306,7 @@ test("a log file that can't be written leaves the console, and warns once", asyn
   const lines = warned.mock.calls.map(([line]) => String(line));
   expect(lines.filter((line) => line.includes("Can't write the log file"))).toHaveLength(1);
   expect(lines.filter((line) => /area (one|two)/.test(line))).toHaveLength(2);
-  expect(existsSync(join(blocked, "novelforge.log"))).toBe(false);
+  expect(existsSync(join(blocked, "inkandthread.log"))).toBe(false);
   warned.mockRestore();
 });
 

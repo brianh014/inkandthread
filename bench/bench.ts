@@ -588,7 +588,7 @@ async function play(
     console.warn = warn;
   }
 
-  const lines = readFileSync(join(folder, "novelforge.log"), "utf8").split("\n");
+  const lines = readFileSync(join(folder, "inkandthread.log"), "utf8").split("\n");
   const logged = (message: string) =>
     lines.flatMap((line) => {
       const at = line.indexOf(` ${message} {`);
@@ -920,7 +920,7 @@ async function run() {
 
   // A copy outside the repo, as it holds keys. Pictures are on, drawn by a stand-in, with the player's image Settings, which shape
   // the prompts; with none set up, as an OpenRouter model, which takes prose prompts.
-  const temp = mkdtempSync(join(tmpdir(), "novelforge-bench-"));
+  const temp = mkdtempSync(join(tmpdir(), "inkandthread-bench-"));
   const settingsPath = join(temp, "settings.json");
   if (!fake) copyFileSync(given, settingsPath);
   const remove = () => rmSync(temp, { recursive: true, force: true });

@@ -55,7 +55,7 @@ function FullChart({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** How the AIs scored on NovelForge's own bench, with a button in its corner to see it full screen. */
+/** How the AIs scored on Ink & Thread's own bench, with a button in its corner to see it full screen. */
 export function BenchChart() {
   const [full, setFull] = useState(false);
   return (

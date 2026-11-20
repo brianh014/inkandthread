@@ -1,4 +1,4 @@
-# NovelForge
+# Ink & Thread
 
 A single-player, AI-driven choose-your-own visual novel. The player acts and speaks only as their character while an LLM runs the story and world.
 
@@ -90,7 +90,7 @@ A Narrator call at a natural pause (a Turn moving story time on by hours, a new 
 _Avoid_: Off-screen turn, world tick
 
 **Command**:
-A Text Provider that is a program the player sets up, such as a provider's own command-line tool, in place of a server: it reads each prompt on its input and prints only the reply. As it runs a program, only Settings opened on the computer NovelForge runs on can set or change it. The Scribe uses it unless it has its own server.
+A Text Provider that is a program the player sets up, such as a provider's own command-line tool, in place of a server: it reads each prompt on its input and prints only the reply. As it runs a program, only Settings opened on the computer Ink & Thread runs on can set or change it. The Scribe uses it unless it has its own server.
 _Avoid_: CLI provider, shell command (it runs with no shell)
 
 **Check**:
@@ -176,11 +176,11 @@ How the Story shows Messages: Script, Prose or Bubbles. A fourth, the Stage box,
 One line of a Message, spoken or not, and what a Stage box shows at a time.
 
 **New Version**:
-A newer full release of NovelForge on GitHub, which a toast on every screen and Settings → Updates offer, and Install puts in place of the running program, which then restarts. Pre-releases are never offered.
+A newer full release of Ink & Thread on GitHub, which a toast on every screen and Settings → Updates offer, and Install puts in place of the running program, which then restarts. Pre-releases are never offered.
 _Avoid_: Update (that redraws a Cover or portrait)
 
 **Reader's Guide**:
-The player's help, opened from the Menu: what NovelForge is and how to use each part of it.
+The player's help, opened from the Menu: what Ink & Thread is and how to use each part of it.
 _Avoid_: Wiki, help, manual
 
 **Model Instructions**:
@@ -188,7 +188,7 @@ The player's own global guidance to the Narrator, set in Settings and applying t
 _Avoid_: System prompt
 
 **Setup**:
-The Prologue: a page at a time through the main Settings, from the AI that writes the Story and its model to pictures and how the Story reads, each page saving only its own settings. Until a Narrator is set up, the Menu offers **Setup NovelForge** in place of New Story and Load Story.
+The Prologue: a page at a time through the main Settings, from the AI that writes the Story and its model to pictures and how the Story reads, each page saving only its own settings. Until a Narrator is set up, the Menu offers **Setup Ink & Thread** in place of New Story and Load Story.
 _Avoid_: Wizard, onboarding
 
 **Guided setup**:
@@ -209,7 +209,7 @@ The player-facing record of only what the PC knows or has encountered, where the
 _Avoid_: Log
 
 **Server Log**:
-The app's own record of what it did, for tracing a problem: the console and `logs/novelforge.log`. It holds no story text, only ids that lead to it in the Save, unless the player turns on Story in log to debug, when it also holds every prompt, reply and Image Prompt. It has nothing to do with the Chapters, which are the story's own record.
+The app's own record of what it did, for tracing a problem: the console and `logs/inkandthread.log`. It holds no story text, only ids that lead to it in the Save, unless the player turns on Story in log to debug, when it also holds every prompt, reply and Image Prompt. It has nothing to do with the Chapters, which are the story's own record.
 _Avoid_: Log (alone), debug log
 
 **Usage**:

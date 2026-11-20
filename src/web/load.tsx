@@ -106,7 +106,7 @@ export function LoadStory() {
               <p className="title">{name}</p>
               {"title" in save && save.title && <p className="muted">{save.pc.name}</p>}
               {"unreadable" in save ? (
-                <p className="muted">This file can't be opened. A newer version of NovelForge may have made it.</p>
+                <p className="muted">This file can't be opened. A newer version of Ink & Thread may have made it.</p>
               ) : (
                 <p className="brief">{save.worldBrief}</p>
               )}

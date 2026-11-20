@@ -89,7 +89,7 @@ export function scriptedDice(...rolls: number[]): Dice {
 }
 
 export function tempFolder() {
-  const path = mkdtempSync(join(tmpdir(), "novelforge-"));
+  const path = mkdtempSync(join(tmpdir(), "inkandthread-"));
   return { path, remove: () => rmSync(path, { recursive: true, force: true }) };
 }
 

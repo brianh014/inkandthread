@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { delta, fakeOpenAi, postJson, tempFolder } from "./support";
 
 const folder = tempFolder();
-const executable = join(folder.path, process.platform === "win32" ? "novelforge.exe" : "novelforge");
+const executable = join(folder.path, process.platform === "win32" ? "inkandthread.exe" : "inkandthread");
 const provider = fakeOpenAi([[delta(JSON.stringify({ narration: "The tide rises." }))]]);
 
 // Loopback, as Windows Firewall asks about every new executable that opens a network port, and each run builds a new one.
@@ -85,9 +85,9 @@ test("the compiled app runs as a server with --server, which has no Quit", async
 });
 
 test("a Server build starts as a server with no flag", async () => {
-  const serverBuild = join(folder.path, process.platform === "win32" ? "novelforge-server.exe" : "novelforge-server");
+  const serverBuild = join(folder.path, process.platform === "win32" ? "inkandthread-server.exe" : "inkandthread-server");
   const build = Bun.spawn(
-    [process.execPath, "build", "src/main.ts", "--compile", "--production", "--define", 'process.env.NOVELFORGE_MODE="server"', "--outfile", serverBuild],
+    [process.execPath, "build", "src/main.ts", "--compile", "--production", "--define", 'process.env.INKANDTHREAD_MODE="server"', "--outfile", serverBuild],
     { stdout: "ignore" },
   );
   expect(await build.exited).toBe(0);

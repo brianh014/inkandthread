@@ -430,7 +430,7 @@ function WorkflowGuide() {
         your slots aren't sent.
       </p>
       <p>
-        NovelForge keeps one image: a <code>SaveImage</code> if there is one, otherwise a <code>PreviewImage</code>, from the highest numbered node of that
+        Ink & Thread keeps one image: a <code>SaveImage</code> if there is one, otherwise a <code>PreviewImage</code>, from the highest numbered node of that
         kind. An id like 12:3 from a subgraph counts as higher than any plain number. <code>SaveImage</code> also leaves a copy in ComfyUI's output folder.
       </p>
       <p>Your workflow brings its own models and LoRAs, so the LoRA list and trigger words here aren't used.</p>
@@ -888,11 +888,11 @@ export function useCommandLine(initial: Settings, set: (change: Partial<Settings
   };
 }
 
-/** A command set on the computer NovelForge runs on, seen from another one, which may not change it. */
+/** A command set on the computer Ink & Thread runs on, seen from another one, which may not change it. */
 export const LockedCommand = ({ line }: { line: string }) => (
   <>
     <p>
-      The AI is a command: <code>{line}</code>. Only the computer NovelForge runs on can change it.
+      The AI is a command: <code>{line}</code>. Only the computer Ink & Thread runs on can change it.
     </p>
     <CommandNote />
   </>
@@ -1212,7 +1212,7 @@ function InstallSettings({
                   onChange={chooseModel}
                 />
                 <p className="muted">
-                  <a href="#/guide/models">How the AIs compare</a> on NovelForge's own stories.
+                  <a href="#/guide/models">How the AIs compare</a> on Ink & Thread's own stories.
                 </p>
                 {local && !addressSaved && <p className="muted">Save the address to choose from this server's models.</p>}
                 {textChoice === "google" && (

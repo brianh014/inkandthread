@@ -9,18 +9,21 @@ import { defaultLevelFor, log, startLog } from "./logger";
 import { startServer } from "./rest-api";
 import { reviewerSettings, settingsStore } from "./settings-store";
 import { textProvider } from "./text-provider";
-import { isCompiled, removeReplacedPrograms } from "./updater";
+import { isCompiled, removeReplacedPrograms, serverBuild } from "./updater";
 import { usageStore } from "./usage-store";
 
 // A Mac app can't keep Saves inside itself, which macOS may run from a read-only copy.
 const inMacApp = isCompiled && process.execPath.includes(".app/Contents/MacOS/");
 // Under `bun run`, keep dev Saves in the project rather than beside Bun.
-const appDir = inMacApp ? join(homedir(), "Library", "Application Support", "NovelForge") : isCompiled ? dirname(process.execPath) : process.cwd();
+// A Mac copy from before the rename keeps its old folder, so its Saves are still found.
+const support = join(homedir(), "Library", "Application Support");
+const macDir = join(support, existsSync(join(support, "NovelForge")) ? "NovelForge" : "Ink & Thread");
+const appDir = inMacApp ? macDir : isCompiled ? dirname(process.execPath) : process.cwd();
 
 // The download is the app: one player on this computer, a browser that opens by itself, and Quit in the Menu.
 // Otherwise it's a server, for the network, until it's stopped. --app tries the app without a build. The Server
 // downloads are built as servers (see scripts/build-release.ts), and --server makes any download one.
-const serverMode = process.argv.includes("--server") || process.env.NOVELFORGE_MODE === "server";
+const serverMode = process.argv.includes("--server") || serverBuild;
 const app = (isCompiled || process.argv.includes("--app")) && !serverMode;
 const port = Number(process.env.PORT ?? 4600);
 
@@ -98,12 +101,12 @@ const server = startServer({
   hostname: process.env.HOST ?? (app ? "127.0.0.1" : "0.0.0.0"),
   quittable: app ? { idleMs: Number(process.env.IDLE_QUIT_MS ?? 5 * 60_000) } : undefined,
   // Only to try an update against a release served by hand.
-  latestRelease: process.env.NOVELFORGE_LATEST_RELEASE,
+  latestRelease: process.env.INKANDTHREAD_LATEST_RELEASE ?? process.env.NOVELFORGE_LATEST_RELEASE,
 });
 
 // A listening address of 0.0.0.0 is no use in a browser.
 const url = server.url.href.replace("0.0.0.0", "127.0.0.1");
-log.startup(`NovelForge is running at ${url}`);
+log.startup(`Ink & Thread is running at ${url}`);
 if (app || process.argv.includes("--open")) openBrowser(url);
 if (fake) log.startup(`Using fake text and images, with Saves and Settings in ${dataDir}`);
 if (server.hostname === "0.0.0.0") {

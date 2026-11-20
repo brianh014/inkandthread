@@ -1,4 +1,4 @@
-# Contributing to NovelForge
+# Contributing to Ink & Thread
 
 Thanks for helping. This page covers setting up, the checks a change must pass, and the conventions the code follows.
 

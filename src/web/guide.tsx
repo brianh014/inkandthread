@@ -26,7 +26,7 @@ import {
 import { MenuRibbon, Sheet } from "./menu";
 import { QUIET_TURNS } from "./usage";
 
-/** The Reader's Guide: what NovelForge is and how to use every part of it, one section at a time, kept in the URL hash. */
+/** The Reader's Guide: what Ink & Thread is and how to use every part of it, one section at a time, kept in the URL hash. */
 
 /** What a player takes on with a command as their AI, in full, as Settings shows only a line of it. */
 export const CommandCaveats = () => (
@@ -45,7 +45,7 @@ export const CommandCaveats = () => (
       <b>Speed</b>: each call starts the program again, which adds time before every reply.
     </li>
     <li>
-      <b>No caching or costs</b>: prompt caching is up to the program, and NovelForge can't see tokens or cost, so Usage counts calls only.
+      <b>No caching or costs</b>: prompt caching is up to the program, and Ink & Thread can't see tokens or cost, so Usage counts calls only.
     </li>
     <li>
       <b>No Thinking setting</b>: Thinking does nothing; set it in the command if the program allows.
@@ -70,18 +70,18 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
     body: (
       <>
         <p>
-          NovelForge is a choose-your-own visual novel that is written as you play. You make a world and a character, your <b>PC</b>, then act and speak only as
-          them. An AI plays the <b>Narrator</b>: it tells the story, voices everyone else, keeps track of the world and quietly decides whether what you try
+          Ink & Thread is a choose-your-own visual novel that is written as you play. You make a world and a character, your <b>PC</b>, then act and speak only
+          as them. An AI plays the <b>Narrator</b>: it tells the story, voices everyone else, keeps track of the world and quietly decides whether what you try
           works. The world it builds has secret Plot Threads of its own, so the story can turn in ways you don't expect. An image AI draws the Cover, portraits
           and scenes as you go.
         </p>
-        <p>NovelForge runs on your own computer. It brings no AI of its own: you connect the ones you choose, and your stories stay on your computer.</p>
+        <p>Ink & Thread runs on your own computer. It brings no AI of its own: you connect the ones you choose, and your stories stay on your computer.</p>
         <h3>Your first story</h3>
         <ol>
           <li>
-            Choose <b>Setup NovelForge</b> on the Menu. Until the AI that writes your story is set up, it takes the place of New Story and Load Story. Its pages
-            go one at a time, with what to pick beside each: the AI that writes your story, its key and model, the Scribe, a second AI that keeps the story's
-            record, pictures or text only, and how the story reads. Only the first AI is needed; the rest can be skipped. Beside the model,{" "}
+            Choose <b>Setup Ink & Thread</b> on the Menu. Until the AI that writes your story is set up, it takes the place of New Story and Load Story. Its
+            pages go one at a time, with what to pick beside each: the AI that writes your story, its key and model, the Scribe, a second AI that keeps the
+            story's record, pictures or text only, and how the story reads. Only the first AI is needed; the rest can be skipped. Beside the model,{" "}
             {tool(ChartIcon, "How the AIs compare")} shows how each AI told our test stories and what a Turn cost. {link("models", "Choosing your AI")} says
             more about which to pick.
           </li>
@@ -149,16 +149,16 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         </ul>
         <h3>How the AIs compare</h3>
         <p>
-          NovelForge's makers play the same stories on each AI and judge how well it tells them: whether Choices matter, the hidden plots surprise, people stay
-          true to themselves, and more. Each dot is one AI, set higher when it told the stories better and further left when it cost less a Turn. Pick a score
-          or a story to see where each one is strong, and press {tool(FullScreenIcon, "Full screen")} to see it larger. Every story was played with the same
-          setup otherwise, pictures drawn on ComfyUI.
+          Ink & Thread's makers play the same stories on each AI and judge how well it tells them: whether Choices matter, the hidden plots surprise, people
+          stay true to themselves, and more. Each dot is one AI, set higher when it told the stories better and further left when it cost less a Turn. Pick a
+          score or a story to see where each one is strong, and press {tool(FullScreenIcon, "Full screen")} to see it larger. Every story was played with the
+          same setup otherwise, pictures drawn on ComfyUI.
         </p>
         <BenchChart />
         <h3>A command as your AI</h3>
         <p>
-          Instead of a server, the story can run on a program you set up, such as a provider's own command-line tool. NovelForge sends it the prompt as text and
-          reads its reply. In <b>Settings → Text</b>, choose <b>Command</b> as the <b>Text provider</b> and type the program and its arguments, such as{" "}
+          Instead of a server, the story can run on a program you set up, such as a provider's own command-line tool. Ink & Thread sends it the prompt as text
+          and reads its reply. In <b>Settings → Text</b>, choose <b>Command</b> as the <b>Text provider</b> and type the program and its arguments, such as{" "}
           <code>claude -p --output-format text</code>, quoting any argument with spaces. The program runs with no shell, in an empty folder, and must print its
           reply and nothing else. As it runs a program on your computer, only Settings opened on that computer, at <code>127.0.0.1</code> or{" "}
           <code>localhost</code>, can set or change it; on a phone or another computer it's shown but locked. An online AI as above is still the way we
@@ -167,8 +167,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <CommandCaveats />
         <h3>Pictures: your own ComfyUI is best</h3>
         <p>
-          NovelForge draws a lot: the Cover, a portrait for each person, a scene picture whenever the scene changes, pictures you ask for and every redraw. On a
-          paid image service each one costs money; on your own ComfyUI they are free.
+          Ink & Thread draws a lot: the Cover, a portrait for each person, a scene picture whenever the scene changes, pictures you ask for and every redraw. On
+          a paid image service each one costs money; on your own ComfyUI they are free.
         </p>
         <ul>
           <li>
@@ -291,9 +291,9 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         </ul>
         <h3>Luck and risk</h3>
         <p>
-          An AI tends to be agreeable: left to itself, it lets nearly everything your PC tries work, and a story where nothing can fail soon goes flat. So
-          NovelForge brings in real chance. When your PC tries something that could fail, the Narrator sets how hard it is before anyone knows the outcome, then
-          a hidden die is rolled, and the Narrator writes what the roll decides.
+          An AI tends to be agreeable: left to itself, it lets nearly everything your PC tries work, and a story where nothing can fail soon goes flat. So Ink &
+          Thread brings in real chance. When your PC tries something that could fail, the Narrator sets how hard it is before anyone knows the outcome, then a
+          hidden die is rolled, and the Narrator writes what the roll decides.
         </p>
         <p>
           You never see the roll, only how things turn out. A bold plan can go wrong, a long shot can come off, and a well-chosen move gives you better odds.
@@ -448,8 +448,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         </ul>
         <h3>Where your files are</h3>
         <p>
-          Saves, Settings and logs are kept beside the program on Windows and Linux, in the folder you unpacked NovelForge into, and in{" "}
-          <code>~/Library/Application Support/NovelForge</code> on a Mac. The <code>Saves</code> folder holds one file per story. Copy the folder to back
+          Saves, Settings and logs are kept beside the program on Windows and Linux, in the folder you unpacked Ink & Thread into, and in{" "}
+          <code>~/Library/Application Support/Ink & Thread</code> on a Mac. The <code>Saves</code> folder holds one file per story. Copy the folder to back
           everything up.
         </p>
       </>
@@ -568,7 +568,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         </p>
         <h3>Guided setup</h3>
         <p>
-          Walks through the main settings again a page at a time, starting from what you chose, as <b>Setup NovelForge</b> did the first time. Each page's{" "}
+          Walks through the main settings again a page at a time, starting from what you chose, as <b>Setup Ink & Thread</b> did the first time. Each page's{" "}
           <b>Next</b> saves only that page, so leaving halfway loses nothing.
         </p>
       </>
@@ -580,11 +580,11 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
     body: (
       <>
         <p>
-          The <b>NovelForge</b> download is for one computer: it opens in your browser and only that computer can reach it. Choose <b>Quit</b> on the Menu to
+          The <b>Ink & Thread</b> download is for one computer: it opens in your browser and only that computer can reach it. Choose <b>Quit</b> on the Menu to
           close it, or it closes by itself a few minutes after its last page.
         </p>
         <p>
-          The <b>NovelForge Server</b> download serves your whole home network, so you can play from a phone or tablet. Start it, then browse to one of the
+          The <b>Ink & Thread Server</b> download serves your whole home network, so you can play from a phone or tablet. Start it, then browse to one of the
           addresses it shows, such as <code>http://192.168.1.20:4600/</code>. It keeps running until you close its window.
         </p>
         <p>
@@ -599,16 +599,16 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
     body: (
       <>
         <p>
-          When a new version is out, a notice says so at the top of whatever screen you're on. Press <b>Install</b>: NovelForge downloads it, restarts and comes
-          back to the same page. Your stories and Settings stay as they are. If the new version won't start, the old one comes back. Press × to put it off, and
-          the notice stays away until the next version.
+          When a new version is out, a notice says so at the top of whatever screen you're on. Press <b>Install</b>: Ink & Thread downloads it, restarts and
+          comes back to the same page. Your stories and Settings stay as they are. If the new version won't start, the old one comes back. Press × to put it
+          off, and the notice stays away until the next version.
         </p>
         <p>
-          To check, NovelForge asks GitHub for the newest release every few hours. That is the only thing it sends anywhere besides your AI.{" "}
+          To check, Ink & Thread asks GitHub for the newest release every few hours. That is the only thing it sends anywhere besides your AI.{" "}
           <b>Settings → Updates</b> shows the version you have, checks at once with <b>Check now</b>, and offers Install too.
         </p>
         <p>
-          If you run NovelForge from its source code, update with <code>git pull</code> and <code>bun install</code> instead.
+          If you run Ink & Thread from its source code, update with <code>git pull</code> and <code>bun install</code> instead.
         </p>
       </>
     ),
@@ -620,7 +620,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
       <>
         <h3>What does it cost?</h3>
         <p>
-          NovelForge is free. You pay your text and image providers for what you use, usually pennies a Turn for text. Pictures on ComfyUI are free; on a paid
+          Ink & Thread is free. You pay your text and image providers for what you use, usually pennies a Turn for text. Pictures on ComfyUI are free; on a paid
           service each one costs. Your provider's site shows what you've spent.
         </p>
         <h3>Who sees my story?</h3>
@@ -632,7 +632,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <p>
           The error says why, and your move stays in the box to send again. Check your key and credit with the provider, and press Test text in Settings. An AI
           that refuses some content says so: Rewrite or change your move, or choose a different AI. Some AIs won't write how a roll turned out, and send back
-          something that isn't a story; after three tries NovelForge tells you its content rules blocked it and saves nothing.
+          something that isn't a story; after three tries Ink & Thread tells you its content rules blocked it and saves nothing.
         </p>
         <h3>Replies are slow, or cut off</h3>
         <p>
@@ -652,12 +652,12 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>Windows or macOS won't open it</h3>
         <p>
           The downloads aren't signed yet. On Windows choose <b>More info</b>, then <b>Run anyway</b>. On a Mac, open{" "}
-          <b>System Settings → Privacy &amp; Security</b> and choose <b>Open Anyway</b> beside NovelForge.
+          <b>System Settings → Privacy &amp; Security</b> and choose <b>Open Anyway</b> beside Ink & Thread.
         </p>
         <h3>Something else</h3>
         <p>
           Report it on{" "}
-          <a href="https://github.com/brianh014/novelforge/issues" target="_blank" rel="noreferrer">
+          <a href="https://github.com/brianh014/inkandthread/issues" target="_blank" rel="noreferrer">
             GitHub
           </a>
           , with what you did and what happened. The log in the <code>logs</code> folder helps, and holds no keys, and no story text unless Story in log is on.

@@ -49,11 +49,11 @@ The main session only coordinates and keeps the ledger, so its context stays sma
 
 ### Judge brief
 
-> You are blind-judging one bench play of NovelForge. Don't read `result.json`, other runs or `bench/results/`, change no repo file, and call no model.
+> You are blind-judging one bench play of Ink & Thread. Don't read `result.json`, other runs or `bench/results/`, change no repo file, and call no model.
 >
 > 1. Read `<run folder>/judge.md` (the rubric and schema), the world file, and the whole `play-1/transcript.md`.
 > 2. Look at the pictures in `play-1/pictures`.
-> 3. Grep `play-1/novelforge.log` (never read it whole) for "Turn committed", "State Upkeep", "World moved on", "dropped", "Choices", "Unusable Narrator reply" and "failed". Check what State Upkeep recorded and what slipped through.
+> 3. Grep `play-1/inkandthread.log` (never read it whole) for "Turn committed", "State Upkeep", "World moved on", "dropped", "Choices", "Unusable Narrator reply" and "failed". Check what State Upkeep recorded and what slipped through.
 > 4. Score strictly by the rubric.
 > 5. Write the JSON array to `<run folder>/fable-scores.json` and run `bun bench judge <run folder> --by claude-fable-5-2 --scores <that file>`.
 > 6. Write your full report to `<run folder>/fable.md`.

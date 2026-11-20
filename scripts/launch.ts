@@ -1,4 +1,4 @@
-// What the NovelForge shortcut runs (see install-launcher.ts): starts the server, for the whole network, and opens
+// What the Ink & Thread shortcut runs (see install-launcher.ts): starts the server, for the whole network, and opens
 // it in the browser. Its window holds the log, and closing it stops the server. The download is the app instead.
 // Extra arguments pass through, so `bun scripts/launch.ts --fake` works too.
 import { spawnSync } from "node:child_process";
@@ -24,6 +24,6 @@ try {
   await import("../src/main");
 } catch (error) {
   console.error(error);
-  prompt("NovelForge could not start. Press Enter to close.");
+  prompt("Ink & Thread could not start. Press Enter to close.");
   process.exit(1);
 }

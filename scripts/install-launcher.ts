@@ -1,4 +1,4 @@
-// Makes a NovelForge shortcut with the app's icon that runs scripts/launch.ts in a terminal window:
+// Makes an Ink & Thread shortcut with the app's icon that runs scripts/launch.ts in a terminal window:
 // on the desktop (Windows), in ~/Applications (macOS) or in the app menu (Linux). Run it again if the project moves.
 import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
@@ -18,13 +18,13 @@ function run(command: string, ...args: string[]) {
 let made: string;
 if (process.platform === "win32") {
   const quote = (s: string) => `'${s.replaceAll("'", "''")}'`;
-  made = "NovelForge on the desktop";
+  made = "Ink & Thread on the desktop";
   run(
     "powershell",
     "-NoProfile",
     "-Command",
     [
-      `$s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'NovelForge.lnk'))`,
+      `$s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Desktop')) 'Ink & Thread.lnk'))`,
       `$s.TargetPath = ${quote(bun)}`,
       `$s.Arguments = ${quote(`"${launch}"`)}`,
       `$s.WorkingDirectory = ${quote(repo)}`,
@@ -33,7 +33,7 @@ if (process.platform === "win32") {
     ].join("; "),
   );
 } else if (process.platform === "darwin") {
-  made = join(homedir(), "Applications", "NovelForge.app");
+  made = join(homedir(), "Applications", "Ink & Thread.app");
   const contents = join(made, "Contents");
   mkdirSync(join(contents, "MacOS"), { recursive: true });
   mkdirSync(join(contents, "Resources"), { recursive: true });
@@ -42,9 +42,9 @@ if (process.platform === "win32") {
     `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>CFBundleName</key><string>NovelForge</string>
-  <key>CFBundleIdentifier</key><string>local.novelforge.launcher</string>
-  <key>CFBundleExecutable</key><string>NovelForge</string>
+  <key>CFBundleName</key><string>Ink &amp; Thread</string>
+  <key>CFBundleIdentifier</key><string>local.inkandthread.launcher</string>
+  <key>CFBundleExecutable</key><string>inkandthread</string>
   <key>CFBundleIconFile</key><string>icon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
 </dict></plist>
@@ -60,19 +60,19 @@ if (process.platform === "win32") {
 end tell
 `,
   );
-  const executable = join(contents, "MacOS", "NovelForge");
+  const executable = join(contents, "MacOS", "inkandthread");
   writeFileSync(executable, `#!/bin/sh\nexec osascript "$(dirname "$0")/../Resources/open.applescript"\n`);
   chmodSync(executable, 0o755);
   run("sips", "-s", "format", "icns", icon("png"), "--out", join(contents, "Resources", "icon.icns"));
 } else {
   const apps = join(homedir(), ".local", "share", "applications");
-  made = join(apps, "novelforge.desktop");
+  made = join(apps, "inkandthread.desktop");
   mkdirSync(apps, { recursive: true });
   writeFileSync(
     made,
     `[Desktop Entry]
 Type=Application
-Name=NovelForge
+Name=Ink & Thread
 Exec="${bun}" "${launch}"
 Path=${repo}
 Icon=${icon("svg")}

@@ -454,9 +454,9 @@ test("references reach a workflow by role, with a blank in an empty slot", async
   expect(graph["4"]!.inputs).toEqual({ pc: 1, npc: 0 });
   const portrait = comfy.jobs.uploads.find(({ bytes }) => bytes.length === PNG.length && bytes.every((byte, index) => byte === PNG[index]))!;
   const blank = comfy.jobs.uploads.find((upload) => upload !== portrait)!;
-  expect(graph["2"]!.inputs.image).toBe(`novelforge/${portrait.name} [temp]`);
-  expect(graph["3"]!.inputs.image).toBe(`novelforge/${blank.name} [temp]`);
-  expect(blank).toMatchObject({ subfolder: "novelforge", type: "temp" });
+  expect(graph["2"]!.inputs.image).toBe(`inkandthread/${portrait.name} [temp]`);
+  expect(graph["3"]!.inputs.image).toBe(`inkandthread/${blank.name} [temp]`);
+  expect(blank).toMatchObject({ subfolder: "inkandthread", type: "temp" });
 });
 
 test.each([

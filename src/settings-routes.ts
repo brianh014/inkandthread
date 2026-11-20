@@ -167,7 +167,7 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
         if (change.textCommand && shownAs(commandSeenFrom(here, current.textCommand))) delete change.textCommand;
         if (change.textCommand && !here) {
           log.warning("settings", "A command change was refused, as it came from another computer");
-          return Response.json({ error: "The command can only be changed in Settings on the computer NovelForge runs on." }, { status: 403 });
+          return Response.json({ error: "The command can only be changed in Settings on the computer Ink & Thread runs on." }, { status: 403 });
         }
         if (imageKeyFromText) {
           // Copied here, as the page never holds a stored key, and only to the image side of the same service it was entered for.

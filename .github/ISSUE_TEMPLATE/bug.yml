@@ -24,10 +24,10 @@ body:
   - type: dropdown
     id: download
     attributes:
-      label: Which NovelForge
+      label: Which Ink & Thread
       options:
-        - NovelForge (the app)
-        - NovelForge Server
+        - Ink & Thread (the app)
+        - Ink & Thread Server
         - Running from source
     validations:
       required: true
@@ -48,5 +48,5 @@ body:
     id: log
     attributes:
       label: Log
-      description: The lines around the problem from `logs/novelforge.log` beside the program (on a Mac, `~/Library/Application Support/NovelForge/logs`). The log holds no keys, and no story text unless Story in log is on in Settings → Advanced, so read it before you paste.
+      description: The lines around the problem from `logs/inkandthread.log` beside the program (on a Mac, `~/Library/Application Support/Ink & Thread/logs`). The log holds no keys, and no story text unless Story in log is on in Settings → Advanced, so read it before you paste.
       render: text

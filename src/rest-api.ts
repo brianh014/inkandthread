@@ -101,7 +101,7 @@ export function startServer(given: ServerOptions) {
   let restarting = false;
   const quit = (why: string) => {
     if (restarting) return;
-    log.startup(`NovelForge is closing: ${why}`);
+    log.startup(`Ink & Thread is closing: ${why}`);
     void server.stop().finally(() => process.exit(0));
   };
   const updates = updater(options.latestRelease);

@@ -31,7 +31,7 @@ function InstallButton({ latest }: { latest: Latest }) {
         const now = await getUpdate().catch(() => undefined);
         // The old version answering means the new one failed to start and was swapped back.
         if (now && now.version !== latest.version) {
-          setError(`NovelForge ${latest.version} didn't start, so ${now.version} is back. Try again later, or download it from its page.`);
+          setError(`Ink & Thread ${latest.version} didn't start, so ${now.version} is back. Try again later, or download it from its page.`);
           setBusy("");
           return;
         }
@@ -43,7 +43,7 @@ function InstallButton({ latest }: { latest: Latest }) {
           return location.reload();
         }
       }
-      setError("NovelForge hasn't come back. Open it again.");
+      setError("Ink & Thread hasn't come back. Open it again.");
     } catch (failure) {
       setError((failure as Error).message);
     }
@@ -67,8 +67,8 @@ function InstallButton({ latest }: { latest: Latest }) {
         </p>
       )}
       {asking && (
-        <ConfirmDialog title={`Install NovelForge ${latest.version}?`} confirm="Install" onConfirm={install} onClose={() => setAsking(false)}>
-          <p>NovelForge downloads it, restarts and comes back to this page. Your stories and Settings stay as they are.</p>
+        <ConfirmDialog title={`Install Ink & Thread ${latest.version}?`} confirm="Install" onConfirm={install} onClose={() => setAsking(false)}>
+          <p>Ink & Thread downloads it, restarts and comes back to this page. Your stories and Settings stay as they are.</p>
         </ConfirmDialog>
       )}
     </>
@@ -80,12 +80,12 @@ function NewVersionOffer({ status, latest }: { status: UpdateStatus; latest: Lat
   return (
     <>
       <p>
-        NovelForge {latest.version} is out. {WHATS_NEW(latest)}
+        Ink & Thread {latest.version} is out. {WHATS_NEW(latest)}
       </p>
       {status.installable ? (
         <InstallButton latest={latest} />
       ) : (
-        <p className="muted">Download it from its page, or pull it with git if you run NovelForge from source.</p>
+        <p className="muted">Download it from its page, or pull it with git if you run Ink & Thread from source.</p>
       )}
     </>
   );
@@ -150,7 +150,7 @@ export function UpdatesSection() {
   return (
     <div className="fields updates">
       <h2>Updates</h2>
-      {status && <p>This is NovelForge {status.version}.</p>}
+      {status && <p>This is Ink & Thread {status.version}.</p>}
       {status?.latest ? (
         <NewVersionOffer status={status} latest={status.latest} />
       ) : status?.failed ? (
@@ -168,7 +168,7 @@ export function UpdatesSection() {
           {checking ? "Checking…" : "Check now"}
         </button>
       </div>
-      <p className="muted">NovelForge also checks by itself every few hours, and shows a notice when a new version is out.</p>
+      <p className="muted">Ink & Thread also checks by itself every few hours, and shows a notice when a new version is out.</p>
     </div>
   );
 }

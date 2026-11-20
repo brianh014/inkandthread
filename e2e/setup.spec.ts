@@ -8,11 +8,11 @@ test("until the Narrator is set up, the Menu offers Setup, which walks the setti
   await request.patch("/settings", { data: { textModel: "" } });
   await page.goto("/");
   const menu = page.getByRole("navigation", { name: "Main Menu" });
-  await expect(menu.getByRole("link", { name: "Setup NovelForge" })).toBeVisible();
+  await expect(menu.getByRole("link", { name: "Setup Ink & Thread" })).toBeVisible();
   await expect(menu.getByRole("link", { name: "New Story" })).toHaveCount(0);
   await expect(menu.getByRole("link", { name: "Load Story" })).toHaveCount(0);
 
-  await menu.getByRole("link", { name: "Setup NovelForge" }).click();
+  await menu.getByRole("link", { name: "Setup Ink & Thread" }).click();
   await expect(page.getByText("Prologue · i", { exact: true })).toBeVisible();
   const next = page.getByRole("button", { name: "Next" });
   await page.getByRole("button", { name: "Begin" }).click();
@@ -40,7 +40,7 @@ test("until the Narrator is set up, the Menu offers Setup, which walks the setti
   await expect(page.getByText("fake-narrator")).toBeVisible();
   await page.getByRole("link", { name: "Back to the Menu" }).click();
   await expect(menu.getByRole("link", { name: "New Story" })).toBeVisible();
-  await expect(menu.getByRole("link", { name: "Setup NovelForge" })).toHaveCount(0);
+  await expect(menu.getByRole("link", { name: "Setup Ink & Thread" })).toHaveCount(0);
 
   // Settings brings Setup back, showing what was chosen.
   await page.goto("/#/settings");

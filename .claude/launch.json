@@ -2,27 +2,27 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "novelforge",
+      "name": "inkandthread",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["src/main.ts"],
       "port": 4600
     },
     {
-      "name": "novelforge-dev",
+      "name": "inkandthread-dev",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["--watch", "src/main.ts", "--fake"],
       "env": { "PORT": "4610", "HOST": "127.0.0.1" },
       "port": 4610
     },
     {
-      "name": "novelforge-dev-lan",
+      "name": "inkandthread-dev-lan",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["--watch", "src/main.ts", "--fake"],
       "env": { "PORT": "4610", "HOST": "0.0.0.0" },
       "port": 4610
     },
     {
-      "name": "novelforge-dev-real",
+      "name": "inkandthread-dev-real",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["--watch", "src/main.ts"],
       "env": { "PORT": "4620", "HOST": "127.0.0.1" },

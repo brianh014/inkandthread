@@ -230,7 +230,7 @@ export function Menu() {
       left={
         <div className="brand">
           <img className="logo" src={logo} alt="" width="264" height="197" />
-          <h1>NovelForge</h1>
+          <h1>Ink & Thread</h1>
           {/* Each half stays whole, so a wrap falls after the comma. */}
           <p className="muted">
             <span>A choose-your-own visual novel,</span> <span>written as you play.</span>
@@ -240,8 +240,8 @@ export function Menu() {
     >
       {closed ? (
         <div className="menu">
-          <h2>NovelForge has closed</h2>
-          <p className="muted">Your stories are saved. Close this tab, and open NovelForge again to keep playing.</p>
+          <h2>Ink & Thread has closed</h2>
+          <p className="muted">Your stories are saved. Close this tab, and open Ink & Thread again to keep playing.</p>
         </div>
       ) : (
         <div className="menu">
@@ -255,7 +255,7 @@ export function Menu() {
                 <a href="#/load">Load Story</a>
               </>
             ) : (
-              <a href="#/setup">Setup NovelForge</a>
+              <a href="#/setup">Setup Ink & Thread</a>
             )}
             <a href="#/guide">Reader's Guide</a>
             <a href="#/settings">Settings</a>

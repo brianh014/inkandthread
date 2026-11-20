@@ -1,6 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
 import { tarGz, zip } from "../scripts/zip";
-import { downloadName, isNewer, UpdateFailed, unpack, updater, VERSION } from "../src/updater";
+import { downloadName, isNewer, oldDownloadName, UpdateFailed, unpack, updater, VERSION } from "../src/updater";
 
 const program = new TextEncoder().encode("the program ".repeat(500));
 
@@ -22,37 +22,44 @@ test("versions order as semver, with a release after its pre-releases", () => {
 });
 
 test("each copy looks for the download it came from", () => {
-  expect(downloadName("win32", "x64", false)).toBe("NovelForge-Windows.zip");
-  expect(downloadName("darwin", "arm64", true)).toBe("NovelForge-Server-Mac-AppleSilicon.tar.gz");
-  expect(downloadName("darwin", "x64", false)).toBe("NovelForge-Mac-Intel.tar.gz");
-  expect(downloadName("linux", "x64", true)).toBe("NovelForge-Server-Linux.tar.gz");
+  expect(downloadName("win32", "x64", false)).toBe("inkandthread-Windows.zip");
+  expect(downloadName("darwin", "arm64", true)).toBe("inkandthread-server-Mac-AppleSilicon.tar.gz");
+  expect(downloadName("darwin", "x64", false)).toBe("inkandthread-Mac-Intel.tar.gz");
+  expect(downloadName("linux", "x64", true)).toBe("inkandthread-server-Linux.tar.gz");
   expect(downloadName("linux", "arm64", false)).toBeUndefined();
 });
 
-test("the program comes out of a Windows zip and a Mac or Linux tar.gz whole", () => {
-  expect(unpack("NovelForge-Windows.zip", zip("NovelForge.exe", program))).toEqual(program);
-  const mac = tarGz([
-    { name: "NovelForge.app/", mode: 0o755 },
-    { name: "NovelForge.app/Contents/Info.plist", data: new TextEncoder().encode("<plist/>"), mode: 0o644 },
-    { name: "NovelForge.app/Contents/MacOS/NovelForge", data: program, mode: 0o755 },
-  ]);
-  expect(unpack("NovelForge-Mac-Intel.tar.gz", mac)).toEqual(program);
+test("each download is also published under the name copies from before the rename look for", () => {
+  expect(oldDownloadName(downloadName("win32", "x64", false)!)).toBe("NovelForge-Windows.zip");
+  expect(oldDownloadName(downloadName("darwin", "arm64", true)!)).toBe("NovelForge-Server-Mac-AppleSilicon.tar.gz");
+  expect(oldDownloadName(downloadName("darwin", "x64", false)!)).toBe("NovelForge-Mac-Intel.tar.gz");
+  expect(oldDownloadName(downloadName("linux", "x64", true)!)).toBe("NovelForge-Server-Linux.tar.gz");
+});
 
-  const damaged = zip("NovelForge.exe", program);
+test("the program comes out of a Windows zip and a Mac or Linux tar.gz whole", () => {
+  expect(unpack("inkandthread-Windows.zip", zip("inkandthread.exe", program))).toEqual(program);
+  const mac = tarGz([
+    { name: "Ink & Thread.app/", mode: 0o755 },
+    { name: "Ink & Thread.app/Contents/Info.plist", data: new TextEncoder().encode("<plist/>"), mode: 0o644 },
+    { name: "Ink & Thread.app/Contents/MacOS/inkandthread", data: program, mode: 0o755 },
+  ]);
+  expect(unpack("inkandthread-Mac-Intel.tar.gz", mac)).toEqual(program);
+
+  const damaged = zip("inkandthread.exe", program);
   damaged[14] = (damaged[14] ?? 0) ^ 0xff;
-  expect(() => unpack("NovelForge-Windows.zip", damaged)).toThrow(UpdateFailed);
+  expect(() => unpack("inkandthread-Windows.zip", damaged)).toThrow(UpdateFailed);
 });
 
 test("a newer release on GitHub is offered, and an older or missing one isn't", async () => {
   const latest = `http://127.0.0.1:${github.port}/`;
   expect(await updater(latest).status()).toEqual({ version: VERSION, failed: false, latest: undefined, installable: false });
 
-  release = { tag_name: "v99.0.0", html_url: "https://github.com/brianh014/novelforge/releases/tag/v99.0.0", body: "New things", assets: [] };
+  release = { tag_name: "v99.0.0", html_url: "https://github.com/brianh014/inkandthread/releases/tag/v99.0.0", body: "New things", assets: [] };
   const updates = updater(latest);
   expect(await updates.status()).toEqual({
     version: VERSION,
     failed: false,
-    latest: { version: "99.0.0", url: "https://github.com/brianh014/novelforge/releases/tag/v99.0.0", notes: "New things" },
+    latest: { version: "99.0.0", url: "https://github.com/brianh014/inkandthread/releases/tag/v99.0.0", notes: "New things" },
     // Tests run from source, which updates with git, not by replacing Bun.
     installable: false,
   });
@@ -66,7 +73,7 @@ test("Check now asks GitHub again at once, and a GitHub out of reach says so", a
   release = undefined;
   const updates = updater(`http://127.0.0.1:${github.port}/`);
   expect((await updates.status()).latest).toBeUndefined();
-  release = { tag_name: "v99.0.0", html_url: "https://github.com/brianh014/novelforge/releases/tag/v99.0.0", body: "", assets: [] };
+  release = { tag_name: "v99.0.0", html_url: "https://github.com/brianh014/inkandthread/releases/tag/v99.0.0", body: "", assets: [] };
   // Within the last check's hours, only a fresh one sees it.
   expect((await updates.status()).latest).toBeUndefined();
   expect((await updates.status(true)).latest?.version).toBe("99.0.0");

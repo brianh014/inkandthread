@@ -15,4 +15,4 @@ An Ink & Thread server open to the network (the default for `bun start` and the 
 
 ## Reporting a problem
 
-Please report a vulnerability privately rather than in a public issue: open a [private security advisory](https://github.com/brianh014/novelforge/security/advisories/new) on GitHub. Include what you found, how to reproduce it, and what it lets an attacker do. You should hear back within two weeks.
+Please report a vulnerability privately rather than in a public issue: open a [private security advisory](https://github.com/brianh014/inkandthread/security/advisories/new) on GitHub. Include what you found, how to reproduce it, and what it lets an attacker do. You should hear back within two weeks.

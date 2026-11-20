@@ -37,7 +37,7 @@ Most AI roleplay is one long chat with a model that agrees with everything, forg
 
 ## Quick Install
 
-Download your system's file from the [Releases](https://github.com/brianh014/novelforge/releases/latest) page, where the files are listed under **Assets** at the bottom. Each system has two, and most people want **Ink & Thread**; the Server is for running it on another machine and playing from your other devices.
+Download your system's file from the [Releases](https://github.com/brianh014/inkandthread/releases/latest) page, where the files are listed under **Assets** at the bottom. Each system has two, and most people want **Ink & Thread**; the Server is for running it on another machine and playing from your other devices.
 
 - **Ink & Thread** is the app: it opens in your browser, for this computer only, and you end it with Quit in the Menu.
 - **Ink & Thread Server** serves the whole network and opens no browser, so it runs headless too. Its log goes to the terminal, and stopping it (closing the window, or Ctrl+C) stops the server. Browse to it from any device at `http://<its address>:4600/`; it lists its addresses as it starts.
@@ -62,7 +62,7 @@ Both use port 4600. Once it's open, [connect an AI](#connecting-an-ai) in **Sett
 
    ```bash
    mkdir -p ~/inkandthread && cd ~/inkandthread
-   curl -fL -o inkandthread-Linux.tar.gz https://github.com/brianh014/novelforge/releases/latest/download/inkandthread-Linux.tar.gz
+   curl -fL -o inkandthread-Linux.tar.gz https://github.com/brianh014/inkandthread/releases/latest/download/inkandthread-Linux.tar.gz
    tar -xzf inkandthread-Linux.tar.gz && rm inkandthread-Linux.tar.gz
    ```
 
@@ -180,7 +180,7 @@ ComfyUI keeps its model on the GPU between pictures. If a local text model or an
 
 ## Development
 
-Bugs and ideas go in [Issues](https://github.com/brianh014/novelforge/issues), and security problems to [a private advisory](https://github.com/brianh014/novelforge/security/advisories/new) (see [`SECURITY.md`](SECURITY.md)).
+Bugs and ideas go in [Issues](https://github.com/brianh014/inkandthread/issues), and security problems to [a private advisory](https://github.com/brianh014/inkandthread/security/advisories/new) (see [`SECURITY.md`](SECURITY.md)).
 
 ```bash
 bun run check   # lint and format check, typecheck, unit tests

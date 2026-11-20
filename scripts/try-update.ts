@@ -42,7 +42,7 @@ const release = Bun.serve({
     new URL(req.url).pathname === "/latest"
       ? Response.json({
           tag_name: `v${version}`,
-          html_url: "https://github.com/brianh014/novelforge/releases",
+          html_url: "https://github.com/brianh014/inkandthread/releases",
           body: "A stand-in release from scripts/try-update.ts.",
           assets: [{ name: asset, browser_download_url: new URL(`/${asset}`, req.url).href }],
         })

@@ -25,4 +25,4 @@ if (tagged && tagged !== head) throw new Error(`${tag} already names another com
 
 if (!tagged) git("tag", "-a", tag, "-m", `Ink & Thread ${version}`);
 git("push", "origin", tag);
-console.log(`Pushed ${tag}. GitHub builds and publishes it: https://github.com/brianh014/novelforge/actions/workflows/release.yml`);
+console.log(`Pushed ${tag}. GitHub builds and publishes it: https://github.com/brianh014/inkandthread/actions/workflows/release.yml`);

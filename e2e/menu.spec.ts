@@ -11,7 +11,7 @@ test("the Reader's Guide opens from the Menu, and each section keeps its place i
   await expect(page.getByRole("heading", { name: "Changing the story" })).toBeVisible();
 });
 
-const NEW = { version: "9.0.0", url: "https://github.com/brianh014/novelforge/releases/tag/v9.0.0", notes: "" };
+const NEW = { version: "9.0.0", url: "https://github.com/brianh014/inkandthread/releases/tag/v9.0.0", notes: "" };
 
 test("a new version's toast shows on any screen, and Install reloads the page once the server answers as it", async ({ page }) => {
   let installed = false;

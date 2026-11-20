@@ -54,12 +54,12 @@ test("a newer release on GitHub is offered, and an older or missing one isn't", 
   const latest = `http://127.0.0.1:${github.port}/`;
   expect(await updater(latest).status()).toEqual({ version: VERSION, failed: false, latest: undefined, installable: false });
 
-  release = { tag_name: "v99.0.0", html_url: "https://github.com/brianh014/novelforge/releases/tag/v99.0.0", body: "New things", assets: [] };
+  release = { tag_name: "v99.0.0", html_url: "https://github.com/brianh014/inkandthread/releases/tag/v99.0.0", body: "New things", assets: [] };
   const updates = updater(latest);
   expect(await updates.status()).toEqual({
     version: VERSION,
     failed: false,
-    latest: { version: "99.0.0", url: "https://github.com/brianh014/novelforge/releases/tag/v99.0.0", notes: "New things" },
+    latest: { version: "99.0.0", url: "https://github.com/brianh014/inkandthread/releases/tag/v99.0.0", notes: "New things" },
     // Tests run from source, which updates with git, not by replacing Bun.
     installable: false,
   });
@@ -73,7 +73,7 @@ test("Check now asks GitHub again at once, and a GitHub out of reach says so", a
   release = undefined;
   const updates = updater(`http://127.0.0.1:${github.port}/`);
   expect((await updates.status()).latest).toBeUndefined();
-  release = { tag_name: "v99.0.0", html_url: "https://github.com/brianh014/novelforge/releases/tag/v99.0.0", body: "", assets: [] };
+  release = { tag_name: "v99.0.0", html_url: "https://github.com/brianh014/inkandthread/releases/tag/v99.0.0", body: "", assets: [] };
   // Within the last check's hours, only a fresh one sees it.
   expect((await updates.status()).latest).toBeUndefined();
   expect((await updates.status(true)).latest?.version).toBe("99.0.0");

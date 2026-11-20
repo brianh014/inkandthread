@@ -8,7 +8,7 @@ import { errorFields, log } from "./logger";
 /** Finds a new version on GitHub, and puts a download's program in place of this one. */
 
 export const VERSION = version;
-export const LATEST_RELEASE = "https://api.github.com/repos/brianh014/novelforge/releases/latest";
+export const LATEST_RELEASE = "https://api.github.com/repos/brianh014/inkandthread/releases/latest";
 
 // Under `bun run`, execPath is Bun itself, which must never be replaced.
 export const isCompiled = basename(process.execPath, ".exe") !== "bun";

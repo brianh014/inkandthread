@@ -657,7 +657,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>Something else</h3>
         <p>
           Report it on{" "}
-          <a href="https://github.com/brianh014/novelforge/issues" target="_blank" rel="noreferrer">
+          <a href="https://github.com/brianh014/inkandthread/issues" target="_blank" rel="noreferrer">
             GitHub
           </a>
           , with what you did and what happened. The log in the <code>logs</code> folder helps, and holds no keys, and no story text unless Story in log is on.

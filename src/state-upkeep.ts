@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Check } from "./check-resolver";
 import { errorType, log } from "./logger";
 import { plainMessage, type Prompt } from "./prompt-assembler";
-import { reviewerSettings, type TextSettings } from "./settings-store";
+import { modelName, reviewerSettings, type TextSettings } from "./settings-store";
 import { type State, StateOperation } from "./state-applier";
 import { lowerThinking } from "./text-provider";
 import { askForJson, isJunk, jsonSchemaOf, type TextProvider } from "./turn-engine";
@@ -97,7 +97,7 @@ export async function upkeepOperations(
   /** Whether the Narrator moved Story Time in this Turn, which leaves time out of what Upkeep may give. */
   timed = false,
 ) {
-  const model = reviewerSettings(settings).read().textModel;
+  const model = modelName(reviewerSettings(settings).read());
   if (!model) return undefined;
   const prompt: Prompt = [
     { role: "system", content: timed ? RULES.withoutTime : RULES.withTime },

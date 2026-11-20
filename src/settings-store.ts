@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { basename } from "node:path";
 import { z } from "zod";
 import { LOG_LEVELS, log } from "./logger";
 
@@ -30,6 +31,9 @@ export const SettingsUpdate = z
     textBaseUrl: z.url({ protocol: /^https?$/ }),
     textApiKey: z.string(),
     textModel: z.string(),
+    // A program and its arguments, run with no shell, in place of the text server; empty uses the server. It runs a program on this
+    // computer, so only a request from this computer may change it (see `fromThisComputer`).
+    textCommand: z.array(z.string().min(1)).max(100),
     // OpenRouter only. A named host wins over the routing, which then has nothing left to choose.
     textRouting: z.enum(["price", "throughput", "latency", "default"]),
     textHost: z.string(),
@@ -158,6 +162,7 @@ const defaults = {
   textBaseUrl: "https://openrouter.ai/api/v1",
   textApiKey: "",
   textModel: "",
+  textCommand: [] as string[],
   textRouting: "price",
   textHost: "",
   textHostFallback: true,
@@ -231,7 +236,8 @@ export const reviewerSettings = (settings: TextSettings): TextSettings => ({
     // A review reads the whole world, so it may think as long as the longer limit allows, or Review thinking would be cut off.
     const thinking = { textThinking, textThinkingTokens: Math.max(all.textThinkingTokens, all.pictureThinkingTokens) };
     if (!all.reviewOtherModel) return { ...all, ...thinking };
-    const server = all.reviewSameProvider ? {} : { textBaseUrl: all.reviewBaseUrl, textApiKey: all.reviewApiKey };
+    // Its own server is a text server, never the Narrator's command.
+    const server = all.reviewSameProvider ? {} : { textBaseUrl: all.reviewBaseUrl, textApiKey: all.reviewApiKey, textCommand: [] };
     // On the Narrator's server the reviewer keeps the player's host and fallback, as a host pinned for privacy must hold for
     // every call; with fallback on, a host that doesn't offer the reviewer's model routes it elsewhere. A host names nothing on
     // another server.
@@ -248,10 +254,20 @@ export const consistencySettings = (settings: TextSettings): TextSettings => ({
   read: () => {
     const all = settings.read();
     if (!all.consistencyChatModel) return { ...reviewerSettings(settings).read(), textThinking: "low" };
-    const server = all.consistencySameProvider ? {} : { textBaseUrl: all.consistencyBaseUrl, textApiKey: all.consistencyApiKey, textHost: "" };
+    const server = all.consistencySameProvider ? {} : { textBaseUrl: all.consistencyBaseUrl, textApiKey: all.consistencyApiKey, textHost: "", textCommand: [] };
     return { ...all, ...server, textModel: all.consistencyChatModel, textThinking: "low" };
   },
 });
+
+/** Whether text calls run the player's command rather than reach a server. */
+export const usesCommand = ({ textCommand }: { textCommand: string[] }) => textCommand.length > 0;
+
+/** What a text call runs on, for logs and Usage: the command's program, or the chosen model. */
+export const modelName = (settings: { textCommand: string[]; textModel: string }) =>
+  usesCommand(settings) ? basename(settings.textCommand[0]!) : settings.textModel;
+
+/** The command as another computer may see it: the program's name alone, as its arguments may hold a key. */
+export const commandSeenFrom = (here: boolean, textCommand: string[]) => (here || !usesCommand({ textCommand }) ? textCommand : [basename(textCommand[0]!)]);
 
 /** Per-install settings, including API keys. They live in one file outside the Saves folder, so no Save can carry them. */
 export function settingsStore(path: string) {

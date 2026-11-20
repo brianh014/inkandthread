@@ -223,12 +223,13 @@ test("the player is told when the Narrator has no model or key, but a local serv
   const local = "http://127.0.0.1:8080/v1";
 
   for (const named of [openRouter, GOOGLE_URL, NANOGPT_URL]) {
-    expect(setupProblem({ textBaseUrl: named, textModel: "", hasTextApiKey: true })).toContain("model");
-    expect(setupProblem({ textBaseUrl: named, textModel: "a/model", hasTextApiKey: false })).toContain("key");
-    expect(setupProblem({ textBaseUrl: named, textModel: "a/model", hasTextApiKey: true })).toBeUndefined();
+    expect(setupProblem({ textBaseUrl: named, textModel: "", hasTextApiKey: true, textCommand: [] })).toContain("model");
+    expect(setupProblem({ textBaseUrl: named, textModel: "a/model", hasTextApiKey: false, textCommand: [] })).toContain("key");
+    expect(setupProblem({ textBaseUrl: named, textModel: "a/model", hasTextApiKey: true, textCommand: [] })).toBeUndefined();
   }
-  expect(setupProblem({ textBaseUrl: local, textModel: "", hasTextApiKey: false })).toContain("model");
-  expect(setupProblem({ textBaseUrl: local, textModel: "a/model", hasTextApiKey: false })).toBeUndefined();
+  expect(setupProblem({ textBaseUrl: local, textModel: "", hasTextApiKey: false, textCommand: [] })).toContain("model");
+  expect(setupProblem({ textBaseUrl: local, textModel: "a/model", hasTextApiKey: false, textCommand: [] })).toBeUndefined();
+  expect(setupProblem({ textBaseUrl: openRouter, textModel: "", hasTextApiKey: false, textCommand: ["a-cli"] })).toBeUndefined();
 });
 
 test("Settings and Art Style save through the API client, which reports a refusal", async () => {

@@ -21,7 +21,7 @@ import {
   SET_SCENE_NOTE,
 } from "./prompt-assembler";
 import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } from "./save-store";
-import type { SettingsStore } from "./settings-store";
+import { modelName, type SettingsStore } from "./settings-store";
 import type { NarratorTurn, UsageStore } from "./usage-store";
 import {
   applyOperations,
@@ -612,7 +612,7 @@ export async function playTurn(
   });
   const kind = input === OPENING_INPUT ? "opening" : "turn";
   // Read before the call, as it's the model asked. shortcut: a Rewrite, Regenerate, Edit or Revert keeps the first reply's counts (a Revert restarts the counts since), recount them if the report needs to match the story exactly.
-  const model = settings.read().textModel;
+  const model = modelName(settings.read());
   const played = await narrate(textProvider, signal, emit, {
     kind,
     prompt,

@@ -2,11 +2,11 @@ import { z } from "zod";
 import { parseWorkflow } from "./comfy-workflow";
 import { comfyModels, randomSeed } from "./comfyui";
 import { chosenModels, drawSteps, localIsSetUp } from "./graph-builder";
-import { imageResponse, parseBody, PromptRequest, routes, type ServerContext } from "./http";
+import { fromThisComputer, imageResponse, parseBody, PromptRequest, routes, type ServerContext } from "./http";
 import type { ImageAdapter } from "./image-adapter";
 import { defaultLogLevel, errorFields, errorType, log, setLogLevel } from "./logger";
 import { estimateTokens } from "./lore-activation";
-import { OnlineImageProvider, reviewerSettings, type SettingsChange, SettingsUpdate } from "./settings-store";
+import { commandSeenFrom, modelName, OnlineImageProvider, reviewerSettings, type SettingsChange, SettingsUpdate } from "./settings-store";
 import { textHosts, textModels } from "./text-provider";
 import { ContentRefused, TextProviderFailed } from "./turn-engine";
 import { GOOGLE_URL, NANOGPT_URL, OPENROUTER_URL, storyName, UNREADABLE_SAVE } from "./web/api";
@@ -29,7 +29,8 @@ const SettingsSave = SettingsUpdate.extend({ imageKeyFromText: z.boolean().optio
 export function settingsRoutes({ options, images, saves }: ServerContext, local: ImageAdapter, workflow: { problem: string }) {
   const { settings } = options;
   // An allowlist, so the API key can never reach a response.
-  const publicSettings = () => {
+  // `here` says the page is on this computer, so it may change the command.
+  const publicSettings = (here: boolean) => {
     const {
       textBaseUrl,
       textModel,
@@ -90,8 +91,11 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
       storyInLog,
       textProfiles,
       imageProfiles,
+      textCommand,
     } = settings.read();
     return {
+      textCommand: commandSeenFrom(here, textCommand),
+      commandHere: here,
       textBaseUrl,
       textModel,
       textRouting,
@@ -163,10 +167,18 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
 
   return routes({
     "/settings": {
-      GET: () => Response.json(publicSettings()),
-      PATCH: async (req) => {
+      GET: (req, server) => Response.json(publicSettings(fromThisComputer(req, server))),
+      PATCH: async (req, server) => {
         const { imageKeyFromText, ...change } = await parseBody(req, SettingsSave);
         const current = settings.read();
+        const here = fromThisComputer(req, server);
+        // The form sends every field, so a command as this page was shown it is no change.
+        const shownAs = (shown: string[]) => JSON.stringify(change.textCommand) === JSON.stringify(shown);
+        if (change.textCommand && shownAs(commandSeenFrom(here, current.textCommand))) delete change.textCommand;
+        if (change.textCommand && !here) {
+          log.warning("settings", "A command change was refused, as it came from another computer");
+          return Response.json({ error: "The command can only be changed in Settings on the computer NovelForge runs on." }, { status: 403 });
+        }
         if (imageKeyFromText) {
           // Copied here, as the page never holds a stored key, and only to the image side of the same service it was entered for.
           const url = SAME_SERVICE[(change.imageProvider ?? current.imageProvider) as keyof typeof SAME_SERVICE];
@@ -184,7 +196,7 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
         // Names only, as a value can be a key. The form sends every field, so only those that differ.
         const same = (field: keyof SettingsChange) => JSON.stringify(current[field] ?? null) === JSON.stringify(change[field] ?? null);
         log.info("settings", "Settings changed", () => ({ fields: (Object.keys(change) as (keyof SettingsChange)[]).filter((field) => !same(field)) }));
-        return Response.json(publicSettings());
+        return Response.json(publicSettings(here));
       },
     },
     // Only ever the saved server, so a key can't reach an address that is still being typed. `for=review` lists the reviewer's,
@@ -246,7 +258,7 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
             seconds,
             firstSeconds: firstSeconds ?? seconds,
             tokens: estimateTokens(reply),
-            model: settings.read().textModel,
+            model: modelName(settings.read()),
           });
         } catch (error) {
           if (error instanceof ContentRefused) log.warning("text", "The model refused the test", errorType(error));

@@ -103,6 +103,8 @@ test("a fresh install has images on, Prose, medium type, blank Model Instruction
     defaultLogLevel: "warning",
     storyInLog: false,
     canQuit: false,
+    textCommand: [],
+    commandHere: true,
   });
 });
 
@@ -256,6 +258,8 @@ test("every setting survives a restart, and no key comes back", async () => {
     logLevel: null,
     defaultLogLevel: "warning",
     canQuit: false,
+    textCommand: [],
+    commandHere: true,
   };
   expect(await response.json()).toEqual(expected);
 

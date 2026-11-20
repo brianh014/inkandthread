@@ -8,7 +8,8 @@ Ink & Thread is a single-player story game, played like a Telltale game or a cho
 
 It runs on your own computer and talks to models you choose. Bring an OpenAI-compatible text API (OpenRouter, DeepInfra, a local server) and, for pictures, OpenRouter, Wiro or your own ComfyUI.
 
-<p align="center"><img src="docs/screenshots/menu.png" alt="Ink &amp; Thread's Menu: New Story, Load Story, Reader's Guide and Settings beside the logo" width="800"></p>
+<p align="center"><img src="docs/screenshots/story-picture-desktop-light.jpg" alt="A story under way: a scene picture drawn as the scene changes, with the Recap, Loose Ends and recent characters beside it, and three Choices, light theme" width="620"> <img src="docs/screenshots/story-picture-mobile-light.jpg" alt="The same story on a phone, light theme" width="179"></p>
+<p align="center"><img src="docs/screenshots/story-picture-desktop-dark.jpg" alt="A story under way: a scene picture drawn as the scene changes, with the Recap, Loose Ends and recent characters beside it, and three Choices, dark theme" width="620"> <img src="docs/screenshots/story-picture-mobile-dark.jpg" alt="The same story on a phone, dark theme" width="179"></p>
 
 ## Features
 
@@ -26,13 +27,50 @@ Most AI roleplay is one long chat with a model that agrees with everything, forg
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/new-story.png" alt="The New Story wizard: choose a Theme, then describe your world and characters"><br><sub>New Story: pick a Theme and describe as much or as little as you like.</sub></td>
-    <td width="50%"><img src="docs/screenshots/journal.png" alt="The Journal: Story Time, Loose Ends, what the PC knows and the Chapters"><br><sub>The Journal: what your character knows, Loose Ends and Chapters, all editable.</sub></td>
+    <td width="75%"><img src="docs/screenshots/story-start-desktop-light.jpg" alt="The opening of a story, with the Recap, Loose Ends and recent characters beside it, and three Choices, light theme"></td>
+    <td width="25%"><img src="docs/screenshots/story-start-mobile-light.jpg" alt="The opening of a story, with the Recap, Loose Ends and recent characters beside it, and three Choices, on a phone, light theme"></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/guide.png" alt="The Reader's Guide, open at Playing, with each tool's icon beside its name"><br><sub>The Reader's Guide explains every part of the app.</sub></td>
-    <td width="50%" align="center"><img src="docs/screenshots/phone.png" alt="A story on a phone, with three Choices and a box to write your own" width="260"><br><sub>Playing on a phone, in Choices mode.</sub></td>
+    <td width="75%"><img src="docs/screenshots/story-start-desktop-dark.jpg" alt="The opening of a story, with the Recap, Loose Ends and recent characters beside it, and three Choices, dark theme"></td>
+    <td width="25%"><img src="docs/screenshots/story-start-mobile-dark.jpg" alt="The opening of a story, with the Recap, Loose Ends and recent characters beside it, and three Choices, on a phone, dark theme"></td>
   </tr>
+  <tr><td colspan="2"><sub>A story's opening, with three Choices or a box to write your own.</sub></td></tr>
+  <tr>
+    <td width="75%"><img src="docs/screenshots/gallery-desktop-light.jpg" alt="The Gallery: a portrait of each character and every scene picture, light theme"></td>
+    <td width="25%"><img src="docs/screenshots/gallery-mobile-light.jpg" alt="The Gallery: a portrait of each character and every scene picture, on a phone, light theme"></td>
+  </tr>
+  <tr>
+    <td width="75%"><img src="docs/screenshots/gallery-desktop-dark.jpg" alt="The Gallery: a portrait of each character and every scene picture, dark theme"></td>
+    <td width="25%"><img src="docs/screenshots/gallery-mobile-dark.jpg" alt="The Gallery: a portrait of each character and every scene picture, on a phone, dark theme"></td>
+  </tr>
+  <tr><td colspan="2"><sub>The Gallery: every portrait and scene, to redraw, nudge or replace.</sub></td></tr>
+  <tr>
+    <td width="75%"><img src="docs/screenshots/journal-desktop-light.jpg" alt="The Journal: Story Time, the World Brief, the Recent Summary, Loose Ends and Chapters, light theme"></td>
+    <td width="25%"><img src="docs/screenshots/journal-mobile-light.jpg" alt="The Journal: Story Time, the World Brief, the Recent Summary, Loose Ends and Chapters, on a phone, light theme"></td>
+  </tr>
+  <tr>
+    <td width="75%"><img src="docs/screenshots/journal-desktop-dark.jpg" alt="The Journal: Story Time, the World Brief, the Recent Summary, Loose Ends and Chapters, dark theme"></td>
+    <td width="25%"><img src="docs/screenshots/journal-mobile-dark.jpg" alt="The Journal: Story Time, the World Brief, the Recent Summary, Loose Ends and Chapters, on a phone, dark theme"></td>
+  </tr>
+  <tr><td colspan="2"><sub>The Journal: what your character knows, Loose Ends and Chapters, all editable.</sub></td></tr>
+  <tr>
+    <td width="75%"><img src="docs/screenshots/new-story-desktop-light.jpg" alt="The New Story wizard: choose a Theme, then describe your world and characters, light theme"></td>
+    <td width="25%"><img src="docs/screenshots/new-story-mobile-light.jpg" alt="The New Story wizard: choose a Theme, then describe your world and characters, on a phone, light theme"></td>
+  </tr>
+  <tr>
+    <td width="75%"><img src="docs/screenshots/new-story-desktop-dark.jpg" alt="The New Story wizard: choose a Theme, then describe your world and characters, dark theme"></td>
+    <td width="25%"><img src="docs/screenshots/new-story-mobile-dark.jpg" alt="The New Story wizard: choose a Theme, then describe your world and characters, on a phone, dark theme"></td>
+  </tr>
+  <tr><td colspan="2"><sub>New Story: pick a Theme and describe as much or as little as you like.</sub></td></tr>
+  <tr>
+    <td width="75%"><img src="docs/screenshots/menu-desktop-light.jpg" alt="Ink &amp; Thread's Menu: New Story, Load Story, Reader's Guide and Settings beside the logo, light theme"></td>
+    <td width="25%"><img src="docs/screenshots/menu-mobile-light.jpg" alt="Ink &amp; Thread's Menu: New Story, Load Story, Reader's Guide and Settings beside the logo, on a phone, light theme"></td>
+  </tr>
+  <tr>
+    <td width="75%"><img src="docs/screenshots/menu-desktop-dark.jpg" alt="Ink &amp; Thread's Menu: New Story, Load Story, Reader's Guide and Settings beside the logo, dark theme"></td>
+    <td width="25%"><img src="docs/screenshots/menu-mobile-dark.jpg" alt="Ink &amp; Thread's Menu: New Story, Load Story, Reader's Guide and Settings beside the logo, on a phone, dark theme"></td>
+  </tr>
+  <tr><td colspan="2"><sub>The Menu.</sub></td></tr>
 </table>
 
 ## Quick Install
@@ -101,12 +139,12 @@ sudo systemctl enable --now inkandthread
 
 ### Connecting an AI
 
-Ink & Thread has no AI of its own, so it needs a key from an AI service before it can write. The easiest is [OpenRouter](https://openrouter.ai), which is already chosen in Settings. You pay it for what you use, a few cents a Turn. To try it for free, see [Google AI Studio](#a-free-key-google-ai-studio) below.
+Ink & Thread has no AI of its own, so it needs a key from an AI service before it can write. The easiest is [OpenRouter](https://openrouter.ai), which is already chosen in Settings. You pay it for what you use, usually under a cent a Turn. To try it for free, see [Google AI Studio](#a-free-key-google-ai-studio) below.
 
 1. Sign up at [openrouter.ai](https://openrouter.ai), open [Credits](https://openrouter.ai/settings/credits) and add a few dollars.
 2. Open [Keys](https://openrouter.ai/settings/keys), choose **Create Key**, give it any name, and copy the key it shows. It's shown only once, so paste it somewhere safe too.
 3. In Ink & Thread, choose **Setup Ink & Thread** on the Menu. It walks you through the settings a page at a time, with what to pick on each. Paste the key, choose a **Text model** and, if you like, press **Test**. We recommend [DeepSeek V4.1 Flash](https://openrouter.ai/deepseek/deepseek-v4.1-flash-1017) (`deepseek/deepseek-v4.1-flash-1017`): in our tests it wrote the better stories of the low-cost AIs we tried, for under half a cent a Turn.
-4. Setup then offers a second model to review the story, a check on each reply, pictures and how the story reads. For pictures, we recommend **Online** with **OpenRouter**, which uses the same key, and Seedream 5.5, or Nano Banana 2.1 for a little better quality. If you have a graphics card, your own ComfyUI draws for free (see [Recommended settings](#images-your-own-comfyui)). Pictures are optional: without them the story is text only. Everything Setup sets is in **Settings** too, and **Settings → Guided setup** walks through it again.
+4. Setup then offers the Scribe, a second model that keeps the story's record straight (see [Scribe](#text-a-hosted-api)), then pictures and how the story reads. For pictures, we recommend **Online** with **OpenRouter**, which uses the same key, and Seedream 5.5, or Nano Banana 2.1 for a little better quality. If you have a graphics card, your own ComfyUI draws for free (see [Recommended settings](#images-your-own-comfyui)). Pictures are optional: without them the story is text only. Everything Setup sets is in **Settings** too, and **Settings → Guided setup** walks through it again.
 
 ### A free key: Google AI Studio
 

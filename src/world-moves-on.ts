@@ -217,10 +217,14 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const withPc = (text: string) => people(text).some((name) => state.scene.visibleCast.includes(name));
   // The PC named beside a telling, either way, as a re-asked now had someone tell the PC a secret off the page, which play then took as known.
   const pc = pcNames.join("|");
-  const told = String.raw`(?:told|tells?|telling|warn(?:s|ed)?|show(?:s|ed)?|confid(?:es|ed) in|confess(?:es|ed) to|let slip to|wrote to|informs?|informed)`;
-  const toldPc = pc
+  const told = String.raw`(?:told|tells?|telling|warn(?:s|ed|ing)?|show(?:s|ed|n|ing)?|confid(?:es|ed) in|confess(?:es|ed) to|let slip to|wr(?:ote|ites?) to|informs?|informed|hand(?:s|ed|ing)|read to)`;
+  const toldPcByName = pc
     ? new RegExp(String.raw`\b${told}\s+(?:${pc})\b|\b(?:${pc})\s+(?:has\s+|had\s+)?(?:${told}|learn(?:s|ed|t)?|heard|hears|was told|found out)\b`, "iu")
     : /$^/;
+  // A telling to "her" or "him" in a sentence naming no one but the teller, as a now had someone "shown her the letter" with
+  // the PC called by her trade alone.
+  const toldSomeone = new RegExp(String.raw`\b${told}\s+(?:her|him|them)\b`, "iu");
+  const toldPc = { test: (sentence: string) => toldPcByName.test(sentence) || (toldSomeone.test(sentence) && people(sentence).length <= 1) };
   const pcKnew = [state.worldBrief, state.summary, ...state.worldRules, ...state.pcKnown.facts, ...messages.map(({ text }) => text)].join("\n");
   /**
    * Whether a now tells as done the plan it had, by two of the plan's own long words (or its one) that its old now lacked, as a

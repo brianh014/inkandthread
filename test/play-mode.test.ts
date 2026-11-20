@@ -75,6 +75,34 @@ test("in Choices mode the Narrator writes no Choices: they are written apart, by
   expect(await app!.get(`/saves/${id}`).then((r) => r.json())).toMatchObject({ playMode: "choices" });
 });
 
+test("the Choices call is sent who the PC is, what they wear and carry, where they are and who they know is there, and no one else", async () => {
+  const script = play(narration("The tide rises."), chosen());
+  const id = saveStore(savesDir).create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: ["a grey shawl"], carrying: ["a sealed packet"] },
+      scene: { location: "The quay", visibleCast: ["Wren", "Corr"] },
+      npcs: [
+        { name: "Wren", appearance: "a boatwoman" },
+        { name: "Corr", appearance: "a stranger" },
+      ],
+      pcKnown: { facts: [], npcs: ["Wren"] },
+    },
+  });
+  await script.app.patch(`/saves/${id}`, { playMode: "choices" });
+  await script.app.post(`/saves/${id}/turns`, { input: "I wade forward." });
+
+  // Without these, Choices took a letter for the PC's own and offered again a deed already done.
+  expect(JSON.parse(script.prompts[1]!.at(-1)!.content).pc).toEqual({
+    name: "Ash",
+    wearing: ["a grey shawl"],
+    carrying: ["a sealed packet"],
+    place: "The quay",
+    present: ["Wren"],
+  });
+});
+
 test("a Choice that names the PC, written as someone else, is dropped and the others kept", async () => {
   const script = play(narration("The tide rises."), chosen(["I wade on.", "I crouch beside Ash and tell him to keep still.", "I climb the wall."]));
   const id = await script.app.createSave();

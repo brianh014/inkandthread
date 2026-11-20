@@ -27,6 +27,13 @@ test("a Choice naming a place no one has spoken of, or a thing only the secrets 
   expect(unknownWords(choices, secret, "Tamsin rides ahead. Before dark she searched the wagon.")).toEqual([["Qasr"], ["oilskin"], []]);
 });
 
+test("an everyday word, or another form of one the page used, isn't taken for a secret though the secrets hold it", () => {
+  const secret = { ...state, plotThreads: ["A silent man with a lantern would sooner kill than hang, and wraps the ledger in oilskin."] };
+  const choices = ["I'd sooner wait here.", "I stay silent and watch.", "I go up by lantern light.", "I look for an oilskin."];
+  // "sooner" was read as "soon"; "silent" and "lantern" are everyday words that dropped fair Choices on the bench.
+  expect(unknownWords(choices, secret, "She will be back soon.")).toEqual([[], [], [], ["oilskin"]]);
+});
+
 test("an everyday word the secrets happen to hold isn't taken for something the PC never heard of", () => {
   const secret = { ...state, plotThreads: ["Whatever anyone may examine, the ledger lies hidden in the chimney."] };
   const choices = ["I ask whether anyone saw him.", "I examine whatever is on the desk.", "I check the chimney."];

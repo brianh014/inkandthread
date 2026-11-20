@@ -1059,6 +1059,14 @@ async function narrate(
           facts: narrated.next.pcKnown.facts,
           looseEnds: narrated.next.looseEnds,
           storyTime: narrated.next.storyTime,
+          pc: {
+            name: pcName,
+            wearing: narrated.next.inventory.wearing,
+            carrying: narrated.next.inventory.carrying,
+            place: narrated.next.scene.location,
+            // Only those the PC knows by name, as a name the page never gave is a secret too.
+            present: narrated.next.scene.visibleCast.filter((name) => narrated.next.pcKnown.npcs.includes(name)),
+          },
         }).then((written) =>
           // Held to what the PC knows, as a Choice may still build on a word only the secrets hold.
           written && upkeep && seen !== undefined ? knownChoices(written, narrated.next, seen(), narration, upkeep.settings.read().storyInLog) : written,

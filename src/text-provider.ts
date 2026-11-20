@@ -20,6 +20,8 @@ const STOPPED = "The Text Provider stopped responding, so make sure it isn't stu
 const TOO_LONG = "The Narrator's reply ran far too long and was stopped, so nothing was saved";
 const THOUGHT_TOO_LONG = "The AI thought for too long without writing and was stopped, so nothing was saved";
 const REJECTED = "The Text Provider returned an error, so look over its address, the text model and any API key in Settings";
+// Its own, as a rate limit is no fault in the player's Settings.
+const BUSY = "The Text Provider is busy or limiting how often it's asked, so try again in a moment";
 
 const LIMITS = {
   // Generous, as a local server can spend minutes loading a model before its first byte.
@@ -34,7 +36,7 @@ const LIMITS = {
 // shortcut: a shorter echo, such as a few words of player input, passes this, drop provider text altogether if one is seen.
 const ECHO_CHARS = 16;
 
-type ProviderError = { metadata?: { error_type?: string; reasons?: string[] } };
+type ProviderError = { code?: number | string; metadata?: { error_type?: string; reasons?: string[] } };
 
 type Chunk = {
   id?: string;
@@ -265,7 +267,7 @@ export function textProvider(
     const failure = (error: ProviderError | undefined, status: number) => {
       if (isRefusal(error)) return new ContentRefused();
       log.verbose("text", "Text Provider error", () => ({ ...named, detail: redacted(JSON.stringify({ status, error })) }));
-      return new TextProviderFailed(REJECTED);
+      return new TextProviderFailed(status === 429 || Number(error?.code) === 429 ? BUSY : REJECTED);
     };
 
     // For the Server Log, so it holds how the reply went and none of its text.
@@ -419,7 +421,14 @@ export function textProvider(
         // A budget the model can't take is kept here by time alone, as reviewers without one thought 12,000 characters and more
         // and never answered, and a stop by length cut fixes at 9 to 12 s that had time left to answer.
         const ms = thoughtFrom === undefined ? 0 : Date.now() - thoughtFrom;
-        if (thinkingBudget && !budget && thinkingMs && !reply && ms > thinkingMs) {
+        // Not a call asked to think not at all of a model that must, as it is then the last try, and the same budget stopped it
+        // again on the bench: it has only its caller's time limit.
+        const mustThink = thinkingOff && withThinking && !off;
+        if (mustThink && thinkingBudget && !budget && thinkingMs && !reply && ms > thinkingMs && !seen.budgetWaived) {
+          seen.budgetWaived = true;
+          log.info("text", "Thinking budget waived", { ...named, model: textModel, budget: thinkingBudget, ms });
+        }
+        if (thinkingBudget && !budget && thinkingMs && !reply && ms > thinkingMs && !mustThink) {
           log.info("text", "Thinking budget reached", { ...named, model: textModel, budget: thinkingBudget, thoughtChars: thought, ms });
           throw new ThinkingBudgetReached(THOUGHT_TOO_LONG);
         }

@@ -213,10 +213,13 @@ export const MAX_PLOT_THREADS = 8;
 export const MAX_NPC_KNOWS = 12;
 
 // Saying what someone doesn't know, which an NPC's list read as what they do, and which goes stale once they learn it.
+// Any verb of knowing or learning denied, or with nothing or no one as what is known, as "has not heard of", "heard nothing of"
+// and "knows of no" reached the lists.
 const UNKNOWING =
-  /\b(?:(?:does|did|do)(?:n't| not)(?: yet)? know|knows? nothing|(?:has|have|had) (?:never heard|no idea)|never (?:learned|heard|knew)|unaware|not (?:yet )?aware)\b/i;
-// Clauses split where a fact goes on, keeping the joining word with the clause it starts.
-const CLAUSES = /(\s*;\s*|,\s+(?=(?:but|and|though|yet|while|nor)\b))/i;
+  /\b(?:(?:does|did|do|has|have|had|is|was|were)(?:n't| not)(?: yet)? (?:know|heard|seen|learned|learnt|been told|aware)|(?:knows?|knew|heard|seen|saw|learned|learnt|been told)(?: yet)? (?:nothing|none|of no(?:ne|thing)?|no one|of no one)|knows? no\b|but nothing (?:yet )?(?:of|about)|(?:has|have|had) (?:never|no idea)|never (?:learned|learnt|heard|knew|saw|been told)|no idea|unaware|but not (?:what|who|whom|where|when|why|how|whether|that|of|about)\b)/i;
+// Clauses split where a fact goes on, keeping the joining word with the clause it starts. "But" without a comma too, as "has
+// the evidence but has heard nothing of" was one clause.
+const CLAUSES = /(\s*;\s*|,\s+(?=(?:but|and|though|yet|while|nor)\b)|\s+(?=but\b))/i;
 
 /** A fact an NPC learns without its clauses saying what they don't know, or "" when that is all it says. */
 export function knownOnly(fact: string) {

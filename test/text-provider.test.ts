@@ -280,6 +280,17 @@ test("a provider error mid-stream fails the Turn as retryable, and its detail st
   expect(await storedMessages(id)).toEqual([]);
 });
 
+test("a rate limit tells the player the provider is busy, not to look over their Settings", async () => {
+  play([new Response(JSON.stringify({ error: { code: 429, message: "Rate limited" } }), { status: 429 })]);
+  const id = await app.createSave();
+
+  const events = await turnEvents(await streamTurn(id, "I wade forward."));
+
+  const { error } = events.at(-1)!.data as { error: string };
+  expect(error).toContain("busy");
+  expect(error).not.toContain("Settings");
+});
+
 const schemaModel = { data: [{ id: "fake/model", supported_parameters: ["structured_outputs", "response_format"] }] };
 
 test("schema mode is used on a model that supports it", async () => {
@@ -770,6 +781,39 @@ test("a hurried call is sent thinking off, and a model that refuses it is sent i
 
   expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([{ enabled: false }, { enabled: false }, { effort: "low" }, { effort: "low" }]);
   expect(log).toContain("Thinking off refused");
+});
+
+test("a call asked to think not at all, of a model that refuses that, isn't stopped by the thinking budget, as it is the last try", async () => {
+  const thinking = { data: [{ id: "fake/model", supported_parameters: ["reasoning"] }] };
+  const hmm = `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "Hmm. " } }] })}\n\n`;
+  const slow = async function* () {
+    yield hmm;
+    await Bun.sleep(150);
+    yield hmm;
+    yield* [delta("Done."), "data: [DONE]\n\n"];
+  };
+  const refused = new Response(JSON.stringify({ error: { message: "Reasoning is mandatory" } }), { status: 400 });
+  play([refused, slow, slow], thinking, scriptedDice(), true);
+  const settings = settingsStore(join(folder.path, "settings.json"));
+  settings.update({ textThinking: "low" });
+  const provide = textProvider(settings);
+  const send = () =>
+    provide([{ role: "user", content: "Hi" }], {
+      thinkingOff: true,
+      thinkingBudget: 100,
+      thinkingMs: 50,
+      onText: () => {},
+      signal: new AbortController().signal,
+    });
+
+  const log = await logOf(async () => {
+    expect(await send()).toBe("Done.");
+    // Remembered, so the next is sent its level at once, and isn't stopped either.
+    expect(await send()).toBe("Done.");
+  }, "info");
+
+  expect(provider.requests.map(({ body }) => body.reasoning)).toEqual([{ enabled: false }, { effort: "low" }, { effort: "low" }]);
+  expect(log).toContain("Thinking budget waived");
 });
 
 test("a reply silent from its first byte is asked for once more, as a stuck request mostly isn't stuck twice", async () => {

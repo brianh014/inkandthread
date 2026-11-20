@@ -50,3 +50,15 @@ test("what someone learns keeps only what they know, never a clause of what they
   expect(knownOnly("He has never heard of Kit, nor of any lantern.")).toBe("");
   expect(knownOnly("Kit saw the boat and told Ash.")).toBe("Kit saw the boat and told Ash.");
 });
+
+test("what someone doesn't know is left out however it's worded, and what they did or kept quiet stays", () => {
+  expect(knownOnly("He knows only that a man drowned; he has not heard of the will or the claim.")).toBe("He knows only that a man drowned.");
+  expect(knownOnly("He took the verdict; he knows of no hand behind it.")).toBe("He took the verdict.");
+  expect(knownOnly("He has the evidence before him but has heard nothing of a ledger.")).toBe("He has the evidence before him.");
+  expect(knownOnly("He knows the lad sleeps in the loft, but not what the lad saw.")).toBe("He knows the lad sleeps in the loft.");
+  expect(knownOnly("She knows the court holds it, but nothing yet of the letter.")).toBe("She knows the court holds it.");
+  expect(knownOnly("He drowned the man, and saw nothing of the woman in the gorse.")).toBe("He drowned the man.");
+  expect(knownOnly("She searched the cottage and found nothing, and has told no one.")).toBe(
+    "She searched the cottage and found nothing, and has told no one.",
+  );
+});

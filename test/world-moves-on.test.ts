@@ -787,6 +787,31 @@ test("a now that has the PC told a secret off the page is asked again, naming th
   expect(store().latestState(id).threadsNow[hidden]).toBe("The vicar waits for night.");
 });
 
+test("a now that has someone shown or told 'her' a secret, naming no one else, counts as the PC told it", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  const hidden = "The ledger is hidden in the cottage chimney, and the vicar is searching for it.";
+  const leak = "The ferryman waits at the inn, having shown her the ledger hidden up the cottage chimney.";
+  const told = play(narration("Ash walks to the quay.", nextDay()), moved(change(hidden, leak)), moved(change(hidden, leak)), narration("Ash waits."));
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [drowned, hidden],
+      threadsNow: { [hidden]: "The vicar waits for night." },
+      worldBible: [],
+    },
+  });
+
+  for (const input of ["I walk.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+
+  expect(told.prompts[2]!.at(-1)!.content).toContain("the now of plot_threads[1]: a now has the PC told, or telling, what only a secret holds");
+  expect(store().latestState(id).threadsNow[hidden]).toBe("The vicar waits for night.");
+});
+
 test("a move with no usable change is written again, saying why", async () => {
   const told = play(
     narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),

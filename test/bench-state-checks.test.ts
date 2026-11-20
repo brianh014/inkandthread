@@ -13,26 +13,32 @@ test("story time going back on a Turn counts, but not on a Rewrite", () => {
   expect(stateFaults([{ action: "choice", ...forward }])["stateFaults.timeBack"]).toBe(0);
 });
 
-test("a repeated or negative knows entry counts once when it arrives", () => {
+test("a knows entry repeating one in other words counts once when it arrives", () => {
   const faults = stateFaults([
     {
       action: "choice",
-      before: state({ npcKnows: { Kit: ["The ledger is gone."] } }),
-      after: state({ npcKnows: { Kit: ["The ledger is gone.", "the ledger is gone", "Kit has not heard of the letter."] } }),
+      before: state({ npcKnows: { Kit: ["Nell saw the lantern in the cellar."] } }),
+      after: state({ npcKnows: { Kit: ["Nell saw the lantern in the cellar.", "Nell has seen the lantern in the cellar", "The bell rang at noon."] } }),
     },
   ]);
+  expect(faults["stateFaults.repeatKnows"]).toBe(1);
+});
+
+test("repeats and negatives the app turned away still count, from its ignored operations", () => {
+  const faults = stateFaults([], ["npc_learns: already there", "npc_learns: only what they don't know", "add_loose_end: already there"]);
   expect(faults["stateFaults.repeatKnows"]).toBe(1);
   expect(faults["stateFaults.negativeKnows"]).toBe(1);
   expect(faults["stateFaults.total"]).toBe(2);
 });
 
-test("a Loose End resolved and then back counts as reopened", () => {
+test("a Loose End resolved and then back on a Turn counts as reopened, but not when an Edit brings it back", () => {
   const open = state({ looseEnds: ["Who rang the bell?"] });
   const closed = state({ looseEnds: [] });
-  expect(
+  const reopened = (action: string) =>
     stateFaults([
       { action: "choice", before: open, after: closed },
-      { action: "edit", before: closed, after: open },
-    ])["stateFaults.looseEndReopened"],
-  ).toBe(1);
+      { action, before: closed, after: open },
+    ])["stateFaults.looseEndReopened"];
+  expect(reopened("choice")).toBe(1);
+  expect(reopened("edit")).toBe(0);
 });

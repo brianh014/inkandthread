@@ -35,7 +35,7 @@ import { VERSION } from "../src/updater";
 import { askForJson, type TextProvider, worldMoved } from "../src/turn-engine";
 import { chartPage } from "./chart";
 import { resultFiles } from "./result-files";
-import { GENRES, type GenreKey, JUDGE_RULES, JudgeReply, RUBRIC, RUBRIC_VERSION, scorePlay } from "./rubric";
+import { GENRES, type GenreKey, JUDGE_RULES, JudgeReply, MISTAKES, RUBRIC, RUBRIC_VERSION, scorePlay } from "./rubric";
 import { stateFaults } from "./state-checks";
 import { type Call, tokenTable, tokenUse } from "./token-use";
 
@@ -624,7 +624,13 @@ async function play(
       steps.flatMap((step, at) => (played.includes(step) ? [at] : [])),
     ),
   );
-  Object.assign(flat, stateFaults(changes));
+  Object.assign(
+    flat,
+    stateFaults(
+      changes,
+      logged("Operations ignored").flatMap(({ reason }) => String(reason).split(", ")),
+    ),
+  );
   flat["cost.total"] = calls.reduce((sum, { cost }) => sum + cost, 0);
   flat["cost.perRound"] = flat["cost.total"] / rounds;
   for (const side of ["narrator", "reviewer"] as const) {
@@ -752,15 +758,20 @@ function report(result: Result) {
   if (anyKept && (anyKept.result.host ?? "") !== (result.host ?? ""))
     console.log(`Its Narrator host differs: ${anyKept.result.host || "any"} there, ${result.host || "any"} here.`);
   const base = anyKept?.result.summary;
-  // Scores from another rubric don't compare, so they aren't shown beside these.
+  // Scores from another rubric don't compare, so they aren't shown beside these; a run not judged yet has none to show.
   const sameRubric = (anyKept?.result.rubric ?? 1) === (result.rubric ?? 1);
-  if (base && !sameRubric) console.log("Its scores were judged by another rubric, so only its other numbers are shown.");
+  if (base && result.judge && !sameRubric) console.log("Its scores were judged by another rubric, so only its other numbers are shown.");
   for (const key of HEADLINE) {
     const [low, high] = result.range[key] ?? [];
     const range = low !== undefined && low !== high ? ` (${show(low, key)} to ${show(high, key)})` : "";
     const scored = key.startsWith("judge.") || key.startsWith("mistakes.");
     const was = base && (sameRubric || !scored) ? `   was ${show(base[key], key)}` : "";
     console.log(`  ${key.padEnd(26)} ${show(result.summary[key], key)}${range}${was}`);
+  }
+  if (result.judge) {
+    const turns = result.summary.turns || 1;
+    const kinds = Object.keys(MISTAKES).map((kind) => `${kind} ${show(((result.summary[`mistakes.${kind}`] ?? 0) * 10) / turns)}`);
+    console.log(`  Mistakes per 10 Turns by kind: ${kinds.join(", ")}`);
   }
   console.log(tokenTable(result.summary));
   const never = Object.entries(result.coverage).filter(([, plays]) => plays === 0);
@@ -1095,6 +1106,7 @@ function chart() {
       provider,
       thinking,
       models,
+      ...(rubric && { rubric }),
       judge: judge && {
         // From the second rubric on, the scores after caps and the overall after the penalty, as the bench reports them.
         plays: judge.plays.map((play, at) => {

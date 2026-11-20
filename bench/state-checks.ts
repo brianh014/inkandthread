@@ -1,20 +1,32 @@
 // What code can tell wrong in a play's state without a judge, counted over its steps, as the one measure free of judge noise.
-import { dayPart, knownOnly, type State } from "../src/state-applier";
+import { dayPart, type State } from "../src/state-applier";
 
-/** Steps that tell new story, so story time should not go back; a Rewrite, Regenerate or Edit replaces a reply and may. */
+/** Steps that tell new story; a Rewrite, Regenerate or Edit replaces a reply, so its time and Loose Ends may rightly go back. */
 const TURNS = new Set(["opening", "choice", "move", "continue", "continue (no Choices)"]);
-const same = (text: string) =>
-  text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
+const wordsOf = (text: string) => new Set(text.toLowerCase().match(/\p{L}{4,}/gu) ?? []);
+/** The same fact in other words: most of the longer words shared, as reworded repeats got past the app's exact match. */
+function alike(a: string, b: string) {
+  const [one, two] = [wordsOf(a), wordsOf(b)];
+  const shared = [...one].filter((word) => two.has(word)).length;
+  return shared > 0 && shared / new Set([...one, ...two]).size >= 0.7;
+}
 
-export function stateFaults(steps: { action: string; before: State; after: State }[]) {
-  const faults = { timeBack: 0, repeatKnows: 0, negativeKnows: 0, looseEndReopened: 0 };
+/**
+ * Counts over a play's steps, plus `ignored`, the reasons of the operations the app ignored ("npc_learns: already there"), as
+ * an exact repeat or a fact of only what someone doesn't know is turned away before it is stored, yet the model still wrote it.
+ */
+export function stateFaults(steps: { action: string; before: State; after: State }[], ignored: string[] = []) {
+  const faults = {
+    timeBack: 0,
+    repeatKnows: ignored.filter((reason) => reason === "npc_learns: already there").length,
+    negativeKnows: ignored.filter((reason) => reason === "npc_learns: only what they don't know").length,
+    looseEndReopened: 0,
+  };
   const resolved = new Set<string>();
   for (const { action, before, after } of steps) {
+    const turn = TURNS.has(action);
     const [was, now] = [before.storyTime, after.storyTime];
-    if (TURNS.has(action) && was && now) {
+    if (turn && was && now) {
       const [wasPart, nowPart] = [dayPart(was.timeOfDay), dayPart(now.timeOfDay)];
       if (now.day < was.day || (now.day === was.day && wasPart !== undefined && nowPart !== undefined && nowPart < wasPart)) faults.timeBack++;
     }
@@ -22,11 +34,10 @@ export function stateFaults(steps: { action: string; before: State; after: State
       const earlier = before.npcKnows[name] ?? [];
       known.forEach((fact, at) => {
         if (earlier.includes(fact)) return;
-        if (known.some((other, otherAt) => otherAt !== at && same(other) === same(fact) && (otherAt < at || earlier.includes(other)))) faults.repeatKnows++;
-        if (knownOnly(fact) !== fact) faults.negativeKnows++;
+        if (known.some((other, otherAt) => otherAt !== at && alike(other, fact) && (otherAt < at || earlier.includes(other)))) faults.repeatKnows++;
       });
     }
-    for (const end of after.looseEnds) if (!before.looseEnds.includes(end) && resolved.has(end)) faults.looseEndReopened++;
+    if (turn) for (const end of after.looseEnds) if (!before.looseEnds.includes(end) && resolved.has(end)) faults.looseEndReopened++;
     for (const end of before.looseEnds) if (!after.looseEnds.includes(end)) resolved.add(end);
   }
   const flat: Record<string, number> = Object.fromEntries(Object.entries(faults).map(([key, value]) => [`stateFaults.${key}`, value]));

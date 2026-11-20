@@ -1,9 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { JudgeReply, RUBRIC, scorePlay } from "../bench/rubric";
+import { FEATURES, JudgeReply, MISTAKES, RUBRIC, scorePlay } from "../bench/rubric";
 
+// Every feature audited, faulty where a mistake names it.
+const audited = (mistakes: unknown[]) =>
+  Object.fromEntries(
+    Object.keys(FEATURES).map((key) => [key, mistakes.some((mistake) => (mistake as { feature?: string }).feature === key) ? "faulty" : "ok"]),
+  );
 const reply = (scores: Partial<Record<keyof typeof RUBRIC, number>> = {}, mistakes: unknown[] = [], extra: object = {}) => ({
   mistakes,
-  audit: {},
+  audit: audited(mistakes),
   scores: Object.fromEntries(Object.keys(RUBRIC).map((key) => [key, { score: scores[key as keyof typeof RUBRIC] ?? 7, reason: "r" }])),
   happened: { npcDied: false, pcInMortalDanger: false },
   ...extra,
@@ -74,7 +79,7 @@ describe("scorePlay", () => {
     const worst = scored(
       reply(
         Object.fromEntries(Object.keys(RUBRIC).map((key) => [key, 1])),
-        Array.from({ length: 9 }, () => mistake("secret", "major")),
+        Object.keys(MISTAKES).map((kind) => mistake(kind, "major", kind === "state" ? "npcKnows" : undefined)),
       ),
     );
     expect(worst["judge.overall"]).toBe(1);
@@ -94,13 +99,24 @@ describe("JudgeReply refuses", () => {
     expect(JudgeReply.safeParse(reply({}, [mistake("state", "minor")])).success).toBe(false);
   });
   test("a state mistake on a feature the audit calls ok", () => {
-    expect(JudgeReply.safeParse(reply({}, [mistake("state", "minor", "looseEnds")], { audit: { looseEnds: "ok" } })).success).toBe(false);
+    const named = [mistake("state", "minor", "looseEnds")];
+    expect(JudgeReply.safeParse(reply({}, named, { audit: { ...audited(named), looseEnds: "ok" } })).success).toBe(false);
+  });
+  test("a feature audited faulty with no mistake naming it, or an audit missing a feature", () => {
+    expect(JudgeReply.safeParse(reply({}, [], { audit: { ...audited([]), lore: "faulty" } })).success).toBe(false);
+    const { lore: _, ...short } = audited([]);
+    expect(JudgeReply.safeParse(reply({}, [], { audit: short })).success).toBe(false);
   });
   test("no mistakes when a mistake-driven item scores 6 or lower", () => {
     expect(JudgeReply.safeParse(reply({ secrets: 5 })).success).toBe(false);
     expect(JudgeReply.safeParse(reply({ prose: 5 })).success).toBe(true);
   });
+  test("a low score whose listed mistakes are all of kinds that don't touch it", () => {
+    expect(JudgeReply.safeParse(reply({ agency: 4 }, [mistake("picture", "minor")])).success).toBe(false);
+    expect(JudgeReply.safeParse(reply({ agency: 4 }, [mistake("pcVoiced", "minor")])).success).toBe(true);
+  });
   test("a place that is neither a Message nor a round", () => {
     expect(JudgeReply.safeParse(reply({}, [{ ...mistake("secret", "major"), where: "early on" }])).success).toBe(false);
+    expect(JudgeReply.safeParse(reply({}, [{ ...mistake("picture", "minor"), where: "Portrait of Kit" }])).success).toBe(true);
   });
 });

@@ -139,12 +139,12 @@ sudo systemctl enable --now inkandthread
 
 ### Connecting an AI
 
-Ink & Thread has no AI of its own, so it needs a key from an AI service before it can write. The easiest is [OpenRouter](https://openrouter.ai), which is already chosen in Settings. You pay it for what you use, a few cents a Turn. To try it for free, see [Google AI Studio](#a-free-key-google-ai-studio) below.
+Ink & Thread has no AI of its own, so it needs a key from an AI service before it can write. The easiest is [OpenRouter](https://openrouter.ai), which is already chosen in Settings. You pay it for what you use, usually under a cent a Turn. To try it for free, see [Google AI Studio](#a-free-key-google-ai-studio) below.
 
 1. Sign up at [openrouter.ai](https://openrouter.ai), open [Credits](https://openrouter.ai/settings/credits) and add a few dollars.
 2. Open [Keys](https://openrouter.ai/settings/keys), choose **Create Key**, give it any name, and copy the key it shows. It's shown only once, so paste it somewhere safe too.
 3. In Ink & Thread, choose **Setup Ink & Thread** on the Menu. It walks you through the settings a page at a time, with what to pick on each. Paste the key, choose a **Text model** and, if you like, press **Test**. We recommend [DeepSeek V4.1 Flash](https://openrouter.ai/deepseek/deepseek-v4.1-flash-1017) (`deepseek/deepseek-v4.1-flash-1017`): in our tests it wrote the better stories of the low-cost AIs we tried, for under half a cent a Turn.
-4. Setup then offers a second model to review the story, a check on each reply, pictures and how the story reads. For pictures, we recommend **Online** with **OpenRouter**, which uses the same key, and Seedream 5.5, or Nano Banana 2.1 for a little better quality. If you have a graphics card, your own ComfyUI draws for free (see [Recommended settings](#images-your-own-comfyui)). Pictures are optional: without them the story is text only. Everything Setup sets is in **Settings** too, and **Settings → Guided setup** walks through it again.
+4. Setup then offers the Scribe, a second model that keeps the story's record straight (see [Scribe](#text-a-hosted-api)), then pictures and how the story reads. For pictures, we recommend **Online** with **OpenRouter**, which uses the same key, and Seedream 5.5, or Nano Banana 2.1 for a little better quality. If you have a graphics card, your own ComfyUI draws for free (see [Recommended settings](#images-your-own-comfyui)). Pictures are optional: without them the story is text only. Everything Setup sets is in **Settings** too, and **Settings → Guided setup** walks through it again.
 
 ### A free key: Google AI Studio
 

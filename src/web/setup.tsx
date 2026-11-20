@@ -304,9 +304,9 @@ function Steps({ initial }: { initial: Settings }) {
           {
             {
               openrouter:
-                "Two good choices: MiMo V2.6 Pro (search “mimo pro”), for richer role-play and writing at a little more a Turn, or DeepSeek V4.1 Flash (search “deepseek flash”), much cheaper a Turn, with writing not quite as rich. Try both on one story and keep the one you like.",
+                "We recommend DeepSeek V4.1 Flash (search “deepseek flash”): in our tests it wrote the better stories of the low-cost AIs we tried, for under half a cent a Turn. MiMo V2.6 Pro (search “mimo pro”) has a richer style some prefer, at several times the cost a Turn.",
               google: "We recommend a Gemini Flash model.",
-              nanogpt: "We recommend MiMo or DeepSeek, though any model you like will do.",
+              nanogpt: "We recommend DeepSeek V4.1 Flash, though any model you like will do.",
               local: "Choose the model your server runs. MiMo and DeepSeek write well if you can run them.",
             }[textChoice]
           }

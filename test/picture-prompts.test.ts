@@ -134,6 +134,13 @@ test.each([
   expect(prompts[0]![0]!.content).toContain(style === "keywords" ? "comma-separated keyword phrases" : "connected sentences");
 });
 
+test("a portrait prompt naming a hex colour is taken at once", async () => {
+  const { written, prompts } = write(portrait, "prose", text("A tall woman in an oilskin coat of #2b1d0e brown."));
+
+  expect(await written).toBe("A tall woman in an oilskin coat of #2b1d0e brown.");
+  expect(prompts).toHaveLength(1);
+});
+
 test("a garbled portrait prompt is written again, with only the reason logged, and one never written fails", async () => {
   const garbled = text("A cinematic portrait. Head and张 shoulders ofEXPOSED of##. Let's just produce proper text.{");
   const { written, prompts } = write(portrait, "prose", garbled, text("A tall woman in an oilskin coat."));

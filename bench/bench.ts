@@ -905,6 +905,8 @@ async function run() {
     fail("--draw needs local ComfyUI set up as the image provider in the Settings file.");
   if (drawing.imageProvider === "local" ? !localIsSetUp(drawing) : !(drawing.imageModel && drawing.imageApiKey))
     settings.update({ imageProvider: "openrouter", imageModel: "fake-images", imageApiKey: "fake-key" });
+  // No LoRAs, so pictures are judged on the model and the prompts alone, as the player's pulled watercolour scenes to photographs.
+  settings.update({ comfyLoras: [] });
   const chosen = { narrator: option("--narrator"), reviewer: option("--reviewer") };
   if (flag("--narrator-only") && chosen.reviewer) fail("--narrator-only can't go with --reviewer.");
   if (chosen.narrator) settings.update({ textModel: chosen.narrator });

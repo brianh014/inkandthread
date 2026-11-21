@@ -223,6 +223,27 @@ test("a move is told which of each thread's people are with the PC, so it never 
   expect(JSON.parse(told.prompts[1]!.at(-1)!.content).plot_threads[0].with_pc).toEqual(["Kit"]);
 });
 
+test("a move is told which of each thread's people the latest replies showed after they left, so it starts them from there", async () => {
+  const told = play(
+    narration(
+      "Kit runs off down the quay.",
+      { op: "add_npc", name: "Kit", appearance: "a boy in a cap" },
+      { op: "set_scene", location: "The library", visible_cast: [] },
+      { op: "update_plot_thread", thread: THIEF, truth: null, now: "Kit watches the library stacks.", plan: null },
+      nextDay(),
+    ),
+    moved({ ...change(THIEF, "Kit hides on the quay."), knows: [{ name: "Kit", knows: "A thief is coming." }] }),
+    narration("Ash reads."),
+  );
+  const id = createSave();
+  expect((await turn(id, "I go in.")).ok).toBe(true);
+  expect((await turn(id, "I read.")).ok).toBe(true);
+
+  const thread = JSON.parse(told.prompts[1]!.at(-1)!.content).plot_threads[0];
+  expect(thread.seen_lately).toEqual(["Kit"]);
+  expect(thread.with_pc).toBeUndefined();
+});
+
 test("a move reads the replies the summary doesn't cover yet, as the summary is written only every few replies", async () => {
   const told = play(
     narration("Ash enters the archive.", { summary: "Ash entered the archive." }),

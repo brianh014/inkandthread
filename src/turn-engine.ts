@@ -1108,7 +1108,11 @@ async function narrate(
           location = next.scene.location;
           npcs = next.npcs;
           wearing = next.inventory.wearing;
-          portraits = portraitsDue(state, next);
+          portraits = portraitsDue(
+            state,
+            next,
+            [...narration.matchAll(/^\[([^[\]]+)\]:/gm)].map(([, speaker]) => speaker!.trim()),
+          );
           restyled = restyledBy(state, next);
           return next;
         },

@@ -62,12 +62,14 @@ export const movedScene = (before: State, after: State) => before.scene.location
 export const visibleNpcs = ({ scene, npcs }: State) => scene.visibleCast.flatMap((name) => npcs.filter((npc) => npc.name === name));
 
 /**
- * Who to ask for a portrait after a Turn. Anyone the PC just came to know, in view or not, and on every move of the
- * Scene everyone in it and everyone known, so someone missed is drawn then, without paying each Turn after a failure.
+ * Who to ask for a portrait after a Turn: only those the page shows, in view or given a spoken line (`speakers`), as someone
+ * only spoken of, a painter dead two hundred years, was drawn in the story's own dress. Anyone shown who wasn't in view or
+ * known before, and on every move of the Scene everyone shown, so someone missed is drawn then, without paying each Turn after
+ * a failure. Someone only spoken of is drawn the first Turn they appear.
  */
-export function portraitsDue(before: State, after: State) {
-  const { scene, pcKnown } = after;
-  const due = movedScene(before, after) ? [...scene.visibleCast, ...pcKnown.npcs] : pcKnown.npcs.filter((name) => !before.pcKnown.npcs.includes(name));
+export function portraitsDue(before: State, after: State, speakers: string[] = []) {
+  const shown = [...after.scene.visibleCast, ...speakers.filter((name) => after.pcKnown.npcs.includes(name))];
+  const due = movedScene(before, after) ? shown : shown.filter((name) => !before.pcKnown.npcs.includes(name) || !before.scene.visibleCast.includes(name));
   // Not someone named as a body, as a portrait draws them alive.
   const dead = (name: string) => isBody(after, name);
   const bodies = [...new Set(due)].filter(dead).length;

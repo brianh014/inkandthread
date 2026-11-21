@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { PromptStyle } from "./graph-builder";
-import { type ImagePipeline, pcLooks, pcNow, restyledBy, visibleNpcs } from "./image-pipeline";
+import { type ImagePipeline, missingFeatures, pcLooks, pcNow, restyledBy, visibleNpcs } from "./image-pipeline";
 import { countWords, LONG_TEXT, withinLimit } from "./limits";
 import { errorType, log } from "./logger";
 import { activateLore } from "./lore-activation";
@@ -490,6 +490,24 @@ const editReply = z.object({
 const MARKS =
   /\b(?:soot\w*|smudge\w*|smear\w*|stain\w*|streak\w*|grime\w*|dirt\w*|mud\w*|ash|ashes|blood\w*|bruise\w*|scar\w*|scratch\w*|cut|cuts|wound\w*|mark|marks|marked)\b/g;
 
+/**
+ * Refuses a Cover's or portrait's prompt that came back plainly garbled, as DeepSeek wrote one in two scripts with a note to
+ * itself and a stray brace, and its portrait of a boy was drawn as a bare-chested man. Only these fixed reasons are logged.
+ * shortcut: no floor on its length, as tests and the fake Narrator write short prompts; add one if cut-off prompts get drawn.
+ */
+const refuseGarbled = (prompt: string, context: z.RefinementCtx) => {
+  const faults: [boolean, string][] = [
+    // Another script's letter touching a Latin one, as in "and张", so a word in another script, set apart, still passes.
+    [/\p{Script=Latin}[^\P{L}\p{Script=Latin}]|[^\P{L}\p{Script=Latin}]\p{Script=Latin}/u.test(prompt), "letters of another script"],
+    // The model's asides only, as a bare "I" is also "World War I".
+    [/\b(?:let['’]s|let me|I['’]ll|I need|I should|I will)\b/i.test(prompt), "a note to yourself"],
+    [/[{}#]/.test(prompt), "stray braces or hashes"],
+  ];
+  for (const [fault, message] of faults) if (fault) context.addIssue({ code: "custom", message });
+};
+// What an Update's edit leaves out of the face, as the hair and beard: "never describe their face" left a beard out, and the edit shaved it.
+const SKIN = /\b(?:skin|skinned|complexion|freckles|freckled)\b/i;
+
 // The scene rules' limits, and a review may keep one already over them, as it changes only what fails.
 const SCENE_WORDS: Record<PromptStyle, number> = { prose: 150, keywords: 80 };
 // The marks name who is drawn, so a review may take a person out but never add or change one, and keeps the curly sentence.
@@ -551,13 +569,19 @@ export async function writePicturePrompt(context: Context, ask: PictureAsk, styl
   const quoted = (title: string) => [`"${title}"`, `“${title}”`, `'${title}'`, `‘${title}’`];
   const lettered = (prompt: string) => ask.kind !== "cover" || quoted(ask.title.toLowerCase()).some((title) => prompt.toLowerCase().includes(title));
   const edit = ask.kind === "portrait" && !!ask.was;
-  const whole = z.object({ text: atMost(words).refine(lettered, "no title in quotation marks") });
+  // The player's title is taken out first, as its letters and marks are theirs.
+  const untitled = (prompt: string) => (ask.kind === "cover" ? prompt.replace(new RegExp(RegExp.escape(ask.title), "gi"), "") : prompt);
+  const whole = z
+    .object({ text: atMost(words).refine(lettered, "no title in quotation marks") })
+    .superRefine(({ text }, context) => refuseGarbled(untitled(text), context));
   // No mark the looks or nudge don't name, as redraws added soot smudges that drew a beard.
   const given = ask.kind === "portrait" ? `${ask.looks} ${ask.nudge ?? ""}`.toLowerCase() : "";
-  const edited = editReply.refine(
-    ({ changes }) => (changes.toLowerCase().match(MARKS) ?? []).every((mark) => given.includes(mark.replace(/(?:e?s|ed)$/, ""))),
-    "a mark the looks don't have",
-  );
+  const edited = editReply
+    .refine(
+      ({ changes }) => (changes.toLowerCase().match(MARKS) ?? []).every((mark) => given.includes(mark.replace(/(?:e?s|ed)$/, ""))),
+      "a mark the looks don't have",
+    )
+    .superRefine(({ keep, changes }, context) => refuseGarbled(`${keep} ${changes}`, context));
   const reply = edit ? edited : whole;
   const { kind, face, ...details } = { face: false, ...ask };
   const prompt: Prompt = [
@@ -574,8 +598,10 @@ ${imageInstructions(context)}`,
     const call = `${ask.kind}Prompt`;
     if (!edit) return (await askForJson(context.textProvider, prompt, whole, REFUSAL, signal, { call, picture: true })).text;
     const { keep, changes } = await askForJson(context.textProvider, prompt, edited, REFUSAL, signal, { call, picture: true });
+    const left = ask.kind === "portrait" ? missingFeatures(ask.looks, changes).filter((part) => !SKIN.test(part)) : [];
+    const features = left.length > 0 ? `With ${left.join(" and ")}.` : "";
     // The Art Style in code, last so the face stays up front, as edits without it came out as photographs.
-    return [keep, changes, ask.artStyle]
+    return [keep, features, changes, ask.artStyle]
       .map((part) => part.trim())
       .filter(Boolean)
       .join(" ");

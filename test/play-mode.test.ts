@@ -114,6 +114,17 @@ test("a Choice that names the PC, written as someone else, is dropped and the ot
   expect(log).toContain("Choices naming the PC dropped");
 });
 
+test("a Choice where the PC gives their own name is kept", async () => {
+  const own = ["I'll answer that I'm Ash and ask his name.", "I shout, “Call me Ash!”", "I tell her my name is Ash."];
+  const script = play(narration("A voice calls."), chosen(own));
+  const id = await script.app.createSave();
+  await script.app.patch(`/saves/${id}`, { playMode: "choices" });
+
+  await script.app.post(`/saves/${id}/turns`, { input: "I listen." });
+
+  expect(await latestChoices(id)).toEqual(own);
+});
+
 test("switching to Free Text and back keeps the latest Choices, and the next Turn ends them", async () => {
   const { id } = await choosing(narration("The wall holds."));
 

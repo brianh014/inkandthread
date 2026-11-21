@@ -576,7 +576,7 @@ const withChoices = ({ choices, ...message }: ChoicesRow): Reply => ({ ...messag
 const choicesText = (choices?: string[]) => (choices ? JSON.stringify(choices) : null);
 
 /** The latest Turn, if its Narrator Message is still `messageId`, so a page behind the story can't replace what it never showed. */
-function latestTurn(db: Database, messageId: number) {
+function latestTurn(db: Database, messageId: number, replacing = false) {
   const [narrator, player] = db
     .query<Message & { hidden_check: string | null; edits: string | null; direction: string | null }, []>(
       "SELECT id, role, text, hidden_check, edits, direction FROM messages ORDER BY id DESC LIMIT 2",
@@ -586,11 +586,13 @@ function latestTurn(db: Database, messageId: number) {
   if (narrator!.id !== messageId || narrator!.role !== "narrator") throw new StaleTurn();
   // Director's Notes changed since the player Message must carry across, or the replacement would undo them. So must edits.
   const { directorsNotes } = currentState(db);
-  // A pending move of the world is kept too, though it read the response being replaced, as dropping it lost paid moves and left
-  // the threads' nows stale for rounds; what its people did out of sight mostly stands whatever the replacement says.
-  const edits = [...parseEdits(narrator!.edits), ...pendingEdits(db)];
+  // A pending move of the world read the response, so a new one drops it, as it kept deeds of the discarded reply in a thread's now.
+  // An Edit keeps it, as the response mostly stands.
+  const pending = pendingEdits(db);
+  const kept = replacing ? pending.filter((edit) => !(edit.edit === "world" && edit.moved)) : pending;
+  const edits = [...parseEdits(narrator!.edits), ...kept];
   const state = edits.reduce(applyEdit, { ...toState(sectionsAt(db, player!.id)), directorsNotes });
-  return { narrator: narrator!, player: player!, state, edits };
+  return { narrator: narrator!, player: player!, state, edits, movesDropped: pending.length - kept.length };
 }
 
 // shortcut: room for a few hundred images, and import holds several copies in memory, so a longer story can export but not import until import streams.
@@ -1267,11 +1269,12 @@ export function saveStore(savesDir: string) {
     },
 
     /** What a new response to the latest Turn starts from: the state and story from before its Narrator Message. */
-    turnToReplace(id: string, messageId: number) {
+    turnToReplace(id: string, messageId: number, replacing = false) {
       using db = open(id);
       requireMessage(db, messageId);
-      const { narrator, player, state, edits } = latestTurn(db, messageId);
+      const { narrator, player, state, edits, movesDropped } = latestTurn(db, messageId, replacing);
       return {
+        movesDropped,
         journalEdits: [...parseEdits(player.edits), ...edits],
         input: player.text,
         narration: narrator.text,
@@ -1316,7 +1319,7 @@ export function saveStore(savesDir: string) {
     ): Reply[] {
       using db = open(id);
       return db.transaction(() => {
-        const { narrator, player, state, edits } = latestTurn(db, messageId);
+        const { narrator, player, state, edits } = latestTurn(db, messageId, true);
         deleteAfter(db, player.id);
         const replacement = db
           .query<ChoicesRow, [string, string | null, string | null, string | null, string | null]>(

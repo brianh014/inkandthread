@@ -65,6 +65,9 @@ const movedAt = new Map<string, number>();
  * Due at a natural pause: a Turn moving story time on by hours or to a new day, or every few replies since the last move. Due
  * with no threads open too, as a move is what adds them, and a Turn no longer can. A move due is taken as made.
  */
+/** The next Turn moves the world, as the move a replaced response read was dropped. */
+export const moveSoon = (id: string) => movedAt.set(id, Number.NEGATIVE_INFINITY);
+
 export function moveDue(id: string, before: State, after: State, replies: number) {
   const from = hourOf(before.storyTime?.timeOfDay ?? "");
   const to = hourOf(after.storyTime?.timeOfDay ?? "");

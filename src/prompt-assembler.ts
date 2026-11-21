@@ -435,10 +435,15 @@ The next message is the player's out-of-character direction for the new response
  * For an Edit. The player's words are canon, so nothing here lets the Narrator push back on them. It copies them into
  * narration, as asking for null there sent a model into a reply that never ended. The server keeps the player's copy.
  */
-export function editInstruction(text: string): Prompt[number] {
+/** `added` is the player's words when the Edit keeps the response whole, as the state then already holds the rest. */
+export function editInstruction(text: string, added?: string): Prompt[number] {
+  const needs =
+    added === undefined
+      ? "The state above is from before that response, so include every state operation and person the edited response needs"
+      : "The state above already holds the response as first written, and the player only added the words in added_words, so include only the state operations and people those words need";
   return {
     role: "system",
-    content: `The player has edited the response to their last action themselves. Their edited response is below as JSON, and it is now exactly what happened: never refuse it, correct it or add to it. Set narration to the edited response, copied exactly, and write no narration of your own. The state above is from before that response, so include every state operation and person the edited response needs, including add_known_fact where it applies, and, if the summary is due, one that covers it. Where it disagrees with a Lore Entry or Plot Thread, fix that in this Turn. Set check to null, scene_changed to false and visual_description to null. Edited response: ${JSON.stringify({ edited_response: text })}`,
+    content: `The player has edited the response to their last action themselves. Their edited response is below as JSON, and it is now exactly what happened: never refuse it, correct it or add to it. Set narration to the edited response, copied exactly, and write no narration of your own. ${needs}, including add_known_fact where it applies, and, if the summary is due, one that covers it. Where it disagrees with a Lore Entry or Plot Thread, fix that in this Turn. Set check to null, scene_changed to false and visual_description to null. Edited response: ${JSON.stringify(added === undefined ? { edited_response: text } : { edited_response: text, added_words: added })}`,
   };
 }
 

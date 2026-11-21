@@ -44,7 +44,7 @@ import { wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
-import { askToClose, MOVE_LIMIT, moveDue, moveWorldOn, turnThreadChanges } from "./world-moves-on";
+import { askToClose, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, turnThreadChanges } from "./world-moves-on";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
 const moving = new Map<string, Promise<void>>();
@@ -335,12 +335,14 @@ export function withoutJsonTail(text: string) {
 /**
  * Without a Choice that names the PC, as one written as someone else, "I crouch beside Nell and tell her…", was offered to Nell
  * as her own move. The PC's name only with its capital, so a name that is also a word isn't taken for it. The rest stay, even
- * if fewer than three, as asking again costs a call for one bad Choice.
+ * if fewer than three, as asking again costs a call for one bad Choice. The PC giving their own name, "I tell him I'm Sol", is
+ * theirs, as dropping it left a bench play one Choice for three rounds.
  */
 function forThePc(choices: string[] | undefined, pcName: string) {
   if (!choices || !pcName) return choices;
   const names = [pcName, ...pcName.split(" ").filter((part) => part.length > 2 && /^\p{Lu}/u.test(part))];
-  const kept = choices.filter((choice) => !names.some((name) => wholeWord(name, "u").test(choice)));
+  const ownName = (name: string) => new RegExp(`(?:\\bI['’]m|\\bI am|\\bme|\\bname is|\\bname['’]s|\\bit['’]s) ${RegExp.escape(name)}`, "giu");
+  const kept = choices.filter((choice) => !names.some((name) => wholeWord(name, "u").test(choice.replace(ownName(name), ""))));
   if (kept.length < choices.length) log.info("turn", "Choices naming the PC dropped", { count: choices.length - kept.length });
   return kept.length > 0 ? kept : undefined;
 }
@@ -670,8 +672,8 @@ export async function replaceResponse(
   emit: TurnEvents = () => {},
 ) {
   const times = { started: Date.now() };
-  await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.turnToReplace(id, messageId).state);
-  const { input, narration, check, state, messages, sceneImage, journalEdits } = saves.turnToReplace(id, messageId);
+  await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.turnToReplace(id, messageId, true).state);
+  const { input, narration, check, state, messages, sceneImage, journalEdits, movesDropped } = saves.turnToReplace(id, messageId, true);
   // The old picture goes with its response, so the new one always gets its own, whatever the Narrator decides.
   const hadPicture = !!sceneImage || images.sceneDrawing(id, messageId);
   const { prompt, memory, playMode, replies } = turnPrompt(saves, settings, id, signal, textProvider, {
@@ -711,7 +713,12 @@ export async function replaceResponse(
           roll: rolled?.roll,
           outcome: rolled?.outcome,
         });
-      return saves.replaceTurn(id, messageId, text, rolled, advance, feedback?.trim() || undefined, choices);
+      const replies = saves.replaceTurn(id, messageId, text, rolled, advance, feedback?.trim() || undefined, choices);
+      if (movesDropped > 0) {
+        moveSoon(id);
+        log.info("world", "World move dropped with the replaced response", { save: id, kind, moves: movesDropped });
+      }
+      return replies;
     },
     committed: (replacement, scene) => {
       images.forget(id, messageId - 1, kind);
@@ -739,15 +746,14 @@ export async function editResponse(
 ) {
   const times = { started: Date.now() };
   await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.turnToReplace(id, messageId).state);
-  const { input, state, messages, journalEdits } = saves.turnToReplace(id, messageId);
-  // An Edit that keeps the response whole keeps the Loose Ends it resolved and opened and the looks it changed, as the Narrator,
-  // bringing the state in line again, left one open to the end of a play, dropped another and lost a coat taken off.
+  const turn = saves.turnToReplace(id, messageId);
+  const { input, messages, journalEdits } = turn;
+  // An Edit that keeps the response whole starts from the state the response left, so the Narrator records only what the added
+  // words change, as rebuilding it all again lost Loose Ends, looks and Lore the response had changed.
   const replaced = saves.messages(id).find((message) => message.id === messageId)?.text ?? "";
-  const whole = !!replaced && text.includes(replaced);
-  const after = saves.latestState(id);
-  const resolved = whole ? state.looseEnds.filter((end) => !after.looseEnds.includes(end)) : [];
-  const opened = whole ? after.looseEnds.filter((end) => !state.looseEnds.includes(end)) : [];
-  const restyled = whole ? after.npcs.filter(({ name, appearance }) => state.npcs.some((npc) => npc.name === name && npc.appearance !== appearance)) : [];
+  const added = replaced && text.includes(replaced) ? text.split(replaced).join("\n").trim() : undefined;
+  const state = added === undefined ? turn.state : saves.latestState(id);
+  if (added !== undefined) log.info("turn", "Edit adds to the response", { save: id, message: messageId });
   const { prompt, memory, playMode, replies } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
@@ -758,7 +764,7 @@ export async function editResponse(
   });
   const done = await narrate(textProvider, signal, emit, {
     kind: "edit",
-    prompt: [...prompt, editInstruction(text)],
+    prompt: [...prompt, editInstruction(text, added)],
     input: text,
     refusal: "The Narrator refused this edit, so the response stays as it was.",
     pcName: saves.read(id).pc.name,
@@ -772,29 +778,7 @@ export async function editResponse(
     replies,
     playMode,
     commit: (narration, _check, advance, choices) =>
-      saves.editTurn(
-        id,
-        messageId,
-        narration,
-        (before) => {
-          const next = advance(before);
-          const kept = next.looseEnds.filter((end) => resolved.includes(end));
-          if (kept.length > 0) log.info("turn", "Loose Ends kept resolved by an Edit", { looseEndsKept: kept.length });
-          const reopened = opened.filter((end) => !next.looseEnds.includes(end));
-          // Only where the Edit left the looks as they were before the response, so its own change stands.
-          const looks = restyled.filter(
-            ({ name }) => next.npcs.find((npc) => npc.name === name)?.appearance === state.npcs.find((npc) => npc.name === name)?.appearance,
-          );
-          if (reopened.length > 0 || looks.length > 0)
-            log.info("turn", "An Edit's kept response carried over", { looseEndsOpened: reopened.length, looksKept: looks.length });
-          return {
-            ...next,
-            looseEnds: [...next.looseEnds.filter((end) => !kept.includes(end)), ...reopened],
-            npcs: next.npcs.map((npc) => looks.find(({ name }) => name === npc.name) ?? npc),
-          };
-        },
-        choices,
-      ),
+      saves.editTurn(id, messageId, narration, (before) => advance(added === undefined ? before : state), choices),
     // Only portraits for anyone new, as the Scene Image stays.
     committed: (edited, scene) => images.sceneChanged(id, edited, { ...scene, changed: false }),
     times,

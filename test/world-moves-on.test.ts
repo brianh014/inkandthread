@@ -359,13 +359,18 @@ test("the player's Journal edits are still settled after a move, which settles n
   expect(journalChange([fact, world])).toBe("");
 });
 
-test("a Regenerate and a Rewrite keep the move made from the reply they replace, as dropping it lost paid moves", async () => {
+test("a Regenerate and a Rewrite drop the move made from the reply they replace, and the next Turn moves the world again", async () => {
   const robbed = "The thief has robbed the library.";
+  const fled = "The thief has fled to the hills.";
   play(
     narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
     moved(change(THIEF, robbed)),
     narration("Ash stays in the library."),
+    narration("Ash waits."),
+    moved(change(THIEF, robbed)),
     narration("Ash sits in the library."),
+    narration("Ash reads."),
+    moved(change(THIEF, fled)),
   );
   const id = createSave();
   expect((await turn(id, "I walk to the dock.")).ok).toBe(true);
@@ -375,15 +380,23 @@ test("a Regenerate and a Rewrite keep the move made from the reply they replace,
     ["rewrite", { feedback: "Slower." }],
   ] as const) {
     const replaced = store().latestMessageId(id);
-    const response = await fetch(new URL(`/saves/${id}/messages/${replaced}/${action}`, server.url), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    expect(response.ok).toBe(true);
-    await response.text();
-    expect(store().latestState(id).threadsNow).toEqual({ [THIEF]: robbed });
+    const line = await logOf(async () => {
+      const response = await fetch(new URL(`/saves/${id}/messages/${replaced}/${action}`, server.url), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      expect(response.ok).toBe(true);
+      await response.text();
+    }, "info");
+    expect(store().latestState(id).threadsNow[THIEF]).toBeUndefined();
+    expect(line).toContain("World move dropped with the replaced response");
+    // Moves the world again at once, for the Rewrite to drop.
+    if (action === "regenerate") expect((await turn(id, "I wait.")).ok).toBe(true);
   }
+  expect((await turn(id, "I read.")).ok).toBe(true);
+  for (let tries = 0; tries < 100 && !store().latestState(id).threadsNow[THIEF]; tries++) await Bun.sleep(10);
+  expect(store().latestState(id).threadsNow).toEqual({ [THIEF]: fled });
 });
 
 test("a move adds threads only while fewer than three are open, as an 80-round story's grew to seven that nothing ended", async () => {

@@ -570,7 +570,11 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const hours = clockHours(before, (before?.day ?? 1) + days, time_of_day, operation.hours_passed);
       // Past midnight on the clock is a new day, as a reply from ten at night to three in the morning gave no days or date, and
       // the story stayed on Monday to the end.
-      const day = Math.max((before?.day ?? 1) + days, Math.floor(hours / 24) + 1);
+      // Only where the words agree, going back past midnight or naming no hour, as hours over-counted on talk would put an
+      // afternoon on the next day.
+      const [from, to] = [hourOf(before?.timeOfDay ?? ""), hourOf(time_of_day)];
+      const wordsRoll = from === undefined || to === undefined || to < from;
+      const day = Math.max((before?.day ?? 1) + days, wordsRoll ? Math.floor(hours / 24) + 1 : 0);
       const newDay = day > (before?.day ?? 1);
       // Never back within a day, as a reply that did so had started the story over from its first morning.
       const [was, now] = [dayPart(before?.timeOfDay), dayPart(time_of_day)];
@@ -633,7 +637,8 @@ function clockHours(was: StoryTime | null, day: number, timeOfDay: string, passe
   const byWords = from !== undefined && to !== undefined && to >= from ? to - from : 0;
   // More than the days passed allow is the running total, as a reply gave 29.65 hours since the opening for a quarter hour's talk.
   const fits = passed !== null && passed <= (day - (was?.day ?? 1) + 1) * 24;
-  const hours = start + (fits ? passed : day === (was?.day ?? 1) ? byWords : 0);
+  // A first Story Time is its own hour, as hours_passed then counts from nothing the clock had.
+  const hours = start + (!was ? 0 : fits ? passed : day === was.day ? byWords : 0);
   // A new day the hours didn't reach, as days_passed is the surer of the two.
   return Math.max(hours, (day - 1) * 24);
 }

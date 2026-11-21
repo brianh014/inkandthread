@@ -248,3 +248,11 @@ test("someone whose own Lore Entry the world keys as a body is given no portrait
 
   expect(portraitsDue(openingState, after)).toEqual([living]);
 });
+
+test("someone known and heard from out of view is due no portrait again each Turn, but is on coming into view", () => {
+  const voice = { name: "Owen Price", appearance: "a broad constable" };
+  const known = { ...openingState, npcs: [voice], pcKnown: { facts: [], npcs: ["Owen Price"] }, scene: { location: "The loft", visibleCast: [] } };
+
+  expect(portraitsDue(known, known, ["Owen Price"])).toEqual([]);
+  expect(portraitsDue(known, { ...known, scene: { location: "The loft", visibleCast: ["Owen Price"] } })).toEqual([voice]);
+});

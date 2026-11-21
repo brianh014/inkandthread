@@ -501,7 +501,8 @@ const refuseGarbled = (prompt: string, context: z.RefinementCtx) => {
     [/\p{Script=Latin}[^\P{L}\p{Script=Latin}]|[^\P{L}\p{Script=Latin}]\p{Script=Latin}/u.test(prompt), "letters of another script"],
     // The model's asides only, as a bare "I" is also "World War I".
     [/\b(?:let['’]s|let me|I['’]ll|I need|I should|I will)\b/i.test(prompt), "a note to yourself"],
-    [/[{}#]/.test(prompt), "stray braces or hashes"],
+    // Not a hex colour, as an art style or Image Instructions may name one.
+    [/[{}]|#(?![0-9a-f]{3,8})/i.test(prompt), "stray braces or hashes"],
   ];
   for (const [fault, message] of faults) if (fault) context.addIssue({ code: "custom", message });
 };

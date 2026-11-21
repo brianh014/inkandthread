@@ -26,8 +26,8 @@ export async function growLore(provider: TextProvider, saves: SaveStore, id: str
     .messages(id)
     .filter(({ role }) => role === "narrator")
     .map(({ text }) => text);
-  // The replies the move read: those the summary doesn't cover yet, at most two rounds' worth.
-  const latest = replies.slice(Math.max(state.summaryReplies, replies.length - 2 * SUMMARY_EVERY));
+  // The replies since about the last pause, never counted from the summary, as a pause on the Turn that rewrote it sent none.
+  const latest = replies.slice(-2 * SUMMARY_EVERY);
   const prompt: Prompt = [
     { role: "system", content: `${RULES}\nReply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))}` },
     {

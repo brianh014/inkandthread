@@ -172,6 +172,12 @@ test("the clock adds each reply's hours_passed, or the hours its words moved on,
   expect(clock(at(DUSK), set(0, null, "night"))).toBe(70);
   expect(clock(at({ ...DUSK, hours: 66 }), set(1, "4th of Lowtide", "the third bell", 1))).toBe(72);
   expect(clock(at({ ...DUSK, hours: 66 }), set(0, null, "the third bell", 0.5))).toBe(66.5);
+  // A first Story Time is its own hour, whatever hours_passed says.
+  expect(clock(at(null), set(0, "1st of Lowtide", "9 am", 8))).toBe(9);
+  // Hours over-counted on talk never put an afternoon on the next day.
+  const afternoon = applyOperations(at({ ...DUSK, timeOfDay: "afternoon", hours: 63 }), [set(0, null, "late afternoon", 12)]).next.storyTime;
+  expect(afternoon).toMatchObject({ day: 3, hours: 75 });
+  expect(afternoon).not.toHaveProperty("dateDue");
   // A running total given as hours_passed moves it by the words instead.
   expect(clock(at({ ...DUSK, hours: 66 }), set(0, null, "night", 29.65))).toBe(70);
 });

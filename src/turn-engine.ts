@@ -689,9 +689,10 @@ export async function playTurn(
   });
   if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies + 1)) {
     // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
-    // Lore after the move, each with its own time, so a World Change sent meanwhile waits for both; by the Scribe, as Upkeep is.
-    const move = moveWorldOn(textProvider, settings, saves, id, AbortSignal.timeout(MOVE_LIMIT.ms))
-      .then(() => reviewProvider && growLore(reviewProvider, saves, id, AbortSignal.timeout(MOVE_LIMIT.ms)))
+    // Lore beside the move, by the Scribe, as Upkeep is, so the next Turn waits on both at most one MOVE_LIMIT, never one after the other.
+    const limit = AbortSignal.timeout(MOVE_LIMIT.ms);
+    const move = Promise.all([moveWorldOn(textProvider, settings, saves, id, limit), reviewProvider && growLore(reviewProvider, saves, id, limit)])
+      .then(() => undefined)
       .finally(() => moving.delete(id));
     moving.set(id, move);
   }

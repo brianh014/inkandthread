@@ -303,6 +303,9 @@ export function assemblePrompt({
     // Only World Moves On's bookkeeping: the parts themselves are in npcKnows.
     threadParts: _parts,
     npcParts: _given,
+    // The clock's bookkeeping too: World Moves On reads them, and each repeats every thread's truth as its key.
+    threadsQuestion: _questions,
+    threadsDue: _due,
     summary,
     summaryReplies,
     recentSummary: _recent,

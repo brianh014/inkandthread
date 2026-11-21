@@ -588,11 +588,16 @@ function latestTurn(db: Database, messageId: number, replacing = false) {
   const { directorsNotes } = currentState(db);
   // A pending move of the world read the response, so a new one drops it, as it kept deeds of the discarded reply in a thread's now.
   // An Edit keeps it, as the response mostly stands.
-  const pending = pendingEdits(db);
-  const kept = replacing ? pending.filter((edit) => !(edit.edit === "world" && edit.moved)) : pending;
-  const edits = [...parseEdits(narrator!.edits), ...kept];
+  // Those an Edit already stored on the Message too, as it copies pending edits there, and a Regenerate after it kept the move.
+  const read = (edit: WorldEdit) => edit.edit === "world" && edit.moved;
+  const all = [...parseEdits(narrator!.edits), ...pendingEdits(db)];
+  const edits = replacing ? all.filter((edit) => !read(edit)) : all;
   const state = edits.reduce(applyEdit, { ...toState(sectionsAt(db, player!.id)), directorsNotes });
-  return { narrator: narrator!, player: player!, state, edits, movesDropped: pending.length - kept.length };
+  // Only a move of the threads counts, so Lore alone, dropped as it read the response too, asks for no new move.
+  const movesDropped = replacing
+    ? all.filter((edit) => read(edit) && edit.edit === "world" && edit.update.plot_threads.length + Object.keys(edit.now ?? {}).length > 0).length
+    : 0;
+  return { narrator: narrator!, player: player!, state, edits, movesDropped };
 }
 
 // shortcut: room for a few hundred images, and import holds several copies in memory, so a longer story can export but not import until import streams.
@@ -840,10 +845,6 @@ export function saveStore(savesDir: string) {
       return latestMessage(db);
     },
 
-    /**
-     * The Story Time just before each of `messageIds`, read as the PC would, for those the story had one by then. Before,
-     * as the Turn that wrote a Message may have moved time on, and a memory is dated from when its scene began.
-     */
     /** The story time as it stood before a Message, or null before the Narrator first set one. */
     storyTimeBefore(id: string, messageId: number) {
       using db = open(id);
@@ -855,6 +856,10 @@ export function saveStore(savesDir: string) {
       return row ? (JSON.parse(row.content) as State["storyTime"]) : null;
     },
 
+    /**
+     * The Story Time just before each of `messageIds`, read as the PC would, for those the story had one by then. Before,
+     * as the Turn that wrote a Message may have moved time on, and a memory is dated from when its scene began.
+     */
     storyTimesAt(id: string, messageIds: number[]) {
       using db = open(id);
       const before = db.query<{ content: string }, [number]>(

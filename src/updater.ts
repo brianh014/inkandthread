@@ -48,9 +48,8 @@ export function isNewer(a: string, b: string) {
   return false;
 }
 
-// shortcut: the NOVELFORGE_ names still work for the release that renamed the app; drop them in the one after.
 /** The Server's build defines INKANDTHREAD_MODE (scripts/build-release.ts). */
-export const serverBuild = (process.env.INKANDTHREAD_MODE ?? process.env.NOVELFORGE_MODE) === "server";
+export const serverBuild = process.env.INKANDTHREAD_MODE === "server";
 
 /** The download this copy came from, as scripts/build-release.ts names them. */
 export function downloadName(platform = process.platform, arch = process.arch, server = serverBuild) {
@@ -64,9 +63,6 @@ export function downloadName(platform = process.platform, arch = process.arch, s
           : undefined;
   return system && `${server ? "inkandthread-server" : "inkandthread"}-${system}`;
 }
-
-/** The name copies before the rename look for, so the release that renamed the app publishes each download under it too. */
-export const oldDownloadName = (name: string) => name.replace(/^inkandthread(-server)?/, (_, server) => (server ? "NovelForge-Server" : "NovelForge"));
 
 /** The program inside a download: a .zip of one file, or a .tar.gz whose biggest file is the program (a Mac app's is beside its Info.plist). */
 export function unpack(name: string, archive: Uint8Array) {
@@ -104,7 +100,7 @@ const replaced = (from: string) => `${process.execPath}.${from}.old`;
 
 /** Clears the programs earlier updates replaced. Only on a start of its own, as a just-updated one's parent may still be running its old program. */
 export function removeReplacedPrograms() {
-  if (!isCompiled || (process.env.INKANDTHREAD_UPDATED ?? process.env.NOVELFORGE_UPDATED)) return;
+  if (!isCompiled || process.env.INKANDTHREAD_UPDATED) return;
   const name = basename(process.execPath);
   for (const file of readdirSync(dirname(process.execPath))) {
     if (!file.startsWith(`${name}.`) || !file.endsWith(".old")) continue;

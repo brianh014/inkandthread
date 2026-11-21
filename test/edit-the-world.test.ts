@@ -447,6 +447,20 @@ test("a thread a World Change adds keeps its truth, now and plan apart", async (
   expect(threadsPlan[truth]).toBe("At dawn the officer rows ashore.");
 });
 
+test("a thread's plan a World Change writes falls due on the story clock, so World Moves On brings it to the PC", async () => {
+  const truth = "A cutter's officer has come to ask about the night landings.";
+  play(update({ plot_threads: [{ old: null, new: truth, now: "The cutter lies off the bar.", plan: "At dawn the officer rows ashore.", plan_in_hours: 6 }] }));
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: { ...WORLD, npcs: NPCS, storyTime: { day: 1, date: "1 May", timeOfDay: "midnight", hours: 24 } },
+  });
+
+  expect((await change(id, "a revenue cutter anchors offshore")).status).toBe(200);
+
+  expect(store().latestState(id).threadsDue).toEqual({ [truth]: 30 });
+});
+
 test("a World Change can fix what the PC wears and carries, and their status, which the Journal shows", async () => {
   play(update({ inventory: { wearing: ["oilskin coat"], carrying: ["brass lantern"] }, status: { health: "bruised", injuries: [], conditions: ["soaked"] } }));
   const id = createSave();

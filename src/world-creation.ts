@@ -641,7 +641,14 @@ const words = z.string().trim().min(1);
 /** A World Change's reply: the hidden `WorldUpdate`, and whatever it contradicts in the Journal, which the player reads. */
 const WorldChange = WorldUpdate.extend({
   // Apart from the truth in new, as a thread added without them was written as one "Truth: Now: Plan:" text with no now.
-  plot_threads: z.array(ListChange.extend({ now: words.nullable().default(null), plan: words.nullable().default(null) })),
+  plot_threads: z.array(
+    ListChange.extend({
+      now: words.nullable().default(null),
+      plan: words.nullable().default(null),
+      // Without it a thread a change added was never due, so its news never reached the page.
+      plan_in_hours: z.number().min(0).nullable().default(null),
+    }),
+  ),
   world_brief: words.nullable().default(null),
   summary: words.nullable().default(null),
   facts: z.array(ListChange).default([]),
@@ -717,7 +724,7 @@ function withoutStrangers<T extends z.infer<typeof WorldChange>>(state: State, c
 /** How a World Change is written, for the Narrator that writes one and the review that corrects it. */
 const CHANGE_FORM = `List only what changes, as everything you leave out stays exactly as it is, and never repeat what stays the same.
 lore_entries holds each entry you add or rewrite. To rewrite one, use its exact title and give its whole new content and keywords. Give each at least three keywords, including names, nicknames and everyday paraphrases. removed_lore holds the exact title of each entry that no longer holds.
-Each change in world_rules, plot_threads and facts has old, copied exactly from the world (a thread's truth) or null to add a new one, and new, the text to put there or null to remove it. A thread's new is its truth alone: give a thread you add or rewrite its now and plan apart, as the world shows them, and null otherwise. Keep at most ${MAX_PLOT_THREADS} plot_threads, so to add one when that many are there, rewrite or remove one.
+Each change in world_rules, plot_threads and facts has old, copied exactly from the world (a thread's truth) or null to add a new one, and new, the text to put there or null to remove it. A thread's new is its truth alone: give a thread you add or rewrite its now and plan apart, as the world shows them, and null otherwise, with plan_in_hours, how many story hours from now the plan falls due. Keep at most ${MAX_PLOT_THREADS} plot_threads, so to add one when that many are there, rewrite or remove one.
 world_brief, summary, facts and npc_summaries are the Journal, which the player reads. Change them only where they no longer hold, and give null or an empty list otherwise. Write them as the PC knows the world: a secret, and news of anything the PC hasn't seen or been told, stays out of them, even when the player's instruction names it, and goes in the hidden parts, such as a thread's now, for the story to bring to the PC. Each of npc_summaries holds a new summary with the exact name of an NPC already in the Journal.
 inventory and status are what the PC wears and carries, and their health, injuries and conditions, which the player also reads. Give the whole new inventory or status only when the instruction changes it, keeping everything it doesn't change, and null otherwise. Write status in words with no digits: health in at most five words, and at most three injuries and three conditions of at most eight words each.
 npc_looks holds new looks only for each NPC whose looks or clothing the instruction changes, with their exact name from npcs, ${LOOKS}. These are hidden, and they are what pictures of that NPC are drawn from.
@@ -878,7 +885,14 @@ export async function applyWorldChange(
   const made = [...looks, ...journal];
   const update = { ...rest, plot_threads: plot_threads.map(({ old, new: truth }) => ({ old, new: truth })) };
   const by = (part: "now" | "plan") => Object.fromEntries(plot_threads.flatMap((change) => (change.new && change[part] ? [[change.new, change[part]]] : [])));
-  saves.addWorldChange(id, basedOn, [...made, { edit: "world", update, now: by("now"), plan: by("plan"), made: made.length }]);
+  // On the clock, as World Moves On's are, so the next move brings a due plan to the PC; a Save from before it has none.
+  const clock = before.storyTime?.hours;
+  const due = Object.fromEntries(
+    plot_threads.flatMap(({ new: truth, plan, plan_in_hours }) =>
+      truth && plan && plan_in_hours !== null && clock !== undefined ? [[truth, clock + plan_in_hours]] : [],
+    ),
+  );
+  saves.addWorldChange(id, basedOn, [...made, { edit: "world", update, now: by("now"), plan: by("plan"), due, made: made.length }]);
   const after = stateOf();
   images.restyled(id, restyledBy(before, after), after.inventory.wearing);
   log.info("world", "World Change applied", () => ({
@@ -888,6 +902,7 @@ export async function applyWorldChange(
     threads: update.plot_threads.length,
     journal: journal.length,
     looks: looks.length,
+    due: Object.keys(due).length,
   }));
 }
 

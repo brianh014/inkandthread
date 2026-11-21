@@ -212,7 +212,12 @@ export function findPerson<Npc extends { name: string }>(npcs: Npc[], mark: stri
   const untitled = mark.split(/\s+/).filter((word) => !TITLES.has(word.toLowerCase().replace(/\.$/, "")));
   const words = untitled.length >= 2 ? untitled : mark.split(/\s+/);
   const partly = npcs.filter(({ name }) => named(name, mark) || words.every((word) => nameForms(name).includes(word)));
-  return partly.length === 1 ? partly[0] : undefined;
+  if (partly.length === 1) return partly[0];
+  // Or, matching no one, every word after its first where two or more remain, as a garbled "Rerend Amos Thorne" or a
+  // "Constable Owen Price" whose title is also a surname became a second person.
+  const rest = mark.split(/\s+/).slice(1);
+  const byRest = partly.length === 0 && rest.length >= 2 ? npcs.filter(({ name }) => rest.every((word) => nameForms(name).includes(word))) : [];
+  return byRest.length === 1 ? byRest[0] : undefined;
 }
 
 const itemWords = (item: string) =>
@@ -429,7 +434,10 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       return take(state.status[operation.kind], operation.text) ? undefined : "not there";
     case "add_npc": {
       // No two people share a name, so adding someone already there gives them the looks they now have, as update_npc would.
-      const npc = findNpc(state, operation.name);
+      // By another form of a full name with a title too, as a garbled speaker label, "Rerend Amos Thorne", was added as a second
+      // person and portrait. Only three words or more, so a short name spelled otherwise, "mara" beside "Mara", stays its own.
+      const titled = operation.name.split(/\s+/).length >= 3;
+      const npc = findNpc(state, operation.name) ?? (titled ? findPerson(state.npcs, operation.name) : undefined);
       if (npc) npc.appearance = lasting(operation.appearance);
       else state.npcs.push({ name: operation.name, appearance: lasting(operation.appearance) });
       // What World Moves On gave them to know before they were met, under the name a thread gave them.
@@ -562,11 +570,22 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
     case "set_story_time": {
       const { time_of_day } = operation;
       const before = state.storyTime;
-      const date = operation.date ?? before?.date;
+      // A new day only where the hours or the words reach one, as a ten-yard walk from a quarter to six to a quarter past was given
+      // a day and the next date, and a date once moved on never comes back. Not a date the clock is waiting on, nor a clock it lacks.
+      const wentBack = (hourOf(time_of_day) ?? 24) < (hourOf(before?.timeOfDay ?? "") ?? 0);
+      const reached =
+        operation.days_passed === 0 ||
+        !before ||
+        before.dateDue ||
+        before.hours === undefined ||
+        operation.hours_passed === null ||
+        wentBack ||
+        Math.floor((before.hours + operation.hours_passed) / 24) > Math.floor(before.hours / 24);
+      const date = (reached ? operation.date : null) ?? before?.date;
       if (date === undefined) return "no date";
       // The date wins over days_passed when they disagree, as models gave the day count there, doubling it each time (day 280 in
       // 30 rounds); and a day the clock already rolled, waiting on its date, isn't counted again when the date comes.
-      const claimed = operation.date === before?.date ? 0 : operation.days_passed;
+      const claimed = !reached || operation.date === before?.date ? 0 : operation.days_passed;
       const days = before?.dateDue && date !== before.date ? Math.max(0, claimed - 1) : claimed;
       const hours = clockHours(before, (before?.day ?? 1) + days, time_of_day, operation.hours_passed);
       // Past midnight on the clock is a new day, as a reply from ten at night to three in the morning gave no days or date, and

@@ -79,3 +79,19 @@ test("what someone learns loses a trailing run of symbols a reply garbled onto i
   const { next } = applyOperations(state, [{ op: "npc_learns", name: "Owen", fact: "Crane wrote to the Revenue.+#+#+#+#+#+" }]);
   expect(next.npcKnows.Owen).toEqual(["Crane wrote to the Revenue."]);
 });
+
+test("a garbled or titled form of someone already met finds them, rather than adding a second person", () => {
+  const state = {
+    ...structuredClone(openingState),
+    npcs: [
+      { name: "Reverend Amos Thorne", appearance: "a soft-voiced vicar" },
+      { name: "Owen Price", appearance: "a broad constable" },
+    ],
+  };
+  const { next } = applyOperations(state, [
+    { op: "add_npc", name: "Rerend Amos Thorne", appearance: "a soft-voiced vicar in a wet coat" },
+    { op: "npc_learns", name: "Constable Owen Price", fact: "The ledger is in the chimney." },
+  ]);
+  expect(next.npcs.map(({ name }) => name)).toEqual(["Reverend Amos Thorne", "Owen Price"]);
+  expect(next.npcKnows).toEqual({ "Owen Price": ["The ledger is in the chimney."] });
+});

@@ -170,7 +170,7 @@ test("the clock adds each reply's hours_passed, or the hours its words moved on,
   // From a Save without one, its day and time of day: day 3 at dusk is 66.
   expect(clock(at(DUSK), set(0, null, "night", 2))).toBe(68);
   expect(clock(at(DUSK), set(0, null, "night"))).toBe(70);
-  expect(clock(at({ ...DUSK, hours: 66 }), set(1, "4th of Lowtide", "the third bell", 1))).toBe(72);
+  expect(clock(at({ ...DUSK, hours: 66 }), set(1, "4th of Lowtide", "the third bell"))).toBe(72);
   expect(clock(at({ ...DUSK, hours: 66 }), set(0, null, "the third bell", 0.5))).toBe(66.5);
   // A first Story Time is its own hour, whatever hours_passed says.
   expect(clock(at(null), set(0, "1st of Lowtide", "9 am", 8))).toBe(9);
@@ -184,4 +184,13 @@ test("the clock adds each reply's hours_passed, or the hours its words moved on,
   expect(applyOperations(drifted, [set(0, null, "a little later")]).next.storyTime).toMatchObject({ day: 1, hours: 20 });
   // A running total given as hours_passed moves it by the words instead.
   expect(clock(at({ ...DUSK, hours: 66 }), set(0, null, "night", 29.65))).toBe(70);
+});
+
+test("a day the hours and words don't reach is refused, keeping the date, as a ten-yard walk was given the next day", () => {
+  const dawn = at({ day: 1, date: "Tuesday, 6th June", timeOfDay: "a quarter to six in the morning", hours: 5.75 });
+  const walk = applyOperations(dawn, [set(1, "Wednesday, 7th June", "a quarter past six in the morning", 0.25)]).next.storyTime;
+  expect(walk).toMatchObject({ day: 1, date: "Tuesday, 6th June", hours: 6 });
+  // A night slept through, or a reply that gives no hours, still moves the day on.
+  expect(applyOperations(dawn, [set(1, "Wednesday, 7th June", "dawn", 24)]).next.storyTime).toMatchObject({ day: 2, date: "Wednesday, 7th June" });
+  expect(applyOperations(dawn, [set(1, "Wednesday, 7th June", "dawn")]).next.storyTime).toMatchObject({ day: 2, date: "Wednesday, 7th June" });
 });

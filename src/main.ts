@@ -101,7 +101,7 @@ const server = startServer({
   hostname: process.env.HOST ?? (app ? "127.0.0.1" : "0.0.0.0"),
   quittable: app ? { idleMs: Number(process.env.IDLE_QUIT_MS ?? 5 * 60_000) } : undefined,
   // Only to try an update against a release served by hand.
-  latestRelease: process.env.INKANDTHREAD_LATEST_RELEASE ?? process.env.NOVELFORGE_LATEST_RELEASE,
+  latestRelease: process.env.INKANDTHREAD_LATEST_RELEASE,
 });
 
 // A listening address of 0.0.0.0 is no use in a browser.

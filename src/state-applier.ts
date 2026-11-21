@@ -822,7 +822,7 @@ export const WorldEdit = z.discriminatedUnion("edit", [
     update: WorldUpdate,
     now: z.record(z.string(), z.string()).optional(),
     plan: z.record(z.string(), z.string()).optional(),
-    // World Moves On's: by truth, the question of each thread that had none, and each plan's due hour on storyTime's hours.
+    // World Moves On's: by truth, the question of each thread that had none; and its or a World Change's due hour for each plan on storyTime's hours.
     question: z.record(z.string(), z.string()).optional(),
     due: z.record(z.string(), z.number()).optional(),
     made: z.number().int().min(0).optional(),
@@ -881,10 +881,11 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       const plans = Object.fromEntries(Object.entries(state.threadsPlan).filter(([truth]) => !Object.hasOwn(edit.now ?? {}, truth)));
       const plan = { ...plans, ...edit.plan };
       const threadsPlan = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(plan, truth) ? [[truth, plan[truth]!]] : [])));
-      // A question once set stays, and a due hour goes with the plan a move rewrote.
+      // A question once set stays, and a due hour goes with the now or plan an edit rewrote.
       const question = { ...edit.question, ...state.threadsQuestion };
       const threadsQuestion = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(question, truth) ? [[truth, question[truth]!]] : [])));
-      const due = { ...Object.fromEntries(Object.entries(state.threadsDue).filter(([truth]) => !Object.hasOwn(edit.now ?? {}, truth))), ...edit.due };
+      const rewritten = (truth: string) => Object.hasOwn(edit.now ?? {}, truth) || Object.hasOwn(edit.plan ?? {}, truth);
+      const due = { ...Object.fromEntries(Object.entries(state.threadsDue).filter(([truth]) => !rewritten(truth))), ...edit.due };
       const threadsDue = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(due, truth) ? [[truth, due[truth]!]] : [])));
       // Under the name of someone met, or as named until they are, when add_npc takes it up.
       const had = (truth: string) => (Object.hasOwn(state.threadParts, truth) ? state.threadParts[truth]! : []);

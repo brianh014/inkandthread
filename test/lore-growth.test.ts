@@ -11,7 +11,7 @@ afterEach(async () => {
   await server.stop(true);
 });
 
-test("at the world's moving on the Scribe adds Lore for what the replies established, never over an entry already there", async () => {
+test("at the world's moving on the Scribe adds Lore for what the replies established, never over an entry already there nor one that tells nothing", async () => {
   const savesDir = join(folder.path, "Saves");
   const settings = settingsStore(join(folder.path, "settings.json"));
   settings.update({ textModel: "narrator/model" });
@@ -34,6 +34,8 @@ test("at the world's moving on the Scribe adds Lore for what the replies establi
       entries: [
         { title: "Mother Gray", keywords: ["Mother Gray", "ferrywoman", "the ferry"], content: "She has kept the ferry since the flood." },
         { title: "Gulls", keywords: ["gull", "gulls", "birds"], content: "Gulls are spies." },
+        // Tells no more than its name.
+        { title: "The ferry rope", keywords: ["rope", "ferry rope", "line"], content: "The ferry has a rope." },
       ],
     }),
     JSON.stringify({ state_operations: [] }),
@@ -73,7 +75,7 @@ test("at the world's moving on the Scribe adds Lore for what the replies establi
   const bible = saveStore(savesDir).latestState(id).worldBible;
   expect(bible.find(({ title }) => title === "Mother Gray")).toMatchObject({ keywords: ["Mother Gray", "ferrywoman", "the ferry"], alwaysOn: false });
   expect(bible.find(({ title }) => title === "Gulls")?.content).toBe("Gulls nest on the dome.");
-  expect(log).toContain('"named":3,"added":1,"dropped":1');
+  expect(log).toContain('"named":3,"added":1,"dropped":2');
   // The Scribe never reads a thread's secret.
   expect(scribe.prompts.some((prompt) => JSON.stringify(prompt).includes("rob the library"))).toBe(false);
   folder.remove();

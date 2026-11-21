@@ -234,10 +234,12 @@ const FinishedTurn = z.object({
   // Checked by usableChoices, as a reply with bad Choices still holds a Turn worth keeping.
   choices: z.unknown().optional(),
 });
+// An action rated None or Easy needs no roll, so it reads as a finished Turn: Easy stays a choice, so those moves don't drift to
+// Moderate, but rolling it spent a third of a play's Checks on trivia, and a 1 threw the PC out for sitting quietly.
 const NONE = "None";
-// An action rated None needs no roll, so it reads as a finished Turn.
+const UNROLLED: unknown[] = [NONE, "Easy"];
 const unrated = (reply: unknown) =>
-  (reply as { check?: { difficulty?: unknown } })?.check?.difficulty === NONE ? { ...(reply as object), check: null } : reply;
+  UNROLLED.includes((reply as { check?: { difficulty?: unknown } })?.check?.difficulty) ? { ...(reply as object), check: null } : reply;
 const NarratorResponse = z.preprocess(unrated, z.union([z.object({ check: CheckRequest }), FinishedTurn]));
 /** The player wrote the narration of an Edit, so the reply holds only what follows from it. */
 const EditedTurn = FinishedTurn.extend({ narration: z.string().nullish() });
@@ -313,7 +315,11 @@ export const CHOICES_RULE =
   "exactly three things the PC might say or do next, each one first-person sentence of at most 25 words, built only on what the replies show has happened and the PC knows, naming no event, place or thing they don't show, fitting what they now hold, wear and have just done, and each taking a clearly different approach, at most one of them only watching, waiting or carrying word to someone and at least one of them moving the story on toward what comes next that the PC knows of, such as setting out, acting on a plan, facing what waits, letting the hours pass until what the PC expects, or taking up what someone offers or the PC wants. Never hint at risk, difficulty, dice or a Check";
 // Once a Check is rolled, or none can be, the schema itself forbids one and asks for the story, as the prompt's "Do not request another check" was ignored three times running.
 // Never with Choices, in either Play Mode, as Choices the Narrator wrote beside the secrets in its prompt named them in everyday words.
-const SCHEMAS = { any: jsonSchemaOf(ResponseShape), noCheck: jsonSchemaOf(ResponseShape.extend({ check: z.null(), narration: z.string() })) };
+// Described, as a strict mode drops minLength and a Check's result call came back with an empty narration twice in 48 Checks.
+const SCHEMAS = {
+  any: jsonSchemaOf(ResponseShape),
+  noCheck: jsonSchemaOf(ResponseShape.extend({ check: z.null(), narration: z.string().describe("the story's next moment, never empty") })),
+};
 
 /**
  * A text field without JSON punctuation or invisible characters a model left at its end, such as `:null,`, `]]}` or `"],`.
@@ -427,7 +433,7 @@ function openingCheck(reply: string): unknown {
   }
 }
 
-const isNone = (opened: unknown) => opened === null || (opened as { difficulty?: unknown }).difficulty === NONE;
+const isNone = (opened: unknown) => opened === null || UNROLLED.includes((opened as { difficulty?: unknown }).difficulty);
 
 /** The narration in a visible reply whose check is known to be None or null. */
 function narrationSoFar(reply: string) {
@@ -469,6 +475,13 @@ type Narrated = {
   replies: number;
   /** The clock's hours a few replies back, to tell whether the story time has stood still. */
   clockBack?: number;
+  /**
+   * What State Upkeep reads in place of the narration, after the reply it reads as the previous one: an Edit's added words after
+   * the response they add to, as Upkeep handed the whole response again put back things the PC had already given away.
+   */
+  upkeepReads?: { narration: string; previous: string };
+  /** The player's moves before this one, which no Choice offers again. */
+  recentMoves?: string[];
   /** Left out when no new roll is allowed, which makes a Check request an invalid reply. */
   rollCheck?: (request: z.infer<typeof CheckRequest>) => Check;
   playMode: PlayMode;
@@ -524,6 +537,11 @@ function turnPrompt(
     memory: nextMemory(textProvider, messages, state.sceneMemories, memoryStart, current.textRecentMessages, signal),
     replies: narratorReplies(messages),
     clockBack: clockBack(saves, id, messages),
+    // The player's moves before this one, so the Choices offer none again, as the same safe beat was offered three times in nine rounds.
+    recentMoves: messages
+      .filter(({ role, text }) => role === "player" && text !== OPENING_INPUT)
+      .slice(-RECENT_MOVES)
+      .map((message) => plainMessage(message).text),
   };
 }
 
@@ -531,6 +549,7 @@ function turnPrompt(
 // passed three hours, a minute a reply, its seeded picks never offered a way to let time pass.
 const STILL_REPLIES = 6;
 const STILL_HOURS = 1;
+const RECENT_MOVES = 4;
 /** The clock's hours a few replies back, undefined in a short story or one from before the clock. */
 function clockBack(saves: SaveStore, id: string, messages: Message[]) {
   const back = messages.filter(({ role }) => role === "narrator").at(-STILL_REPLIES);
@@ -618,7 +637,7 @@ export async function playTurn(
   const basedOn = saves.latestMessageId(id);
   const state = saves.latestState(id);
   const messages = saves.messages(id);
-  const { prompt, memory, playMode, replies, clockBack } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, memory, playMode, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -648,6 +667,7 @@ export async function playTurn(
     memory,
     replies,
     clockBack,
+    recentMoves,
     // The PC attempts nothing in a Continue, so there is nothing to roll for.
     rollCheck: mayCheck && !isContinueInput(input) ? (request) => resolveCheck(request, dice, nearMissMargin) : undefined,
     playMode,
@@ -694,7 +714,7 @@ export async function replaceResponse(
   const { input, narration, check, state, messages, sceneImage, journalEdits, movesDropped } = saves.turnToReplace(id, messageId, true);
   // The old picture goes with its response, so the new one always gets its own, whatever the Narrator decides.
   const hadPicture = !!sceneImage || images.sceneDrawing(id, messageId);
-  const { prompt, memory, playMode, replies, clockBack } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, memory, playMode, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -721,6 +741,7 @@ export async function replaceResponse(
     memory,
     replies,
     clockBack,
+    recentMoves,
     rollCheck: mayRate ? (request) => resolveCheck(request, dice, nearMissMargin) : undefined,
     playMode,
     commit: (text, rolled, advance, choices) => {
@@ -773,7 +794,7 @@ export async function editResponse(
   const added = replaced && text.includes(replaced) ? text.split(replaced).join("\n").trim() : undefined;
   const state = added === undefined ? turn.state : saves.latestState(id);
   if (added !== undefined) log.info("turn", "Edit adds to the response", { save: id, message: messageId });
-  const { prompt, memory, playMode, replies, clockBack } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, memory, playMode, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -796,6 +817,8 @@ export async function editResponse(
     memory,
     replies,
     clockBack,
+    recentMoves,
+    ...(added !== undefined && { upkeepReads: { narration: added, previous: replaced } }),
     playMode,
     commit: (narration, _check, advance, choices) =>
       saves.editTurn(id, messageId, narration, (before) => advance(added === undefined ? before : state), choices),
@@ -828,6 +851,8 @@ async function narrate(
     memory: pendingMemory,
     replies,
     clockBack,
+    recentMoves,
+    upkeepReads,
     rollCheck,
     playMode,
     commit,
@@ -1027,6 +1052,7 @@ async function narrate(
           facts: narrated.next.pcKnown.facts,
           looseEnds: narrated.next.looseEnds,
           storyTime: narrated.next.storyTime,
+          moves: recentMoves,
           still: clockBack !== undefined && (narrated.next.storyTime?.hours ?? clockBack) - clockBack < STILL_HOURS,
           pc: {
             name: pcName,
@@ -1056,9 +1082,16 @@ async function narrate(
         followUp(
           "upkeep",
           upkeep
-            ? upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal, timed).then(
-                (ops) => ops && withoutRelearned(seen ? journalRead(ops, narrated.next, read) : ops, state_operations, narrated.next.npcs),
-              )
+            ? upkeepOperations(
+                upkeep,
+                pcName,
+                narrated.next,
+                check,
+                upkeepReads?.previous ?? previous,
+                upkeepReads?.narration ?? narration,
+                signal,
+                timed,
+              ).then((ops) => ops && withoutRelearned(seen ? journalRead(ops, narrated.next, read) : ops, state_operations, narrated.next.npcs))
             : undefined,
         ),
         // Always asked for alone, in a call that sees no secret, as the Narrator's own named its secrets in everyday words.

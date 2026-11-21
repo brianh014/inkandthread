@@ -439,3 +439,19 @@ test("State Upkeep is sent the reply before, so a description two replies agree 
 
   expect(JSON.parse(upkeep.prompts[1]!.at(-1)!.content).previous_reply).toBe("Ash walks home in the rain.");
 });
+
+test("an Edit that adds to the response gives State Upkeep only the added words, after the response, so it records nothing twice", async () => {
+  const GIVEN = "Ash hands the key to Owen.";
+  const { upkeep } = play([narration(GIVEN), narration(`${GIVEN}\n\nA gull cries.`)], [upkept(), upkept()]);
+  const id = createSave();
+  expect((await turn(id)).ok).toBe(true);
+
+  const edited = await fetch(new URL(`/saves/${id}/messages/2/edit`, server.url), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: `${GIVEN}\n\nA gull cries.` }),
+  });
+
+  expect(edited.ok).toBe(true);
+  expect(JSON.parse(upkeep.prompts[1]!.at(-1)!.content)).toMatchObject({ previous_reply: GIVEN, reply: "A gull cries." });
+});

@@ -205,7 +205,10 @@ export function findPerson<Npc extends { name: string }>(npcs: Npc[], mark: stri
   const exact = npcs.find(({ name }) => name === mark);
   if (exact) return exact;
   // Or every word of it a name of theirs, as a speaker named without their title was added as a second person and portrait.
-  const words = mark.split(/\s+/);
+  // Its title left out where a full name remains, as a thread's "Reverend Amos Thorne" and a page's "Amos Thorne" were kept as two
+  // people, but not from "Mrs. Owen", who is no Owen Kade.
+  const untitled = mark.split(/\s+/).filter((word) => !TITLES.has(word.toLowerCase().replace(/\.$/, "")));
+  const words = untitled.length >= 2 ? untitled : mark.split(/\s+/);
   const partly = npcs.filter(({ name }) => named(name, mark) || words.every((word) => nameForms(name).includes(word)));
   return partly.length === 1 ? partly[0] : undefined;
 }
@@ -429,7 +432,7 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       else state.npcs.push({ name: operation.name, appearance: lasting(operation.appearance) });
       // What World Moves On gave them to know before they were met, under the name a thread gave them.
       const unmet = Object.keys(state.npcKnows).find(
-        (name) => name !== operation.name && !findNpc(state, name) && (named(operation.name, name) || named(name, operation.name)),
+        (name) => name !== operation.name && !findNpc(state, name) && (findPerson([{ name }], operation.name) || findPerson([{ name: operation.name }], name)),
       );
       if (unmet) mergeNpcKnows(state, unmet, operation.name);
       return;
@@ -903,7 +906,9 @@ export function introduce(state: State, people: z.infer<typeof Person>[], pcName
 
 // Articles and titles only: words such as "old" describe someone rather than stand before their name.
 const TITLES = new Set(
-  "the a an mr mrs ms miss mx dr doctor sir dame lady lord madam officer detective captain father mother sister brother aunt uncle".split(" "),
+  "the a an mr mrs ms miss mx dr doctor sir dame lady lord madam officer detective captain father mother sister brother aunt uncle reverend rev vicar pastor bishop constable sergeant inspector lieutenant colonel commander admiral professor judge sheriff master mistress".split(
+    " ",
+  ),
 );
 const PARTICLES = new Set(["van", "von", "de", "der", "den", "del", "della", "di", "da", "du", "la", "le", "bin", "ibn", "al", "el", "y", "dos", "das"]);
 

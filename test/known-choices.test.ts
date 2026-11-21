@@ -172,3 +172,21 @@ test("a Choice built on what the PC hasn't learned is dropped, not reworded, and
   expect(knownChoices(choices, state, "Tamsin rides ahead.", "Jory looks away.")).toEqual(["Ask Jory what scares him.", "Ride on."]);
   expect(knownChoices(["Ask Jory what scares him.", "Ride on.", "Wait."], state, "", "")).toHaveLength(3);
 });
+
+test("Choices asked for alone see the player's earlier moves, and a nudge to move on once the story time has stood still", async () => {
+  const { textProvider, prompts } = scriptedTextProvider(
+    JSON.stringify({ choices: ["Ask Jory.", "Ride on now.", "Wait here."] }),
+    JSON.stringify({ choices: ["Ask Jory.", "Ride on now.", "Wait here."] }),
+  );
+  const ask = (still: boolean) =>
+    writeChoices(textProvider, "Jory looks away.", new AbortController().signal, "", "", {
+      facts: [],
+      looseEnds: [],
+      moves: ["I wait by the well."],
+      still,
+    });
+  await ask(true);
+  await ask(false);
+  expect(JSON.parse(prompts[0]!.at(-1)!.content)).toMatchObject({ earlier_moves: ["I wait by the well."], time_still: true });
+  expect(JSON.parse(prompts[1]!.at(-1)!.content)).not.toHaveProperty("time_still");
+});

@@ -96,7 +96,7 @@ const COVERAGE: [string, string[]][] = [
   ["Known NPC summary", ["ops.set_known_npc_summary"]],
   ["Loose End added", ["ops.add_loose_end"]],
   ["Loose End resolved", ["ops.resolve_loose_end", "upkeep.resolve_loose_end"]],
-  ["World Bible grew", ["ops.add_lore_entry"]],
+  ["World Bible grew", ["ops.add_lore_entry", "lore.added"]],
   ["World Bible entry updated", ["ops.update_lore_entry"]],
   ["New NPC", ["ops.add_npc"]],
   ["NPC look changed", ["ops.update_npc", "upkeep.update_npc"]],
@@ -582,6 +582,8 @@ async function play(
     add("moves.added", added);
     add("moves.removed", removed);
   }
+  // The Scribe's Lore at each pause, added by a World Change rather than a Turn's operation.
+  flat["lore.added"] = logged("Lore grown").reduce((sum, grown) => sum + (grown.added as number), 0);
   flat["moves.failed"] = logged("World didn't move on").length;
   flat.unusable = logged("Unusable Narrator reply").length;
   flat.failed = steps.filter(({ ok }) => !ok).length;

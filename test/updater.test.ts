@@ -1,6 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
 import { tarGz, zip } from "../scripts/zip";
-import { downloadName, isNewer, oldDownloadName, UpdateFailed, unpack, updater, VERSION } from "../src/updater";
+import { downloadName, isNewer, UpdateFailed, unpack, updater, VERSION } from "../src/updater";
 
 const program = new TextEncoder().encode("the program ".repeat(500));
 
@@ -27,13 +27,6 @@ test("each copy looks for the download it came from", () => {
   expect(downloadName("darwin", "x64", false)).toBe("inkandthread-Mac-Intel.tar.gz");
   expect(downloadName("linux", "x64", true)).toBe("inkandthread-server-Linux.tar.gz");
   expect(downloadName("linux", "arm64", false)).toBeUndefined();
-});
-
-test("each download is also published under the name copies from before the rename look for", () => {
-  expect(oldDownloadName(downloadName("win32", "x64", false)!)).toBe("NovelForge-Windows.zip");
-  expect(oldDownloadName(downloadName("darwin", "arm64", true)!)).toBe("NovelForge-Server-Mac-AppleSilicon.tar.gz");
-  expect(oldDownloadName(downloadName("darwin", "x64", false)!)).toBe("NovelForge-Mac-Intel.tar.gz");
-  expect(oldDownloadName(downloadName("linux", "x64", true)!)).toBe("NovelForge-Server-Linux.tar.gz");
 });
 
 test("the program comes out of a Windows zip and a Mac or Linux tar.gz whole", () => {

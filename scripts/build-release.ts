@@ -3,7 +3,6 @@
 // - The Server: serves the whole network from a terminal window, which shows its log, and closing it stops the server.
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { oldDownloadName } from "../src/updater";
 import { tarGz, zip } from "./zip";
 
 const root = join(import.meta.dir, "..");
@@ -35,8 +34,7 @@ function icns(png: Uint8Array) {
   return Buffer.concat([head, png]);
 }
 
-// shortcut: each download is also published under its name from before the rename, which copies on 0.4 look for. Drop it in the release after.
-const publish = (file: string, bytes: Uint8Array) => Promise.all([Bun.write(join(out, file), bytes), Bun.write(join(out, oldDownloadName(file)), bytes)]);
+const publish = (file: string, bytes: Uint8Array) => Bun.write(join(out, file), bytes);
 
 const text = (s: string) => new TextEncoder().encode(s);
 const png = new Uint8Array(await Bun.file(join(root, "src", "web", "icon.png")).arrayBuffer());

@@ -73,3 +73,9 @@ test("what a thread gave someone under their title before they were met joins th
     expect(next.npcKnows).toEqual({ [met]: ["Crane wrote to the Revenue."] });
   }
 });
+
+test("what someone learns loses a trailing run of symbols a reply garbled onto it", () => {
+  const state = { ...structuredClone(openingState), npcs: [{ name: "Owen", appearance: "a tall man" }] };
+  const { next } = applyOperations(state, [{ op: "npc_learns", name: "Owen", fact: "Crane wrote to the Revenue.+#+#+#+#+#+" }]);
+  expect(next.npcKnows.Owen).toEqual(["Crane wrote to the Revenue."]);
+});

@@ -453,7 +453,8 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const name = findPerson(state.npcs, operation.name)?.name;
       if (!name) return "no such NPC";
       if (!/\p{L}/u.test(operation.fact)) return "no words";
-      const fact = knownOnly(operation.fact);
+      // Without a trailing run of symbols, as a reviewer's "+#+#+#" was kept and sent in every prompt after.
+      const fact = knownOnly(operation.fact.replace(/[^\p{L}\p{N}\s.!?"'’)]{3,}$/u, "").trim());
       if (!fact) return "only what they don't know";
       // Own keys only, as a name such as "constructor" would find what every object has.
       const knows = Object.hasOwn(state.npcKnows, name) ? state.npcKnows[name]! : [];

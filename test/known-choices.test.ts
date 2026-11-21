@@ -190,3 +190,13 @@ test("Choices asked for alone see the player's earlier moves, and a nudge to mov
   expect(JSON.parse(prompts[0]!.at(-1)!.content)).toMatchObject({ earlier_moves: ["I wait by the well."], time_still: true });
   expect(JSON.parse(prompts[1]!.at(-1)!.content)).not.toHaveProperty("time_still");
 });
+
+test("Choices asked for alone get no date the clock has passed midnight beyond, only the time of day", async () => {
+  const { textProvider, prompts } = scriptedTextProvider(JSON.stringify({ choices: ["Ask Jory.", "Ride on now.", "Wait here."] }));
+  await writeChoices(textProvider, "Jory looks away.", new AbortController().signal, "", "", {
+    facts: [],
+    looseEnds: [],
+    storyTime: { day: 4, date: "3rd of Thaw", timeOfDay: "the small hours", hours: 75, dateDue: true },
+  });
+  expect(JSON.parse(prompts[0]!.at(-1)!.content).story_time).toEqual({ day: 4, timeOfDay: "the small hours" });
+});

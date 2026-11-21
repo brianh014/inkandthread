@@ -192,7 +192,9 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
         journal: { facts: journal.facts, loose_ends: journal.looseEnds },
         ...(journal.pc && { pc: journal.pc }),
         // As facts never retire, and Choices offered to wait for an inquest the story had already held.
-        ...(journal.storyTime && { story_time: { ...journal.storyTime, hours: undefined, dateDue: undefined } }),
+        ...(journal.storyTime && {
+          story_time: { ...journal.storyTime, hours: undefined, dateDue: undefined, ...(journal.storyTime.dateDue && { date: undefined }) },
+        }),
         ...(journal.still && { time_still: true }),
         previous_reply: previous,
         ...(journal.moves?.length && { earlier_moves: journal.moves }),

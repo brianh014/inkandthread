@@ -30,7 +30,7 @@ import { fakeImages, fakeTextProvider } from "../src/fake-services";
 import { setLogLevel, startLog } from "../src/logger";
 import { CONTINUE } from "../src/prompt-assembler";
 import { startServer } from "../src/rest-api";
-import { type State, StateOperation } from "../src/state-applier";
+import { MAX_NPC_KNOWS, type State, StateOperation } from "../src/state-applier";
 import { saveStore } from "../src/save-store";
 import { localIsSetUp } from "../src/graph-builder";
 import { reviewerSettings, settingsStore } from "../src/settings-store";
@@ -48,7 +48,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 1;
+const BENCH_ITERATION = 2;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 45;
@@ -348,7 +348,9 @@ function hiddenChanges(before: State, after: State) {
     const [was, now] = [before.npcKnows[name] ?? [], after.npcKnows[name] ?? []];
     for (const text of now.filter((item) => !was.includes(item))) lines.push(`${name} now knows: ${text}`);
     // Shown too, as a judge took a fact a Regenerate dropped for one it kept.
-    for (const text of was.filter((item) => !now.includes(item))) lines.push(`${name} no longer knows: ${text}`);
+    // A full list that dropped its oldest for a new one is the cap making room, as judges read "no longer knows" as knowledge wiped.
+    const room = was.length >= MAX_NPC_KNOWS && now.length >= MAX_NPC_KNOWS;
+    for (const text of was.filter((item) => !now.includes(item))) lines.push(`${name} ${room ? "has dropped, for room" : "no longer knows"}: ${text}`);
   }
   // Its words too, as a long story is judged on lore staying true, and an entry rewritten keeps its title.
   diff(

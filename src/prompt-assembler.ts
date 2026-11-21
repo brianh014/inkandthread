@@ -462,10 +462,27 @@ export const SET_SCENE_NOTE: Prompt[number] = {
 };
 
 // Without the action, as a rating that named an act the move never made had it narrated as the PC's.
+// Only the rolled degree's own words, as one paragraph of every outcome buried the ceiling, and a success granted all the move asked.
+const RESULTS: Record<Check["degree"], string> = {
+  strong:
+    "The PC succeeds, better than they hoped, with some gain they weren't aiming for, or, when it rests on someone, with that person warmer toward the PC than they hoped, though never giving more of a secret than that pressure would draw out, and the stakes don't come true.",
+  clean: "The PC succeeds, and the stakes don't come true: when it rests on how someone takes it, they welcome it.",
+  mixed: "The PC succeeds at a cost, the stakes coming true in part: when it rests on how someone takes it, they welcome it with some hurt or doubt.",
+  plain:
+    "The PC fails, and the stakes come true: when it rests on how someone takes it, they resist, refuse or stop it, as that person would; otherwise it goes wrong, now or, where it can only show later, through a flaw this narration hints at.",
+  bad: "The PC fails badly, and the stakes come true in full: when it rests on how someone takes it, they resist, refuse or stop it, as that person would; otherwise it goes wrong badly.",
+};
+
 export function resultInstruction({ stakes, at_most, outcome, degree }: Check): Prompt[number] {
+  // Last and plain, where a success can't miss it.
+  const ceiling =
+    outcome === "success" && at_most
+      ? `
+The most anyone it touches gives is this: ${at_most} Whatever the move asked beyond it, they refuse.`
+      : "";
   return {
     role: "system",
-    content: `The Check is resolved: ${JSON.stringify({ stakes, ...(at_most && { at_most }), outcome, degree })}
-The attempt is the player's move above, made by the PC just as the player wrote it and nothing more, and the result decides how it turns out, never whether they tried. A mixed degree means the PC succeeds at a cost. A strong one goes better than the PC hoped, with some gain they weren't aiming for, or, when it rests on someone, with that person warmer toward the PC than they hoped, though no result makes anyone give more of a secret than that pressure would draw out; a bad one goes wrong badly. When it rests on how someone takes it, success means they welcome it as far as at_most allows and never past it, a cost means they welcome it with some hurt or doubt, and a failure means they resist, refuse or stop it, each as that person would; otherwise a failure means it goes wrong, now or, where it can only show later, through a flaw this narration hints at. The result picks only among what each person would truly do, never making anyone act against who they are, what they want or what they know: a cost or failure that can't come from them so comes from luck, the world or the PC's own doing. Narrate exactly this result, with its stakes coming true on a failure, in part at a cost and not at all on a success, as a finished Turn with check null, and record what it changes with add_known_fact or add_loose_end, and what each person it touched takes from it with npc_learns, so later replies keep to it. Do not request another check.`,
+    content: `The Check is resolved: ${JSON.stringify({ stakes, outcome, degree })}
+The attempt is the player's move above, made by the PC just as the player wrote it and nothing more, and the result decides how it turns out, never whether they tried. ${RESULTS[degree]} The result picks only among what each person would truly do, never making anyone act against who they are, what they want or what they know: a cost or failure that can't come from them so comes from luck, the world or the PC's own doing. Narrate exactly this result as a finished Turn with check null, and record what it changes with add_known_fact or add_loose_end, and what each person it touched takes from it with npc_learns, so later replies keep to it. Do not request another check.${ceiling}`,
   };
 }

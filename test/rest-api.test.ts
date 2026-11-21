@@ -823,7 +823,24 @@ test("the most someone would give, rated before the roll, goes to the result cal
 
   const result = contents(prompts[1]).join();
   expect(result).toContain(AT_MOST);
-  expect(result).toContain("as far as at_most allows and never past it");
+  expect(result).toContain(`The most anyone it touches gives is this: ${AT_MOST} Whatever the move asked beyond it, they refuse.`);
+  // Only the rolled degree's words.
+  expect(result).not.toContain("The PC fails");
+});
+
+test("a failed Check's result call has only the failure's words, and no ceiling", async () => {
+  const { app, prompts } = playWithDice(
+    [6],
+    JSON.stringify({ check: { action: "Ask Mara who paid", difficulty: "Hard", stakes: "She shuts the door.", at_most: "She names the ship." } }),
+    narration("She shuts the door."),
+  );
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I ask Mara who paid." });
+
+  const result = contents(prompts[1]).join();
+  expect(result).toContain("The PC fails, and the stakes come true");
+  expect(result).not.toContain("The PC succeeds");
+  expect(result).not.toContain("She names the ship.");
 });
 
 test("a Check takes two calls, and the second receives the outcome and degree", async () => {

@@ -106,35 +106,30 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           The Narrator needs a capable AI. Each Turn sends it the newest Messages in full, plus the world, the Journal and the Old Memories, so a long story's
           prompt grows past 30,000 tokens. A large online AI takes all of that, keeps the story straight and costs pennies a Turn.
         </p>
+        <p>
+          OpenRouter and NanoGPT each reach hundreds of AIs, the drawing ones too, with one key. Pick whichever suits you. With either, choose it in{" "}
+          <b>Settings → Text</b>, paste the key into <b>Text API key</b>, choose a <b>Text model</b> and press <b>Test text</b>. We recommend DeepSeek V4.1
+          Flash (<code>deepseek/deepseek-v4.1-flash-1017</code> on OpenRouter): in our tests it wrote the better stories of the low-cost AIs we tried, for under
+          half a cent a Turn.
+        </p>
         <ul>
           <li>
-            <b>OpenRouter</b>, the easiest, and already chosen. To get a key:
-            <ol>
-              <li>
-                Sign up at <code>openrouter.ai</code>, open <b>Credits</b> and add a few dollars. You pay for what you use, a few cents a Turn.
-              </li>
-              <li>
-                Open <b>Keys</b>, choose <b>Create Key</b> and copy the key. It's shown only once, so keep a copy somewhere safe.
-              </li>
-              <li>
-                In <b>Settings → Text</b>, paste it into <b>Text API key</b>, choose a <b>Text model</b> and press <b>Test text</b>. We recommend DeepSeek V4.1
-                Flash (<code>deepseek/deepseek-v4.1-flash-1017</code>): in our tests it wrote the better stories of the low-cost AIs we tried, for under half a
-                cent a Turn.
-              </li>
-            </ol>
-            You can also choose which of its providers serves the model, and how it routes. The same AI can write noticeably worse on one provider than another,
-            as some run a smaller copy of it to save cost or handle a long story less well, and OpenRouter may switch providers between Turns. If replies
-            suddenly turn odd, such as speaking for your character or losing track of the scene, choose one provider under <b>Provider</b>. Staying on one
-            provider also keeps its prompt cache, which makes each Turn cheaper.
+            <b>OpenRouter</b>: you pay for what you use, a few cents a Turn. Sign up at <code>openrouter.ai</code>, open <b>Credits</b> and add a few dollars,
+            then open <b>Keys</b>, choose <b>Create Key</b> and copy the key. It's shown only once, so keep a copy somewhere safe. You can also choose which of
+            its providers serves the AI, and how it routes. The same AI can write noticeably worse on one provider than another, as some run a smaller copy of
+            it to save cost or handle a long story less well, and OpenRouter may switch providers between Turns. If replies suddenly turn odd, such as speaking
+            for your character or losing track of the scene, choose one provider under <b>Provider</b>. Staying on one provider also keeps its prompt cache,
+            which makes each Turn cheaper.
+          </li>
+          <li>
+            <b>NanoGPT</b>: pay as you go, or a monthly subscription with a weekly allowance for open AIs such as DeepSeek, enough for about 200 Turns a day,
+            plus some pictures a day, so the price stays the same however much you play. Sign up at <code>nano-gpt.com</code>, add a balance or subscribe, then
+            create an API key. NanoGPT picks which provider serves the AI, and on the subscription you can't choose one.
           </li>
           <li>
             <b>Google AI Studio</b>, which has a free key: sign in at <code>aistudio.google.com</code> with a Google account and choose <b>Get API key</b>.
             Choose <b>Google AI Studio</b> in <b>Settings → Text</b>, paste the key, save, then pick a Gemini Flash model. On the free tier Google may use what
             you send, your story among it, to improve its products, and it limits how many Turns a day you get.
-          </li>
-          <li>
-            <b>NanoGPT</b>, which sells hundreds of models on one key and one balance, like OpenRouter: sign up at <code>nano-gpt.com</code>, add a balance,
-            create an API key, then choose <b>NanoGPT</b> in <b>Settings → Text</b>, paste the key, save, and pick a model.
           </li>
           <li>
             <b>Any other OpenAI-compatible service</b>, such as DeepInfra: choose <b>Local / OpenAI server</b>, give its address (for DeepInfra,{" "}

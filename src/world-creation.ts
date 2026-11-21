@@ -691,7 +691,7 @@ function withoutStrangers<T extends z.infer<typeof WorldChange>>(state: State, c
 const CHANGE_FORM = `List only what changes, as everything you leave out stays exactly as it is, and never repeat what stays the same.
 lore_entries holds each entry you add or rewrite. To rewrite one, use its exact title and give its whole new content and keywords. Give each at least three keywords, including names, nicknames and everyday paraphrases. removed_lore holds the exact title of each entry that no longer holds.
 Each change in world_rules, plot_threads and facts has old, copied exactly from the world (a thread's truth) or null to add a new one, and new, the text to put there or null to remove it. A thread's new is its truth alone: give a thread you add or rewrite its now and plan apart, as the world shows them, and null otherwise. Keep at most ${MAX_PLOT_THREADS} plot_threads, so to add one when that many are there, rewrite or remove one.
-world_brief, summary, facts and npc_summaries are the Journal, which the player reads. Change them only where they no longer hold, and give null or an empty list otherwise. Write them as the PC knows the world: a secret stays out of them, even when the player's instruction names it, and goes in the hidden parts. Each of npc_summaries holds a new summary with the exact name of an NPC already in the Journal.
+world_brief, summary, facts and npc_summaries are the Journal, which the player reads. Change them only where they no longer hold, and give null or an empty list otherwise. Write them as the PC knows the world: a secret, and news of anything the PC hasn't seen or been told, stays out of them, even when the player's instruction names it, and goes in the hidden parts, such as a thread's now, for the story to bring to the PC. Each of npc_summaries holds a new summary with the exact name of an NPC already in the Journal.
 inventory and status are what the PC wears and carries, and their health, injuries and conditions, which the player also reads. Give the whole new inventory or status only when the instruction changes it, keeping everything it doesn't change, and null otherwise. Write status in words with no digits: health in at most five words, and at most three injuries and three conditions of at most eight words each.
 npc_looks holds new looks only for each NPC whose looks or clothing the instruction changes, with their exact name from npcs, ${LOOKS}. These are hidden, and they are what pictures of that NPC are drawn from.
 pc_looks is the PC's new looks, only when the instruction changes how their body or face looks, such as their hair, a scar, a tattoo or makeup, and null otherwise: start from pc_looks in the world, keep all it doesn't change, and write only how their body and face look in at most 40 words, never clothing, gear, temperament or history. Pictures of the PC are drawn from it.`;
@@ -836,19 +836,10 @@ export async function applyWorldChange(
     signal,
     mayKeep,
   );
-  // What a change only adds to the summary is a known fact too, as a later Turn rewrites the summary: a cutter the player
-  // anchored offshore was written there alone, dropped a Turn later, and never reached the page.
-  // shortcut: only when it keeps every old sentence and writes no fact, so a rewrite or a fact of the same news isn't doubled.
-  const sentences = (text: string) => text.split(/(?<=[.!?])\s+/).filter(Boolean);
-  const old = sentences(before.summary);
-  const news =
-    summary === null || facts.length > 0 || !old.every((sentence) => summary.includes(sentence))
-      ? []
-      : sentences(summary).filter((sentence) => !old.includes(sentence));
   const journal: WorldEdit[] = [
     ...(world_brief === null ? [] : [{ edit: "worldBrief" as const, text: world_brief }]),
     ...(summary === null ? [] : [{ edit: "summary" as const, text: summary }]),
-    ...[...facts, ...news.map((sentence) => ({ old: null, new: sentence }))].map((fact) => ({ edit: "fact" as const, ...fact })),
+    ...facts.map((fact) => ({ edit: "fact" as const, ...fact })),
     ...npc_summaries.map(({ name, summary }) => ({ edit: "npcSummary" as const, name, text: summary })),
     ...(inventory === null ? [] : [{ edit: "inventory" as const, ...inventory }]),
     ...(status === null ? [] : [{ edit: "status" as const, ...status }]),
@@ -869,7 +860,6 @@ export async function applyWorldChange(
     rules: update.world_rules.length,
     threads: update.plot_threads.length,
     journal: journal.length,
-    news: news.length,
     looks: looks.length,
   }));
 }

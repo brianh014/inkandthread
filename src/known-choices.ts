@@ -135,10 +135,17 @@ const journalText = (operation: StateOperation) =>
  * against what the player has read alone, not the PC's notes, as one leak there would let every later one through.
  */
 export function withoutUnread<Operation extends StateOperation>(operations: Operation[], state: State, read: string) {
-  const journal = operations.filter(({ op }) => JOURNAL.includes(op));
-  // shortcut: names and keywords only, so a secret in plain words reaches the Journal; match meanings if leaks show there.
-  const leaks = unknownWords(journal.map(journalText), { ...state, summary: "", pcKnown: { facts: [], npcs: [] } }, read, true);
-  const leaking = new Set(journal.filter((_, index) => leaks[index]!.length > 0));
+  const unread = { ...state, summary: "", pcKnown: { facts: [], npcs: [] } };
+  // Loose Ends by the Choices' test, copied runs and the secrets' long words too, as the Choices are built on them and two
+  // copied a thread's plan in names the page had read. shortcut: names and keywords only for facts and summaries, so a secret
+  // in plain words reaches those; match meanings if leaks show there.
+  const leaking = new Set(
+    [true, false].flatMap((journal) => {
+      const notes = operations.filter(({ op }) => JOURNAL.includes(op) && (op === "add_loose_end") !== journal);
+      const leaks = unknownWords(notes.map(journalText), unread, read, journal);
+      return notes.filter((_, index) => leaks[index]!.length > 0);
+    }),
+  );
   return operations.filter((operation) => !leaking.has(operation));
 }
 

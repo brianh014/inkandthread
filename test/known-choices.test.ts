@@ -82,13 +82,25 @@ test("a known fact, summary or Loose End naming someone or somewhere the player 
   expect(withoutUnread(operations, secret, "Tamsin sees Ossery with the ledger.")).toEqual(operations);
 });
 
-test("a Journal entry is never dropped for a long word only the secrets hold, as the PC names what they read in their own words", () => {
+test("a known fact is never dropped for a long word only the secrets hold, as the PC names what they read in their own words", () => {
   const secret = { ...state, plotThreads: ["Ossery carried a lantern down to the crypt, and his daughter saw it."] };
   const operations = [
     { op: "add_known_fact", fact: "Jory saw a lantern in the crypt." },
-    { op: "add_loose_end", loose_end: "Whose daughter is Tamsin?" },
+    { op: "set_known_npc_summary", name: "Tamsin", summary: "Ossery's daughter, by her word." },
   ] as Parameters<typeof withoutUnread>[0];
-  expect(withoutUnread(operations, secret, "Jory says he saw a light down in the crypt. Tamsin says: my father.")).toEqual(operations);
+  expect(withoutUnread(operations, secret, "Jory says he saw a light down in the crypt. Ossery? Tamsin says: my father.")).toEqual(operations);
+});
+
+test("a Loose End copying a thread's plan in names the page has read is dropped, and one in the page's or the move's words kept", () => {
+  const secret = { ...state, plotThreads: ["Captain Vane suspects Tamsin and means to arrest her at the well tomorrow; she hides a letter in her saddle."] };
+  const operations = [
+    { op: "add_loose_end", loose_end: "Vane means to arrest Tamsin at the well tomorrow." },
+    { op: "add_loose_end", loose_end: "Tamsin is carrying something in her saddle." },
+    { op: "add_loose_end", loose_end: "Why does Captain Vane watch Tamsin?" },
+    { op: "add_loose_end", loose_end: "What did Tamsin bury by the well?" },
+  ] as Parameters<typeof withoutUnread>[0];
+  const read = "Captain Vane watches Tamsin at the well.\nI ask Tamsin what she buried.";
+  expect(withoutUnread(operations, secret, read)).toEqual(operations.slice(2));
 });
 
 test("a Journal entry naming a many-word name or keyword is kept when the player has read the word that tells it apart", () => {

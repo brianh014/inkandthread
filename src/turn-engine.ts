@@ -309,7 +309,7 @@ const ResponseShape = z.object({
 });
 // For the Choices, written apart from the reply in a call that sees no secret, and beside their field, as a rule mid-prompt gets ignored.
 export const CHOICES_RULE =
-  "exactly three things the PC might say or do next, each one first-person sentence of at most 25 words, built only on what the replies show has happened and the PC knows, naming no event, place or thing they don't show, fitting what they now hold, wear and have just done, and each taking a clearly different approach, at most one of them only watching, waiting or carrying word to someone and at least one of them moving the story on toward what comes next that the PC knows of, such as setting out, acting on a plan, facing what waits or taking up what someone offers or the PC wants. Never hint at risk, difficulty, dice or a Check";
+  "exactly three things the PC might say or do next, each one first-person sentence of at most 25 words, built only on what the replies show has happened and the PC knows, naming no event, place or thing they don't show, fitting what they now hold, wear and have just done, and each taking a clearly different approach, at most one of them only watching, waiting or carrying word to someone and at least one of them moving the story on toward what comes next that the PC knows of, such as setting out, acting on a plan, facing what waits, letting the hours pass until what the PC expects, or taking up what someone offers or the PC wants. Never hint at risk, difficulty, dice or a Check";
 // Once a Check is rolled, or none can be, the schema itself forbids one and asks for the story, as the prompt's "Do not request another check" was ignored three times running.
 // Never with Choices, in either Play Mode, as Choices the Narrator wrote beside the secrets in its prompt named them in everyday words.
 const SCHEMAS = { any: jsonSchemaOf(ResponseShape), noCheck: jsonSchemaOf(ResponseShape.extend({ check: z.null(), narration: z.string() })) };
@@ -977,11 +977,13 @@ async function narrate(
       state_operations = threads.kept;
       const amended = state_operations.filter((operation) => operation.op === "update_plot_thread" && operation.truth).length;
       if (amended > 0) log.info("turn", "Thread truths amended", { attempt, generation, amended });
+      // With the move, as the player has read their own words, and the Messages don't hold it yet.
+      const read = `${story}\n${move}\n${narration}`;
       if (seen) {
-        const read = withoutUnread(state_operations, narrated.next, `${story}\n${narration}`);
-        if (read.length < state_operations.length)
-          log.info("turn", "Journal entries naming secrets dropped", { attempt, generation, operations: state_operations.length - read.length });
-        state_operations = read;
+        const kept = journalRead(state_operations, narrated.next, read);
+        if (kept.length < state_operations.length)
+          log.info("turn", "Journal entries naming secrets dropped", { attempt, generation, operations: state_operations.length - kept.length });
+        state_operations = kept;
       }
       // The text is final here, so the player reads it while the follow-ups below run, and nothing after changes it.
       emit("reply", { text: narration });
@@ -1033,7 +1035,7 @@ async function narrate(
           "upkeep",
           upkeep
             ? upkeepOperations(upkeep, pcName, narrated.next, check, previous, narration, signal, timed).then(
-                (ops) => ops && withoutRelearned(ops, state_operations, narrated.next.npcs),
+                (ops) => ops && withoutRelearned(seen ? journalRead(ops, narrated.next, read) : ops, state_operations, narrated.next.npcs),
               )
             : undefined,
         ),
@@ -1178,6 +1180,15 @@ const sameApproach = (one: string, other: string) => {
   const shared = [...a].filter((word) => b.has(word)).length;
   return one === other || (shared >= 4 && shared * 2 >= Math.min(a.size, b.size));
 };
+/** The operations without a Journal entry naming a secret, logging the Loose Ends among those dropped. */
+function journalRead<Operation extends StateOperation>(operations: Operation[], state: State, read: string) {
+  const kept = withoutUnread(operations, state, read);
+  const ends = (list: Operation[]) => list.filter(({ op }) => op === "add_loose_end").length;
+  const dropped = ends(operations) - ends(kept);
+  if (dropped > 0) log.info("turn", "Loose Ends with unknown words dropped", { dropped, kept: ends(kept) });
+  return kept;
+}
+
 /**
  * State Upkeep's operations without an npc_learns that says again in other words what the Narrator's own gave that person in
  * the same Turn, as Upkeep repeated them most Turns of a bench play.

@@ -229,10 +229,19 @@ function journalLines(edits: WorldEdit[]) {
   return lines.join(" ");
 }
 
+/**
+ * The nows the player's World Changes wrote since the last reply, the latest for each thread. Not World Moves On's, nor those
+ * that only settle Journal edits, as neither is news.
+ */
+export const worldNews = (edits: WorldEdit[]) =>
+  Object.values(
+    Object.assign({}, ...edits.map((edit) => (edit.edit === "world" && !edit.moved && !edit.settles ? (edit.now ?? {}) : {}))) as Record<string, string>,
+  );
+
 export function journalNote(edits: WorldEdit[]) {
   const lines = journalLines(edits);
   // A World Change's news sat in a thread's now, which the Narrator reads as out of sight, so it never reached the page.
-  const news = edits.flatMap((edit) => (edit.edit === "world" && !edit.moved ? Object.values(edit.now ?? {}) : []));
+  const news = worldNews(edits);
   return [
     lines &&
       `

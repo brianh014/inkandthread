@@ -744,13 +744,19 @@ const worldAsItStands = ({
   npcs,
   pcAppearance,
   storyTime,
+  threadsDue,
 }: State) => ({
   world_brief: worldBrief,
   // Without it plan_in_hours had no clock to count from.
   story_time: storyTime && { date: storyTime.date, time_of_day: storyTime.timeOfDay },
   lore_entries: worldBible.map(({ title, keywords, content }) => ({ title, keywords, content })),
   world_rules: worldRules,
-  plot_threads: plotThreads.map((truth) => ({ truth, now: threadsNow[truth] ?? "", ...(threadsPlan[truth] && { plan: threadsPlan[truth] }) })),
+  // The hours left on each plan, so a change that keeps or retimes one counts from them rather than guessing.
+  plot_threads: plotThreads.map((truth) => {
+    const due = threadsDue[truth];
+    const left = due !== undefined && storyTime?.hours !== undefined ? Math.max(0, Math.round(due - storyTime.hours)) : undefined;
+    return { truth, now: threadsNow[truth] ?? "", ...(threadsPlan[truth] && { plan: threadsPlan[truth], ...(left !== undefined && { plan_in_hours: left }) }) };
+  }),
   npcs: Object.fromEntries(npcs.map(({ name, appearance }) => [name, appearance])),
   pc_looks: pcAppearance,
   journal: {
@@ -860,7 +866,12 @@ export async function applyWorldChange(
   change: string,
   signal: AbortSignal,
   /** `stateOf` reads the state the change applies to: a replaced response's is the one before it. */
-  { mayKeep = false, stateOf = () => saves.latestState(id) }: { mayKeep?: boolean; stateOf?: () => State } = {},
+  /** `settles` marks one that only brings the hidden world in line with the player's Journal edits, which holds no news for the PC. */
+  {
+    mayKeep = false,
+    stateOf = () => saves.latestState(id),
+    settles = false,
+  }: { mayKeep?: boolean; stateOf?: () => State; settles?: boolean } = {},
 ) {
   const basedOn = saves.latestMessageId(id);
   const before = stateOf();
@@ -891,11 +902,15 @@ export async function applyWorldChange(
   // On the clock, as World Moves On's are, so the next move brings a due plan to the PC; a Save from before it has none.
   const clock = before.storyTime?.hours;
   const due = Object.fromEntries(
+    // A plan kept as it was may be retimed alone.
     plot_threads.flatMap(({ new: truth, plan, plan_in_hours }) =>
-      truth && plan && plan_in_hours !== null && clock !== undefined ? [[truth, clock + plan_in_hours]] : [],
+      truth && (plan || before.threadsPlan[truth]) && plan_in_hours !== null && clock !== undefined ? [[truth, clock + plan_in_hours]] : [],
     ),
   );
-  saves.addWorldChange(id, basedOn, [...made, { edit: "world", update, now: by("now"), plan: by("plan"), due, made: made.length }]);
+  saves.addWorldChange(id, basedOn, [
+    ...made,
+    { edit: "world", update, now: by("now"), plan: by("plan"), due, made: made.length, ...(settles && { settles: true }) },
+  ]);
   const after = stateOf();
   images.restyled(id, restyledBy(before, after), after.inventory.wearing);
   log.info("world", "World Change applied", () => ({

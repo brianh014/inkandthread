@@ -827,6 +827,8 @@ export const WorldEdit = z.discriminatedUnion("edit", [
     due: z.record(z.string(), z.number()).optional(),
     made: z.number().int().min(0).optional(),
     moved: z.boolean().optional(),
+    // A World Change that only settles the player's Journal edits, whose nows are record-keeping rather than news for the PC.
+    settles: z.boolean().optional(),
     // World Moves On's: by name, each person's own part of the threads it wrote, kept as what they know.
     knows: z.record(z.string(), z.array(z.string())).optional(),
     // By truth, who those parts went to.

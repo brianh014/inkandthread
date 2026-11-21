@@ -21,6 +21,7 @@ import {
   narratorReplies,
   summaryDue,
   SET_SCENE_NOTE,
+  worldNews,
 } from "./prompt-assembler";
 import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } from "./save-store";
 import { modelName, type SettingsStore } from "./settings-store";
@@ -524,6 +525,8 @@ function turnPrompt(
   }: Pick<Parameters<typeof assemblePrompt>[0], "state" | "messages" | "input" | "directions" | "journalEdits"> & { picture: boolean },
 ) {
   const current = settings.read();
+  const news = worldNews(journalEdits ?? []).length;
+  if (news > 0) log.info("turn", "World Change news sent", { save: id, nows: news });
   const memoryStart = saves.memoryStart(id);
   const save = saves.read(id);
   return {
@@ -609,7 +612,7 @@ async function settleJournal(saves: SaveStore, context: WorldContext, id: string
   if (!change) return;
   stateOf();
   try {
-    await applyWorldChange(context, saves, context.images, id, change, signal, { mayKeep: true, stateOf });
+    await applyWorldChange(context, saves, context.images, id, change, signal, { mayKeep: true, stateOf, settles: true });
   } catch (error) {
     if (signal.aborted) throw error;
     log.warning("world", "Journal edits weren't settled before the Turn", errorType(error));

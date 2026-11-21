@@ -308,6 +308,12 @@ test("the Turn after a World Change is handed the nows it wrote, to bring what t
   expect(note).toContain(JSON.stringify([now]));
   expect(note).toContain("reaches them in this response");
   expect(journalNote([{ edit: "world", update, now: { "The pump thread.": now }, made: 0, moved: true }])).toBe("");
+  expect(journalNote([{ edit: "world", update, now: { "The pump thread.": now }, made: 0, settles: true }])).toBe("");
+  const later = journalNote([
+    { edit: "world", update, now: { "The pump thread.": now }, made: 0 },
+    { edit: "world", update, now: { "The pump thread.": "The pump is mended." }, made: 0 },
+  ]);
+  expect(later).toContain(JSON.stringify(["The pump is mended."]));
 });
 
 test("a Journal note follows each item through its edits, from the wording the Narrator last saw", () => {

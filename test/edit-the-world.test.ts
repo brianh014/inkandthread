@@ -478,6 +478,29 @@ test("a World Change's new plan with no due hour drops the old plan's", async ()
   expect(threadsDue).toEqual({});
 });
 
+test("a World Change sees the hours left on each plan, and can retime a plan it keeps", async () => {
+  const [truth] = WORLD.plotThreads as [string];
+  play(update({ plot_threads: [{ old: truth, new: truth, now: null, plan: null, plan_in_hours: 1 }] }));
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      ...WORLD,
+      npcs: NPCS,
+      threadsPlan: { [truth]: "The bees gather." },
+      threadsDue: { [truth]: 30 },
+      storyTime: { day: 1, date: "1 May", timeOfDay: "midnight", hours: 24 },
+    },
+  });
+
+  expect((await change(id, "the bees gather within the hour")).status).toBe(200);
+
+  expect(prompts[0]![0]!.content).toContain('"plan":"The bees gather.","plan_in_hours":6');
+  const { threadsPlan, threadsDue } = store().latestState(id);
+  expect(threadsPlan[truth]).toBe("The bees gather.");
+  expect(threadsDue).toEqual({ [truth]: 25 });
+});
+
 test("a World Change can fix what the PC wears and carries, and their status, which the Journal shows", async () => {
   play(update({ inventory: { wearing: ["oilskin coat"], carrying: ["brass lantern"] }, status: { health: "bruised", injuries: [], conditions: ["soaked"] } }));
   const id = createSave();

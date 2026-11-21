@@ -651,6 +651,26 @@ test("what a move gives someone to know is capped, so it never grows without bou
   expect(applyEdit(state, edit).npcKnows.Ferryman).toEqual([...known.slice(1), "New."]);
 });
 
+test("the cap keeps someone's part of a thread however much they learn after, and drops the oldest of the rest", () => {
+  const secret = "He held the harbourmaster under for the vicar.";
+  const state = { ...openingState, npcs: [{ name: "Ferryman", appearance: "" }], plotThreads: ["The drowning."] };
+  const given = applyEdit(state, {
+    edit: "world",
+    update: { lore_entries: [], removed_lore: [], world_rules: [], plot_threads: [] },
+    knows: { Ferryman: [secret] },
+    parts: { "The drowning.": ["Ferryman"] },
+    moved: true,
+  });
+  const learned = Array.from({ length: MAX_NPC_KNOWS + 3 }, (_, at) => ({ op: "npc_learns" as const, name: "Ferryman", fact: `Fact ${at}.` }));
+
+  const { npcKnows } = applyOperations(given, learned).next;
+
+  expect(npcKnows.Ferryman).toHaveLength(MAX_NPC_KNOWS);
+  expect(npcKnows.Ferryman![0]).toBe(secret);
+  expect(npcKnows.Ferryman!.at(-1)).toBe(`Fact ${MAX_NPC_KNOWS + 2}.`);
+  expect(npcKnows.Ferryman).not.toContain("Fact 3.");
+});
+
 test("a now that waits on the PC, puts someone with the PC elsewhere or gives them what only a secret holds is asked again once", async () => {
   const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
   const hidden = "The ledger is hidden in the cottage chimney, and the vicar is searching for it.";

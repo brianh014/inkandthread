@@ -37,6 +37,8 @@ export type State = {
    * play, as a move took anything in npcKnows for their part and never gave the people with only that one. A Save from before it has none.
    */
   threadParts: Record<string, string[]>;
+  /** By name, the words of each part World Moves On gave them, which the npcKnows cap keeps, as dropping the oldest lost people their own secrets. */
+  npcParts: Record<string, string[]>;
   summary: string;
   /** How many of the Narrator's replies the summary covers, as it is written only every few replies. 0 in a Save from before it, so its next reply writes one. */
   summaryReplies: number;
@@ -77,6 +79,7 @@ export const openingState: State = {
   threadsNow: {},
   threadsPlan: {},
   threadParts: {},
+  npcParts: {},
   summary: "",
   summaryReplies: 0,
   recentSummary: "",
@@ -107,6 +110,7 @@ export const StateSections = {
   threadsNow: z.record(z.string(), z.string()),
   threadsPlan: z.record(z.string(), z.string()),
   threadParts: z.record(z.string(), stringList),
+  npcParts: z.record(z.string(), stringList),
   summary: z.string(),
   summaryReplies: z.number().int().nonnegative(),
   recentSummary: z.string(),
@@ -217,6 +221,8 @@ export const MAX_PLOT_THREADS = 8;
 
 /** The most an NPC's list of what they know keeps, newest last, so the lists of a crowded scene stay a few lines each. */
 export const MAX_NPC_KNOWS = 12;
+// Of those, how many may be parts of threads, which the cap keeps.
+const MAX_PARTS = 4;
 
 // Saying what someone doesn't know, which an NPC's list read as what they do, and which goes stale once they learn it.
 // Any verb of knowing or learning denied, or with nothing or no one as what is known, as "has not heard of", "heard nothing of"
@@ -322,12 +328,24 @@ function mergeNpc(state: State, name: string, into: string) {
   mergeNpcKnows(state, name, into);
 }
 
+/** At most MAX_NPC_KNOWS of what someone knows, dropping the oldest, but never their parts, as those were their secrets. */
+const capped = (knows: string[], parts: string[] = []) => {
+  const learned = knows.filter((fact) => !parts.includes(fact));
+  const room = learned.slice(Math.max(0, learned.length - Math.max(0, MAX_NPC_KNOWS - (knows.length - learned.length))));
+  return knows.filter((fact) => parts.includes(fact) || room.includes(fact));
+};
+const own = (record: Record<string, string[]>, name: string) => (Object.hasOwn(record, name) ? record[name]! : []);
+
 function mergeNpcKnows(state: State, name: string, into: string) {
+  if (Object.hasOwn(state.npcParts, name)) {
+    const { [name]: given = [], ...parts } = state.npcParts;
+    state.npcParts = { ...parts, [into]: [...new Set([...own(parts, into), ...given])] };
+  }
   if (!Object.hasOwn(state.npcKnows, name)) return;
   const { [name]: knew = [], ...knows } = state.npcKnows;
-  const kept = Object.hasOwn(knows, into) ? knows[into]! : [];
+  const kept = own(knows, into);
   // The kept one's own last, shared ones too, so the cap drops the other's first.
-  state.npcKnows = { ...knows, [into]: [...knew.filter((fact) => !kept.includes(fact)), ...kept].slice(-MAX_NPC_KNOWS) };
+  state.npcKnows = { ...knows, [into]: capped([...knew.filter((fact) => !kept.includes(fact)), ...kept], own(state.npcParts, into)) };
 }
 
 /** What this reply made of each Plot Thread's truth it changed, its amended truth or null once resolved. */
@@ -414,7 +432,7 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       // Own keys only, as a name such as "constructor" would find what every object has.
       const knows = Object.hasOwn(state.npcKnows, name) ? state.npcKnows[name]! : [];
       if (!addOnce(knows, fact)) return "already there";
-      state.npcKnows = { ...state.npcKnows, [name]: knows.slice(-MAX_NPC_KNOWS) };
+      state.npcKnows = { ...state.npcKnows, [name]: capped(knows, own(state.npcParts, name)) };
       return;
     }
     case "set_scene": {
@@ -717,22 +735,26 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       const plan = { ...plans, ...edit.plan };
       const threadsPlan = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(plan, truth) ? [[truth, plan[truth]!]] : [])));
       // Under the name of someone met, or as named until they are, when add_npc takes it up.
-      const npcKnows = { ...state.npcKnows };
-      for (const [name, parts] of Object.entries(edit.knows ?? {})) {
-        const key = findPerson(state.npcs, name)?.name ?? name;
-        const knew = Object.hasOwn(npcKnows, key) ? npcKnows[key]! : [];
-        const known = parts.map(knownOnly).filter((part) => part && !knew.includes(part));
-        if (known.length > 0 || knew.length > 0) npcKnows[key] = [...knew, ...known].slice(-MAX_NPC_KNOWS);
-      }
       const had = (truth: string) => (Object.hasOwn(state.threadParts, truth) ? state.threadParts[truth]! : []);
       const given = (truth: string) => (edit.parts && Object.hasOwn(edit.parts, truth) ? edit.parts[truth]! : []);
+      const partTakers = new Set(Object.values(edit.parts ?? {}).flat());
+      const npcKnows = { ...state.npcKnows };
+      const npcParts = { ...state.npcParts };
+      for (const [name, parts] of Object.entries(edit.knows ?? {})) {
+        const key = findPerson(state.npcs, name)?.name ?? name;
+        const knew = own(npcKnows, key);
+        const known = parts.map(knownOnly).filter((part) => part && !knew.includes(part));
+        // shortcut: the last few parts only, so a long story's turnover of threads can't fill the cap with them; keep more if old secrets go missing.
+        if (partTakers.has(name) && known.length > 0) npcParts[key] = [...own(npcParts, key), ...known].slice(-MAX_PARTS);
+        if (known.length > 0 || knew.length > 0) npcKnows[key] = capped([...knew, ...known], own(npcParts, key));
+      }
       const threadParts = Object.fromEntries(
         merged.plotThreads.flatMap((truth) => {
           const names = [...new Set([...had(truth), ...given(truth)])];
           return names.length > 0 ? [[truth, names]] : [];
         }),
       );
-      return { ...state, ...merged, threadsNow, threadsPlan, npcKnows, threadParts };
+      return { ...state, ...merged, threadsNow, threadsPlan, npcKnows, npcParts, threadParts };
     }
     case "inventory":
       return { ...state, inventory: { wearing: edit.wearing, carrying: edit.carrying } };

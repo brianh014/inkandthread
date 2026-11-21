@@ -23,7 +23,7 @@ test("at the world's moving on the Scribe adds Lore for what the replies establi
       date: "2nd of Thaw",
       time_of_day: "dawn",
     }),
-    JSON.stringify({ left: [{ thread: THIEF, left: "Whether the theft happens." }], plot_threads: [] }),
+    JSON.stringify({ left: [{ thread: THIEF, answered: false, question: "Whether the theft happens." }], plot_threads: [] }),
     narration("Ash goes home."),
   );
   const scribe = scriptedTextProvider(

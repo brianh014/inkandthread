@@ -4,7 +4,7 @@ import { z } from "zod";
 import { jsonSchemaOf } from "../src/turn-engine";
 
 /** Bumped when the rubric changes how scores read, so a comparison never sets a score beside one from another rubric. */
-export const RUBRIC_VERSION = 3;
+export const RUBRIC_VERSION = 4;
 
 /** The rubric, in general words, as it judges any story the bench plays, each item with anchors written from a reader's side. */
 export const RUBRIC = {
@@ -19,7 +19,7 @@ export const RUBRIC = {
   continuity:
     "Continuity: time, place, who is present, what people wear and carry, and what happened stay consistent. 1-2 the story restarts, replays or loses who is where; 3-4 contradictions a reader trips over: someone in two places, time stuck or going back, the dead acting, a thing carried after it was lost; 5-6 small slips a careful reader catches, none that breaks a scene; 7-8 everything holds, a slip at most; 9-10 nothing a reader rereading would catch",
   pacing:
-    "Pacing: every reply moves something on, such as a new fact, a change in someone or a decision, whatever the player picked; a slow stretch the picks asked for is no fault if each beat adds something, but a reply that repeats the one before it, or stalls on the player's move, is. 1-2 the story goes nowhere for long stretches; 3-4 frequent stalls on one standoff, or replies repeating the one before; 5-6 most replies move something on, with stretches of treading water; 7-8 every reply adds something, and quiet stretches earn their place; 9-10 a page-turner, each reply pulling the reader into the next",
+    "Pacing: every reply moves something on, such as a new fact, a change in someone or a decision, whatever the player picked; a slow stretch the picks asked for is no fault if each beat adds something, but a reply that repeats the one before it, or stalls on the player's move, is, as is one that rushes, skipping time or a scene the PC was still in, or settling in one reply what should take several. 1-2 the story goes nowhere for long stretches, or races through what should have been played; 3-4 frequent stalls on one standoff, replies repeating the one before, or frequent skips past what the PC was doing; 5-6 most replies move something on, with stretches of treading water or hurry; 7-8 every reply adds something, and quiet stretches earn their place; 9-10 a page-turner, each reply pulling the reader into the next",
   prose:
     "Prose: clear, vivid and varied, in a consistent voice, without repeated phrases. 1-2 hard to follow, or broken text (stray markup, another language, cut sentences); 3-4 clear but flat, with repeats a reader notices, or garbled or mislabelled lines; 5-6 competent genre prose with tics; 7-8 vivid and varied in one voice, few repeats; 9-10 prose a reader would quote",
   pictures:

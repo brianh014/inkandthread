@@ -475,15 +475,15 @@ test("a move removes a thread only when the replies show its people or a Turn as
   expect(told.prompts.some((prompt) => prompt.at(-1)!.content.includes("a remove leaves fewer than three threads and adds none"))).toBe(true);
 });
 
-test("a thread a move leaves nothing to answer is removed in place of its rewrite, and one missing from left stays", async () => {
+test("a thread whose question play has answered is removed in place of its rewrite, and one missing from left stays", async () => {
   const PELL = "Mr Pell means to burn the mill.";
   const [TIDE, GULLS] = ["The tide is wrong.", "The gulls are omens."];
   play(
     narration("Ash sees Mr Pell hanged at the quay.", { op: "set_scene", location: "The quay", visible_cast: [] }, nextDay()),
     JSON.stringify({
       left: [
-        { thread: PELL, left: null },
-        { thread: TIDE, left: "Why the tide turns early." },
+        { thread: PELL, answered: true, question: null },
+        { thread: TIDE, answered: false, question: "Why the tide turns early." },
       ],
       plot_threads: [change(PELL, "He waits."), change(null, "Soon.", "The mill burns anyway.")],
     }),
@@ -508,6 +508,41 @@ test("a thread a move leaves nothing to answer is removed in place of its rewrit
 
   expect(store().latestState(id).plotThreads).toEqual([TIDE, GULLS, "The mill burns anyway."]);
   expect(log).toContain('"rewritten":0,"added":1,"removed":1');
+});
+
+test("a thread keeps the question it began with, and a plan whose hour the clock has reached is marked due at the next move", async () => {
+  const TIDE = "The harbourmaster floods the lower town.";
+  const told = play(
+    narration("Ash watches the harbourmaster at the sluice.", { ...nextDay(), hours_passed: 20 }),
+    JSON.stringify({
+      left: [{ thread: TIDE, answered: false, question: "Whether the lower town floods." }],
+      plot_threads: [{ thread: TIDE, truth: null, now: "He oils the sluice gate.", plan: "He opens the sluice at dusk.", plan_in_hours: 2 }],
+    }),
+    narration("Night falls on the quay.", { ...nextDay("3rd of Thaw"), hours_passed: 24 }),
+    JSON.stringify({ left: [{ thread: TIDE, answered: false, question: "Whether he is caught." }], plot_threads: [] }),
+    narration("Ash goes home."),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [TIDE],
+      worldBible: [],
+      storyTime: { day: 1, date: "1st of Thaw", timeOfDay: "morning" },
+    },
+  });
+
+  for (const input of ["I watch the sluice.", "I wait for night.", "I go home."]) expect((await turn(id, input)).ok).toBe(true);
+
+  // The first question stands, never the one a later move gave.
+  expect(store().latestState(id).threadsQuestion[TIDE]).toBe("Whether the lower town floods.");
+  const moves = told.prompts.filter((prompt) => prompt[0]!.content.startsWith("You plot the hidden side"));
+  expect(JSON.parse(moves[0]!.at(-1)!.content).plot_threads[0]).not.toHaveProperty("plan_due");
+  expect(JSON.parse(moves[1]!.at(-1)!.content).plot_threads[0]).toMatchObject({ question: "Whether the lower town floods.", plan_due: true });
 });
 
 test("a move keeps its usable changes and drops only those that change a thread twice, misquote one or add one without its truth", async () => {

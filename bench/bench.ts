@@ -405,7 +405,8 @@ async function play(
   const pick = seeded(seed * 1000 + index);
   const roll = seeded(seed * 7919 + index);
   // The log goes to the play's folder, and only warnings and up to the terminal.
-  startLog("verbose", folder);
+  // Never rotated, as the counts below read the whole play from it.
+  startLog("verbose", folder, Number.POSITIVE_INFINITY);
   const { info, debug, warn } = console;
   console.info = () => {};
   console.debug = () => {};

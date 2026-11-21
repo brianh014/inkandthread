@@ -844,6 +844,17 @@ export function saveStore(savesDir: string) {
      * The Story Time just before each of `messageIds`, read as the PC would, for those the story had one by then. Before,
      * as the Turn that wrote a Message may have moved time on, and a memory is dated from when its scene began.
      */
+    /** The story time as it stood before a Message, or null before the Narrator first set one. */
+    storyTimeBefore(id: string, messageId: number) {
+      using db = open(id);
+      const row = db
+        .query<{ content: string }, [number]>(
+          "SELECT s.content FROM snapshot_sections ss JOIN sections s ON s.id = ss.section_id WHERE ss.name = 'storyTime' AND ss.message_id < ? ORDER BY ss.message_id DESC LIMIT 1",
+        )
+        .get(messageId);
+      return row ? (JSON.parse(row.content) as State["storyTime"]) : null;
+    },
+
     storyTimesAt(id: string, messageIds: number[]) {
       using db = open(id);
       const before = db.query<{ content: string }, [number]>(

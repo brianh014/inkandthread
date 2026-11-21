@@ -6,19 +6,25 @@ import { tempFolder } from "./support";
 import { applyEdit, applyOperations, openingState, type State, type StateOperation } from "../src/state-applier";
 
 const at = (storyTime: State["storyTime"]) => ({ ...structuredClone(openingState), storyTime });
-const set = (days_passed: number, date: string | null, time_of_day: string): StateOperation => ({ op: "set_story_time", days_passed, date, time_of_day });
+const set = (days_passed: number, date: string | null, time_of_day: string, hours_passed: number | null = null): StateOperation => ({
+  op: "set_story_time",
+  days_passed,
+  hours_passed,
+  date,
+  time_of_day,
+});
 const DUSK = { day: 3, date: "3rd of Lowtide", timeOfDay: "dusk" };
 
 test("time passing within a day keeps the date and the day count", () => {
-  expect(applyOperations(at(DUSK), [set(0, null, "night")]).next.storyTime).toEqual({ ...DUSK, timeOfDay: "night" });
+  expect(applyOperations(at(DUSK), [set(0, null, "night")]).next.storyTime).toMatchObject({ ...DUSK, timeOfDay: "night" });
 });
 
 test("days passing add to the day count, with the new date the Narrator worked out", () => {
-  expect(applyOperations(at(DUSK), [set(2, "5th of Lowtide", "dawn")]).next.storyTime).toEqual({ day: 5, date: "5th of Lowtide", timeOfDay: "dawn" });
+  expect(applyOperations(at(DUSK), [set(2, "5th of Lowtide", "dawn")]).next.storyTime).toMatchObject({ day: 5, date: "5th of Lowtide", timeOfDay: "dawn" });
 });
 
 test("days passing on the same date count no days, as models gave the day count as days_passed and doubled it", () => {
-  expect(applyOperations(at(DUSK), [set(3, "3rd of Lowtide", "night")]).next.storyTime).toEqual({ ...DUSK, timeOfDay: "night" });
+  expect(applyOperations(at(DUSK), [set(3, "3rd of Lowtide", "night")]).next.storyTime).toMatchObject({ ...DUSK, timeOfDay: "night" });
 });
 
 test("a new day with no date, or a first Story Time with none, is ignored and changes nothing", () => {
@@ -69,7 +75,7 @@ test("past midnight on the same date, the small hours and the next morning still
 });
 
 test("a Save from before Story Time starts counting from day 1", () => {
-  expect(applyOperations(at(null), [set(0, "3rd of Lowtide", "dusk")]).next.storyTime).toEqual({ day: 1, date: "3rd of Lowtide", timeOfDay: "dusk" });
+  expect(applyOperations(at(null), [set(0, "3rd of Lowtide", "dusk")]).next.storyTime).toMatchObject({ day: 1, date: "3rd of Lowtide", timeOfDay: "dusk" });
 });
 
 test("the player's edit changes the date and time of day, never the day count", () => {
@@ -151,4 +157,13 @@ test("people are asked to stay true to what they said they intend, time included
   expect(text).toContain(
     "Record an intention that will matter later, and what the PC is told of where someone out of sight is and what they are doing, with add_known_fact",
   );
+});
+
+test("the clock adds each reply's hours_passed, or the hours its words moved on, and never falls short of the days passed", () => {
+  const clock = (state: State, operation: StateOperation) => applyOperations(state, [operation]).next.storyTime?.hours;
+  // From a Save without one, its day and time of day: day 3 at dusk is 66.
+  expect(clock(at(DUSK), set(0, null, "night", 2))).toBe(68);
+  expect(clock(at(DUSK), set(0, null, "night"))).toBe(70);
+  expect(clock(at({ ...DUSK, hours: 66 }), set(1, "4th of Lowtide", "the third bell", 1))).toBe(72);
+  expect(clock(at({ ...DUSK, hours: 66 }), set(0, null, "the third bell", 0.5))).toBe(66.5);
 });

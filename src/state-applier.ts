@@ -33,6 +33,13 @@ export type State = {
    */
   threadsPlan: Record<string, string>;
   /**
+   * Each Plot Thread's question, by its truth: what it turns on, fixed once when it begins, so each move asks only whether play has
+   * answered it, as a question rewritten every move moved on with play and no thread closed in 160 rounds. A Save from before it has none.
+   */
+  threadsQuestion: Record<string, string>;
+  /** Each Plot Thread's plan's due hour on storyTime's hours, by its truth, so code tells a move whose plan is due. */
+  threadsDue: Record<string, number>;
+  /**
    * By each Plot Thread's truth, who World Moves On gave their own part of it, kept in npcKnows. Apart from what they learn in
    * play, as a move took anything in npcKnows for their part and never gave the people with only that one. A Save from before it has none.
    */
@@ -59,8 +66,11 @@ export type State = {
   era: string;
 };
 
-/** `day` counts days since the Opening, as Narrators add whole numbers far better than they work an in-world calendar. The player never sees it. */
-export type StoryTime = { day: number; date: string; timeOfDay: string };
+/**
+ * `day` counts days since the Opening, as Narrators add whole numbers far better than they work an in-world calendar. `hours` counts
+ * story hours since then, code adding up each reply's hours_passed, so it holds in any world's calendar. The player sees neither.
+ */
+export type StoryTime = { day: number; date: string; timeOfDay: string; hours?: number };
 
 export type Chapter = { lastMessage: number | null; title: string };
 
@@ -78,6 +88,8 @@ export const openingState: State = {
   plotThreads: [],
   threadsNow: {},
   threadsPlan: {},
+  threadsQuestion: {},
+  threadsDue: {},
   threadParts: {},
   npcParts: {},
   summary: "",
@@ -109,6 +121,8 @@ export const StateSections = {
   plotThreads: stringList,
   threadsNow: z.record(z.string(), z.string()),
   threadsPlan: z.record(z.string(), z.string()),
+  threadsQuestion: z.record(z.string(), z.string()),
+  threadsDue: z.record(z.string(), z.number()),
   threadParts: z.record(z.string(), stringList),
   npcParts: z.record(z.string(), stringList),
   summary: z.string(),
@@ -118,7 +132,7 @@ export const StateSections = {
   worldBrief: z.string(),
   chapters: z.array(z.object({ lastMessage: z.number().int().nullable(), title: z.string() })),
   chapterReady: z.boolean(),
-  storyTime: z.object({ day: z.number().int(), date: z.string(), timeOfDay: z.string() }).nullable(),
+  storyTime: z.object({ day: z.number().int(), date: z.string(), timeOfDay: z.string(), hours: z.number().optional() }).nullable(),
   pcAppearance: z.string(),
   era: z.string(),
 } satisfies { [Section in keyof State]: z.ZodType<State[Section]> };
@@ -171,7 +185,14 @@ export const StateOperation = z.discriminatedUnion("op", [
   z.object({ op: z.literal("resolve_plot_thread"), thread: nonEmpty }),
   z.object({ op: z.literal("set_pc_appearance"), appearance: nonEmpty }),
   z.object({ op: z.literal("set_era"), era: nonEmpty }),
-  z.object({ op: z.literal("set_story_time"), days_passed: z.number().int().min(0), date: nonEmpty.nullable(), time_of_day: nonEmpty }),
+  z.object({
+    op: z.literal("set_story_time"),
+    days_passed: z.number().int().min(0),
+    // Missing reads as unknown, so a reply from before it still moves the clock by its words.
+    hours_passed: z.preprocess((hours) => hours ?? null, z.number().min(0).nullable()),
+    date: nonEmpty.nullable(),
+    time_of_day: nonEmpty,
+  }),
 ]);
 export type StateOperation = z.infer<typeof StateOperation>;
 
@@ -495,6 +516,11 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       state.threadsNow = { ...others, [truth]: operation.now };
       const { [thread]: _planned, ...otherPlans } = state.threadsPlan;
       state.threadsPlan = operation.plan ? { ...otherPlans, [truth]: operation.plan } : otherPlans;
+      // A Turn's plan has no hour on the clock, so the old one goes with the old plan.
+      const { [thread]: _due, ...otherDue } = state.threadsDue;
+      state.threadsDue = otherDue;
+      const { [thread]: question, ...otherQuestions } = state.threadsQuestion;
+      if (question) state.threadsQuestion = { ...otherQuestions, [truth]: question };
       const { [thread]: parts, ...otherParts } = state.threadParts;
       if (parts) state.threadParts = { ...otherParts, [truth]: parts };
       replaceOnce(state.plotThreads, thread, truth);
@@ -510,6 +536,10 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       state.threadsNow = open;
       const { [thread]: _plan, ...openPlans } = state.threadsPlan;
       state.threadsPlan = openPlans;
+      const { [thread]: _question, ...openQuestions } = state.threadsQuestion;
+      state.threadsQuestion = openQuestions;
+      const { [thread]: _due, ...openDue } = state.threadsDue;
+      state.threadsDue = openDue;
       const { [thread]: _parts, ...openParts } = state.threadParts;
       state.threadParts = openParts;
       threads.became.set(thread, null);
@@ -535,7 +565,9 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       // From night on, the small hours and the next morning come after, as "past midnight" refused them all for five rounds.
       const wraps = was !== undefined && was >= NIGHT && now !== undefined && (now >= NIGHT || now <= MORNING);
       if (days_passed === 0 && date === state.storyTime?.date && was !== undefined && now !== undefined && now < was && !wraps) return "earlier than now";
-      state.storyTime = { day: (state.storyTime?.day ?? 1) + days_passed, date, timeOfDay: withoutDate(time_of_day, date) };
+      const day = (state.storyTime?.day ?? 1) + days_passed;
+      const hours = clockHours(state.storyTime, day, time_of_day, operation.hours_passed);
+      state.storyTime = { day, date, timeOfDay: withoutDate(time_of_day, date), hours };
       return;
     }
   }
@@ -576,6 +608,39 @@ const lasting = (appearance: string) => {
     .trim();
   return kept || appearance;
 };
+
+/**
+ * The story hours since the Opening after a set_story_time: the old count plus the reply's hours_passed, or the hours its words
+ * moved on when it gives none, never short of the days passed. A Save from before it starts from its day and time of day.
+ */
+function clockHours(was: StoryTime | null, day: number, timeOfDay: string, passed: number | null) {
+  // A first Story Time starts at its own hour of day 1.
+  const start = was?.hours ?? (was ? (was.day - 1) * 24 + (hourOf(was.timeOfDay) ?? 12) : (hourOf(timeOfDay) ?? 12));
+  const [from, to] = [hourOf(was?.timeOfDay ?? ""), hourOf(timeOfDay)];
+  const byWords = from !== undefined && to !== undefined ? (to - from + 24) % 24 : 0;
+  const hours = start + (passed ?? (day === (was?.day ?? 1) ? byWords : 0));
+  // A new day the hours didn't reach, as days_passed is the surer of the two.
+  return Math.max(hours, (day - 1) * 24);
+}
+
+// Checked in order, as "afternoon" holds "noon" and "midnight" holds "night".
+const HOURS: [RegExp, number][] = [
+  [/midnight/, 0],
+  [/afternoon/, 15],
+  [/noon|midday/, 12],
+  [/dawn|sunrise|daybreak/, 6],
+  [/morning/, 9],
+  [/dusk|sunset|twilight/, 18],
+  [/evening/, 19],
+  [/night/, 22],
+];
+
+/** The hour a time of day names, by its clock time or its words, or undefined when it names neither. */
+export function hourOf(timeOfDay: string) {
+  const clock = /\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m\b/i.exec(timeOfDay);
+  if (clock) return (Number(clock[1]) % 12) + (clock[3]!.toLowerCase() === "p" ? 12 : 0) + Number(clock[2] ?? 0) / 60;
+  return HOURS.find(([words]) => words.test(timeOfDay.toLowerCase()))?.[1];
+}
 
 const [MORNING, NIGHT] = [2, 6];
 /** Where in the day a time of day falls, in order, or undefined for words that don't say. */
@@ -678,6 +743,9 @@ export const WorldEdit = z.discriminatedUnion("edit", [
     update: WorldUpdate,
     now: z.record(z.string(), z.string()).optional(),
     plan: z.record(z.string(), z.string()).optional(),
+    // World Moves On's: by truth, the question of each thread that had none, and each plan's due hour on storyTime's hours.
+    question: z.record(z.string(), z.string()).optional(),
+    due: z.record(z.string(), z.number()).optional(),
     made: z.number().int().min(0).optional(),
     moved: z.boolean().optional(),
     // World Moves On's: by name, each person's own part of the threads it wrote, kept as what they know.
@@ -734,6 +802,11 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       const plans = Object.fromEntries(Object.entries(state.threadsPlan).filter(([truth]) => !Object.hasOwn(edit.now ?? {}, truth)));
       const plan = { ...plans, ...edit.plan };
       const threadsPlan = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(plan, truth) ? [[truth, plan[truth]!]] : [])));
+      // A question once set stays, and a due hour goes with the plan a move rewrote.
+      const question = { ...edit.question, ...state.threadsQuestion };
+      const threadsQuestion = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(question, truth) ? [[truth, question[truth]!]] : [])));
+      const due = { ...Object.fromEntries(Object.entries(state.threadsDue).filter(([truth]) => !Object.hasOwn(edit.now ?? {}, truth))), ...edit.due };
+      const threadsDue = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(due, truth) ? [[truth, due[truth]!]] : [])));
       // Under the name of someone met, or as named until they are, when add_npc takes it up.
       const had = (truth: string) => (Object.hasOwn(state.threadParts, truth) ? state.threadParts[truth]! : []);
       const given = (truth: string) => (edit.parts && Object.hasOwn(edit.parts, truth) ? edit.parts[truth]! : []);
@@ -754,7 +827,7 @@ export function applyEdit(state: State, edit: WorldEdit): State {
           return names.length > 0 ? [[truth, names]] : [];
         }),
       );
-      return { ...state, ...merged, threadsNow, threadsPlan, npcKnows, npcParts, threadParts };
+      return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, npcKnows, npcParts, threadParts };
     }
     case "inventory":
       return { ...state, inventory: { wearing: edit.wearing, carrying: edit.carrying } };
@@ -765,7 +838,7 @@ export function applyEdit(state: State, edit: WorldEdit): State {
     case "status":
       return { ...state, status: { health: edit.health, injuries: edit.injuries.slice(-MAX_STATUS), conditions: edit.conditions.slice(-MAX_STATUS) } };
     case "storyTime":
-      return { ...state, storyTime: { day: state.storyTime?.day ?? 1, date: edit.date, timeOfDay: edit.timeOfDay } };
+      return { ...state, storyTime: { ...state.storyTime, day: state.storyTime?.day ?? 1, date: edit.date, timeOfDay: edit.timeOfDay } };
     case "chapterTitle":
       return { ...state, chapters: state.chapters.map((chapter, index) => (index === edit.index ? { ...chapter, title: edit.title } : chapter)) };
     // A second close before any new Message would make an empty Chapter.

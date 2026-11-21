@@ -467,6 +467,8 @@ type Narrated = {
   memory: Promise<SceneMemory | null>;
   /** The Narrator's replies before this one, which say whether the summary is due and how many a new one covers. */
   replies: number;
+  /** The clock's hours a few replies back, to tell whether the story time has stood still. */
+  clockBack?: number;
   /** Left out when no new roll is allowed, which makes a Check request an invalid reply. */
   rollCheck?: (request: z.infer<typeof CheckRequest>) => Check;
   playMode: PlayMode;
@@ -521,7 +523,18 @@ function turnPrompt(
     }),
     memory: nextMemory(textProvider, messages, state.sceneMemories, memoryStart, current.textRecentMessages, signal),
     replies: narratorReplies(messages),
+    clockBack: clockBack(saves, id, messages),
   };
+}
+
+// Replies and story hours below which the story time stands still, so the Choices offer one that moves on, as a 160-round play
+// passed three hours, a minute a reply, its seeded picks never offered a way to let time pass.
+const STILL_REPLIES = 6;
+const STILL_HOURS = 1;
+/** The clock's hours a few replies back, undefined in a short story or one from before the clock. */
+function clockBack(saves: SaveStore, id: string, messages: Message[]) {
+  const back = messages.filter(({ role }) => role === "narrator").at(-STILL_REPLIES);
+  return back && (saves.storyTimeBefore(id, back.id)?.hours ?? undefined);
 }
 
 const lastNarration = (messages: Message[]) => messages.findLast(({ role }) => role === "narrator")?.text ?? "";
@@ -605,7 +618,7 @@ export async function playTurn(
   const basedOn = saves.latestMessageId(id);
   const state = saves.latestState(id);
   const messages = saves.messages(id);
-  const { prompt, memory, playMode, replies } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, memory, playMode, replies, clockBack } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -634,6 +647,7 @@ export async function playTurn(
         : [],
     memory,
     replies,
+    clockBack,
     // The PC attempts nothing in a Continue, so there is nothing to roll for.
     rollCheck: mayCheck && !isContinueInput(input) ? (request) => resolveCheck(request, dice, nearMissMargin) : undefined,
     playMode,
@@ -680,7 +694,7 @@ export async function replaceResponse(
   const { input, narration, check, state, messages, sceneImage, journalEdits, movesDropped } = saves.turnToReplace(id, messageId, true);
   // The old picture goes with its response, so the new one always gets its own, whatever the Narrator decides.
   const hadPicture = !!sceneImage || images.sceneDrawing(id, messageId);
-  const { prompt, memory, playMode, replies } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, memory, playMode, replies, clockBack } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -706,6 +720,7 @@ export async function replaceResponse(
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     memory,
     replies,
+    clockBack,
     rollCheck: mayRate ? (request) => resolveCheck(request, dice, nearMissMargin) : undefined,
     playMode,
     commit: (text, rolled, advance, choices) => {
@@ -758,7 +773,7 @@ export async function editResponse(
   const added = replaced && text.includes(replaced) ? text.split(replaced).join("\n").trim() : undefined;
   const state = added === undefined ? turn.state : saves.latestState(id);
   if (added !== undefined) log.info("turn", "Edit adds to the response", { save: id, message: messageId });
-  const { prompt, memory, playMode, replies } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, memory, playMode, replies, clockBack } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -780,6 +795,7 @@ export async function editResponse(
     narration: text,
     memory,
     replies,
+    clockBack,
     playMode,
     commit: (narration, _check, advance, choices) =>
       saves.editTurn(id, messageId, narration, (before) => advance(added === undefined ? before : state), choices),
@@ -811,6 +827,7 @@ async function narrate(
     narration: edited,
     memory: pendingMemory,
     replies,
+    clockBack,
     rollCheck,
     playMode,
     commit,
@@ -1010,6 +1027,7 @@ async function narrate(
           facts: narrated.next.pcKnown.facts,
           looseEnds: narrated.next.looseEnds,
           storyTime: narrated.next.storyTime,
+          still: clockBack !== undefined && (narrated.next.storyTime?.hours ?? clockBack) - clockBack < STILL_HOURS,
           pc: {
             name: pcName,
             wearing: narrated.next.inventory.wearing,

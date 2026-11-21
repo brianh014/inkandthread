@@ -244,4 +244,4 @@ The code is TypeScript on Bun, with a React page bundled by Bun itself. Start wi
 
 ## License
 
-Copyright © 2026 Brian Holt. Ink & Thread is free software under the [GNU Affero General Public License 3.0](LICENSE). You may use, change, share and sell it. If you share a changed version, or run one as a server that other people use, you must offer them its source under the same license.
+Copyright © 2026 Brian Holt. Ink & Thread is free software under the [GNU Affero General Public License](LICENSE), version 3 only. You may use, change, share and sell it. If you share a changed version, or run one as a server that other people use, you must offer them its source under the same license.

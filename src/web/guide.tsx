@@ -23,7 +23,7 @@ import {
   StopIcon,
   UploadIcon,
 } from "./icons";
-import { MenuRibbon, Sheet } from "./menu";
+import { DONATE_URL, MenuRibbon, Sheet } from "./menu";
 import { QUIET_TURNS } from "./usage";
 
 /** The Reader's Guide: what Ink & Thread is and how to use every part of it, one section at a time, kept in the URL hash. */
@@ -661,6 +661,14 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             GitHub
           </a>
           , with what you did and what happened. The log in the <code>logs</code> folder helps, and holds no keys, and no story text unless Story in log is on.
+        </p>
+        <h3>Supporting Ink & Thread</h3>
+        <p>
+          Ink & Thread is free. If you'd like to help it grow, <b>Support Ink & Thread</b> at the bottom of the Menu opens its{" "}
+          <a href={DONATE_URL} target="_blank" rel="noreferrer">
+            donation page
+          </a>{" "}
+          in your browser. The app sends nothing and tracks no one.
         </p>
       </>
     ),

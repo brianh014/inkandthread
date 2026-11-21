@@ -2917,6 +2917,15 @@ dialog blockquote {
   margin-top: 12px;
 }
 
+.menu .donate {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.menu .donate span {
+  color: var(--accent);
+}
+
 .menu .version {
   margin: 0;
   font-size: 13px;

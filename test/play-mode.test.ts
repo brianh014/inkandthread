@@ -187,6 +187,24 @@ test("a Choice asked for again that takes the same approach as a kept one, in ot
   expect(await latestChoices(id)).toEqual([kept, "I wade on.", "I call for help."]);
 });
 
+test("a Choice that takes the same approach as the move the player just made is dropped and asked for again", async () => {
+  const reviewer: TextProvider = async () => JSON.stringify({ state_operations: [] });
+  const move = "I turn back the sheet and examine the man's neck and scalp closely.";
+  const script = scriptedTextProvider(
+    narration("The tide rises."),
+    chosen(["I'll pull back the sheet and examine the man's neck closely once more.", "I call for help.", "I wade on."]),
+    chosen(["I climb the wall.", "I call for help.", "I wade on."]),
+  );
+  app = startApp(savesDir, script.textProvider, undefined, undefined, undefined, undefined, undefined, reviewer);
+  const id = await app.createSave();
+  await app.patch(`/saves/${id}`, { playMode: "choices" });
+
+  const log = await logOf(() => app!.post(`/saves/${id}/turns`, { input: move }), "info");
+
+  expect(await latestChoices(id)).toEqual(["I call for help.", "I wade on.", "I climb the wall."]);
+  expect(log).toContain("Choices repeating a move dropped");
+});
+
 test("a Turn whose Choices can't be written is kept without any", async () => {
   const repeated = chosen(["I run.", "I run.", " I run. "]);
   const { id, prompts } = await choosing(narration("Repeated."), repeated, repeated, repeated);
@@ -227,7 +245,9 @@ test("a Play Mode that isn't Free Text or Choices is refused", async () => {
 });
 
 test("the log names which Choice was picked by number, and only Story in log shows the Choices' words", async () => {
-  const { id } = await choosing(narration("The wall holds."), chosen(), narration("The rope frays."), chosen());
+  // Choices that leave out the one just picked, which would be dropped as a repeat of the player's move.
+  const OTHERS = ["I wade on.", "I climb the wall.", "I swim for it."];
+  const { id } = await choosing(narration("The wall holds."), chosen(OTHERS), narration("The rope frays."), chosen(OTHERS));
 
   const quiet = await logOf(() => app!.post(`/saves/${id}/turns`, { input: CHOICES[1] }), "info");
   expect(quiet).toContain('Choice picked {"route":"/saves/:id/turns","save":"');
@@ -237,5 +257,5 @@ test("the log names which Choice was picked by number, and only Story in log sho
   await app!.patch("/settings", { storyInLog: true });
   const told = await logOf(() => app!.post(`/saves/${id}/turns`, { input: "I shout at the tide." }), "info");
   expect(told).toContain('"choice":"own words"');
-  expect(told).toContain(`Choices offered {"route":"/saves/:id/turns","save":"${id}","choices":${JSON.stringify(CHOICES)}}`);
+  expect(told).toContain(`Choices offered {"route":"/saves/:id/turns","save":"${id}","choices":${JSON.stringify(OTHERS)}}`);
 });

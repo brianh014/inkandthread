@@ -802,6 +802,15 @@ test("a move rated Easy is never rolled: the reply reads as a finished Turn with
   expect(prompts).toHaveLength(1);
 });
 
+test("a move rated Easy but sent without narration is rolled, rather than written again", async () => {
+  const { app, prompts } = playWithDice([12], requestCheck("Easy", "Step over"), narration("You step over."));
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I step over the puddle." })).status).toBe(201);
+  expect(storedChecks(id)[1]).toMatchObject({ action: "Step over", difficulty: "Easy", outcome: "success" });
+  expect(prompts).toHaveLength(2);
+});
+
 test("a Check takes two calls, and the second receives the outcome and degree", async () => {
   const { app, prompts } = playWithDice([12], requestCheck("Moderate"), narration("You land hard but whole."));
   const id = await app.createSave();

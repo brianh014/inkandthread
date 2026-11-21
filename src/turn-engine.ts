@@ -237,9 +237,12 @@ const FinishedTurn = z.object({
 // An action rated None or Easy needs no roll, so it reads as a finished Turn: Easy stays a choice, so those moves don't drift to
 // Moderate, but rolling it spent a third of a play's Checks on trivia, and a 1 threw the PC out for sitting quietly.
 const NONE = "None";
-const UNROLLED: unknown[] = [NONE, "Easy"];
-const unrated = (reply: unknown) =>
-  UNROLLED.includes((reply as { check?: { difficulty?: unknown } })?.check?.difficulty) ? { ...(reply as object), check: null } : reply;
+// Easy only with its narration, as one sent unnarrated, awaiting a roll, came back with none and was written again.
+const unrated = (reply: unknown) => {
+  const { check, narration } = (reply ?? {}) as { check?: { difficulty?: unknown }; narration?: unknown };
+  const told = typeof narration === "string" && narration.trim() !== "";
+  return check?.difficulty === NONE || (check?.difficulty === "Easy" && told) ? { ...(reply as object), check: null } : reply;
+};
 const NarratorResponse = z.preprocess(unrated, z.union([z.object({ check: CheckRequest }), FinishedTurn]));
 /** The player wrote the narration of an Edit, so the reply holds only what follows from it. */
 const EditedTurn = FinishedTurn.extend({ narration: z.string().nullish() });
@@ -278,12 +281,14 @@ const ResponseShape = z.object({
     action: CheckRequest.shape.action.describe(
       "the PC's action as the player's move has the PC say or do it, never what someone asked of the PC or where the scene is heading",
     ),
-    stakes: z.string().describe("in a few words, what could go wrong, and how anyone it touches would truly take it"),
+    stakes: z
+      .string()
+      .describe("in a few words, what could go wrong in the doing itself, not in what it leads to, and how anyone it touches would truly take it"),
     // The odds beside the names, as a model that wrote stakes of real harm still chose Moderate, not knowing what it meant.
     difficulty: z
       .enum([NONE, ...CheckRequest.shape.difficulty.options])
       .describe(
-        "from the stakes: None when it can't fail and nothing rides on it, Easy when it almost always works, Moderate when it's about even, Hard when it usually fails or would rarely be welcomed, Very Hard when only rare luck makes it work or welcome",
+        "from the stakes: None when it can't fail and nothing rides on it, Easy when it almost always works, Moderate when it's about even, Hard when it usually fails or would rarely be welcomed, Very Hard when only rare luck makes it work or welcome. None and Easy are narrated at once",
       ),
   }),
   narration: z.string().nullable(),
@@ -433,7 +438,7 @@ function openingCheck(reply: string): unknown {
   }
 }
 
-const isNone = (opened: unknown) => opened === null || UNROLLED.includes((opened as { difficulty?: unknown }).difficulty);
+const isNone = (opened: unknown) => opened === null || [NONE, "Easy"].includes((opened as { difficulty?: unknown }).difficulty as string);
 
 /** The narration in a visible reply whose check is known to be None or null. */
 function narrationSoFar(reply: string) {
@@ -1073,7 +1078,11 @@ async function narrate(
           if (!written) break;
           const fresh = written.filter((choice) => !kept.some((other) => sameApproach(choice, other)));
           if (fresh.length < written.length) log.info("turn", "Choices repeating a kept one dropped", { count: written.length - fresh.length });
-          kept = [...new Set([...kept, ...fresh])].slice(0, 3);
+          // Nor one the player has just taken, as a reason given at round 36 was offered again at 39, though the call is sent them.
+          const taken = [...(recentMoves ?? []), move];
+          const unplayed = fresh.filter((choice) => !taken.some((other) => sameApproach(choice, other)));
+          if (unplayed.length < fresh.length) log.info("turn", "Choices repeating a move dropped", { count: fresh.length - unplayed.length });
+          kept = [...new Set([...kept, ...unplayed])].slice(0, 3);
         }
         return kept;
       };

@@ -300,6 +300,16 @@ test("a Journal note says what each change means, and names a reworded item's ol
   expect(journalNote([{ edit: "chapterTitle", index: 0, title: "Low Water" }])).toBe("");
 });
 
+test("the Turn after a World Change is handed the nows it wrote, to bring what the PC would meet, but not World Moves On's", () => {
+  const update = { lore_entries: [], removed_lore: [], world_rules: [], plot_threads: [] };
+  const now = "The pump has begun to fail.";
+  const note = journalNote([{ edit: "world", update, now: { "The pump thread.": now }, made: 0 }]);
+
+  expect(note).toContain(JSON.stringify([now]));
+  expect(note).toContain("reaches them in this response");
+  expect(journalNote([{ edit: "world", update, now: { "The pump thread.": now }, made: 0, moved: true }])).toBe("");
+});
+
 test("a Journal note follows each item through its edits, from the wording the Narrator last saw", () => {
   // Added and taken off again, which the Narrator never saw.
   expect(

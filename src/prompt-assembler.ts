@@ -231,11 +231,18 @@ function journalLines(edits: WorldEdit[]) {
 
 export function journalNote(edits: WorldEdit[]) {
   const lines = journalLines(edits);
-  return (
+  // A World Change's news sat in a thread's now, which the Narrator reads as out of sight, so it never reached the page.
+  const news = edits.flatMap((edit) => (edit.edit === "world" && !edit.moved ? Object.values(edit.now ?? {}) : []));
+  return [
     lines &&
-    `
-The player changed the Journal since the last reply. ${lines} These are changes to the record, not events, so don't mention them in the narration, and change only the state they touch.`
-  );
+      `
+The player changed the Journal since the last reply. ${lines} These are changes to the record, not events, so don't mention them in the narration, and change only the state they touch.`,
+    news.length > 0 &&
+      `
+The player changed the hidden world since the last reply, and these are now true: ${JSON.stringify(news)}. Whatever of them the PC would see, hear or be told where they are reaches them in this response, and the rest stays secret.`,
+  ]
+    .filter(Boolean)
+    .join("");
 }
 
 /**

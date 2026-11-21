@@ -645,7 +645,7 @@ const WorldChange = WorldUpdate.extend({
     ListChange.extend({
       now: words.nullable().default(null),
       plan: words.nullable().default(null),
-      // Without it a thread a change added was never due, so its news never reached the page.
+      // Without it a plan a change wrote was never due, so World Moves On never brought it on.
       plan_in_hours: z.number().min(0).nullable().default(null),
     }),
   ),

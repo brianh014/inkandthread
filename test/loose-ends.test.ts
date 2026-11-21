@@ -1,9 +1,9 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import { assemblePrompt, journalNote } from "../src/prompt-assembler";
+import { assemblePrompt, journalNote, worldNews } from "../src/prompt-assembler";
 import { saveStore } from "../src/save-store";
-import { applyOperations, openingState, type State, type StateOperation } from "../src/state-applier";
+import { applyOperations, openingState, type State, type StateOperation, type WorldEdit } from "../src/state-applier";
 import { logOf, narration, scriptedDice, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -300,20 +300,19 @@ test("a Journal note says what each change means, and names a reworded item's ol
   expect(journalNote([{ edit: "chapterTitle", index: 0, title: "Low Water" }])).toBe("");
 });
 
-test("the Turn after a World Change is handed the nows it wrote, to bring what the PC would meet, but not World Moves On's", () => {
+test("World Change news is the nows the player's changes wrote that their threads still hold, but not World Moves On's", () => {
   const update = { lore_entries: [], removed_lore: [], world_rules: [], plot_threads: [] };
+  const thread = "The pump thread.";
   const now = "The pump has begun to fail.";
-  const note = journalNote([{ edit: "world", update, now: { "The pump thread.": now }, made: 0 }]);
+  const change = (now: string, flags = {}): WorldEdit => ({ edit: "world", update, now: { [thread]: now }, made: 0, ...flags });
 
-  expect(note).toContain(JSON.stringify([now]));
-  expect(note).toContain("reaches them in this response");
-  expect(journalNote([{ edit: "world", update, now: { "The pump thread.": now }, made: 0, moved: true }])).toBe("");
-  expect(journalNote([{ edit: "world", update, now: { "The pump thread.": now }, made: 0, settles: true }])).toBe("");
-  const later = journalNote([
-    { edit: "world", update, now: { "The pump thread.": now }, made: 0 },
-    { edit: "world", update, now: { "The pump thread.": "The pump is mended." }, made: 0 },
-  ]);
-  expect(later).toContain(JSON.stringify(["The pump is mended."]));
+  expect(worldNews([change(now)], { [thread]: now })).toEqual([now]);
+  expect(worldNews([change(now, { moved: true })], { [thread]: now })).toEqual([]);
+  expect(worldNews([change(now, { settles: true })], { [thread]: now })).toEqual([]);
+  expect(worldNews([change(now)], { [thread]: "The pump was mended out of sight." })).toEqual([]);
+  expect(worldNews([change(now), change("The pump is mended.")], { [thread]: "The pump is mended." })).toEqual(["The pump is mended."]);
+  expect(journalNote([], [now])).toContain(`these are now true: ${JSON.stringify([now])}`);
+  expect(journalNote([])).toBe("");
 });
 
 test("a Journal note follows each item through its edits, from the wording the Narrator last saw", () => {

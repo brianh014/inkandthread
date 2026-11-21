@@ -875,6 +875,15 @@ export function saveStore(savesDir: string) {
       return times;
     },
 
+    /** The edits stored on Messages up to `messageId`, oldest first, which a Turn's state already holds. */
+    editsUpTo(id: string, messageId: number) {
+      using db = open(id);
+      return db
+        .query<{ edits: string }, [number]>("SELECT edits FROM messages WHERE id <= ? AND edits IS NOT NULL ORDER BY id")
+        .all(messageId)
+        .flatMap(({ edits }) => parseEdits(edits));
+    },
+
     /** Edits since the latest Message, which the next one stores. */
     pendingEdits(id: string) {
       using db = open(id);

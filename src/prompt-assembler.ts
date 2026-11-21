@@ -230,25 +230,27 @@ function journalLines(edits: WorldEdit[]) {
 }
 
 /**
- * The nows the player's World Changes wrote since the last reply, the latest for each thread. Not World Moves On's, nor those
- * that only settle Journal edits, as neither is news.
+ * The nows the player's World Changes wrote, oldest edit first, that their threads still hold. Not World Moves On's, nor those
+ * that only settle Journal edits, as neither is news. A move or a Turn that rewrites the now ends it, as the story has moved on.
+ * shortcut: a thread whose now nothing rewrites keeps its news in every prompt, bound it by Messages if that shows in play.
  */
-export const worldNews = (edits: WorldEdit[]) =>
-  Object.values(
+export const worldNews = (edits: WorldEdit[], threadsNow: Record<string, string>) =>
+  Object.entries(
     Object.assign({}, ...edits.map((edit) => (edit.edit === "world" && !edit.moved && !edit.settles ? (edit.now ?? {}) : {}))) as Record<string, string>,
-  );
+  ).flatMap(([truth, now]) => (threadsNow[truth] === now ? [now] : []));
 
-export function journalNote(edits: WorldEdit[]) {
+/** `news` is from `worldNews`. */
+export function journalNote(edits: WorldEdit[], news: string[] = []) {
   const lines = journalLines(edits);
-  // A World Change's news sat in a thread's now, which the Narrator reads as out of sight, so it never reached the page.
-  const news = worldNews(edits);
+  // A World Change's news sat in a thread's now, which the Narrator reads as out of sight, so it never reached the page; sent
+  // once, it was lost when the PC was somewhere it couldn't reach them.
   return [
     lines &&
       `
 The player changed the Journal since the last reply. ${lines} These are changes to the record, not events, so don't mention them in the narration, and change only the state they touch.`,
     news.length > 0 &&
       `
-The player changed the hidden world since the last reply, and these are now true: ${JSON.stringify(news)}. Whatever of them the PC would see, hear or be told where they are reaches them in this response, and the rest stays secret.`,
+The player changed the hidden world, and these are now true: ${JSON.stringify(news)}. Whatever of them the PC would see, hear or be told where they are reaches them as soon as it can, unless the story above already shows it, and the rest stays secret.`,
   ]
     .filter(Boolean)
     .join("");
@@ -340,6 +342,7 @@ export function assemblePrompt({
   imageInstructions = "",
   directions = [],
   journalEdits = [],
+  news = [],
   memoryTimes = {},
   input,
   responseSchema,
@@ -358,6 +361,8 @@ export function assemblePrompt({
   directions?: string[];
   /** Made since the last reply, or before the reply being replaced. */
   journalEdits?: WorldEdit[];
+  /** The World Change news still to bring to the PC, from `worldNews`. */
+  news?: string[];
   /** The Story Time each Scene Memory began at, by its first Message, so the Narrator never guesses when something happened. */
   memoryTimes?: Record<number, string>;
   input: string;
@@ -421,7 +426,7 @@ People know only what they have seen, heard or been told themselves, and only fr
 Carry on from the last reply: anything left unfinished, such as an action, a question or a person waiting, stays in play even if the player doesn't mention it.
 Avoid melodrama, cliché and overused metaphors, and prefer natural, grounded language. Tell things in order with strong verbs and conjunctions, rather than participle phrases. Vary the length and structure of your sentences. Never use em-dashes.
 Keep the prose fresh. Don't reuse the images, people's gestures and habits, background details or closing moves of the replies above, or the kinds of questions and confidences people trade in them: give each scene something new to notice, vary how replies open and end, and end on what a person in the scene does, says or now faces, never on a background sound or passing detail. Leave the PC free to answer however they like: few replies should end on a choice between two things, and most should end on something other than a question or a call for the PC to tell, explain or own up to something, however it's worded. People give as much of themselves as they ask of the PC, and don't keep pressing for the PC's secrets, confessions or embarrassing stories. Say what people do more often than what they do not do. Say what is so, never what it isn't first: no "it's not X, it's Y", and no "Not X. Not Y. Z." No stock phrases such as a beat, letting something sit or land, a voice dropping, "in the way of someone who" or "here's the thing". Don't reach for eyes, hands, mugs or wall clocks to fill a pause: let people say or do something only they would. Give each person their own voice, speaking naturally, with contractions such as don't and I'm.
-The older replies above are shortened, so fill in every field of the schema. When anyone's clothing or looks change in this response, such as clothes coming off or going on, include update_npc for that NPC with their whole appearance as it is now, or the inventory change for the PC, as their pictures are painted from it.${fillLooseEnds(currentState.looseEnds, messages, journalEdits)}${fillStoryTime(currentState.storyTime, messages)}${summaryNote(summaryDue({ summary, summaryReplies }, narratorReplies(messages)))}${journalNote(journalEdits)}
+The older replies above are shortened, so fill in every field of the schema. When anyone's clothing or looks change in this response, such as clothes coming off or going on, include update_npc for that NPC with their whole appearance as it is now, or the inventory change for the PC, as their pictures are painted from it.${fillLooseEnds(currentState.looseEnds, messages, journalEdits)}${fillStoryTime(currentState.storyTime, messages)}${summaryNote(summaryDue({ summary, summaryReplies }, narratorReplies(messages)))}${journalNote(journalEdits, news)}
 ${PACE}${
   directions.length > 0
     ? `

@@ -525,8 +525,10 @@ function turnPrompt(
   }: Pick<Parameters<typeof assemblePrompt>[0], "state" | "messages" | "input" | "directions" | "journalEdits"> & { picture: boolean },
 ) {
   const current = settings.read();
-  const news = worldNews(journalEdits ?? []).length;
-  if (news > 0) log.info("turn", "World Change news sent", { save: id, nows: news });
+  // Those on earlier Messages too, so news the PC couldn't meet in the Turn after its change still reaches them later.
+  const earlier = messages.length > 0 ? saves.editsUpTo(id, messages.at(-1)!.id) : [];
+  const news = worldNews([...earlier, ...(journalEdits ?? [])], state.threadsNow);
+  if (news.length > 0) log.info("turn", "World Change news sent", { save: id, nows: news.length });
   const memoryStart = saves.memoryStart(id);
   const save = saves.read(id);
   return {
@@ -541,6 +543,7 @@ function turnPrompt(
       imageInstructions: current.imageInstructions,
       directions,
       journalEdits,
+      news,
       memoryTimes: saves.storyTimesAt(
         id,
         state.sceneMemories.map(({ firstMessage }) => firstMessage),

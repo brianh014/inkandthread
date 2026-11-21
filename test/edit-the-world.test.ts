@@ -754,6 +754,23 @@ test("the next Turn uses a hidden change", async () => {
   expect(store().snapshot(id, 2).plotThreads).toContain(`${SECRET} the mayor runs guns.`);
 });
 
+test("a World Change's news stays in the Turn's prompt until its thread's now is rewritten", async () => {
+  const truth = `${SECRET} the mayor runs guns.`;
+  const now = "A gun-runner's lugger lies off the harbour mouth.";
+  play(update({ plot_threads: [{ old: null, new: truth, now }] }), narration("One."), narration("Two."), narration("Three."));
+  const id = createSave();
+  await change(id);
+  const news = (prompt: (typeof prompts)[number]) => prompt.some(({ content }) => content.includes(`these are now true: ${JSON.stringify([now])}`));
+
+  await turn(id);
+  await turn(id);
+  const empty = { lore_entries: [], removed_lore: [], world_rules: [], plot_threads: [] };
+  store().addWorldChange(id, store().latestMessageId(id), [{ edit: "world", update: empty, now: { [truth]: "The lugger has sailed." }, made: 0, moved: true }]);
+  await turn(id);
+
+  expect(prompts.slice(1).map(news)).toEqual([true, true, false]);
+});
+
 test("a Revert to before a hidden change undoes it", async () => {
   play(narration("One."), update({ removed_lore: ["The Tide"] }), narration("Two."));
   const id = createSave();

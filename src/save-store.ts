@@ -355,6 +355,9 @@ const toVersion29 = addMissingSections;
 // npcParts, threadsQuestion and threadsDue.
 const toVersion30 = addMissingSections;
 
+/** World Change news still to bring to the PC, which starts empty, so an older change's news is never brought again. */
+const toVersion31 = addMissingSections;
+
 /** One step per schema version, where step N takes a Save from version N to N + 1. New Saves take them too, so they can't drift from old ones. */
 const MIGRATIONS = [
   toVersion1,
@@ -387,6 +390,7 @@ const MIGRATIONS = [
   toVersion28,
   toVersion29,
   toVersion30,
+  toVersion31,
 ];
 
 function schemaVersion(db: Database) {
@@ -873,15 +877,6 @@ export function saveStore(savesDir: string) {
         if (time) times[messageId] = [time.date, time.timeOfDay].filter(Boolean).join(", ");
       }
       return times;
-    },
-
-    /** The edits stored on Messages up to `messageId`, oldest first, which a Turn's state already holds. */
-    editsUpTo(id: string, messageId: number) {
-      using db = open(id);
-      return db
-        .query<{ edits: string }, [number]>("SELECT edits FROM messages WHERE id <= ? AND edits IS NOT NULL ORDER BY id")
-        .all(messageId)
-        .flatMap(({ edits }) => parseEdits(edits));
     },
 
     /** Edits since the latest Message, which the next one stores. */

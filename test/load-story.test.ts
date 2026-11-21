@@ -801,3 +801,16 @@ test("a Save from before the clock and thread bookkeeping gets their sections, a
 
   expect([state.npcParts, state.threadsQuestion, state.threadsDue]).toEqual([{}, {}, {}]);
 });
+
+test("a Save from before World Change news starts with none, so no old change is brought to the PC again", async () => {
+  play();
+  const id = await app.createSave();
+  {
+    using db = new Database(savePath(id));
+    db.run("DELETE FROM snapshot_sections WHERE name = 'threadsNews'");
+  }
+  // 30, the version 0.5.3 Saves are at.
+  setSchemaVersion(savePath(id), 30);
+
+  expect(saveStore(savesDir).latestState(id).threadsNews).toEqual({});
+});

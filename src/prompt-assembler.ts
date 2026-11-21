@@ -229,17 +229,7 @@ function journalLines(edits: WorldEdit[]) {
   return lines.join(" ");
 }
 
-/**
- * The nows the player's World Changes wrote, oldest edit first, that their threads still hold. Not World Moves On's, nor those
- * that only settle Journal edits, as neither is news. A move or a Turn that rewrites the now ends it, as the story has moved on.
- * shortcut: a thread whose now nothing rewrites keeps its news in every prompt, bound it by Messages if that shows in play.
- */
-export const worldNews = (edits: WorldEdit[], threadsNow: Record<string, string>) =>
-  Object.entries(
-    Object.assign({}, ...edits.map((edit) => (edit.edit === "world" && !edit.moved && !edit.settles ? (edit.now ?? {}) : {}))) as Record<string, string>,
-  ).flatMap(([truth, now]) => (threadsNow[truth] === now ? [now] : []));
-
-/** `news` is from `worldNews`. */
+/** `news` is the state's `threadsNews`. */
 export function journalNote(edits: WorldEdit[], news: string[] = []) {
   const lines = journalLines(edits);
   // A World Change's news sat in a thread's now, which the Narrator reads as out of sight, so it never reached the page; sent
@@ -324,6 +314,7 @@ export function assemblePrompt({
     // The clock's bookkeeping too: World Moves On reads them, and each repeats every thread's truth as its key.
     threadsQuestion: _questions,
     threadsDue: _due,
+    threadsNews: _news,
     summary,
     summaryReplies,
     recentSummary: _recent,
@@ -361,7 +352,7 @@ export function assemblePrompt({
   directions?: string[];
   /** Made since the last reply, or before the reply being replaced. */
   journalEdits?: WorldEdit[];
-  /** The World Change news still to bring to the PC, from `worldNews`. */
+  /** The World Change news still to bring to the PC, from the state's `threadsNews`. */
   news?: string[];
   /** The Story Time each Scene Memory began at, by its first Message, so the Narrator never guesses when something happened. */
   memoryTimes?: Record<number, string>;

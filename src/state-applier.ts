@@ -40,6 +40,11 @@ export type State = {
   /** Each Plot Thread's plan's due hour on storyTime's hours, by its truth, so code tells a move whose plan is due. */
   threadsDue: Record<string, number>;
   /**
+   * The now a player's World Change wrote for a Plot Thread, by its truth, which the PC hasn't met yet: each Turn is told to bring
+   * it to them, until World Moves On rewrites that now, folding the news into the story.
+   */
+  threadsNews: Record<string, string>;
+  /**
    * By each Plot Thread's truth, who World Moves On gave their own part of it, kept in npcKnows. Apart from what they learn in
    * play, as a move took anything in npcKnows for their part and never gave the people with only that one. A Save from before it has none.
    */
@@ -90,6 +95,7 @@ export const openingState: State = {
   threadsPlan: {},
   threadsQuestion: {},
   threadsDue: {},
+  threadsNews: {},
   threadParts: {},
   npcParts: {},
   summary: "",
@@ -123,6 +129,7 @@ export const StateSections = {
   threadsPlan: z.record(z.string(), z.string()),
   threadsQuestion: z.record(z.string(), z.string()),
   threadsDue: z.record(z.string(), z.number()),
+  threadsNews: z.record(z.string(), z.string()),
   threadParts: z.record(z.string(), stringList),
   npcParts: z.record(z.string(), stringList),
   summary: z.string(),
@@ -552,6 +559,9 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       state.threadsDue = otherDue;
       const { [thread]: question, ...otherQuestions } = state.threadsQuestion;
       if (question) state.threadsQuestion = { ...otherQuestions, [truth]: question };
+      // Kept under the new truth, as a Turn rewriting a thread while the PC is elsewhere hasn't brought them its news.
+      const { [thread]: news, ...otherNews } = state.threadsNews;
+      if (news) state.threadsNews = { ...otherNews, [truth]: news };
       const { [thread]: parts, ...otherParts } = state.threadParts;
       if (parts) state.threadParts = { ...otherParts, [truth]: parts };
       replaceOnce(state.plotThreads, thread, truth);
@@ -571,6 +581,8 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       state.threadsQuestion = openQuestions;
       const { [thread]: _due, ...openDue } = state.threadsDue;
       state.threadsDue = openDue;
+      const { [thread]: _news, ...openNews } = state.threadsNews;
+      state.threadsNews = openNews;
       const { [thread]: _parts, ...openParts } = state.threadParts;
       state.threadParts = openParts;
       threads.became.set(thread, null);
@@ -889,6 +901,12 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       const rewritten = (truth: string) => Object.hasOwn(edit.now ?? {}, truth) || Object.hasOwn(edit.plan ?? {}, truth);
       const due = { ...Object.fromEntries(Object.entries(state.threadsDue).filter(([truth]) => !rewritten(truth))), ...edit.due };
       const threadsDue = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(due, truth) ? [[truth, due[truth]!]] : [])));
+      // A player's change makes news of each now it writes; a move that rewrites a now has folded its news into the story; one that
+      // only settles Journal edits makes none.
+      const news = edit.moved
+        ? Object.fromEntries(Object.entries(state.threadsNews).filter(([truth]) => !Object.hasOwn(edit.now ?? {}, truth)))
+        : { ...state.threadsNews, ...(edit.settles ? {} : edit.now) };
+      const threadsNews = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(news, truth) ? [[truth, news[truth]!]] : [])));
       // Under the name of someone met, or as named until they are, when add_npc takes it up.
       const had = (truth: string) => (Object.hasOwn(state.threadParts, truth) ? state.threadParts[truth]! : []);
       const given = (truth: string) => (edit.parts && Object.hasOwn(edit.parts, truth) ? edit.parts[truth]! : []);
@@ -909,7 +927,7 @@ export function applyEdit(state: State, edit: WorldEdit): State {
           return names.length > 0 ? [[truth, names]] : [];
         }),
       );
-      return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, npcKnows, npcParts, threadParts };
+      return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, threadsNews, npcKnows, npcParts, threadParts };
     }
     case "inventory":
       return { ...state, inventory: { wearing: edit.wearing, carrying: edit.carrying } };

@@ -21,7 +21,6 @@ import {
   narratorReplies,
   summaryDue,
   SET_SCENE_NOTE,
-  worldNews,
 } from "./prompt-assembler";
 import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } from "./save-store";
 import { modelName, type SettingsStore } from "./settings-store";
@@ -525,9 +524,7 @@ function turnPrompt(
   }: Pick<Parameters<typeof assemblePrompt>[0], "state" | "messages" | "input" | "directions" | "journalEdits"> & { picture: boolean },
 ) {
   const current = settings.read();
-  // Those on earlier Messages too, so news the PC couldn't meet in the Turn after its change still reaches them later.
-  const earlier = messages.length > 0 ? saves.editsUpTo(id, messages.at(-1)!.id) : [];
-  const news = worldNews([...earlier, ...(journalEdits ?? [])], state.threadsNow);
+  const news = Object.values(state.threadsNews);
   if (news.length > 0) log.info("turn", "World Change news sent", { save: id, nows: news.length });
   const memoryStart = saves.memoryStart(id);
   const save = saves.read(id);

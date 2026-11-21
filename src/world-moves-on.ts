@@ -14,7 +14,9 @@ export const MOVE_EVERY = 5;
 // A thread sits in every prompt, so a move keeps each part as short as the world's own. Named in the prompt, as "a sentence or two"
 // alone let rewrites grow each move until most of a run's moves were refused.
 const THREAD_WORDS = 64;
-const NO_ANSWER = /^(?:not yet|not answered|unanswered|still open|still unanswered|open|none|nothing|null|n\/a|no answer|undecided|unresolved|pending)\b/i;
+// An answer that says it is none: opening so, saying so anywhere, or only a word for nothing, as "Nothing was taken" is an answer.
+const NO_ANSWER =
+  /^(?:not yet|not answered|unanswered|still open|still unanswered|open|no answer|undecided|unresolved|pending|unknown|unclear)\b|\b(?:yet to (?:be )?answer|has yet to|remains? (?:open|unanswered|unsettled)|(?:has|have) not (?:yet )?been (?:answered|settled)|not (?:yet )?(?:answered|settled))\b|^(?:none|nothing|null|n\/a)\W*$/i;
 // A move adds a thread only while fewer than this many are open.
 const OPEN_THREADS = 3;
 // It runs while the player reads; past this, the next Turn stops waiting and the world stays where it was.

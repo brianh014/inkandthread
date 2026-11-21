@@ -202,6 +202,17 @@ const findNpc = (state: State, name: string) => state.npcs.find((npc) => npc.nam
 
 export const named = (full: string, mark: string) => full.toLowerCase() === mark.toLowerCase() || full.toLowerCase().split(" ").includes(mark.toLowerCase());
 
+/** How many letters must change to turn one word into the other. */
+function editDistance(one: string, other: string) {
+  let row = Array.from({ length: other.length + 1 }, (_, at) => at);
+  for (let at = 1; at <= one.length; at++) {
+    const next = [at];
+    for (let to = 1; to <= other.length; to++) next[to] = Math.min(row[to]! + 1, next[to - 1]! + 1, row[to - 1]! + (one[at - 1] === other[to - 1] ? 0 : 1));
+    row = next;
+  }
+  return row[other.length]!;
+}
+
 /** Narrators shorten names, so part of one counts when it can only mean one person. */
 export function findPerson<Npc extends { name: string }>(npcs: Npc[], mark: string) {
   const exact = npcs.find(({ name }) => name === mark);
@@ -437,7 +448,13 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       // By another form of a full name with a title too, as a garbled speaker label, "Rerend Amos Thorne", was added as a second
       // person and portrait. Only three words or more, so a short name spelled otherwise, "mara" beside "Mara", stays its own.
       const titled = operation.name.split(/\s+/).length >= 3;
-      const npc = findNpc(state, operation.name) ?? (titled ? findPerson(state.npcs, operation.name) : undefined);
+      const found = titled ? findPerson(state.npcs, operation.name) : undefined;
+      // Only where its first word is a title, or a misspelling of one or of their own name, so a father "Thomas Owen Price" isn't
+      // taken for Owen Price.
+      const first = operation.name.split(/\s+/)[0]!.toLowerCase().replace(/\.$/, "");
+      const forms = [...TITLES, ...(found?.name.toLowerCase().split(/\s+/) ?? [])];
+      const same = found && (TITLES.has(first) || forms.some((word) => word.length >= 5 && first.length >= 5 && editDistance(first, word) <= 2));
+      const npc = findNpc(state, operation.name) ?? (same ? found : undefined);
       if (npc) npc.appearance = lasting(operation.appearance);
       else state.npcs.push({ name: operation.name, appearance: lasting(operation.appearance) });
       // What World Moves On gave them to know before they were met, under the name a thread gave them.
@@ -606,7 +623,9 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const [was, now] = [dayPart(before?.timeOfDay), dayPart(time_of_day)];
       // From night on, the small hours and the next morning come after, as "past midnight" refused them all for five rounds.
       const wraps = was !== undefined && was >= NIGHT && now !== undefined && (now >= NIGHT || now <= MORNING);
-      if (!newDay && date === before?.date && was !== undefined && now !== undefined && now < was && !wraps) return "earlier than now";
+      // By the hours too, as clock times such as "3 pm" to "9 am" have no part of the day in words to compare.
+      const hoursBack = from !== undefined && to !== undefined && to < from && !nightWraps(from, to);
+      if (!newDay && date === before?.date && ((was !== undefined && now !== undefined && now < was && !wraps) || hoursBack)) return "earlier than now";
       // A new day with no date of its own keeps the old one until a Turn names it, as code can't reckon a world's calendar.
       const dateDue = (newDay || before?.dateDue) && date === before?.date;
       state.storyTime = { day, date, timeOfDay: withoutDate(time_of_day, date), hours: clock, ...(dateDue && { dateDue: true }) };
@@ -651,6 +670,12 @@ const lasting = (appearance: string) => {
   return kept || appearance;
 };
 
+/**
+ * Whether going from one hour back to an earlier one is the night running on past midnight: from night, about eight on, to the
+ * next morning, as the words' own check has it, so evening to mid-morning is still a story starting over.
+ */
+const nightWraps = (from: number, to: number) => from >= 20 && to < 12;
+
 // Hours the count may stray from a clock time the words give before it is set back to it.
 const DRIFT_HOURS = 3;
 
@@ -662,8 +687,9 @@ function clockHours(was: StoryTime | null, day: number, timeOfDay: string, passe
   // A first Story Time starts at its own hour of day 1.
   const start = was?.hours ?? (was ? (was.day - 1) * 24 + (hourOf(was.timeOfDay) ?? 12) : (hourOf(timeOfDay) ?? 12));
   const [from, to] = [hourOf(was?.timeOfDay ?? ""), hourOf(timeOfDay)];
-  // Forward within the day only, as words going back from evening to morning are a story starting over, not a night passing.
-  const byWords = from !== undefined && to !== undefined && to >= from ? to - from : 0;
+  // Forward within the day, or on through the night into the small hours, as words going back from evening to the next morning
+  // are a story starting over, not a night passing, but "11 pm" to "1 am" is two hours.
+  const byWords = from === undefined || to === undefined ? 0 : to >= from ? to - from : nightWraps(from, to) ? to + 24 - from : 0;
   // More than the days passed allow is the running total, as a reply gave 29.65 hours since the opening for a quarter hour's talk.
   const fits = passed !== null && passed <= (day - (was?.day ?? 1) + 1) * 24;
   // A first Story Time is its own hour, as hours_passed then counts from nothing the clock had.

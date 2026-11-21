@@ -352,6 +352,9 @@ const toVersion28 = addMissingSections;
 /** How many replies the summary covers, which starts at 0, so an older Save's next reply writes one. */
 const toVersion29 = addMissingSections;
 
+// npcParts, threadsQuestion and threadsDue.
+const toVersion30 = addMissingSections;
+
 /** One step per schema version, where step N takes a Save from version N to N + 1. New Saves take them too, so they can't drift from old ones. */
 const MIGRATIONS = [
   toVersion1,
@@ -383,6 +386,7 @@ const MIGRATIONS = [
   toVersion27,
   toVersion28,
   toVersion29,
+  toVersion30,
 ];
 
 function schemaVersion(db: Database) {

@@ -194,3 +194,12 @@ test("a day the hours and words don't reach is refused, keeping the date, as a t
   expect(applyOperations(dawn, [set(1, "Wednesday, 7th June", "dawn", 24)]).next.storyTime).toMatchObject({ day: 2, date: "Wednesday, 7th June" });
   expect(applyOperations(dawn, [set(1, "Wednesday, 7th June", "dawn")]).next.storyTime).toMatchObject({ day: 2, date: "Wednesday, 7th June" });
 });
+
+test("a clock time past midnight with no hours given moves the day on, and one going back within the day is refused", () => {
+  const late = at({ day: 1, date: "1st of Lowtide", timeOfDay: "11 pm", hours: 23 });
+  expect(applyOperations(late, [set(0, null, "1 am")]).next.storyTime).toMatchObject({ day: 2, hours: 25, dateDue: true });
+  const afternoon = at({ day: 1, date: "1st of Lowtide", timeOfDay: "3 pm", hours: 15 });
+  const back = applyOperations(afternoon, [set(0, null, "9 am")]);
+  expect(back.next.storyTime).toEqual(afternoon.storyTime);
+  expect(back.ignored).toEqual([{ op: "set_story_time", reason: "earlier than now" }]);
+});

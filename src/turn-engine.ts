@@ -241,7 +241,7 @@ const NONE = "None";
 const unrated = (reply: unknown) => {
   const { check, narration } = (reply ?? {}) as { check?: { difficulty?: unknown }; narration?: unknown };
   const told = typeof narration === "string" && narration.trim() !== "";
-  if (check?.difficulty === "Easy" && told) log.info("turn", "Check rated Easy, narrated without a roll", {});
+  if (check?.difficulty === "Easy" && told) log.info("turn", "Check rated Easy, narrated without a roll", { difficulty: "Easy" });
   return check?.difficulty === NONE || (check?.difficulty === "Easy" && told) ? { ...(reply as object), check: null } : reply;
 };
 const NarratorResponse = z.preprocess(unrated, z.union([z.object({ check: CheckRequest }), FinishedTurn]));
@@ -694,7 +694,8 @@ export async function playTurn(
     // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
     // Lore beside the move, by the Scribe, as Upkeep is, so the next Turn waits on both at most one MOVE_LIMIT, never one after the other.
     const limit = AbortSignal.timeout(MOVE_LIMIT.ms);
-    const move = Promise.all([moveWorldOn(textProvider, settings, saves, id, limit), reviewProvider && growLore(reviewProvider, saves, id, limit)])
+    // Settled both, as a move that threw let the next Turn start while the Lore was still being written, which then came too late.
+    const move = Promise.allSettled([moveWorldOn(textProvider, settings, saves, id, limit), reviewProvider && growLore(reviewProvider, saves, id, limit)])
       .then(() => undefined)
       .finally(() => moving.delete(id));
     moving.set(id, move);
@@ -804,7 +805,8 @@ export async function editResponse(
   // An Edit that keeps the response whole starts from the state the response left, so the Narrator records only what the added
   // words change, as rebuilding it all again lost Loose Ends, looks and Lore the response had changed.
   const replaced = saves.messages(id).find((message) => message.id === messageId)?.text ?? "";
-  const added = replaced && text.includes(replaced) ? text.split(replaced).join("\n").trim() : undefined;
+  // Nothing added is no Edit that adds, as one saved unchanged sent the Narrator and State Upkeep empty words to record.
+  const added = (replaced && text.includes(replaced) ? text.split(replaced).join("\n").trim() : undefined) || undefined;
   const state = added === undefined ? turn.state : saves.latestState(id);
   if (added !== undefined) log.info("turn", "Edit adds to the response", { save: id, message: messageId });
   const { prompt, memory, playMode, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {

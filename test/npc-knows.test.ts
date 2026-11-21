@@ -93,5 +93,8 @@ test("a garbled or titled form of someone already met finds them, rather than ad
     { op: "npc_learns", name: "Constable Owen Price", fact: "The ledger is in the chimney." },
   ]);
   expect(next.npcs.map(({ name }) => name)).toEqual(["Reverend Amos Thorne", "Owen Price"]);
+  // A relative whose name holds theirs is someone new.
+  const father = applyOperations(state, [{ op: "add_npc", name: "Thomas Owen Price", appearance: "an old fisherman" }]).next;
+  expect(father.npcs.map(({ name }) => name)).toEqual(["Reverend Amos Thorne", "Owen Price", "Thomas Owen Price"]);
   expect(next.npcKnows).toEqual({ "Owen Price": ["The ledger is in the chimney."] });
 });

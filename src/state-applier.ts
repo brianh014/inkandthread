@@ -571,11 +571,17 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const hours = clockHours(before, (before?.day ?? 1) + days, time_of_day, operation.hours_passed);
       // Past midnight on the clock is a new day, as a reply from ten at night to three in the morning gave no days or date, and
       // the story stayed on Monday to the end.
-      // Only where the words agree, going back past midnight or naming no hour, as hours over-counted on talk would put an
-      // afternoon on the next day.
+      // Only where the words go back past midnight, or, naming no hour, where this reply's own hours crossed it, as hours
+      // over-counted on talk would put an afternoon on the next day.
       const [from, to] = [hourOf(before?.timeOfDay ?? ""), hourOf(time_of_day)];
-      const wordsRoll = from === undefined || to === undefined || to < from;
+      const crossed = operation.hours_passed !== null && Math.floor(hours / 24) > Math.floor((before?.hours ?? hours) / 24);
+      const wordsRoll = from !== undefined && to !== undefined ? to < from : crossed;
       const day = Math.max((before?.day ?? 1) + days, wordsRoll ? Math.floor(hours / 24) + 1 : 0);
+      // Back to a clock time the words give, where far from the count, so it never drifts from what the page says; never to
+      // words alone, as "three in the morning" reads as morning's nine.
+      const at = clockTimeOf(time_of_day);
+      const named = at === undefined ? undefined : (day - 1) * 24 + at;
+      const clock = named !== undefined && Math.abs(hours - named) > DRIFT_HOURS ? named : hours;
       const newDay = day > (before?.day ?? 1);
       // Never back within a day, as a reply that did so had started the story over from its first morning.
       const [was, now] = [dayPart(before?.timeOfDay), dayPart(time_of_day)];
@@ -584,7 +590,7 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       if (!newDay && date === before?.date && was !== undefined && now !== undefined && now < was && !wraps) return "earlier than now";
       // A new day with no date of its own keeps the old one until a Turn names it, as code can't reckon a world's calendar.
       const dateDue = (newDay || before?.dateDue) && date === before?.date;
-      state.storyTime = { day, date, timeOfDay: withoutDate(time_of_day, date), hours, ...(dateDue && { dateDue: true }) };
+      state.storyTime = { day, date, timeOfDay: withoutDate(time_of_day, date), hours: clock, ...(dateDue && { dateDue: true }) };
       return;
     }
   }
@@ -626,6 +632,9 @@ const lasting = (appearance: string) => {
   return kept || appearance;
 };
 
+// Hours the count may stray from a clock time the words give before it is set back to it.
+const DRIFT_HOURS = 3;
+
 /**
  * The story hours since the Opening after a set_story_time: the old count plus the reply's hours_passed, or the hours its words
  * moved on when it gives none, never short of the days passed. A Save from before it starts from its day and time of day.
@@ -656,11 +665,15 @@ const HOURS: [RegExp, number][] = [
   [/night/, 22],
 ];
 
+/** The hour a time of day gives as a clock time, such as "9:30 pm", or undefined. */
+function clockTimeOf(timeOfDay: string) {
+  const clock = /\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m\b/i.exec(timeOfDay);
+  return clock ? (Number(clock[1]) % 12) + (clock[3]!.toLowerCase() === "p" ? 12 : 0) + Number(clock[2] ?? 0) / 60 : undefined;
+}
+
 /** The hour a time of day names, by its clock time or its words, or undefined when it names neither. */
 export function hourOf(timeOfDay: string) {
-  const clock = /\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m\b/i.exec(timeOfDay);
-  if (clock) return (Number(clock[1]) % 12) + (clock[3]!.toLowerCase() === "p" ? 12 : 0) + Number(clock[2] ?? 0) / 60;
-  return HOURS.find(([words]) => words.test(timeOfDay.toLowerCase()))?.[1];
+  return clockTimeOf(timeOfDay) ?? HOURS.find(([words]) => words.test(timeOfDay.toLowerCase()))?.[1];
 }
 
 const [MORNING, NIGHT] = [2, 6];
@@ -922,7 +935,7 @@ export function introduce(state: State, people: z.infer<typeof Person>[], pcName
 
 // Articles and titles only: words such as "old" describe someone rather than stand before their name.
 const TITLES = new Set(
-  "the a an mr mrs ms miss mx dr doctor sir dame lady lord madam officer detective captain father mother sister brother aunt uncle reverend rev vicar pastor bishop constable sergeant inspector lieutenant colonel commander admiral professor judge sheriff master mistress".split(
+  "the a an mr mrs ms miss mx dr doctor sir dame lady lord madam officer detective captain father mother sister brother aunt uncle reverend rev sergeant inspector lieutenant colonel commander admiral professor".split(
     " ",
   ),
 );

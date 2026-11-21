@@ -478,7 +478,7 @@ export function resultInstruction({ stakes, at_most, outcome, degree }: Check): 
   const ceiling =
     outcome === "success" && at_most
       ? `
-The most anyone it touches gives is this: ${at_most} Whatever the move asked beyond it, they refuse.`
+The most anyone it touches gives is this: ${/[.!?]$/.test(at_most) ? at_most : `${at_most}.`} Whatever the move asked beyond it, they refuse.`
       : "";
   return {
     role: "system",

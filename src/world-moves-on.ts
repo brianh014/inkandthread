@@ -14,6 +14,7 @@ export const MOVE_EVERY = 5;
 // A thread sits in every prompt, so a move keeps each part as short as the world's own. Named in the prompt, as "a sentence or two"
 // alone let rewrites grow each move until most of a run's moves were refused.
 const THREAD_WORDS = 64;
+const NO_ANSWER = /^(?:not yet|not answered|unanswered|still open|still unanswered|open|none|nothing|null|n\/a|no answer|undecided|unresolved|pending)\b/i;
 // A move adds a thread only while fewer than this many are open.
 const OPEN_THREADS = 3;
 // It runs while the player reads; past this, the next Turn stops waiting and the world stays where it was.
@@ -54,7 +55,10 @@ export function moveDue(id: string, before: State, after: State, replies: number
   const [from, to] = [hourOf(before.storyTime?.timeOfDay ?? ""), hourOf(after.storyTime?.timeOfDay ?? "")];
   // By the clock, and by the words for a Save from before it.
   const hoursOn = was !== undefined && now !== undefined ? now - was >= MOVE_HOURS : from !== undefined && to !== undefined && to - from >= MOVE_HOURS;
-  const due = hoursOn || after.storyTime?.date !== before.storyTime?.date || replies - (movedAt.get(id) ?? 0) >= MOVE_EVERY;
+  // Not the date filled in for a day the clock already rolled, as that night would move the world twice.
+  const newDate =
+    (after.storyTime?.day ?? 0) > (before.storyTime?.day ?? 0) || (after.storyTime?.date !== before.storyTime?.date && !before.storyTime?.dateDue);
+  const due = hoursOn || newDate || replies - (movedAt.get(id) ?? 0) >= MOVE_EVERY;
   if (due) movedAt.set(id, replies);
   return due;
 }
@@ -283,7 +287,8 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   // question is asked only while a thread lacks one, as a move asked it every time rewrote it, which read as still open.
   const Answered = z.object({
     thread: Move.shape.thread.unwrap(),
-    answer: z.preprocess((answer) => answer ?? null, z.string().trim().nullable()),
+    // An answer that says it is none is null, as one written "Not yet answered" would close the thread.
+    answer: z.preprocess((answer) => (typeof answer === "string" && NO_ANSWER.test(answer.trim()) ? null : (answer ?? null)), z.string().trim().nullable()),
   });
   const Left = plotThreads.every((truth) => threadsQuestion[truth])
     ? Answered
@@ -294,17 +299,19 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     return [...rest, ...closed.map((thread): ThreadMove => ({ thread, truth: null, now: null, plan: null, plan_in_hours: null, question: null, knows: [] }))];
   };
   // The questions of open threads that had none, from left.
-  let asked_questions: Record<string, string> = {};
-  // Asked again only when nothing usable is left.
-  const Reply = z.object({ left: z.preprocess((left) => left ?? [], z.array(Left)), plot_threads: z.array(Move) }).superRefine((reply, context) => {
-    const plot_threads = movesOf(reply);
-    asked_questions = Object.fromEntries(
-      reply.left.flatMap(({ thread, ...rest }) => {
+  const questionsOf = ({ left }: { left: z.infer<typeof Left>[] }) =>
+    Object.fromEntries(
+      left.flatMap(({ thread, ...rest }) => {
         const { question } = rest as { question?: string | null };
         const truth = closestThread(plotThreads, thread);
         return truth && question && !threadsQuestion[truth] ? [[truth, question] as const] : [];
       }),
     );
+  // Those of the reply whose moves are kept, as a re-ask parsed after the first would otherwise lend it its questions.
+  let firstQuestions: Record<string, string> = {};
+  // Asked again only when nothing usable is left.
+  const Reply = z.object({ left: z.preprocess((left) => left ?? [], z.array(Left)), plot_threads: z.array(Move) }).superRefine((reply, context) => {
+    const plot_threads = movesOf(reply);
     const { kept, faults } = sorted(plot_threads);
     if (!partsAsked && partsMissing(kept) > 0) {
       partsAsked = true;
@@ -314,6 +321,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     if (unfit.length > 0) {
       nowsAsked = true;
       first = sorted(plot_threads);
+      firstQuestions = questionsOf(reply);
       // Past half the limit a re-ask won't fit, as two finished at 117 and 119 seconds of 120, so the faulted nows are reverted.
       if (Date.now() - started > MOVE_LIMIT.ms / 2) {
         log.info("world", "Nows reverted, too late to ask again", { save: id, ...countOf(unfit) });
@@ -391,10 +399,12 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
   ];
   const started = Date.now();
   let again: ReturnType<typeof sorted> | undefined;
+  let againQuestions: Record<string, string> = {};
   try {
     // No thinking budget, as one cut 16 of 19 moves on a provider that takes none, and the re-asks then had no thinking at all.
     const reply = await askForJson(textProvider, prompt, Reply, "The Narrator refused to move the world on.", signal, { call: "moveWorld" });
     again = sorted(movesOf(reply));
+    againQuestions = questionsOf(reply);
   } catch (error) {
     // A re-ask that fails settles from the first reply, as discarding the whole move left every now twelve rounds stale.
     if (!first) {
@@ -456,7 +466,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
     );
     const removedThreads = kept.flatMap(({ thread, now }) => (thread !== null && now === null ? [thread] : []));
     const question = {
-      ...Object.fromEntries(Object.entries(asked_questions).filter(([truth]) => !removedThreads.includes(truth))),
+      ...Object.fromEntries(Object.entries(first ? firstQuestions : againQuestions).filter(([truth]) => !removedThreads.includes(truth))),
       ...Object.fromEntries(
         kept.flatMap(({ thread, truth, now, question }) => (thread === null && now !== null && question ? [[truth!, question] as const] : [])),
       ),

@@ -178,6 +178,10 @@ test("the clock adds each reply's hours_passed, or the hours its words moved on,
   const afternoon = applyOperations(at({ ...DUSK, timeOfDay: "afternoon", hours: 63 }), [set(0, null, "late afternoon", 12)]).next.storyTime;
   expect(afternoon).toMatchObject({ day: 3, hours: 75 });
   expect(afternoon).not.toHaveProperty("dateDue");
+  // Set back to a clock time the words give when far from it, so an over-count never later rolls the day on words with no hour.
+  const drifted = applyOperations(at({ day: 1, date: "1st of Lowtide", timeOfDay: "7 pm", hours: 19 }), [set(0, null, "8 pm", 20)]).next;
+  expect(drifted.storyTime).toMatchObject({ day: 1, hours: 20 });
+  expect(applyOperations(drifted, [set(0, null, "a little later")]).next.storyTime).toMatchObject({ day: 1, hours: 20 });
   // A running total given as hours_passed moves it by the words instead.
   expect(clock(at({ ...DUSK, hours: 66 }), set(0, null, "night", 29.65))).toBe(70);
 });

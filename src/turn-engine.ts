@@ -241,6 +241,7 @@ const NONE = "None";
 const unrated = (reply: unknown) => {
   const { check, narration } = (reply ?? {}) as { check?: { difficulty?: unknown }; narration?: unknown };
   const told = typeof narration === "string" && narration.trim() !== "";
+  if (check?.difficulty === "Easy" && told) log.info("turn", "Check rated Easy, narrated without a roll", {});
   return check?.difficulty === NONE || (check?.difficulty === "Easy" && told) ? { ...(reply as object), check: null } : reply;
 };
 const NarratorResponse = z.preprocess(unrated, z.union([z.object({ check: CheckRequest }), FinishedTurn]));
@@ -358,7 +359,9 @@ function forThePc(choices: string[] | undefined, pcName: string) {
   if (!choices || !pcName) return choices;
   const names = [pcName, ...pcName.split(" ").filter((part) => part.length > 2 && /^\p{Lu}/u.test(part))];
   const ownName = (name: string) => new RegExp(`(?:\\bI['’]m|\\bI am|\\bme|\\bname is|\\bname['’]s|\\bit['’]s) ${RegExp.escape(name)}`, "giu");
-  const kept = choices.filter((choice) => !names.some((name) => wholeWord(name, "u").test(choice.replace(ownName(name), ""))));
+  // Every form of their own name taken out first, full name before its parts, so "I'm Sol Varga" isn't dropped for "Varga".
+  const unnamed = (choice: string) => names.reduce((text, name) => text.replace(ownName(name), ""), choice);
+  const kept = choices.filter((choice) => !names.some((name) => wholeWord(name, "u").test(unnamed(choice))));
   if (kept.length < choices.length) log.info("turn", "Choices naming the PC dropped", { count: choices.length - kept.length });
   return kept.length > 0 ? kept : undefined;
 }
@@ -830,8 +833,7 @@ export async function editResponse(
     recentMoves,
     ...(added !== undefined && { upkeepReads: { narration: added, previous: replaced } }),
     playMode,
-    commit: (narration, _check, advance, choices) =>
-      saves.editTurn(id, messageId, narration, (before) => advance(added === undefined ? before : state), choices),
+    commit: (narration, _check, advance, choices) => saves.editTurn(id, messageId, narration, advance, choices, added !== undefined),
     // Only portraits for anyone new, as the Scene Image stays.
     committed: (edited, scene) => images.sceneChanged(id, edited, { ...scene, changed: false }),
     times,

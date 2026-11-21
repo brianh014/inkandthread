@@ -510,6 +510,33 @@ test("a thread whose question play has answered is removed in place of its rewri
   expect(log).toContain('"rewritten":0,"added":1,"removed":1');
 });
 
+test("an answer that says play hasn't answered it yet leaves the thread open", async () => {
+  const PELL = "Mr Pell means to burn the mill.";
+  // Four, so a close would leave three and nothing else holds it.
+  const [TIDE, GULLS, BELLS] = ["The tide is wrong.", "The gulls are omens.", "The bells ring wrong."];
+  play(
+    narration("Ash sees Mr Pell at the quay.", { op: "set_scene", location: "The quay", visible_cast: [] }, nextDay()),
+    JSON.stringify({ left: [{ thread: PELL, answer: "Not yet: whether the mill burns." }], plot_threads: [] }),
+    narration("Ash goes home."),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The library", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [PELL, TIDE, GULLS, BELLS],
+      worldBible: [{ title: "The miller", keywords: ["Mr Pell"], content: "", alwaysOn: false }],
+    },
+  });
+
+  for (const input of ["I walk to the quay.", "I go home."]) expect((await turn(id, input)).ok).toBe(true);
+
+  expect(store().latestState(id).plotThreads).toEqual([PELL, TIDE, GULLS, BELLS]);
+});
+
 test("a thread keeps the question it began with, and a plan whose hour the clock has reached is marked due at the next move", async () => {
   const TIDE = "The harbourmaster floods the lower town.";
   const told = play(

@@ -165,6 +165,9 @@ function deleteAfter(db: Database, messageId: number) {
   clearPending(db);
 }
 
+const STORY_TIME_BEFORE =
+  "SELECT s.content FROM snapshot_sections ss JOIN sections s ON s.id = ss.section_id WHERE ss.name = 'storyTime' AND ss.message_id < ? ORDER BY ss.message_id DESC LIMIT 1";
+
 const hasColumn = (db: Database, table: string, column: string) => db.query("SELECT 1 FROM pragma_table_info(?) WHERE name = ?").get(table, column) !== null;
 
 // The only kind of change ever made to a stored Snapshot: it gets the sections it lacks, at the values they would have held
@@ -848,11 +851,7 @@ export function saveStore(savesDir: string) {
     /** The story time as it stood before a Message, or null before the Narrator first set one. */
     storyTimeBefore(id: string, messageId: number) {
       using db = open(id);
-      const row = db
-        .query<{ content: string }, [number]>(
-          "SELECT s.content FROM snapshot_sections ss JOIN sections s ON s.id = ss.section_id WHERE ss.name = 'storyTime' AND ss.message_id < ? ORDER BY ss.message_id DESC LIMIT 1",
-        )
-        .get(messageId);
+      const row = db.query<{ content: string }, [number]>(STORY_TIME_BEFORE).get(messageId);
       return row ? (JSON.parse(row.content) as State["storyTime"]) : null;
     },
 
@@ -862,9 +861,7 @@ export function saveStore(savesDir: string) {
      */
     storyTimesAt(id: string, messageIds: number[]) {
       using db = open(id);
-      const before = db.query<{ content: string }, [number]>(
-        "SELECT s.content FROM snapshot_sections ss JOIN sections s ON s.id = ss.section_id WHERE ss.name = 'storyTime' AND ss.message_id < ? ORDER BY ss.message_id DESC LIMIT 1",
-      );
+      const before = db.query<{ content: string }, [number]>(STORY_TIME_BEFORE);
       const times: Record<number, string> = {};
       for (const messageId of messageIds) {
         const row = before.get(messageId);
@@ -1306,10 +1303,14 @@ export function saveStore(savesDir: string) {
      * Turn or replacement in flight from the old response is caught as stale.
      */
     /** In place, so the Message keeps its id and with it its Scene Image, Requested Images and portraits. */
-    editTurn(id: string, messageId: number, narration: string, advance: (state: State) => State, choices?: string[]): Reply[] {
+    /** `whole` advances the state the response left, as it stands now, for an Edit that keeps the response and adds to it. */
+    editTurn(id: string, messageId: number, narration: string, advance: (state: State) => State, choices?: string[], whole = false): Reply[] {
       using db = open(id);
       return db.transaction(() => {
-        const { state, edits } = latestTurn(db, messageId);
+        const turn = latestTurn(db, messageId);
+        const { edits } = turn;
+        // Read here, inside the write, as one read before the Narrator's call lost a World Change sent meanwhile.
+        const state = whole ? currentState(db) : turn.state;
         const edited = db
           .query<ChoicesRow, [string, string | null, string | null, number]>(
             "UPDATE messages SET text = ?, edits = ?, choices = ? WHERE id = ? RETURNING id, role, text, choices",

@@ -166,4 +166,6 @@ test("the clock adds each reply's hours_passed, or the hours its words moved on,
   expect(clock(at(DUSK), set(0, null, "night"))).toBe(70);
   expect(clock(at({ ...DUSK, hours: 66 }), set(1, "4th of Lowtide", "the third bell", 1))).toBe(72);
   expect(clock(at({ ...DUSK, hours: 66 }), set(0, null, "the third bell", 0.5))).toBe(66.5);
+  // A running total given as hours_passed moves it by the words instead.
+  expect(clock(at({ ...DUSK, hours: 66 }), set(0, null, "night", 29.65))).toBe(70);
 });

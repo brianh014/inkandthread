@@ -618,7 +618,9 @@ function clockHours(was: StoryTime | null, day: number, timeOfDay: string, passe
   const start = was?.hours ?? (was ? (was.day - 1) * 24 + (hourOf(was.timeOfDay) ?? 12) : (hourOf(timeOfDay) ?? 12));
   const [from, to] = [hourOf(was?.timeOfDay ?? ""), hourOf(timeOfDay)];
   const byWords = from !== undefined && to !== undefined ? (to - from + 24) % 24 : 0;
-  const hours = start + (passed ?? (day === (was?.day ?? 1) ? byWords : 0));
+  // More than the days passed allow is the running total, as a reply gave 29.65 hours since the opening for a quarter hour's talk.
+  const fits = passed !== null && passed <= (day - (was?.day ?? 1) + 1) * 24;
+  const hours = start + (fits ? passed : day === (was?.day ?? 1) ? byWords : 0);
   // A new day the hours didn't reach, as days_passed is the surer of the two.
   return Math.max(hours, (day - 1) * 24);
 }

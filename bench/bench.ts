@@ -8,6 +8,8 @@
 //   bun bench run --draw [...]   draws the pictures on the Settings file's local ComfyUI, never a paid API, into each play's
 //                                pictures folder, to judge the pictures themselves
 //   bun bench run --keep-save [...]   keeps each play's Saves folder in its run folder, to open or play on later
+//   bun bench run --from <Saves folder> --world <its world> [...]   plays on from a kept Save for --rounds more, with no
+//                                                                   opening, numbering rounds after those it has
 //   bun bench judge <run folder> --by <model> --scores <scores.json>   (scores for a --judge self run, one entry per play)
 //   bun bench keep <run folder>        copies the run's numbers, never its story, to bench/results to commit
 //   bun bench table [--csv]            every kept and recent run, side by side
@@ -56,6 +58,8 @@ const fake = process.argv.includes("--fake");
 const draw = process.argv.includes("--draw");
 // Keeps each play's Saves in its folder, to open or play on later, as a long story to test against.
 const keepSave = process.argv.includes("--keep-save");
+// A kept Saves folder to play on from, as long play is tested by going on from a judged run.
+const fromSaves = process.argv.includes("--from") ? resolve(process.argv[process.argv.indexOf("--from") + 1]!) : undefined;
 const narratorOf = (settings: ReturnType<typeof settingsStore>) => (fake ? fakeTextProvider : textProvider(settings));
 const RUNS = join(BENCH, "runs");
 const RESULTS = join(BENCH, "results");
@@ -421,8 +425,11 @@ async function play(
     port: 0,
   });
   setLogLevel("verbose");
+  if (fromSaves) cpSync(fromSaves, savesDir, { recursive: true });
   const saves = saveStore(savesDir);
-  const id = saves.create({ ...world.save, playMode: moves ? "free" : "choices", opening: world.opening as Partial<State> });
+  const id = fromSaves ? saves.list()[0]!.id : saves.create({ ...world.save, playMode: moves ? "free" : "choices", opening: world.opening as Partial<State> });
+  // The rounds a kept Save already holds, so the timeline's rounds follow on from them.
+  const first = saves.messages(id).filter(({ role }) => role === "player").length;
   const steps: Step[] = [];
   // Each step's states, for the state checks code can make without a judge.
   const changes: { action: string; before: State; after: State }[] = [];
@@ -491,16 +498,17 @@ async function play(
   const due = new Map(ACTIONS.map((action, at) => [Math.max(1, Math.round((rounds * (at + 1)) / (ACTIONS.length + 1))), action] as const).reverse());
   try {
     // Tried again once, as a player would, since one dropped connection otherwise left the whole play without its opening.
-    if (!(await send(0, "opening", `/saves/${id}/opening`, {})).ok) await send(0, "opening", `/saves/${id}/opening`, {});
-    for (let round = 1; round <= rounds; round++) {
-      const move = moves?.[round - 1];
+    if (!fromSaves && !(await send(0, "opening", `/saves/${id}/opening`, {})).ok) await send(0, "opening", `/saves/${id}/opening`, {});
+    for (let at = 1; at <= rounds; at++) {
+      const round = first + at;
+      const move = moves?.[at - 1];
       const choices = move === undefined ? saves.latestChoices(id) : undefined;
       // A reply kept without Choices leaves the player to Continue.
       const input = move ?? (choices ? choices[Math.floor(pick() * choices.length)]! : CONTINUE);
       const step = await send(round, move !== undefined ? "move" : choices ? "choice" : "continue (no Choices)", `/saves/${id}/turns`, { input }, input);
       // All three, so a judge can tell whether risky Choices were offered and passed over.
       step.offered = choices;
-      const action = due.get(round);
+      const action = due.get(at);
       const narrator = latestNarrator();
       const sent =
         action === "rewrite" && narrator
@@ -859,6 +867,7 @@ async function playApart(index: number, seed: number, rounds: number, movesFile:
       ...(fake ? ["--fake"] : []),
       ...(draw ? ["--draw"] : []),
       ...(keepSave ? ["--keep-save"] : []),
+      ...(fromSaves ? ["--from", fromSaves] : []),
     ],
     { stdout: "inherit", stderr: "inherit" },
   );

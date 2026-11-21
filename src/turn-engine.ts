@@ -284,6 +284,10 @@ const ResponseShape = z.object({
     stakes: z
       .string()
       .describe("in a few words, what could go wrong in the doing itself, not in what it leads to, and how anyone it touches would truly take it"),
+    at_most: z
+      .string()
+      .nullable()
+      .describe("in a few words, the most anyone it touches would truly give or allow, however well it goes, or null when it rests on no one"),
     // The odds beside the names, as a model that wrote stakes of real harm still chose Moderate, not knowing what it meant.
     difficulty: z
       .enum([NONE, ...CheckRequest.shape.difficulty.options])
@@ -1078,11 +1082,7 @@ async function narrate(
           if (!written) break;
           const fresh = written.filter((choice) => !kept.some((other) => sameApproach(choice, other)));
           if (fresh.length < written.length) log.info("turn", "Choices repeating a kept one dropped", { count: written.length - fresh.length });
-          // Nor one the player has just taken, as a reason given at round 36 was offered again at 39, though the call is sent them.
-          const taken = [...(recentMoves ?? []), move];
-          const unplayed = fresh.filter((choice) => !taken.some((other) => sameApproach(choice, other)));
-          if (unplayed.length < fresh.length) log.info("turn", "Choices repeating a move dropped", { count: fresh.length - unplayed.length });
-          kept = [...new Set([...kept, ...unplayed])].slice(0, 3);
+          kept = [...new Set([...kept, ...fresh])].slice(0, 3);
         }
         return kept;
       };

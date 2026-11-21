@@ -27,16 +27,22 @@ test("days passing on the same date count no days, as models gave the day count 
   expect(applyOperations(at(DUSK), [set(3, "3rd of Lowtide", "night")]).next.storyTime).toMatchObject({ ...DUSK, timeOfDay: "night" });
 });
 
-test("a new day with no date, or a first Story Time with none, is ignored and changes nothing", () => {
-  for (const [state, operation] of [
-    [at(DUSK), set(1, null, "dawn")],
-    [at(null), set(0, null, "dawn")],
-  ] as const) {
-    const { next, refused, ignored } = applyOperations(state, [operation]);
-    expect(next.storyTime).toEqual(state.storyTime);
-    expect(refused).toEqual([]);
-    expect(ignored).toEqual([{ op: "set_story_time", reason: "no date" }]);
-  }
+test("a first Story Time with no date is ignored and changes nothing", () => {
+  const { next, refused, ignored } = applyOperations(at(null), [set(0, null, "dawn")]);
+  expect(next.storyTime).toBeNull();
+  expect(refused).toEqual([]);
+  expect(ignored).toEqual([{ op: "set_story_time", reason: "no date" }]);
+});
+
+test("a new day with no date, or hours past midnight, moves the day on and keeps the date until a Turn names the new one", () => {
+  // Day 3 at dusk is hour 66 on the clock.
+  expect(applyOperations(at(DUSK), [set(1, null, "dawn")]).next.storyTime).toMatchObject({ day: 4, date: DUSK.date, dateDue: true });
+  const small = applyOperations(at({ ...DUSK, timeOfDay: "ten at night", hours: 70 }), [set(0, null, "three in the morning", 5)]).next;
+  expect(small.storyTime).toMatchObject({ day: 4, date: DUSK.date, hours: 75, dateDue: true });
+  expect(prompt(small.storyTime, true)).toContain("storyTime has passed midnight into a new day");
+  // The date, when it comes, counts no second day.
+  const dated = applyOperations(small, [set(1, "4th of Lowtide", "dawn", 3)]).next.storyTime;
+  expect(dated).toEqual({ day: 4, date: "4th of Lowtide", timeOfDay: "dawn", hours: 78 });
 });
 
 test("a time of day that repeats the date keeps only the time", () => {

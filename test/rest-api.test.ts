@@ -811,6 +811,21 @@ test("a move rated Easy but sent without narration is rolled, rather than writte
   expect(prompts).toHaveLength(2);
 });
 
+test("the most someone would give, rated before the roll, goes to the result call as its ceiling", async () => {
+  const AT_MOST = "She names the ship, never the captain.";
+  const { app, prompts } = playWithDice(
+    [20],
+    JSON.stringify({ check: { action: "Ask Mara who paid", difficulty: "Hard", stakes: "She shuts the door.", at_most: AT_MOST } }),
+    narration("She names the ship."),
+  );
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I ask Mara who paid." });
+
+  const result = contents(prompts[1]).join();
+  expect(result).toContain(AT_MOST);
+  expect(result).toContain("as far as at_most allows and never past it");
+});
+
 test("a Check takes two calls, and the second receives the outcome and degree", async () => {
   const { app, prompts } = playWithDice([12], requestCheck("Moderate"), narration("You land hard but whole."));
   const id = await app.createSave();

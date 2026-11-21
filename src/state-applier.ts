@@ -70,7 +70,7 @@ export type State = {
  * `day` counts days since the Opening, as Narrators add whole numbers far better than they work an in-world calendar. `hours` counts
  * story hours since then, code adding up each reply's hours_passed, so it holds in any world's calendar. The player sees neither.
  */
-export type StoryTime = { day: number; date: string; timeOfDay: string; hours?: number };
+export type StoryTime = { day: number; date: string; timeOfDay: string; hours?: number; dateDue?: boolean };
 
 export type Chapter = { lastMessage: number | null; title: string };
 
@@ -132,7 +132,9 @@ export const StateSections = {
   worldBrief: z.string(),
   chapters: z.array(z.object({ lastMessage: z.number().int().nullable(), title: z.string() })),
   chapterReady: z.boolean(),
-  storyTime: z.object({ day: z.number().int(), date: z.string(), timeOfDay: z.string(), hours: z.number().optional() }).nullable(),
+  storyTime: z
+    .object({ day: z.number().int(), date: z.string(), timeOfDay: z.string(), hours: z.number().optional(), dateDue: z.boolean().optional() })
+    .nullable(),
   pcAppearance: z.string(),
   era: z.string(),
 } satisfies { [Section in keyof State]: z.ZodType<State[Section]> };
@@ -558,19 +560,26 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       return;
     case "set_story_time": {
       const { time_of_day } = operation;
-      // The date wins over days_passed when they disagree, as models gave the day count there, doubling it each time (day 280 in 30 rounds).
-      const days_passed = operation.date === state.storyTime?.date ? 0 : operation.days_passed;
-      // A new day kept on the old date would put the story on the wrong day, so it waits for a Turn that names one.
-      const date = operation.date ?? (days_passed === 0 ? state.storyTime?.date : undefined);
+      const before = state.storyTime;
+      const date = operation.date ?? before?.date;
       if (date === undefined) return "no date";
+      // The date wins over days_passed when they disagree, as models gave the day count there, doubling it each time (day 280 in
+      // 30 rounds); and a day the clock already rolled, waiting on its date, isn't counted again when the date comes.
+      const claimed = operation.date === before?.date ? 0 : operation.days_passed;
+      const days = before?.dateDue && date !== before.date ? Math.max(0, claimed - 1) : claimed;
+      const hours = clockHours(before, (before?.day ?? 1) + days, time_of_day, operation.hours_passed);
+      // Past midnight on the clock is a new day, as a reply from ten at night to three in the morning gave no days or date, and
+      // the story stayed on Monday to the end.
+      const day = Math.max((before?.day ?? 1) + days, Math.floor(hours / 24) + 1);
+      const newDay = day > (before?.day ?? 1);
       // Never back within a day, as a reply that did so had started the story over from its first morning.
-      const [was, now] = [dayPart(state.storyTime?.timeOfDay), dayPart(time_of_day)];
+      const [was, now] = [dayPart(before?.timeOfDay), dayPart(time_of_day)];
       // From night on, the small hours and the next morning come after, as "past midnight" refused them all for five rounds.
       const wraps = was !== undefined && was >= NIGHT && now !== undefined && (now >= NIGHT || now <= MORNING);
-      if (days_passed === 0 && date === state.storyTime?.date && was !== undefined && now !== undefined && now < was && !wraps) return "earlier than now";
-      const day = (state.storyTime?.day ?? 1) + days_passed;
-      const hours = clockHours(state.storyTime, day, time_of_day, operation.hours_passed);
-      state.storyTime = { day, date, timeOfDay: withoutDate(time_of_day, date), hours };
+      if (!newDay && date === before?.date && was !== undefined && now !== undefined && now < was && !wraps) return "earlier than now";
+      // A new day with no date of its own keeps the old one until a Turn names it, as code can't reckon a world's calendar.
+      const dateDue = (newDay || before?.dateDue) && date === before?.date;
+      state.storyTime = { day, date, timeOfDay: withoutDate(time_of_day, date), hours, ...(dateDue && { dateDue: true }) };
       return;
     }
   }
@@ -620,7 +629,8 @@ function clockHours(was: StoryTime | null, day: number, timeOfDay: string, passe
   // A first Story Time starts at its own hour of day 1.
   const start = was?.hours ?? (was ? (was.day - 1) * 24 + (hourOf(was.timeOfDay) ?? 12) : (hourOf(timeOfDay) ?? 12));
   const [from, to] = [hourOf(was?.timeOfDay ?? ""), hourOf(timeOfDay)];
-  const byWords = from !== undefined && to !== undefined ? (to - from + 24) % 24 : 0;
+  // Forward within the day only, as words going back from evening to morning are a story starting over, not a night passing.
+  const byWords = from !== undefined && to !== undefined && to >= from ? to - from : 0;
   // More than the days passed allow is the running total, as a reply gave 29.65 hours since the opening for a quarter hour's talk.
   const fits = passed !== null && passed <= (day - (was?.day ?? 1) + 1) * 24;
   const hours = start + (fits ? passed : day === (was?.day ?? 1) ? byWords : 0);
@@ -843,7 +853,7 @@ export function applyEdit(state: State, edit: WorldEdit): State {
     case "status":
       return { ...state, status: { health: edit.health, injuries: edit.injuries.slice(-MAX_STATUS), conditions: edit.conditions.slice(-MAX_STATUS) } };
     case "storyTime":
-      return { ...state, storyTime: { ...state.storyTime, day: state.storyTime?.day ?? 1, date: edit.date, timeOfDay: edit.timeOfDay } };
+      return { ...state, storyTime: { ...state.storyTime, day: state.storyTime?.day ?? 1, date: edit.date, timeOfDay: edit.timeOfDay, dateDue: undefined } };
     case "chapterTitle":
       return { ...state, chapters: state.chapters.map((chapter, index) => (index === edit.index ? { ...chapter, title: edit.title } : chapter)) };
     // A second close before any new Message would make an empty Chapter.

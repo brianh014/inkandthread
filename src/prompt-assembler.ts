@@ -269,6 +269,9 @@ const summaryNote = (due: boolean) =>
 
 /** A Save from before Story Time has none, and only the Narrator can tell from the story where it has got to. */
 function fillStoryTime(storyTime: State["storyTime"], messages: Message[]) {
+  if (storyTime?.dateDue)
+    return `
+storyTime has passed midnight into a new day, but its date is still the day before's, so set it now: use set_story_time with days_passed 0 and the new date, worked out from the old one by the world's calendar.`;
   if (storyTime || !messages.some(({ role }) => role === "narrator")) return "";
   return `
 storyTime is null, so set it now: use set_story_time with days_passed 0 and the date and time of day the story has reached, as best the summary, known facts and Messages above show, and if they never give a date, choose one that fits the world and its calendar, in a few words.`;
@@ -456,10 +459,10 @@ export const SET_SCENE_NOTE: Prompt[number] = {
 };
 
 // Without the action, as a rating that named an act the move never made had it narrated as the PC's.
-export function resultInstruction({ stakes, outcome, degree }: Check): Prompt[number] {
+export function resultInstruction({ stakes, at_most, outcome, degree }: Check): Prompt[number] {
   return {
     role: "system",
-    content: `The Check is resolved: ${JSON.stringify({ stakes, outcome, degree })}
-The attempt is the player's move above, made by the PC just as the player wrote it and nothing more, and the result decides how it turns out, never whether they tried. A mixed degree means the PC succeeds at a cost. A strong one goes better than the PC hoped, with some gain they weren't aiming for, or, when it rests on someone, with that person warmer toward the PC than they hoped, though no result makes anyone give more of a secret than that pressure would draw out; a bad one goes wrong badly. When it rests on how someone takes it, success means they welcome it, a cost means they welcome it with some hurt or doubt, and a failure means they resist, refuse or stop it, each as that person would; otherwise a failure means it goes wrong, now or, where it can only show later, through a flaw this narration hints at. The result picks only among what each person would truly do, never making anyone act against who they are, what they want or what they know: a cost or failure that can't come from them so comes from luck, the world or the PC's own doing. Narrate exactly this result, with its stakes coming true on a failure, in part at a cost and not at all on a success, as a finished Turn with check null, and record what it changes with add_known_fact or add_loose_end, and what each person it touched takes from it with npc_learns, so later replies keep to it. Do not request another check.`,
+    content: `The Check is resolved: ${JSON.stringify({ stakes, ...(at_most && { at_most }), outcome, degree })}
+The attempt is the player's move above, made by the PC just as the player wrote it and nothing more, and the result decides how it turns out, never whether they tried. A mixed degree means the PC succeeds at a cost. A strong one goes better than the PC hoped, with some gain they weren't aiming for, or, when it rests on someone, with that person warmer toward the PC than they hoped, though no result makes anyone give more of a secret than that pressure would draw out; a bad one goes wrong badly. When it rests on how someone takes it, success means they welcome it as far as at_most allows and never past it, a cost means they welcome it with some hurt or doubt, and a failure means they resist, refuse or stop it, each as that person would; otherwise a failure means it goes wrong, now or, where it can only show later, through a flaw this narration hints at. The result picks only among what each person would truly do, never making anyone act against who they are, what they want or what they know: a cost or failure that can't come from them so comes from luck, the world or the PC's own doing. Narrate exactly this result, with its stakes coming true on a failure, in part at a cost and not at all on a success, as a finished Turn with check null, and record what it changes with add_known_fact or add_loose_end, and what each person it touched takes from it with npc_learns, so later replies keep to it. Do not request another check.`,
   };
 }

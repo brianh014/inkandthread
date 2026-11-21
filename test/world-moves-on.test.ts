@@ -482,8 +482,8 @@ test("a thread whose question play has answered is removed in place of its rewri
     narration("Ash sees Mr Pell hanged at the quay.", { op: "set_scene", location: "The quay", visible_cast: [] }, nextDay()),
     JSON.stringify({
       left: [
-        { thread: PELL, answered: true, question: null },
-        { thread: TIDE, answered: false, question: "Why the tide turns early." },
+        { thread: PELL, answer: "He was hanged at the quay." },
+        { thread: TIDE, answer: null, question: "Why the tide turns early." },
       ],
       plot_threads: [change(PELL, "He waits."), change(null, "Soon.", "The mill burns anyway.")],
     }),
@@ -515,11 +515,11 @@ test("a thread keeps the question it began with, and a plan whose hour the clock
   const told = play(
     narration("Ash watches the harbourmaster at the sluice.", { ...nextDay(), hours_passed: 20 }),
     JSON.stringify({
-      left: [{ thread: TIDE, answered: false, question: "Whether the lower town floods." }],
+      left: [{ thread: TIDE, answer: null, question: "Whether the lower town floods." }],
       plot_threads: [{ thread: TIDE, truth: null, now: "He oils the sluice gate.", plan: "He opens the sluice at dusk.", plan_in_hours: 2 }],
     }),
     narration("Night falls on the quay.", { ...nextDay("3rd of Thaw"), hours_passed: 24 }),
-    JSON.stringify({ left: [{ thread: TIDE, answered: false, question: "Whether he is caught." }], plot_threads: [] }),
+    JSON.stringify({ left: [{ thread: TIDE, answer: null, question: "Whether he is caught." }], plot_threads: [] }),
     narration("Ash goes home."),
   );
   const id = store().create({

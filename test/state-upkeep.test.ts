@@ -79,7 +79,9 @@ test("State Upkeep records what the reply showed and the Narrator missed, after 
   expect(sent.reply).toContain("hangs the coat");
   expect(Object.keys(sent.state)).not.toContain("plot_threads");
   // The long lists first and what changes every Turn last, so the provider's cache reaches past the lists.
-  expect(Object.keys(sent.state).slice(0, 3)).toEqual(["pc_name", "known_facts", "npc_knows"]);
+  expect(Object.keys(sent.state).slice(0, 4)).toEqual(["pc_name", "known_facts", "lore", "npc_knows"]);
+  // Only titles and keywords, enough to see what a new entry would repeat.
+  for (const entry of sent.state.lore) expect(Object.keys(entry)).toEqual(["title", "keywords"]);
   expect(Object.keys(sent.state).at(-1)).toBe("story_time");
   expect(Object.keys(sent.state)).not.toContain("worldBible");
   expect(log).toContain('"operations":["set_scene","remove_item"]');

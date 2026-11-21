@@ -3,6 +3,8 @@ import { getSettings, getUpdate, quitApp, setupProblem, type UpdateStatus } from
 import { DownIcon } from "./icons";
 import logo from "./logo.svg";
 
+export const DONATE_URL = "https://ko-fi.com/brianh014";
+
 const LEFT_FOLDED = "novelforge-left-folded";
 
 /** One reader's choice, so it stays in their browser and out of the Save. Blocked storage only forgets it. */
@@ -273,6 +275,9 @@ export function Menu() {
               </button>
             )}
           </nav>
+          <a className="donate" href={DONATE_URL} target="_blank" rel="noreferrer">
+            Support Ink &amp; Thread <span aria-hidden="true">♥</span>
+          </a>
           {update && <p className="muted version">Version {update.version}</p>}
         </div>
       )}

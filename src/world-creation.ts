@@ -867,11 +867,7 @@ export async function applyWorldChange(
   signal: AbortSignal,
   /** `stateOf` reads the state the change applies to: a replaced response's is the one before it. */
   /** `settles` marks one that only brings the hidden world in line with the player's Journal edits, which holds no news for the PC. */
-  {
-    mayKeep = false,
-    stateOf = () => saves.latestState(id),
-    settles = false,
-  }: { mayKeep?: boolean; stateOf?: () => State; settles?: boolean } = {},
+  { mayKeep = false, stateOf = () => saves.latestState(id), settles = false }: { mayKeep?: boolean; stateOf?: () => State; settles?: boolean } = {},
 ) {
   const basedOn = saves.latestMessageId(id);
   const before = stateOf();

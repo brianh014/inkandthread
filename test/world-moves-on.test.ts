@@ -475,6 +475,41 @@ test("a move removes a thread only when the replies show its people or a Turn as
   expect(told.prompts.some((prompt) => prompt.at(-1)!.content.includes("a remove leaves fewer than three threads and adds none"))).toBe(true);
 });
 
+test("a thread a move leaves nothing to answer is removed in place of its rewrite, and one missing from left stays", async () => {
+  const PELL = "Mr Pell means to burn the mill.";
+  const [TIDE, GULLS] = ["The tide is wrong.", "The gulls are omens."];
+  play(
+    narration("Ash sees Mr Pell hanged at the quay.", { op: "set_scene", location: "The quay", visible_cast: [] }, nextDay()),
+    JSON.stringify({
+      left: [
+        { thread: PELL, left: null },
+        { thread: TIDE, left: "Why the tide turns early." },
+      ],
+      plot_threads: [change(PELL, "He waits."), change(null, "Soon.", "The mill burns anyway.")],
+    }),
+    narration("Ash goes home."),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The library", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [PELL, TIDE, GULLS],
+      worldBible: [{ title: "The miller", keywords: ["Mr Pell"], content: "", alwaysOn: false }],
+    },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I walk to the quay.", "I go home."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(store().latestState(id).plotThreads).toEqual([TIDE, GULLS, "The mill burns anyway."]);
+  expect(log).toContain('"rewritten":0,"added":1,"removed":1');
+});
+
 test("a move keeps its usable changes and drops only those that change a thread twice, misquote one or add one without its truth", async () => {
   play(
     narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),

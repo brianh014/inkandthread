@@ -44,6 +44,7 @@ import { wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
+import { growLore } from "./lore-growth";
 import { askToClose, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, turnThreadChanges } from "./world-moves-on";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
@@ -645,7 +646,10 @@ export async function playTurn(
   });
   if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies + 1)) {
     // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
-    const move = moveWorldOn(textProvider, settings, saves, id, AbortSignal.timeout(MOVE_LIMIT.ms)).finally(() => moving.delete(id));
+    // Lore after the move, each with its own time, so a World Change sent meanwhile waits for both; by the Scribe, as Upkeep is.
+    const move = moveWorldOn(textProvider, settings, saves, id, AbortSignal.timeout(MOVE_LIMIT.ms))
+      .then(() => reviewProvider && growLore(reviewProvider, saves, id, AbortSignal.timeout(MOVE_LIMIT.ms)))
+      .finally(() => moving.delete(id));
     moving.set(id, move);
   }
   followedUp(id, kind, images, times);

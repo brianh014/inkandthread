@@ -277,25 +277,6 @@ const UNKNOWING =
 // the evidence but has heard nothing of" was one clause.
 const CLAUSES = /(\s*;\s*|,\s+(?=(?:but|and|though|yet|while|nor)\b)|\s+(?=but\b))/i;
 
-const longWords = (text: string) => new Set(text.toLowerCase().match(/\p{L}{4,}/gu) ?? []);
-const denies = (text: string) => /\b(?:not|never|no|nothing|none|nobody)\b|n't\b/i.test(text);
-/**
- * The same fact in other words: three or more longer words shared, most of them, and both saying or both denying it, as reworded
- * repeats got past an exact match while "is alive" and "is not alive" are a correction, not a repeat.
- */
-export function alike(a: string, b: string) {
-  const [one, two] = [longWords(a), longWords(b)];
-  const shared = [...one].filter((word) => two.has(word)).length;
-  return shared >= 3 && shared / new Set([...one, ...two]).size >= 0.7 && denies(a) === denies(b);
-}
-
-/** `fact` in place of what `list` already says in other words, as the newer has it as it now stands, or on the end. */
-function learnInto(list: string[], fact: string) {
-  const at = list.findIndex((other) => alike(other, fact));
-  if (at === -1) list.push(fact);
-  else list[at] = fact;
-}
-
 /** What someone learns as it is kept: without a trailing run of symbols, as a reviewer's "+#+#+#" was kept and sent in every prompt after, and as knownOnly has it. */
 export const cleanKnown = (fact: string) => knownOnly(fact.replace(/[^\p{L}\p{N}\s.!?"'’)]{3,}$/u, "").trim());
 
@@ -402,6 +383,33 @@ const capped = (knows: string[], parts: string[] = []) => {
 };
 const own = (record: Record<string, string[]>, name: string) => (Object.hasOwn(record, name) ? record[name]! : []);
 
+const denies = (text: string) => /\b(?:not|never|no|nothing|none|nobody)\b|n't\b/i.test(text);
+// Names and numbers in order, which the same fact in other words keeps, as "Kit saw Ann" and "Kit saw Tom" share every longer word.
+const namesOf = (text: string) => (text.match(/\p{N}+|\p{Lu}\p{L}*/gu) ?? []).join(" ");
+/**
+ * The same fact in other words: three or more of its words shared, most of them, the same names and numbers in the same order,
+ * and both saying or both denying it, as reworded repeats got past an exact match while "is alive" and "is not alive" are a
+ * correction, not a repeat.
+ */
+export function alike(a: string, b: string) {
+  const [one, two] = [wordsOf(a), wordsOf(b)];
+  const shared = [...one].filter((word) => two.has(word)).length;
+  return shared >= 3 && shared / new Set([...one, ...two]).size >= 0.7 && namesOf(a) === namesOf(b) && denies(a) === denies(b);
+}
+
+/**
+ * `fact` added to what someone knows as the newest, in place of all it says again in other words, and so in their parts, as
+ * the newer has it as it now stands and a part reworded must stay one.
+ */
+function relearn(knows: string[], parts: string[], fact: string) {
+  const old = knows.filter((other) => other !== fact && alike(other, fact));
+  const wasPart = old.some((other) => parts.includes(other));
+  return {
+    knows: [...knows.filter((other) => other !== fact && !old.includes(other)), fact],
+    parts: wasPart ? [...parts.filter((part) => !old.includes(part)), fact] : parts,
+  };
+}
+
 function mergeNpcKnows(state: State, name: string, into: string) {
   if (Object.hasOwn(state.npcParts, name)) {
     const { [name]: given = [], ...parts } = state.npcParts;
@@ -409,9 +417,11 @@ function mergeNpcKnows(state: State, name: string, into: string) {
   }
   if (!Object.hasOwn(state.npcKnows, name)) return;
   const { [name]: knew = [], ...knows } = state.npcKnows;
-  const kept = own(knows, into);
-  // The kept one's own last, shared ones too, so the cap drops the other's first.
-  state.npcKnows = { ...knows, [into]: capped([...knew.filter((fact) => !kept.includes(fact)), ...kept], own(state.npcParts, into)) };
+  // The kept one's own last, shared ones too, so the cap drops the other's first, and either's reworded repeats once.
+  let merged = { knows: knew.filter((fact) => !own(knows, into).includes(fact)), parts: own(state.npcParts, into) };
+  for (const fact of own(knows, into)) merged = relearn(merged.knows, merged.parts, fact);
+  if (merged.parts !== own(state.npcParts, into)) state.npcParts = { ...state.npcParts, [into]: merged.parts };
+  state.npcKnows = { ...knows, [into]: capped(merged.knows, merged.parts) };
 }
 
 /** What this reply made of each Plot Thread's truth it changed, its amended truth or null once resolved. */
@@ -507,8 +517,9 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       // Own keys only, as a name such as "constructor" would find what every object has.
       const knows = Object.hasOwn(state.npcKnows, name) ? state.npcKnows[name]! : [];
       if (knows.includes(fact)) return "already there";
-      learnInto(knows, fact);
-      state.npcKnows = { ...state.npcKnows, [name]: capped(knows, own(state.npcParts, name)) };
+      const next = relearn(knows, own(state.npcParts, name), fact);
+      if (next.parts !== own(state.npcParts, name)) state.npcParts = { ...state.npcParts, [name]: next.parts };
+      state.npcKnows = { ...state.npcKnows, [name]: capped(next.knows, next.parts) };
       return;
     }
     case "set_scene": {
@@ -952,15 +963,12 @@ export function applyEdit(state: State, edit: WorldEdit): State {
         const knew = own(npcKnows, key);
         const known = parts.map(knownOnly).filter((part) => part && !knew.includes(part));
         // A part given again in other words replaces the old, as a move that reads more of the story restated parts every time.
-        const given = [...own(npcParts, key)];
-        const list = [...knew];
-        for (const part of known) {
-          learnInto(given, part);
-          learnInto(list, part);
-        }
+        let next = { knows: knew, parts: own(npcParts, key) };
+        for (const part of known) next = relearn(next.knows, next.parts, part);
+        const theirs = partTakers.has(name) && known.length > 0 ? [...next.parts, ...known.filter((part) => !next.parts.includes(part))] : next.parts;
         // shortcut: the last few parts only, so a long story's turnover of threads can't fill the cap with them; keep more if old secrets go missing.
-        if (partTakers.has(name) && known.length > 0) npcParts[key] = given.slice(-MAX_PARTS);
-        if (known.length > 0 || knew.length > 0) npcKnows[key] = capped(list, own(npcParts, key));
+        if (theirs !== own(npcParts, key)) npcParts[key] = theirs.slice(-MAX_PARTS);
+        if (known.length > 0 || knew.length > 0) npcKnows[key] = capped(next.knows, own(npcParts, key));
       }
       // Oldest first, where the entries it stands for were.
       for (const [name, { knew, into }] of Object.entries(edit.folded ?? {}))

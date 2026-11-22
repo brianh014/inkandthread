@@ -829,9 +829,17 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
   return reviewed(context, "World Change", proposed, signal, async (reviewer) => {
     const { fixed, change: corrected } = await askForJson(reviewer, prompt, reply, REFUSAL, signal, { call: "worldChangeReview", reviewer: true });
     if (!corrected) return { result: proposed, reasons: [] };
-    // A review fixing another fault dropped the sign, so the change never reached the page; only a leak is a reason to drop it.
-    const first_sign = corrected.first_sign ?? (fixed.includes("leaked_secret") ? null : proposed.first_sign);
-    return { result: withoutStrangers(state, { ...corrected, first_sign }), reasons: fixed };
+    // A review fixing another fault left out the sign and plan hours, which default to null, so the change never reached the page
+    // and its plan never fell due. Only a leak or contradiction is a reason to drop a sign, and a plan kept as proposed keeps its hours.
+    const first_sign = corrected.first_sign ?? (fixed.some((fault) => fault === "leaked_secret" || fault === "contradiction") ? null : proposed.first_sign);
+    const plot_threads = corrected.plot_threads.map((thread) => ({
+      ...thread,
+      plan_in_hours:
+        thread.plan_in_hours ??
+        proposed.plot_threads.find(({ old, new: truth, plan }) => old === thread.old && truth === thread.new && plan === thread.plan)?.plan_in_hours ??
+        null,
+    }));
+    return { result: withoutStrangers(state, { ...corrected, first_sign, plot_threads }), reasons: fixed };
   });
 }
 

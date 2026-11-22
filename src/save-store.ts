@@ -1312,7 +1312,14 @@ export function saveStore(savesDir: string) {
       using db = open(id);
       return db.transaction(() => {
         const turn = latestTurn(db, messageId);
-        const { edits } = turn;
+        // A World Change's sign waits for the next Turn, as the player wrote this response, so nothing was brought on in it: kept
+        // pending alone, and off the Message, so a Regenerate of this response doesn't bring it on as well.
+        const signs = pendingEdits(db).flatMap((edit): WorldEdit[] =>
+          edit.edit === "world" && edit.sign
+            ? [{ edit: "world", update: { lore_entries: [], removed_lore: [], world_rules: [], plot_threads: [] }, made: 0, sign: edit.sign }]
+            : [],
+        );
+        const edits = turn.edits.map((edit) => (edit.edit === "world" ? { ...edit, sign: undefined } : edit));
         // Read here, inside the write, as one read before the Narrator's call lost a World Change sent meanwhile.
         const state = whole ? currentState(db) : turn.state;
         const edited = db
@@ -1324,6 +1331,7 @@ export function saveStore(savesDir: string) {
         writeSnapshot(db, messageId, advance(state));
         sweepSections(db);
         clearPending(db);
+        if (signs.length > 0) db.run("UPDATE save SET pending_edits = ?", [JSON.stringify(signs)]);
         return [withChoices(edited)];
       })();
     },

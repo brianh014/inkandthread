@@ -794,6 +794,28 @@ test("a World Change sees the scene, and the next Turn alone is told to bring on
   expect(told).toEqual([true, false]);
 });
 
+test("an Edit made while a World Change waits keeps its sign for the next Turn, once", async () => {
+  const sign = "A runner bursts in: the mayor's lugger has been seized.";
+  play(
+    narration("Ash waits by the harbour."),
+    update({ plot_threads: [{ old: null, new: `${SECRET} the mayor runs guns.` }], first_sign: sign }),
+    narration("Ash waits, edited."),
+    narration("One."),
+    narration("Two."),
+  );
+  const id = createSave();
+  await turn(id);
+  await change(id);
+
+  expect((await app.post(`/saves/${id}/messages/${store().latestMessageId(id)}/edit`, { text: "Ash waits, edited." })).status).toBe(201);
+  await turn(id);
+  await turn(id);
+
+  expect(store().latestState(id).plotThreads).toContain(`${SECRET} the mayor runs guns.`);
+  const told = prompts.slice(2).map((prompt) => prompt.some(({ content }) => content.includes(`this happens in this response: ${sign}`)));
+  expect(told).toEqual([false, true, false]);
+});
+
 test("a Revert to before a hidden change undoes it", async () => {
   play(narration("One."), update({ removed_lore: ["The Tide"] }), narration("Two."));
   const id = createSave();

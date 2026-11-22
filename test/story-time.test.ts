@@ -195,6 +195,20 @@ test("a day the hours and words don't reach is refused, keeping the date, as a t
   expect(applyOperations(dawn, [set(1, "Wednesday, 7th June", "dawn")]).next.storyTime).toMatchObject({ day: 2, date: "Wednesday, 7th June" });
 });
 
+test("a jump of two days or more with a new date is kept, though its hours don't reach a day", () => {
+  const dawn = at({ day: 11, date: "Thursday, 25th October", timeOfDay: "dawn", hours: 240 });
+  const saturday = applyOperations(dawn, [set(2, "Saturday, 27th October", "late morning", 5)]).next.storyTime;
+  expect(saturday).toMatchObject({ day: 13, date: "Saturday, 27th October", timeOfDay: "late morning" });
+  expect(saturday!.hours).toBeGreaterThan(12 * 24 + 6);
+  // Not the day count given as days passed, a date written another way, or one gone back.
+  for (const [days, date] of [
+    [11, "Friday, 26th October"],
+    [2, "Thursday 25 October"],
+    [2, "Tuesday, 23rd October"],
+  ] as const)
+    expect(applyOperations(dawn, [set(days, date, "late morning", 5)]).next.storyTime).toMatchObject({ day: 11, date: "Thursday, 25th October" });
+});
+
 test("a clock time past midnight with no hours given moves the day on, and one going back within the day is refused", () => {
   const late = at({ day: 1, date: "1st of Lowtide", timeOfDay: "11 pm", hours: 23 });
   expect(applyOperations(late, [set(0, null, "1 am")]).next.storyTime).toMatchObject({ day: 2, hours: 25, dateDue: true });

@@ -625,8 +625,11 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       // A new day only where the hours or the words reach one, as a ten-yard walk from a quarter to six to a quarter past was given
       // a day and the next date, and a date once moved on never comes back. Not a date the clock is waiting on, nor a clock it lacks.
       const wentBack = (hourOf(time_of_day) ?? 24) < (hourOf(before?.timeOfDay ?? "") ?? 0);
+      // Two days or more that the dates agree with is meant, never that slip, as a reply going on to "Saturday came in grey" two
+      // days later gave five hours with it and the story stayed on Thursday.
       const reached =
         operation.days_passed === 0 ||
+        (operation.days_passed >= 2 && datesApart(before?.date, operation.date) === operation.days_passed) ||
         !before ||
         before.dateDue ||
         before.hours === undefined ||
@@ -715,6 +718,16 @@ const nightWraps = (from: number, to: number) => from >= 20 && to < 12;
 const DRIFT_HOURS = 3;
 
 /**
+ * How many days on `to` is from `from` by their day of the month, or undefined where either has none, as dates are any
+ * world's words. shortcut: within one month only; a jump across a month's end falls back to the hours.
+ */
+function datesApart(from: string | undefined, to: string | null) {
+  const day = (date: string | null | undefined) => Number(date?.match(/\b([12]?\d|3[01])(?:st|nd|rd|th)?\b/)?.[1] ?? Number.NaN);
+  const apart = day(to) - day(from);
+  return Number.isNaN(apart) ? undefined : apart;
+}
+
+/**
  * The story hours since the Opening after a set_story_time: the old count plus the reply's hours_passed, or the hours its words
  * moved on when it gives none, never short of the days passed. A Save from before it starts from its day and time of day.
  */
@@ -729,8 +742,8 @@ function clockHours(was: StoryTime | null, day: number, timeOfDay: string, passe
   const fits = passed !== null && passed <= (day - (was?.day ?? 1) + 1) * 24;
   // A first Story Time is its own hour, as hours_passed then counts from nothing the clock had.
   const hours = start + (!was ? 0 : fits ? passed : day === was.day ? byWords : 0);
-  // A new day the hours didn't reach, as days_passed is the surer of the two.
-  return Math.max(hours, (day - 1) * 24);
+  // A new day the hours didn't reach, as days_passed is the surer of the two, at the hour its words give.
+  return Math.max(hours, (day - 1) * 24 + (day > (was?.day ?? 1) ? (hourOf(timeOfDay) ?? 0) : 0));
 }
 
 // Checked in order, as "afternoon" holds "noon" and "midnight" holds "night".

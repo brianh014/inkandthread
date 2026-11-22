@@ -18,7 +18,7 @@ _Avoid_: Character (alone), player (when the character is meant)
 Any character in the world voiced by the Narrator.
 
 **What an NPC Knows**:
-A hidden list for each NPC of what they have learned or lived through in play, newest last, at most twelve. The Narrator sees only the lists of the NPCs in the scene or named by the player, and adds to one with `npc_learns`. The player never sees it, as it can hold what the PC never saw.
+A hidden list for each NPC of what they have learned or lived through in play, newest last. Past twelve entries, the Scribe folds the oldest into one short summary at the next pause, never the NPC's own part of a Plot Thread. The Narrator sees only the lists of the NPCs in the scene or named by the player, and adds to one with `npc_learns`. The player never sees it, as it can hold what the PC never saw.
 
 ### Story structure
 
@@ -78,7 +78,7 @@ A second AI call that checks a new world, or a World Change before it is applied
 _Avoid_: Critic, judge, validator
 
 **Scribe**:
-The AI that keeps the story's record and reviews the world: State Upkeep after every reply, and the Review of a new world and of each World Change. It is the Narrator's model unless the player chooses another in Settings. The stored settings keep their old `review` names.
+The AI that keeps the story's record and reviews the world: State Upkeep after every reply, the Review of a new world and of each World Change, and, at each pause when the world moves on, new Lore and the folding of What an NPC Knows. It is the Narrator's model unless the player chooses another in Settings. The stored settings keep their old `review` names.
 _Avoid_: Reviewer, Review model, Lore Keeper (Lore is the World Bible's)
 
 **State Upkeep**:

@@ -228,6 +228,12 @@ export const fakeTextProvider: TextProvider = async (prompt, { schema, onText, o
     }));
   }
   if (sampled) meetImportant(prompt, Array.isArray(sampled.people) ? sampled.people : []);
+  // A fold of what people know names those it was given, as sampled names would fold no one.
+  if (sampled && /^You keep what the people/.test(prompt[0]?.content ?? ""))
+    sampled.people = ((JSON.parse(prompt.at(-1)?.content ?? "{}") as { people?: { name: string }[] }).people ?? []).map(({ name }) => ({
+      name,
+      summary: "They know what they have lived through so far.",
+    }));
   if (sampled && Array.isArray(sampled.people) && Array.isArray(sampled.state_operations)) {
     sampled.state_operations = storyChanges(sampled.people.map(({ name }: { name: string }) => name));
   }

@@ -261,8 +261,10 @@ export const MAX_STATUS = 3;
 /** The most Plot Threads the Narrator keeps open, so it isn't pulling on a dozen at once. A world starts with three to six. */
 export const MAX_PLOT_THREADS = 8;
 
-/** The most an NPC's list of what they know keeps, newest last, so the lists of a crowded scene stay a few lines each. */
-export const MAX_NPC_KNOWS = 12;
+/** Past this many, the Scribe folds the oldest of what an NPC knows into one entry, so the lists of a crowded scene stay a few lines each. */
+export const FOLD_NPC_KNOWS = 12;
+/** The most an NPC's list keeps, dropping the oldest, only reached when folding fails. */
+export const MAX_NPC_KNOWS = 20;
 // Of those, how many may be parts of threads, which the cap keeps.
 const MAX_PARTS = 4;
 
@@ -855,6 +857,8 @@ export const WorldEdit = z.discriminatedUnion("edit", [
     knows: z.record(z.string(), z.array(z.string())).optional(),
     // By truth, who those parts went to.
     parts: z.record(z.string(), z.array(z.string())).optional(),
+    // The Scribe's at a pause: by name, the entries of what someone knows folded into one.
+    folded: z.record(z.string(), z.object({ knew: z.array(z.string()), into: z.string() })).optional(),
   }),
   // Whole lists, as a World Change rewrites what the player says is wrong rather than one item at a time.
   z.object({ edit: z.literal("inventory"), wearing: z.array(z.string()), carrying: z.array(z.string()) }),
@@ -927,6 +931,10 @@ export function applyEdit(state: State, edit: WorldEdit): State {
         if (partTakers.has(name) && known.length > 0) npcParts[key] = [...own(npcParts, key), ...known].slice(-MAX_PARTS);
         if (known.length > 0 || knew.length > 0) npcKnows[key] = capped([...knew, ...known], own(npcParts, key));
       }
+      // Oldest first, where the entries it stands for were.
+      for (const [name, { knew, into }] of Object.entries(edit.folded ?? {}))
+        if (Object.hasOwn(npcKnows, name))
+          npcKnows[name] = [into, ...npcKnows[name]!.filter((fact) => fact !== into && (!knew.includes(fact) || own(npcParts, name).includes(fact)))];
       const threadParts = Object.fromEntries(
         merged.plotThreads.flatMap((truth) => {
           const names = [...new Set([...had(truth), ...given(truth)])];

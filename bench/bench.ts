@@ -53,7 +53,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 4;
+const BENCH_ITERATION = 7;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 45;
@@ -365,7 +365,10 @@ function hiddenChanges(before: State, after: State) {
     // Shown too, as a judge took a fact a Regenerate dropped for one it kept.
     // A full list that dropped its oldest for a new one is the cap making room, as judges read "no longer knows" as knowledge wiped.
     const room = was.length >= MAX_NPC_KNOWS && now.length >= MAX_NPC_KNOWS;
-    for (const text of was.filter((item) => !now.includes(item))) lines.push(`${name} ${room ? "has dropped, for room" : "no longer knows"}: ${text}`);
+    // A fold puts its summary first, where the entries it stands for were, and nothing else adds an entry there.
+    const folded = was.length > 0 && now.length > 0 && !was.includes(now[0]!);
+    for (const text of was.filter((item) => !now.includes(item)))
+      lines.push(`${name} ${folded ? "has folded into a summary" : room ? "has dropped, for room" : "no longer knows"}: ${text}`);
   }
   // Its words too, as a long story is judged on lore staying true, and an entry rewritten keeps its title.
   diff(

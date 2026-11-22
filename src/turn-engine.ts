@@ -45,6 +45,7 @@ import { estimateTokens, wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
+import { foldKnows } from "./knowledge-folds";
 import { growLore } from "./lore-growth";
 import { askToClose, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, turnThreadChanges } from "./world-moves-on";
 
@@ -716,10 +717,14 @@ export async function playTurn(
   });
   if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies + 1)) {
     // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
-    // Lore beside the move, by the Scribe, as Upkeep is, so the next Turn waits on both at most one MOVE_LIMIT, never one after the other.
+    // Lore and the folds beside the move, by the Scribe, as Upkeep is, so the next Turn waits on them all at most one MOVE_LIMIT, never one after the other.
     const limit = AbortSignal.timeout(MOVE_LIMIT.ms);
     // Settled both, as a move that threw let the next Turn start while the Lore was still being written, which then came too late.
-    const move = Promise.allSettled([moveWorldOn(textProvider, settings, saves, id, limit), reviewProvider && growLore(reviewProvider, saves, id, limit)])
+    const move = Promise.allSettled([
+      moveWorldOn(textProvider, settings, saves, id, limit),
+      reviewProvider && growLore(reviewProvider, saves, id, limit),
+      reviewProvider && foldKnows(reviewProvider, saves, id, limit),
+    ])
       .then(() => undefined)
       .finally(() => moving.delete(id));
     moving.set(id, move);

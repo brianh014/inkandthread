@@ -124,20 +124,23 @@ test("the Journal review's corrected change is the one kept, and null keeps the 
   expect(kept.log).toContain('"outcome":"unchanged"');
 });
 
-test("a review that fixes another fault keeps the proposed first sign and a kept plan's hours, and a leak or contradiction drops the sign", async () => {
+test("a review must give a proposed first sign, mended where it has a fault, and a kept plan keeps its hours", async () => {
   const thread = { old: "The tide is rising.", new: "The tide is rising.", now: null, plan: "The tide floods the square." };
-  const reviewOf = async (fixed: string[]) => {
+  const reviewOf = async (corrected: object) => {
     const proposed = { ...change("Magic is rare."), plot_threads: [{ ...thread, plan_in_hours: 6 }], first_sign: "A lamp gutters." };
     const narrator = scriptedTextProvider(JSON.stringify(proposed));
-    const reviewer = scriptedTextProvider(JSON.stringify({ fixed, change: { ...change("Magic is rare and costly."), plot_threads: [thread] } }));
+    const reviewer = scriptedTextProvider(
+      JSON.stringify({ fixed: ["contradiction"], change: { ...change("Magic is rare and costly."), plot_threads: [thread], ...corrected } }),
+    );
     const context = { textProvider: narrator.textProvider, reviewProvider: reviewer.textProvider, settings: settings() };
-    return changeWorld(context, STATE, "make magic rare", signal());
+    const result = await changeWorld(context, STATE, "make magic rare", signal());
+    return { result, schema: reviewer.prompts[0]![0]!.content };
   };
-  const kept = await reviewOf(["not_as_asked"]);
-  expect(kept.first_sign).toBe("A lamp gutters.");
-  expect(kept.plot_threads[0]!.plan_in_hours).toBe(6);
-  expect((await reviewOf(["leaked_secret"])).first_sign).toBeNull();
-  expect((await reviewOf(["contradiction"])).first_sign).toBeNull();
+  const mended = await reviewOf({ first_sign: "A lamp flickers." });
+  expect(mended.result.first_sign).toBe("A lamp flickers.");
+  expect(mended.result.plot_threads[0]!.plan_in_hours).toBe(6);
+  // The schema the review is sent holds first_sign as a string it must give, not one it may leave null.
+  expect(mended.schema).toMatch(/"first_sign":\{"type":"string"/);
 });
 
 test("an empty change isn't reviewed, nor is any change when the reviewer has no model", async () => {

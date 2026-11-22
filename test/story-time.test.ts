@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
-import { assemblePrompt } from "../src/prompt-assembler";
+import { assemblePrompt, withClock } from "../src/prompt-assembler";
 import { saveStore } from "../src/save-store";
 import { tempFolder } from "./support";
 import { applyEdit, applyOperations, openingState, type State, type StateOperation } from "../src/state-applier";
@@ -202,4 +202,16 @@ test("a clock time past midnight with no hours given moves the day on, and one g
   const back = applyOperations(afternoon, [set(0, null, "9 am")]);
   expect(back.next.storyTime).toEqual(afternoon.storyTime);
   expect(back.ignored).toEqual([{ op: "set_story_time", reason: "earlier than now" }]);
+});
+
+test("the Narrator reads storyTime's hours as the 24-hour time they reached, as it read its own noon back as past midnight", () => {
+  expect(withClock({ day: 1, date: "6th June", timeOfDay: "a quarter past twelve", hours: 12.25 })).toEqual({
+    day: 1,
+    date: "6th June",
+    timeOfDay: "a quarter past twelve",
+    clock: "12:15",
+  });
+  expect(withClock({ day: 3, date: "8th June", timeOfDay: "dawn", hours: 53.999 })).toMatchObject({ clock: "06:00" });
+  expect(withClock(DUSK)).toEqual(DUSK);
+  expect(withClock(null)).toBeNull();
 });

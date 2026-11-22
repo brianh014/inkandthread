@@ -312,6 +312,12 @@ export function knowsOfPresent({ scene, npcs, npcKnows }: Pick<State, "scene" | 
   return Object.fromEntries(Object.entries(npcKnows).filter(([name]) => present.has(name)));
 }
 
+/** The facts held up front, word for word, as they change only at a pause and so keep the cache, and the rest, sent with the state. */
+export function splitHeld(facts: string[], heldFacts: string[]) {
+  const held = new Set(heldFacts);
+  return { earlier: facts.filter((fact) => held.has(fact)), facts: facts.filter((fact) => !held.has(fact)) };
+}
+
 export function assemblePrompt({
   save: { worldBrief, pc, startingHook, artStyle = "", theme = "" },
   // Director's Notes are taken out so that any left in a Save can't steer the story now the player can't see them.
@@ -379,10 +385,7 @@ export function assemblePrompt({
   const npcKnows = knowsOfPresent({ ...currentState, npcKnows: allKnows }, [input, recent.findLast(({ role }) => role === "narrator")?.text ?? ""].join("\n"));
   // Last before the player's words, as models attend most to the end and the slips found in play were exactly these.
   const { inventory, scene, storyTime, pcKnown, ...restOfState } = currentState;
-  // The older facts up front, word for word, as they change only at a pause and so keep the cache.
-  const held = new Set(heldFacts);
-  const earlier = pcKnown.facts.filter((fact) => held.has(fact));
-  const facts = pcKnown.facts.filter((fact) => !held.has(fact));
+  const { earlier, facts } = splitHeld(pcKnown.facts, heldFacts);
   // The first Turn opens from the Starting Hook, so the people it names are met with their entries, not given new looks.
   const opening = messages.some(({ role }) => role === "narrator") ? [] : [startingHook];
   // The Plot Threads first, so the people the hidden plot will bring on come with their entries, as a Narrator naming one for the

@@ -31,7 +31,6 @@ import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, 
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { z } from "zod";
-
 import { fakeImages, fakeTextProvider } from "../src/fake-services";
 import { setLogLevel, startLog } from "../src/logger";
 import { CONTINUE } from "../src/prompt-assembler";
@@ -366,8 +365,8 @@ function hiddenChanges(before: State, after: State) {
     // Shown too, as a judge took a fact a Regenerate dropped for one it kept.
     // A full list that dropped its oldest for a new one is the cap making room, as judges read "no longer knows" as knowledge wiped.
     const room = was.length >= MAX_NPC_KNOWS && now.length >= MAX_NPC_KNOWS;
-    // A fold puts its summary first, where the entries it stands for were.
-    const folded = now.length > 0 && !was.includes(now[0]!) && now.length < was.length;
+    // A fold puts its summary first, where the entries it stands for were, and nothing else adds an entry there.
+    const folded = was.length > 0 && now.length > 0 && !was.includes(now[0]!);
     for (const text of was.filter((item) => !now.includes(item)))
       lines.push(`${name} ${folded ? "has folded into a summary" : room ? "has dropped, for room" : "no longer knows"}: ${text}`);
   }

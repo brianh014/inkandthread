@@ -600,7 +600,8 @@ function latestTurn(db: Database, messageId: number, replacing = false) {
   // A pending move of the world read the response, so a new one drops it, as it kept deeds of the discarded reply in a thread's now.
   // An Edit keeps it, as the response mostly stands.
   // Those an Edit already stored on the Message too, as it copies pending edits there, and a Regenerate after it kept the move.
-  const read = (edit: WorldEdit) => edit.edit === "world" && edit.moved;
+  // Not the held facts or a fold of what someone knows, which read only the older state, never the reply.
+  const read = (edit: WorldEdit) => edit.edit === "world" && edit.moved && !edit.held && !edit.folded;
   const all = [...parseEdits(narrator!.edits), ...pendingEdits(db)];
   const edits = replacing ? all.filter((edit) => !read(edit)) : all;
   const state = edits.reduce(applyEdit, { ...toState(sectionsAt(db, player!.id)), directorsNotes });

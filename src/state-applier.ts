@@ -938,7 +938,8 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       }
       // Oldest first, where the entries it stands for were.
       for (const [name, { knew, into }] of Object.entries(edit.folded ?? {}))
-        if (Object.hasOwn(npcKnows, name)) npcKnows[name] = [into, ...npcKnows[name]!.filter((fact) => fact !== into && !knew.includes(fact))];
+        if (Object.hasOwn(npcKnows, name))
+          npcKnows[name] = [into, ...npcKnows[name]!.filter((fact) => fact !== into && (!knew.includes(fact) || own(npcParts, name).includes(fact)))];
       const threadParts = Object.fromEntries(
         merged.plotThreads.flatMap((truth) => {
           const names = [...new Set([...had(truth), ...given(truth)])];

@@ -51,12 +51,17 @@ const promptOf = (rules: string, schema: z.ZodType, input: unknown): Prompt => [
  * word, so they are cached until the next pause. No model reads them: a digest of them lost about a fifth of what it folded.
  */
 export function holdFacts(saves: SaveStore, id: string) {
-  const basedOn = saves.latestMessageId(id);
-  const { pcKnown, heldFacts } = saves.latestState(id);
-  const held = olderThanRecent(pcKnown.facts);
-  if (held.length === heldFacts.length && held.every((fact, at) => fact === heldFacts[at])) return;
-  saves.addWorldChange(id, basedOn, [{ edit: "world", update: empty, made: 0, moved: true, held }]);
-  log.info("world", "Facts held", { save: id, held: held.length, recent: pcKnown.facts.length - held.length });
+  try {
+    const basedOn = saves.latestMessageId(id);
+    const { pcKnown, heldFacts } = saves.latestState(id);
+    const held = olderThanRecent(pcKnown.facts);
+    if (held.length === heldFacts.length && held.every((fact, at) => fact === heldFacts[at])) return;
+    saves.addWorldChange(id, basedOn, [{ edit: "world", update: empty, made: 0, moved: true, held }]);
+    log.info("world", "Facts held", { save: id, held: held.length, recent: pcKnown.facts.length - held.length });
+  } catch (error) {
+    // The next pause holds them; until then they go with the state, as before.
+    log.warning("world", "Facts not held", { save: id, ...errorType(error) });
+  }
 }
 
 /**

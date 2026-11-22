@@ -22,6 +22,7 @@ import {
   summaryDue,
   SET_SCENE_NOTE,
   worldSigns,
+  splitHeld,
 } from "./prompt-assembler";
 import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } from "./save-store";
 import { modelName, type SettingsStore } from "./settings-store";
@@ -564,8 +565,8 @@ function turnPrompt(
       npcs: tokens(state.npcs),
       npcKnows: tokens(state.npcKnows),
       // The facts the Narrator reads with the state, and those held up front.
-      known: tokens({ ...state.pcKnown, facts: state.pcKnown.facts.filter((fact) => !state.heldFacts.includes(fact)) }),
-      heldFacts: tokens(state.heldFacts),
+      known: tokens({ ...state.pcKnown, facts: splitHeld(state.pcKnown.facts, state.heldFacts).facts }),
+      heldFacts: tokens(splitHeld(state.pcKnown.facts, state.heldFacts).earlier),
       looseEnds: tokens(state.looseEnds),
       lore: tokens(state.worldBible),
     };

@@ -277,6 +277,9 @@ const UNKNOWING =
 // the evidence but has heard nothing of" was one clause.
 const CLAUSES = /(\s*;\s*|,\s+(?=(?:but|and|though|yet|while|nor)\b)|\s+(?=but\b))/i;
 
+/** What someone learns as it is kept: without a trailing run of symbols, as a reviewer's "+#+#+#" was kept and sent in every prompt after, and as knownOnly has it. */
+export const cleanKnown = (fact: string) => knownOnly(fact.replace(/[^\p{L}\p{N}\s.!?"'’)]{3,}$/u, "").trim());
+
 /** A fact an NPC learns without its clauses saying what they don't know, or "" when that is all it says. */
 export function knownOnly(fact: string) {
   if (!UNKNOWING.test(fact)) return fact;
@@ -480,8 +483,7 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const name = findPerson(state.npcs, operation.name)?.name;
       if (!name) return "no such NPC";
       if (!/\p{L}/u.test(operation.fact)) return "no words";
-      // Without a trailing run of symbols, as a reviewer's "+#+#+#" was kept and sent in every prompt after.
-      const fact = knownOnly(operation.fact.replace(/[^\p{L}\p{N}\s.!?"'’)]{3,}$/u, "").trim());
+      const fact = cleanKnown(operation.fact);
       if (!fact) return "only what they don't know";
       // Own keys only, as a name such as "constructor" would find what every object has.
       const knows = Object.hasOwn(state.npcKnows, name) ? state.npcKnows[name]! : [];

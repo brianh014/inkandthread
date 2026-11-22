@@ -336,6 +336,7 @@ export function assemblePrompt({
     chapters: _chapters,
     chapterReady: _ready,
     npcKnows: allKnows,
+    factsDigest,
     ...currentState
   },
   messages,
@@ -377,7 +378,10 @@ export function assemblePrompt({
   const recent = messageWindow(messages, sceneMemories, memoryStart, windowMessages);
   const npcKnows = knowsOfPresent({ ...currentState, npcKnows: allKnows }, [input, recent.findLast(({ role }) => role === "narrator")?.text ?? ""].join("\n"));
   // Last before the player's words, as models attend most to the end and the slips found in play were exactly these.
-  const { inventory, scene, storyTime, ...restOfState } = currentState;
+  const { inventory, scene, storyTime, pcKnown, ...restOfState } = currentState;
+  // The facts the digest covers are read in it, up front, as it changes only at a pause and so keeps the cache.
+  const covered = new Set(factsDigest.covered);
+  const facts = pcKnown.facts.filter((fact) => !covered.has(fact));
   // The first Turn opens from the Starting Hook, so the people it names are met with their entries, not given new looks.
   const opening = messages.some(({ role }) => role === "narrator") ? [] : [startingHook];
   // The Plot Threads first, so the people the hidden plot will bring on come with their entries, as a Narrator naming one for the
@@ -409,14 +413,18 @@ storyTime in the current state is the date and time of day the PC is living in, 
 ${imageInstruction(promptStyle, { artStyle, theme, worldBrief: currentBrief }, imageInstructions)}
 Plot Threads: ${JSON.stringify(plotThreads)}
 Model Instructions, which are the player's out-of-character guidance to follow: ${modelInstructions}
-Scene Memories of the story so far, oldest first, each opening with the date and time its scene began where the story had one: ${JSON.stringify(sceneMemories.map(({ firstMessage, text }) => (memoryTimes[firstMessage] ? `${memoryTimes[firstMessage]}: ${text}` : text)))}`,
+Scene Memories of the story so far, oldest first, each opening with the date and time its scene began where the story had one: ${JSON.stringify(sceneMemories.map(({ firstMessage, text }) => (memoryTimes[firstMessage] ? `${memoryTimes[firstMessage]}: ${text}` : text)))}${
+        factsDigest.text &&
+        `
+Digest of the PC's older known facts, which the known facts in the current state overrule where they differ: ${factsDigest.text}`
+      }`,
     },
     ...recent.map(toPrompt(pc.name, currentState.npcs, recent.filter(({ role }) => role === "narrator").at(-REPLIES_SHOWING_PEOPLE)?.id ?? 0)),
     {
       role: "system",
       // Everything that changes from Turn to Turn stays down here, as the provider's cache only covers an unchanged start.
       content: `Lore Entries: ${JSON.stringify(activeEntries.map(({ title, content }) => ({ title, content })))}
-Current state, apart from its inventory, scene and storyTime, which come last: ${JSON.stringify({ ...restOfState, npcKnows })}
+Current state, apart from its inventory, scene and storyTime, which come last: ${JSON.stringify({ ...restOfState, pcKnown: { ...pcKnown, facts }, npcKnows })}
 Summary of the story so far: ${summary}${firstTurnInstruction(startingHook, messages)}
 world_rules: ${JSON.stringify(worldRules)}
 Evaluate the player's action against world_rules. If it violates them, rate it None, as no roll can make it work, and describe the failure in character rather than fulfilling the action.

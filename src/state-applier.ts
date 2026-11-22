@@ -13,6 +13,11 @@ export type State = {
   scene: { location: string; visibleCast: string[] };
   /** `summaries` says who each known NPC is, as the PC understands it. A Save from before them has none. */
   pcKnown: { facts: string[]; npcs: string[]; summaries?: Record<string, string> };
+  /**
+   * The Scribe's digest of the older known facts, which the Narrator reads in their place, and the facts it covers, word for word.
+   * The facts themselves stay, for the Journal and later digests. Empty until a story has enough of them.
+   */
+  factsDigest: { text: string; covered: string[] };
   /** What the PC knows is still unresolved. Unlike a Plot Thread, the player reads these. */
   looseEnds: string[];
   /** The story's older Messages in about 100 words each, oldest first. The server sets each range, so a wrong memory can be traced to its source. */
@@ -81,6 +86,7 @@ export const openingState: State = {
   npcKnows: {},
   scene: { location: "", visibleCast: [] },
   pcKnown: { facts: [], npcs: [] },
+  factsDigest: { text: "", covered: [] },
   looseEnds: [],
   sceneMemories: [],
   worldBible: [],
@@ -114,6 +120,7 @@ export const StateSections = {
   npcKnows: z.record(z.string(), stringList),
   scene: z.object({ location: z.string(), visibleCast: stringList }),
   pcKnown: z.object({ facts: stringList, npcs: stringList, summaries: z.record(z.string(), z.string()).optional() }),
+  factsDigest: z.object({ text: z.string(), covered: stringList }),
   looseEnds: stringList,
   sceneMemories: z.array(z.object({ firstMessage: z.number().int(), lastMessage: z.number().int(), text: z.string() })),
   worldBible: z.array(z.object({ title: z.string(), keywords: stringList, content: z.string(), alwaysOn: z.boolean() })),
@@ -261,8 +268,10 @@ export const MAX_STATUS = 3;
 /** The most Plot Threads the Narrator keeps open, so it isn't pulling on a dozen at once. A world starts with three to six. */
 export const MAX_PLOT_THREADS = 8;
 
-/** The most an NPC's list of what they know keeps, newest last, so the lists of a crowded scene stay a few lines each. */
-export const MAX_NPC_KNOWS = 12;
+/** Past this many, the Scribe folds the oldest of what an NPC knows into one entry, so the lists of a crowded scene stay a few lines each. */
+export const FOLD_NPC_KNOWS = 12;
+/** The most an NPC's list keeps, dropping the oldest, only reached when folding fails. */
+export const MAX_NPC_KNOWS = 20;
 // Of those, how many may be parts of threads, which the cap keeps.
 const MAX_PARTS = 4;
 
@@ -855,6 +864,9 @@ export const WorldEdit = z.discriminatedUnion("edit", [
     knows: z.record(z.string(), z.array(z.string())).optional(),
     // By truth, who those parts went to.
     parts: z.record(z.string(), z.array(z.string())).optional(),
+    // The Scribe's: a new digest of the known facts, and by name, the entries of what someone knows folded into one.
+    digest: z.object({ text: z.string(), covered: z.array(z.string()) }).optional(),
+    folded: z.record(z.string(), z.object({ knew: z.array(z.string()), into: z.string() })).optional(),
   }),
   // Whole lists, as a World Change rewrites what the player says is wrong rather than one item at a time.
   z.object({ edit: z.literal("inventory"), wearing: z.array(z.string()), carrying: z.array(z.string()) }),
@@ -927,13 +939,17 @@ export function applyEdit(state: State, edit: WorldEdit): State {
         if (partTakers.has(name) && known.length > 0) npcParts[key] = [...own(npcParts, key), ...known].slice(-MAX_PARTS);
         if (known.length > 0 || knew.length > 0) npcKnows[key] = capped([...knew, ...known], own(npcParts, key));
       }
+      // Oldest first, where the entries it stands for were.
+      for (const [name, { knew, into }] of Object.entries(edit.folded ?? {}))
+        if (Object.hasOwn(npcKnows, name)) npcKnows[name] = [into, ...npcKnows[name]!.filter((fact) => !knew.includes(fact))];
       const threadParts = Object.fromEntries(
         merged.plotThreads.flatMap((truth) => {
           const names = [...new Set([...had(truth), ...given(truth)])];
           return names.length > 0 ? [[truth, names]] : [];
         }),
       );
-      return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, npcKnows, npcParts, threadParts };
+      const factsDigest = edit.digest ?? state.factsDigest;
+      return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, npcKnows, npcParts, threadParts, factsDigest };
     }
     case "inventory":
       return { ...state, inventory: { wearing: edit.wearing, carrying: edit.carrying } };

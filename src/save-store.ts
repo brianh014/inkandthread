@@ -355,6 +355,9 @@ const toVersion29 = addMissingSections;
 // npcParts, threadsQuestion and threadsDue.
 const toVersion30 = addMissingSections;
 
+/** The Scribe's digest of the known facts, empty until a story has enough of them. */
+const toVersion31 = addMissingSections;
+
 /** One step per schema version, where step N takes a Save from version N to N + 1. New Saves take them too, so they can't drift from old ones. */
 const MIGRATIONS = [
   toVersion1,
@@ -387,6 +390,7 @@ const MIGRATIONS = [
   toVersion28,
   toVersion29,
   toVersion30,
+  toVersion31,
 ];
 
 function schemaVersion(db: Database) {

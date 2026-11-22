@@ -277,6 +277,25 @@ const UNKNOWING =
 // the evidence but has heard nothing of" was one clause.
 const CLAUSES = /(\s*;\s*|,\s+(?=(?:but|and|though|yet|while|nor)\b)|\s+(?=but\b))/i;
 
+const longWords = (text: string) => new Set(text.toLowerCase().match(/\p{L}{4,}/gu) ?? []);
+const denies = (text: string) => /\b(?:not|never|no|nothing|none|nobody)\b|n't\b/i.test(text);
+/**
+ * The same fact in other words: three or more longer words shared, most of them, and both saying or both denying it, as reworded
+ * repeats got past an exact match while "is alive" and "is not alive" are a correction, not a repeat.
+ */
+export function alike(a: string, b: string) {
+  const [one, two] = [longWords(a), longWords(b)];
+  const shared = [...one].filter((word) => two.has(word)).length;
+  return shared >= 3 && shared / new Set([...one, ...two]).size >= 0.7 && denies(a) === denies(b);
+}
+
+/** `fact` in place of what `list` already says in other words, as the newer has it as it now stands, or on the end. */
+function learnInto(list: string[], fact: string) {
+  const at = list.findIndex((other) => alike(other, fact));
+  if (at === -1) list.push(fact);
+  else list[at] = fact;
+}
+
 /** What someone learns as it is kept: without a trailing run of symbols, as a reviewer's "+#+#+#" was kept and sent in every prompt after, and as knownOnly has it. */
 export const cleanKnown = (fact: string) => knownOnly(fact.replace(/[^\p{L}\p{N}\s.!?"'’)]{3,}$/u, "").trim());
 
@@ -487,7 +506,8 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       if (!fact) return "only what they don't know";
       // Own keys only, as a name such as "constructor" would find what every object has.
       const knows = Object.hasOwn(state.npcKnows, name) ? state.npcKnows[name]! : [];
-      if (!addOnce(knows, fact)) return "already there";
+      if (knows.includes(fact)) return "already there";
+      learnInto(knows, fact);
       state.npcKnows = { ...state.npcKnows, [name]: capped(knows, own(state.npcParts, name)) };
       return;
     }
@@ -931,9 +951,16 @@ export function applyEdit(state: State, edit: WorldEdit): State {
         const key = findPerson(state.npcs, name)?.name ?? name;
         const knew = own(npcKnows, key);
         const known = parts.map(knownOnly).filter((part) => part && !knew.includes(part));
+        // A part given again in other words replaces the old, as a move that reads more of the story restated parts every time.
+        const given = [...own(npcParts, key)];
+        const list = [...knew];
+        for (const part of known) {
+          learnInto(given, part);
+          learnInto(list, part);
+        }
         // shortcut: the last few parts only, so a long story's turnover of threads can't fill the cap with them; keep more if old secrets go missing.
-        if (partTakers.has(name) && known.length > 0) npcParts[key] = [...own(npcParts, key), ...known].slice(-MAX_PARTS);
-        if (known.length > 0 || knew.length > 0) npcKnows[key] = capped([...knew, ...known], own(npcParts, key));
+        if (partTakers.has(name) && known.length > 0) npcParts[key] = given.slice(-MAX_PARTS);
+        if (known.length > 0 || knew.length > 0) npcKnows[key] = capped(list, own(npcParts, key));
       }
       // Oldest first, where the entries it stands for were.
       for (const [name, { knew, into }] of Object.entries(edit.folded ?? {}))

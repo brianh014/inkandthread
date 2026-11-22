@@ -2926,6 +2926,26 @@ dialog blockquote {
   color: var(--accent);
 }
 
+.menu .community {
+  margin: 0;
+  display: flex;
+  gap: 20px;
+  font-size: 14px;
+}
+
+.menu .community a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.menu .community svg {
+  width: 28px;
+  height: 28px;
+  fill: currentColor;
+}
+
 .menu .version {
   margin: 0;
   font-size: 13px;

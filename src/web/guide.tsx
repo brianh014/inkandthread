@@ -23,7 +23,7 @@ import {
   StopIcon,
   UploadIcon,
 } from "./icons";
-import { DONATE_URL, MenuRibbon, Sheet } from "./menu";
+import { DISCORD_URL, DONATE_URL, GITHUB_URL, MenuRibbon, Sheet } from "./menu";
 import { QUIET_TURNS } from "./usage";
 
 /** The Reader's Guide: what Ink & Thread is and how to use every part of it, one section at a time, kept in the URL hash. */
@@ -657,10 +657,15 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>Something else</h3>
         <p>
           Report it on{" "}
-          <a href="https://github.com/brianh014/inkandthread/issues" target="_blank" rel="noreferrer">
+          <a href={`${GITHUB_URL}/issues`} target="_blank" rel="noreferrer">
             GitHub
           </a>
-          , with what you did and what happened. The log in the <code>logs</code> folder helps, and holds no keys, and no story text unless Story in log is on.
+          , with what you did and what happened, or ask on the{" "}
+          <a href={DISCORD_URL} target="_blank" rel="noreferrer">
+            Discord
+          </a>
+          . The Discord and GitHub icons at the bottom of the Menu open them too. The log in the <code>logs</code> folder helps, and holds no keys, and no story
+          text unless Story in log is on.
         </p>
         <h3>Supporting Ink & Thread</h3>
         <p>

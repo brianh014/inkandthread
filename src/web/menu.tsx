@@ -1,9 +1,11 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { getSettings, getUpdate, quitApp, setupProblem, type UpdateStatus } from "./api";
-import { DownIcon } from "./icons";
+import { DiscordIcon, DownIcon, GitHubIcon } from "./icons";
 import logo from "./logo.svg";
 
 export const DONATE_URL = "https://ko-fi.com/brianh014";
+export const DISCORD_URL = "https://discord.gg/d9MqaFGjEW";
+export const GITHUB_URL = "https://github.com/brianh014/inkandthread";
 
 const LEFT_FOLDED = "novelforge-left-folded";
 
@@ -278,6 +280,14 @@ export function Menu() {
           <a className="donate" href={DONATE_URL} target="_blank" rel="noreferrer">
             Support Ink &amp; Thread <span aria-hidden="true">♥</span>
           </a>
+          <p className="community">
+            <a href={DISCORD_URL} target="_blank" rel="noreferrer" aria-label="Discord" title="Discord">
+              {DiscordIcon}
+            </a>
+            <a href={GITHUB_URL} target="_blank" rel="noreferrer" aria-label="GitHub" title="GitHub">
+              {GitHubIcon}
+            </a>
+          </p>
           {update && <p className="muted version">Version {update.version}</p>}
         </div>
       )}

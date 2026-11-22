@@ -625,8 +625,11 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       // A new day only where the hours or the words reach one, as a ten-yard walk from a quarter to six to a quarter past was given
       // a day and the next date, and a date once moved on never comes back. Not a date the clock is waiting on, nor a clock it lacks.
       const wentBack = (hourOf(time_of_day) ?? 24) < (hourOf(before?.timeOfDay ?? "") ?? 0);
+      // Two days or more with a new date is meant, never that slip, as a reply going on to "Saturday came in grey" two days later
+      // gave five hours with it and the story stayed on Thursday.
       const reached =
         operation.days_passed === 0 ||
+        (operation.days_passed >= 2 && operation.date !== null && operation.date !== before?.date) ||
         !before ||
         before.dateDue ||
         before.hours === undefined ||

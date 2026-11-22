@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { assemblePrompt, journalNote } from "../src/prompt-assembler";
 import { saveStore } from "../src/save-store";
-import { applyEdit, applyOperations, openingState, type State, type StateOperation, type WorldEdit } from "../src/state-applier";
+import { applyOperations, openingState, type State, type StateOperation } from "../src/state-applier";
 import { logOf, narration, scriptedDice, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -300,35 +300,17 @@ test("a Journal note says what each change means, and names a reworded item's ol
   expect(journalNote([{ edit: "chapterTitle", index: 0, title: "Low Water" }])).toBe("");
 });
 
-test("a player's World Change makes news of the nows it writes, which renames carry and the next move it was shown to ends", () => {
+test("the Turn after a World Change is told to bring on its first sign, and not its nows", () => {
   const update = { lore_entries: [], removed_lore: [], world_rules: [], plot_threads: [] };
-  const thread = "The pump thread.";
-  const now = "The pump has begun to fail.";
-  const state: State = { ...structuredClone(openingState), plotThreads: [thread], threadsNow: { [thread]: "The pump runs." } };
-  const change = (now: string, flags = {}): WorldEdit => ({ edit: "world", update, now: { [thread]: now }, made: 0, ...flags });
-
-  const changed = applyEdit(state, change(now));
-  expect(changed.threadsNews).toEqual({ [thread]: now });
-  expect(applyEdit(state, change(now, { settles: true })).threadsNews).toEqual({});
-  // Shown it, a move ends the news whether or not it rewrote the now; one that wasn't, as the news came after it began, keeps it.
-  expect(applyEdit(changed, { edit: "world", update, now: {}, made: 0, moved: true, news: [thread] }).threadsNews).toEqual({});
-  expect(applyEdit(changed, change("The pump is mended.", { moved: true })).threadsNews).toEqual({ [thread]: now });
-  const settledRename = applyEdit(changed, {
-    edit: "world",
-    update: { ...update, plot_threads: [{ old: thread, new: "The pump thread, sabotaged." }] },
-    now: {},
-    made: 0,
-    settles: true,
-  });
-  expect(settledRename.threadsNews).toEqual({ "The pump thread, sabotaged.": now });
-  expect(applyEdit(changed, change("The pump never failed.", { settles: true })).threadsNews).toEqual({});
-  const renamed = applyOperations(changed, [
-    { op: "update_plot_thread", thread, truth: "The pump thread, sabotaged.", now: "Someone cut the belt.", plan: null },
+  const now = { "The pump thread.": "The pump has begun to fail." };
+  const note = journalNote([
+    { edit: "world", update, now, made: 0, sign: "The pump coughs and the lights dim." },
+    { edit: "world", update, now, made: 0, sign: "A runner shouts that the lower dock is flooding." },
   ]);
-  expect(renamed.next.threadsNews).toEqual({ "The pump thread, sabotaged.": now });
-  expect(applyOperations(changed, [{ op: "resolve_plot_thread", thread }]).next.threadsNews).toEqual({});
-  expect(journalNote([], [now])).toContain(`these happened out of the PC's sight: ${JSON.stringify([now])}`);
-  expect(journalNote([])).toBe("");
+
+  expect(note).toContain("this happens in this response: The pump coughs and the lights dim. A runner shouts that the lower dock is flooding.");
+  expect(note).not.toContain("begun to fail");
+  expect(journalNote([{ edit: "world", update, now, made: 0 }])).toBe("");
 });
 
 test("a Journal note follows each item through its edits, from the wording the Narrator last saw", () => {

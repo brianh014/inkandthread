@@ -21,6 +21,7 @@ import {
   narratorReplies,
   summaryDue,
   SET_SCENE_NOTE,
+  worldSigns,
 } from "./prompt-assembler";
 import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } from "./save-store";
 import { modelName, type SettingsStore } from "./settings-store";
@@ -524,8 +525,8 @@ function turnPrompt(
   }: Pick<Parameters<typeof assemblePrompt>[0], "state" | "messages" | "input" | "directions" | "journalEdits"> & { picture: boolean },
 ) {
   const current = settings.read();
-  const news = Object.values(state.threadsNews);
-  if (news.length > 0) log.info("turn", "World Change news sent", { save: id, nows: news.length });
+  const signs = worldSigns(journalEdits ?? []).length;
+  if (signs > 0) log.info("turn", "World Change sign sent", { save: id, signs });
   const memoryStart = saves.memoryStart(id);
   const save = saves.read(id);
   return {
@@ -540,7 +541,6 @@ function turnPrompt(
       imageInstructions: current.imageInstructions,
       directions,
       journalEdits,
-      news,
       memoryTimes: saves.storyTimesAt(
         id,
         state.sceneMemories.map(({ firstMessage }) => firstMessage),

@@ -754,24 +754,25 @@ test("the next Turn uses a hidden change", async () => {
   expect(store().snapshot(id, 2).plotThreads).toContain(`${SECRET} the mayor runs guns.`);
 });
 
-test("a World Change's news stays in the Turn's prompt until its thread's now is rewritten", async () => {
-  const truth = `${SECRET} the mayor runs guns.`;
-  const now = "A gun-runner's lugger lies off the harbour mouth.";
-  play(update({ plot_threads: [{ old: null, new: truth, now }] }), narration("One."), narration("Two."), narration("Three."));
+test("a World Change sees the scene, and the next Turn alone is told to bring on its first sign", async () => {
+  const sign = "A runner bursts in: the mayor's lugger has been seized.";
+  play(
+    narration("Ash waits by the harbour."),
+    update({ plot_threads: [{ old: null, new: `${SECRET} the mayor runs guns.` }], first_sign: sign }),
+    narration("One."),
+    narration("Two."),
+  );
   const id = createSave();
-  await change(id);
-  const news = (prompt: (typeof prompts)[number]) =>
-    prompt.some(({ content }) => content.includes(`these happened out of the PC's sight: ${JSON.stringify([now])}`));
-
-  await turn(id);
-  await turn(id);
-  const empty = { lore_entries: [], removed_lore: [], world_rules: [], plot_threads: [] };
-  store().addWorldChange(id, store().latestMessageId(id), [
-    { edit: "world", update: empty, now: { [truth]: "The lugger has sailed." }, made: 0, moved: true, news: [truth] },
-  ]);
   await turn(id);
 
-  expect(prompts.slice(1).map(news)).toEqual([true, true, false]);
+  const log = await logOf(() => change(id), "info");
+  await turn(id);
+  await turn(id);
+
+  expect(prompts[1]![0]!.content).toContain('"latest_replies":["Ash waits by the harbour."]');
+  expect(log).toContain('"sign":true');
+  const told = prompts.slice(2).map((prompt) => prompt.some(({ content }) => content.includes(`this happens in this response: ${sign}`)));
+  expect(told).toEqual([true, false]);
 });
 
 test("a Revert to before a hidden change undoes it", async () => {

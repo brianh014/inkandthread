@@ -663,6 +663,7 @@ const WorldChange = WorldUpdate.extend({
     .object({ health: words, injuries: z.array(words), conditions: z.array(words) })
     .nullable()
     .default(null),
+  first_sign: words.nullable().default(null),
 });
 
 const changesSomething = ({
@@ -728,25 +729,33 @@ Each change in world_rules, plot_threads and facts has old, copied exactly from 
 world_brief, summary, facts and npc_summaries are the Journal, which the player reads. Change them only where they no longer hold, and give null or an empty list otherwise. Write them as the PC knows the world: a secret, and news of anything the PC hasn't seen or been told, stays out of them, even when the player's instruction names it, and goes in the hidden parts, such as a thread's now, for the story to bring to the PC. Each of npc_summaries holds a new summary with the exact name of an NPC already in the Journal.
 inventory and status are what the PC wears and carries, and their health, injuries and conditions, which the player also reads. Give the whole new inventory or status only when the instruction changes it, keeping everything it doesn't change, and null otherwise. Write status in words with no digits: health in at most five words, and at most three injuries and three conditions of at most eight words each.
 npc_looks holds new looks only for each NPC whose looks or clothing the instruction changes, with their exact name from npcs, ${LOOKS}. These are hidden, and they are what pictures of that NPC are drawn from.
-pc_looks is the PC's new looks, only when the instruction changes how their body or face looks, such as their hair, a scar, a tattoo or makeup, and null otherwise: start from pc_looks in the world, keep all it doesn't change, and write only how their body and face look in at most 40 words, never clothing, gear, temperament or history. Pictures of the PC are drawn from it.`;
+pc_looks is the PC's new looks, only when the instruction changes how their body or face looks, such as their hair, a scar, a tattoo or makeup, and null otherwise: start from pc_looks in the world, keep all it doesn't change, and write only how their body and face look in at most 40 words, never clothing, gear, temperament or history. Pictures of the PC are drawn from it.
+first_sign is the first sign of the change that reaches the PC in the next scene, where scene shows them: what they would see or hear there, or someone who brings word, knowing only what they could, in a sentence. Give null when there is no scene or nothing of it could reach them yet, so it comes when its time does.`;
 
-const worldAsItStands = ({
-  worldBrief,
-  worldBible,
-  worldRules,
-  plotThreads,
-  threadsNow,
-  threadsPlan,
-  summary,
-  pcKnown,
-  inventory,
-  status,
-  npcs,
-  pcAppearance,
-  storyTime,
-  threadsDue,
-}: State) => ({
+/** `latestReplies` gives the scene, for a change the PC may meet, and none for one that only settles Journal edits. */
+const worldAsItStands = (
+  {
+    worldBrief,
+    worldBible,
+    worldRules,
+    plotThreads,
+    threadsNow,
+    threadsPlan,
+    summary,
+    pcKnown,
+    inventory,
+    status,
+    npcs,
+    pcAppearance,
+    storyTime,
+    threadsDue,
+    scene,
+  }: State,
+  latestReplies: string[],
+) => ({
   world_brief: worldBrief,
+  // Without it first_sign had to guess where the PC is.
+  ...(latestReplies.length > 0 && { scene: { location: scene.location, visible_cast: scene.visibleCast, latest_replies: latestReplies } }),
   // Without it plan_in_hours had no clock to count from.
   story_time: storyTime && { date: storyTime.date, time_of_day: storyTime.timeOfDay },
   lore_entries: worldBible.map(({ title, keywords, content }) => ({ title, keywords, content })),
@@ -768,7 +777,7 @@ const worldAsItStands = ({
   },
 });
 
-const worldChangePrompt = (context: Context, state: State, change: string): Prompt => [
+const worldChangePrompt = (context: Context, state: State, change: string, latestReplies: string[]): Prompt => [
   {
     role: "system",
     // The world comes last, as a provider's error can echo the start of this and the server log keeps that.
@@ -776,7 +785,7 @@ const worldChangePrompt = (context: Context, state: State, change: string): Prom
 It may correct a mistake, or nudge where the story goes, which belongs in the Plot Threads and the World Bible. Make the smallest change that makes it true, and change whatever it contradicts. Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(WorldChange))}
 ${CHANGE_FORM}
 ${modelInstructions(context)}
-The world as it stands, as JSON: ${JSON.stringify(worldAsItStands(state))}`,
+The world as it stands, as JSON: ${JSON.stringify(worldAsItStands(state, latestReplies))}`,
   },
   playerChoices({ change }),
 ];
@@ -785,13 +794,13 @@ The world as it stands, as JSON: ${JSON.stringify(worldAsItStands(state))}`,
  * A change to the world, in the player's plain words. The hidden part of the reply never reaches them, so it may hold every secret.
  * shortcut: the Journal's part is Narrator free text the player reads, kept clean only by its prompt, screen it if models leak.
  */
-export async function changeWorld(context: Context, state: State, change: string, signal: AbortSignal, mayKeep = false) {
+export async function changeWorld(context: Context, state: State, change: string, signal: AbortSignal, mayKeep = false, latestReplies: string[] = []) {
   const fits = fitsWorld(state, mayKeep);
   const proposed = withoutStrangers(
     state,
     await askForJson(
       context.textProvider,
-      worldChangePrompt(context, state, change),
+      worldChangePrompt(context, state, change, latestReplies),
       fits,
       "The Narrator refused this change. Reword it and try again.",
       signal,
@@ -815,7 +824,7 @@ ${CHANGE_FORM}
 ${modelInstructions(context)}
 Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))}`,
     },
-    playerChoices({ instruction: change, world: worldAsItStands(state), proposed_change: proposed }),
+    playerChoices({ instruction: change, world: worldAsItStands(state, latestReplies), proposed_change: proposed }),
   ];
   return reviewed(context, "World Change", proposed, signal, async (reviewer) => {
     const { fixed, change: corrected } = await askForJson(reviewer, prompt, reply, REFUSAL, signal, { call: "worldChangeReview", reviewer: true });
@@ -866,20 +875,30 @@ export async function applyWorldChange(
   change: string,
   signal: AbortSignal,
   /** `stateOf` reads the state the change applies to: a replaced response's is the one before it. */
-  /** `settles` marks one that only brings the hidden world in line with the player's Journal edits, which holds no news for the PC. */
+  /** `settles` marks one that only brings the hidden world in line with the player's Journal edits, which holds no sign for the PC. */
   { mayKeep = false, stateOf = () => saves.latestState(id), settles = false }: { mayKeep?: boolean; stateOf?: () => State; settles?: boolean } = {},
 ) {
   const basedOn = saves.latestMessageId(id);
   const before = stateOf();
   // The PC's looks as they stand, so a change to them keeps all they don't change.
   const looksNow = pcNow(saves.read(id).pc, before).physicalTraits ?? "";
-  const { world_brief, summary, facts, npc_summaries, npc_looks, pc_looks, inventory, status, plot_threads, ...rest } = await changeWorld(
+  // Settling Journal edits makes no news for the PC, so it needs no scene.
+  const latestReplies = settles
+    ? []
+    : saves
+        .messages(id)
+        .filter(({ role }) => role === "narrator")
+        .slice(-2)
+        .map(({ text }) => text);
+  const { world_brief, summary, facts, npc_summaries, npc_looks, pc_looks, inventory, status, plot_threads, first_sign, ...rest } = await changeWorld(
     context,
     { ...before, pcAppearance: looksNow },
     change,
     signal,
     mayKeep,
+    latestReplies,
   );
+  const sign = latestReplies.length > 0 ? first_sign : null;
   const journal: WorldEdit[] = [
     ...(world_brief === null ? [] : [{ edit: "worldBrief" as const, text: world_brief }]),
     ...(summary === null ? [] : [{ edit: "summary" as const, text: summary }]),
@@ -903,10 +922,7 @@ export async function applyWorldChange(
       truth && (plan || (before.threadsPlan[truth] && !now)) && plan_in_hours !== null && clock !== undefined ? [[truth, clock + plan_in_hours]] : [],
     ),
   );
-  saves.addWorldChange(id, basedOn, [
-    ...made,
-    { edit: "world", update, now: by("now"), plan: by("plan"), due, made: made.length, ...(settles && { settles: true }) },
-  ]);
+  saves.addWorldChange(id, basedOn, [...made, { edit: "world", update, now: by("now"), plan: by("plan"), due, made: made.length, ...(sign && { sign }) }]);
   const after = stateOf();
   images.restyled(id, restyledBy(before, after), after.inventory.wearing);
   log.info("world", "World Change applied", () => ({
@@ -917,7 +933,7 @@ export async function applyWorldChange(
     journal: journal.length,
     looks: looks.length,
     due: Object.keys(due).length,
-    news: settles ? 0 : Object.keys(by("now")).length,
+    sign: sign !== null,
   }));
 }
 

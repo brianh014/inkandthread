@@ -207,8 +207,8 @@ export const fakeTextProvider: TextProvider = async (prompt, { schema, onText, o
   // A picture's review hands its prompt back as it was, as a sampled one would replace the scene with filler words.
   const reviewed = prompt.at(-1)?.content.match(/^\{"prompt":(".*")\}$/s)?.[1];
   if (sampled && reviewed && typeof sampled.prompt === "string") sampled.prompt = JSON.parse(reviewed);
-  // A World or World Change review, or State Upkeep, finds nothing, as sampled edits would name parts the world doesn't have.
-  if (sampled && /^You (review|keep a story's state)/.test(prompt[0]?.content ?? ""))
+  // A World or World Change review, State Upkeep or the Loose Ends check finds nothing, as sampled edits would name parts the world doesn't have.
+  if (sampled && /^You (review|keep a story's state|keep the Loose Ends)/.test(prompt[0]?.content ?? ""))
     for (const [key, value] of Object.entries(sampled)) sampled[key] = Array.isArray(value) ? [] : null;
   // World Moves On rewrites each thread's now and keeps its truth, as sampled words would quote no thread.
   if (sampled && /^You plot the hidden side/.test(prompt[0]?.content ?? "")) {

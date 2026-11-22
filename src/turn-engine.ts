@@ -46,6 +46,7 @@ import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 import { foldKnows } from "./knowledge-folds";
+import { closeLooseEnds } from "./loose-ends-check";
 import { growLore } from "./lore-growth";
 import { askToClose, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, turnThreadChanges } from "./world-moves-on";
 
@@ -724,6 +725,7 @@ export async function playTurn(
       moveWorldOn(textProvider, settings, saves, id, limit),
       reviewProvider && growLore(reviewProvider, saves, id, limit),
       reviewProvider && foldKnows(reviewProvider, saves, id, limit),
+      reviewProvider && closeLooseEnds(reviewProvider, saves, id, limit),
     ])
       .then(() => undefined)
       .finally(() => moving.delete(id));

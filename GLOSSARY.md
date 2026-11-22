@@ -78,7 +78,7 @@ A second AI call that checks a new world, or a World Change before it is applied
 _Avoid_: Critic, judge, validator
 
 **Scribe**:
-The AI that keeps the story's record and reviews the world: State Upkeep after every reply, the Review of a new world and of each World Change, and, at each pause when the world moves on, new Lore and the folding of What an NPC Knows. It is the Narrator's model unless the player chooses another in Settings. The stored settings keep their old `review` names.
+The AI that keeps the story's record and reviews the world: State Upkeep after every reply, the Review of a new world and of each World Change, and, at each pause when the world moves on, new Lore, the folding of What an NPC Knows and the closing of settled Loose Ends. It is the Narrator's model unless the player chooses another in Settings. The stored settings keep their old `review` names.
 _Avoid_: Reviewer, Review model, Lore Keeper (Lore is the World Bible's)
 
 **State Upkeep**:
@@ -120,7 +120,7 @@ A secret storyline held by the Narrator that play can reveal. Its truth is what 
 _Avoid_: Hook (alone), plot
 
 **Loose End**:
-Something the PC knows is still unresolved, such as an unanswered question, a promise, a plan, an invitation or someone still missing. It stays on the list until play settles it, and the player can read and edit it in the Journal.
+Something the PC knows is still unresolved, such as an unanswered question, a promise, a plan, an invitation or someone still missing. It stays on the list until play settles it, closed by the Narrator or State Upkeep as a reply settles it, or by the Scribe at a pause once many are open, and the player can read and edit it in the Journal.
 _Avoid_: Open thread, Plot Thread (that is secret, and says where the story could go)
 
 **Scene Memory**:

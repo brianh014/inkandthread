@@ -40,7 +40,7 @@ The first run of each pairing is its baseline: runs with other models, or before
 The main session only coordinates and keeps the ledger, so its context stays small. The run, the judging and the fixing each happen outside it.
 
 1. **Run** in the background:
-   `bun bench run --world <world> --rounds 45 --runs 1 --judge self --label <pairing>-<iteration> --draw --keep-save --yes <pairing flags>`
+   `bun bench run --world <world> --rounds 45 --runs 1 --judge self --label <pairing>-<iteration> --draw --yes <pairing flags>`
    with `--runs 2` when trialling a radical change. On the notification, read only its summary lines: `grep -vE "play [0-9]+ round|judge\.|^\s*$"` on the output.
 2. **Judge** with a general-purpose subagent, model Fable, high effort, given the brief below.
 3. **Decide** which findings to fix, after a targeted grep of the log or code confirms each bug. Don't read the transcript in full.

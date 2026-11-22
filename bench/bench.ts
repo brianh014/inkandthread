@@ -7,11 +7,14 @@
 //   bun bench run --world <file> [...]   plays another world shaped like bench/worlds/adventure.json, such as one kept out of git
 //   bun bench run --draw [...]   draws the pictures on the Settings file's local ComfyUI, never a paid API, into each play's
 //                                pictures folder, to judge the pictures themselves
-//   bun bench run --keep-save [...]   keeps each play's Saves folder in its run folder, to open or play on later
+// Each play's Saves folder is kept in its run folder, to open, play on or replay from later; delete a run once it's not needed.
 //   bun bench run --from <Saves folder> --world <its world> [...]   plays on from a kept Save for --rounds more, with no
 //                                                                   opening, numbering rounds after those it has
 //                                                                   and judging only those; its result names the story,
 //                                                                   and the table and charts never set it beside a fresh run
+//   bun bench run --from <Saves folder> --at <M> --world <its world> [...]   replays the Turn of Message M: cuts the story back
+//                                to before the player's move that led to M and sends that move again as the first round, to
+//                                test a fix on the very Turn that went wrong (--rounds 1 --runs 5, say), with and without it
 //   bun bench judge <run folder> --by <model> --scores <scores.json>   (scores for a --judge self run, one entry per play)
 //   bun bench keep <run folder>        copies the run's numbers, never its story, to bench/results to commit
 //   bun bench table [--csv]            every kept and recent run, side by side
@@ -58,10 +61,10 @@ const CHART_ROUNDS = 45;
 const fake = process.argv.includes("--fake");
 // --draw draws on local ComfyUI, which costs nothing per picture; a paid image API is never drawn on.
 const draw = process.argv.includes("--draw");
-// Keeps each play's Saves in its folder, to open or play on later, as a long story to test against.
-const keepSave = process.argv.includes("--keep-save");
 // A kept Saves folder to play on from, as long play is tested by going on from a judged run.
 const fromSaves = process.argv.includes("--from") ? resolve(process.argv[process.argv.indexOf("--from") + 1]!) : undefined;
+// The Message whose Turn a --from run replays, as a fix is best tested on the Turn that went wrong.
+const replayAt = process.argv.includes("--at") ? Number(process.argv[process.argv.indexOf("--at") + 1]) : undefined;
 const narratorOf = (settings: ReturnType<typeof settingsStore>) => (fake ? fakeTextProvider : textProvider(settings));
 const RUNS = join(BENCH, "runs");
 const RESULTS = join(BENCH, "results");
@@ -193,7 +196,7 @@ type Result = {
   coverage: Record<string, number>;
   judge: { by: string; plays: JudgeReply[] } | null;
   /** The kept Saves folder a --from run played on from and the rounds it held, as runs compare only with those continued from the same story. */
-  continued?: { from: string; round: number };
+  continued?: { from: string; round: number; at?: number };
   /** RUBRIC_VERSION it was judged by; absent on runs judged before the second, whose scores don't compare. */
   rubric?: number;
   plays: Flat[];
@@ -210,6 +213,14 @@ const count = (name: string) => {
   if (!Number.isInteger(value) || value < 1) fail(`${name} is required: a whole number of at least 1.`);
   return value;
 };
+/** Cuts a kept story back to before the player's move that led to Message `at`, and returns that move to send again. */
+function replayMove(saves: ReturnType<typeof saveStore>, id: string, at: number) {
+  const messages = saves.messages(id);
+  const move = messages.findLast((message) => message.role === "player" && message.id <= at);
+  if (!move) fail(`--at ${at}: no player move at or before M${at} to replay.`);
+  saves.revert(id, messages.findLast((message) => message.id < move.id)?.id ?? 0);
+  return move.text;
+}
 function fail(message: string): never {
   console.error(message);
   process.exit(1);
@@ -435,6 +446,7 @@ async function play(
   if (fromSaves) cpSync(fromSaves, savesDir, { recursive: true });
   const saves = saveStore(savesDir);
   const id = fromSaves ? saves.list()[0]!.id : saves.create({ ...world.save, playMode: moves ? "free" : "choices", opening: world.opening as Partial<State> });
+  const replayed = replayAt === undefined ? undefined : replayMove(saves, id, replayAt);
   // The rounds a kept Save already holds, so the timeline's rounds follow on from them.
   const first = saves.messages(id).filter(({ role }) => role === "player").length;
   // Where a kept story left off, so the judge reads only the rounds played on from it.
@@ -510,7 +522,7 @@ async function play(
     if (!fromSaves && !(await send(0, "opening", `/saves/${id}/opening`, {})).ok) await send(0, "opening", `/saves/${id}/opening`, {});
     for (let at = 1; at <= rounds; at++) {
       const round = first + at;
-      const move = moves?.[at - 1];
+      const move = at === 1 && replayed !== undefined ? replayed : moves?.[at - 1];
       const choices = move === undefined ? saves.latestChoices(id) : undefined;
       // A reply kept without Choices leaves the player to Continue.
       const input = move ?? (choices ? choices[Math.floor(pick() * choices.length)]! : CONTINUE);
@@ -673,7 +685,7 @@ async function play(
   const setup = `Narrator host: ${textHost ? `${textHost}${textHostFallback ? ", falling back" : ", no fallback"}` : "any"}.`;
   writeFileSync(join(folder, "transcript.md"), transcript(world, saves, id, steps, setup, resumed));
   if (draw) keepPictures(saves, id, join(folder, "pictures"));
-  if (keepSave) cpSync(savesDir, join(folder, "Saves"), { recursive: true });
+  cpSync(savesDir, join(folder, "Saves"), { recursive: true });
   rmSync(savesDir, { recursive: true, force: true });
   return flat;
 }
@@ -898,8 +910,8 @@ async function playApart(index: number, seed: number, rounds: number, movesFile:
       ...["--world", worldFile],
       ...(fake ? ["--fake"] : []),
       ...(draw ? ["--draw"] : []),
-      ...(keepSave ? ["--keep-save"] : []),
       ...(fromSaves ? ["--from", fromSaves] : []),
+      ...(replayAt !== undefined ? ["--at", String(replayAt)] : []),
     ],
     { stdout: "inherit", stderr: "inherit" },
   );
@@ -928,6 +940,8 @@ async function run() {
   if (!fake && !existsSync(given)) fail(`No Settings file at ${given}. Copy settings.json there, set up as the bench should play.`);
   if (!existsSync(worldFile)) fail(`No world file at ${worldFile}.`);
   readWorld();
+  if (replayAt !== undefined && (!fromSaves || movesFile || !Number.isInteger(replayAt) || replayAt < 1))
+    fail("--at takes a Message number, with --from and without --moves.");
 
   // A copy outside the repo, as it holds keys. Pictures are on, drawn by a stand-in, with the player's image Settings, which shape
   // the prompts; with none set up, as an OpenRouter model, which takes prose prompts.
@@ -1000,7 +1014,9 @@ async function run() {
     seed,
     rounds,
     runs,
-    ...(fromSaves && { continued: { from: relative(process.cwd(), fromSaves).replaceAll("\\", "/"), round: 0 } }),
+    ...(fromSaves && {
+      continued: { from: relative(process.cwd(), fromSaves).replaceAll("\\", "/"), round: 0, ...(replayAt !== undefined && { at: replayAt }) },
+    }),
     estimate: dollars,
     summary: {},
     range: {},
@@ -1135,7 +1151,7 @@ function table() {
         judge?.by ?? "",
         drawn === undefined ? "" : drawn ? "yes" : "no",
         world ?? DEFAULT_WORLD,
-        result.continued ? `${result.continued.from} +${result.continued.round}` : "",
+        result.continued ? `${result.continued.from} +${result.continued.round}${result.continued.at ? ` at M${result.continued.at}` : ""}` : "",
       ];
       console.log([...meta.map(quote), rounds, runs, ...keys.map((key) => summary[key] ?? "")].join(","));
     }

@@ -516,7 +516,12 @@ async function play(
 
   const latestNarrator = () => saves.messages(id).findLast(({ role }) => role === "narrator");
   // Spread across the play, so each comes after some story; a short play may fit fewer.
-  const due = new Map(ACTIONS.map((action, at) => [Math.max(1, Math.round((rounds * (at + 1)) / (ACTIONS.length + 1))), action] as const).reverse());
+  // None in a replay, which tests only the Turn that went wrong.
+  const due = new Map(
+    (replayAt === undefined ? ACTIONS : [])
+      .map((action, at) => [Math.max(1, Math.round((rounds * (at + 1)) / (ACTIONS.length + 1))), action] as const)
+      .reverse(),
+  );
   try {
     // Tried again once, as a player would, since one dropped connection otherwise left the whole play without its opening.
     if (!fromSaves && !(await send(0, "opening", `/saves/${id}/opening`, {})).ok) await send(0, "opening", `/saves/${id}/opening`, {});

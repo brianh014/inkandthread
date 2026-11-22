@@ -277,7 +277,6 @@ const summaryNote = (due: boolean) =>
   // recent_summary named too, as with only summary named the Narrator left both empty on two Turns in three.
   due ? "\nThe summary is due in this Turn." : "\nThe summary is not due in this Turn, so set summary to an empty string, but still set recent_summary.";
 
-/** A Save from before Story Time has none, and only the Narrator can tell from the story where it has got to. */
 /**
  * storyTime with its running hours as the 24-hour time they have reached, as a Narrator that wrote noon as "a quarter past twelve
  * in the morning" read it back as past midnight and gave a whole night four hours and no day.
@@ -289,6 +288,7 @@ export function withClock(storyTime: State["storyTime"]) {
   return { ...rest, clock: `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}` };
 }
 
+/** A Save from before Story Time has none, and only the Narrator can tell from the story where it has got to. */
 function fillStoryTime(storyTime: State["storyTime"], messages: Message[]) {
   if (storyTime?.dateDue)
     return `

@@ -478,6 +478,25 @@ test("a World Change's new plan with no due hour drops the old plan's", async ()
   expect(threadsDue).toEqual({});
 });
 
+test("a World Change that copies a plan unchanged keeps its due hour", async () => {
+  const [truth] = WORLD.plotThreads as [string];
+  play(
+    update({
+      plot_threads: [{ old: truth, new: truth, now: null, plan: "The bees gather.", plan_in_hours: null }],
+      world_rules: [{ old: null, new: "Bees sting." }],
+    }),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: { ...WORLD, npcs: NPCS, threadsPlan: { [truth]: "The bees gather." }, threadsDue: { [truth]: 30 } },
+  });
+
+  expect((await change(id, "bees sting")).status).toBe(200);
+
+  expect(store().latestState(id).threadsDue).toEqual({ [truth]: 30 });
+});
+
 test("a World Change sees the hours left on each plan, and can retime a plan it keeps", async () => {
   const [truth] = WORLD.plotThreads as [string];
   play(update({ plot_threads: [{ old: truth, new: truth, now: null, plan: null, plan_in_hours: 1 }] }));
@@ -754,20 +773,20 @@ test("the next Turn uses a hidden change", async () => {
   expect(store().snapshot(id, 2).plotThreads).toContain(`${SECRET} the mayor runs guns.`);
 });
 
-test("a World Change sees the scene, and the next Turn alone is told to bring on its first sign", async () => {
+test("a World Change sees the scene, and the next Turn alone is told to bring on its first sign, not an Edit of it", async () => {
   const sign = "A runner bursts in: the mayor's lugger has been seized.";
   play(
     narration("Ash waits by the harbour."),
     update({ plot_threads: [{ old: null, new: `${SECRET} the mayor runs guns.` }], first_sign: sign }),
     narration("One."),
-    narration("Two."),
+    narration("One, edited."),
   );
   const id = createSave();
   await turn(id);
 
   const log = await logOf(() => change(id), "info");
   await turn(id);
-  await turn(id);
+  expect((await app.post(`/saves/${id}/messages/${store().latestMessageId(id)}/edit`, { text: "One, edited." })).status).toBe(201);
 
   expect(prompts[1]![0]!.content).toContain('"latest_replies":["Ash waits by the harbour."]');
   expect(log).toContain('"sign":true');

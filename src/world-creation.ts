@@ -818,7 +818,7 @@ Check the change for these faults, and fix only those it has:
 - not_as_asked: it does less or more than the instruction asks.
 - contradiction: it leaves part of the world or the Journal contradicting it, or contradicts itself.
 - plot_hole: it rests on something the rest of the world rules out.
-- leaked_secret: a part the player reads (world_brief, summary, facts, npc_summaries, inventory, status) gives away a secret from the hidden parts.
+- leaked_secret: a part the player reads (world_brief, summary, facts, npc_summaries, inventory, status) gives away a secret from the hidden parts, or first_sign holds more than someone where the PC is could see, hear or know.
 If it has none, reply with fixed empty and change null. Otherwise give one reason in fixed for each fault you fix, and give the whole corrected change in change, keeping all of the proposed change that has no fault.
 ${CHANGE_FORM}
 ${modelInstructions(context)}

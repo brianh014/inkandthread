@@ -886,7 +886,9 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       // A question once set stays, and a due hour goes with the now or plan an edit rewrote.
       const question = { ...edit.question, ...state.threadsQuestion };
       const threadsQuestion = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(question, truth) ? [[truth, question[truth]!]] : [])));
-      const rewritten = (truth: string) => Object.hasOwn(edit.now ?? {}, truth) || Object.hasOwn(edit.plan ?? {}, truth);
+      // A plan given as it was keeps its hour, as a World Change copies the plans of threads it rewrites.
+      const rewritten = (truth: string) =>
+        Object.hasOwn(edit.now ?? {}, truth) || (Object.hasOwn(edit.plan ?? {}, truth) && edit.plan![truth] !== state.threadsPlan[truth]);
       const due = { ...Object.fromEntries(Object.entries(state.threadsDue).filter(([truth]) => !rewritten(truth))), ...edit.due };
       const threadsDue = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(due, truth) ? [[truth, due[truth]!]] : [])));
       // Under the name of someone met, or as named until they are, when add_npc takes it up.

@@ -816,7 +816,8 @@ export async function editResponse(
     state,
     messages,
     input,
-    journalEdits,
+    // Without a World Change's sign, as the player wrote this response, so nothing can be brought on in it.
+    journalEdits: journalEdits.map((edit) => (edit.edit === "world" ? { ...edit, sign: undefined } : edit)),
     // No picture is drawn, so the Narrator needn't write a prompt for one.
     picture: false,
   });

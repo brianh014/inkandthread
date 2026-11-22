@@ -124,6 +124,17 @@ test("the Journal review's corrected change is the one kept, and null keeps the 
   expect(kept.log).toContain('"outcome":"unchanged"');
 });
 
+test("a review that fixes another fault keeps the proposed first sign, and one that fixes a leak drops it", async () => {
+  const signOf = async (fixed: string[]) => {
+    const narrator = scriptedTextProvider(JSON.stringify({ ...change("Magic is rare."), first_sign: "A lamp gutters." }));
+    const reviewer = scriptedTextProvider(JSON.stringify({ fixed, change: change("Magic is rare and costly.") }));
+    const context = { textProvider: narrator.textProvider, reviewProvider: reviewer.textProvider, settings: settings() };
+    return (await changeWorld(context, STATE, "make magic rare", signal())).first_sign;
+  };
+  expect(await signOf(["not_as_asked"])).toBe("A lamp gutters.");
+  expect(await signOf(["leaked_secret"])).toBeNull();
+});
+
 test("an empty change isn't reviewed, nor is any change when the reviewer has no model", async () => {
   const store = settings();
   const ask = (proposed: object, mayKeep: boolean) => {

@@ -828,7 +828,10 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
   ];
   return reviewed(context, "World Change", proposed, signal, async (reviewer) => {
     const { fixed, change: corrected } = await askForJson(reviewer, prompt, reply, REFUSAL, signal, { call: "worldChangeReview", reviewer: true });
-    return corrected ? { result: withoutStrangers(state, corrected), reasons: fixed } : { result: proposed, reasons: [] };
+    if (!corrected) return { result: proposed, reasons: [] };
+    // A review fixing another fault dropped the sign, so the change never reached the page; only a leak is a reason to drop it.
+    const first_sign = corrected.first_sign ?? (fixed.includes("leaked_secret") ? null : proposed.first_sign);
+    return { result: withoutStrangers(state, { ...corrected, first_sign }), reasons: fixed };
   });
 }
 

@@ -3,7 +3,7 @@ import { withinLimit } from "./limits";
 import { EVERYDAY, secretWords } from "./known-choices";
 import { errorType, log } from "./logger";
 import { activateLore, wholeWord } from "./lore-activation";
-import { LORE_TOKEN_BUDGET, type Prompt, SUMMARY_EVERY } from "./prompt-assembler";
+import { LORE_TOKEN_BUDGET, type Prompt, SUMMARY_EVERY, withClock } from "./prompt-assembler";
 import type { SaveStore } from "./save-store";
 import type { SettingsStore } from "./settings-store";
 import { closestThread, hourOf, isBody, type ListChange, nameForms, type State, type StateOperation } from "./state-applier";
@@ -384,7 +384,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
         summary: state.summary,
         earlier_replies: earlierReplies,
         latest_replies: latestReplies,
-        story_time: state.storyTime,
+        story_time: withClock(state.storyTime),
         location: state.scene.location,
         // Without it a move retold the scene in play as what its people did, such as someone "standing in her room now".
         visible_cast: state.scene.visibleCast,

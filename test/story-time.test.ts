@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
-import { assemblePrompt } from "../src/prompt-assembler";
+import { assemblePrompt, withClock } from "../src/prompt-assembler";
 import { saveStore } from "../src/save-store";
 import { tempFolder } from "./support";
-import { applyEdit, applyOperations, openingState, type State, type StateOperation } from "../src/state-applier";
+import { applyEdit, applyOperations, hourOf, openingState, type State, type StateOperation } from "../src/state-applier";
 
 const at = (storyTime: State["storyTime"]) => ({ ...structuredClone(openingState), storyTime });
 const set = (days_passed: number, date: string | null, time_of_day: string, hours_passed: number | null = null): StateOperation => ({
@@ -202,4 +202,35 @@ test("a clock time past midnight with no hours given moves the day on, and one g
   const back = applyOperations(afternoon, [set(0, null, "9 am")]);
   expect(back.next.storyTime).toEqual(afternoon.storyTime);
   expect(back.ignored).toEqual([{ op: "set_story_time", reason: "earlier than now" }]);
+});
+
+test("the Narrator reads storyTime's hours as the 24-hour time they reached, as it read its own noon back as past midnight", () => {
+  expect(withClock({ day: 1, date: "6th June", timeOfDay: "a quarter past twelve", hours: 12.25 })).toEqual({
+    day: 1,
+    date: "6th June",
+    timeOfDay: "a quarter past twelve",
+    clock: "12:15",
+  });
+  expect(withClock({ day: 3, date: "8th June", timeOfDay: "dawn", hours: 53.999 })).toMatchObject({ clock: "06:00" });
+  expect(withClock(DUSK)).toEqual(DUSK);
+  expect(withClock(null)).toBeNull();
+});
+
+test("a time of day in words reads as its clock hour, as a clock reading only digits started the small hours at noon", () => {
+  for (const [words, hour] of [
+    ["four in the morning, full dark", 4],
+    ["about half past five in the morning", 5.5],
+    ["a quarter to twelve in the morning", 11.75],
+    ["a quarter past twelve in the morning", 0.25],
+    ["going on nine in the morning, still dark", 9],
+    ["five minutes to nine in the morning", 8 + 55 / 60],
+    ["a quarter past eight in the evening", 20.25],
+    ["eleven at night", 23],
+    ["two at night", 2],
+    ["twelve in the afternoon", 12],
+    ["small hours, dark", 2],
+    ["the third bell", undefined],
+  ] as const) {
+    expect(hourOf(words)).toBe(hour);
+  }
 });

@@ -689,10 +689,12 @@ const quotes = (list: string[], changes: { old: string | null }[]) => changes.ev
 // A misquoted entry can't be matched, and a reply with no change would tell the player it was done when it wasn't.
 // A player's change must change something, but settling Journal edits may find nothing to.
 // Apart, so the log and the request to write it again both say which one refused it.
-const fitsWorld = (state: State, mayKeep: boolean) => {
+// With `sign`, first_sign is required, as a review fixing a contradiction returned it null and the change never reached the page.
+const fitsWorld = (state: State, mayKeep: boolean, sign = false) => {
   const { worldBible, worldRules, plotThreads, pcKnown } = state;
   return (
-    WorldChange.refine((reply) => mayKeep || changesSomething(known(state, reply)), "it changes nothing")
+    WorldChange.extend({ first_sign: sign ? words : words.nullable().default(null) })
+      .refine((reply) => mayKeep || changesSomething(known(state, reply)), "it changes nothing")
       // The same rule as a Turn's status.
       .refine(({ status }) => status === null || ![status.health, ...status.injuries, ...status.conditions].some(hasNumber), "the status has digits")
       // Past the limit a thread never reaches a Turn's prompt, so the change would do nothing. A Save from before the limit may hold more, but not gain any.
@@ -809,7 +811,7 @@ export async function changeWorld(context: Context, state: State, change: string
   );
   // Settling Journal edits may find nothing to change, and nothing is no change to review.
   if (!changesSomething(proposed)) return proposed;
-  const reply = z.object({ fixed: z.array(z.enum(CHANGE_FAULTS)), change: fits.nullable() });
+  const reply = z.object({ fixed: z.array(z.enum(CHANGE_FAULTS)), change: fitsWorld(state, mayKeep, proposed.first_sign !== null).nullable() });
   const prompt: Prompt = [
     {
       role: "system",
@@ -819,7 +821,7 @@ Check the change for these faults, and fix only those it has:
 - contradiction: it leaves part of the world or the Journal contradicting it, or contradicts itself, as a first_sign that disagrees with a thread's now or plan does.
 - plot_hole: it rests on something the rest of the world rules out.
 - leaked_secret: a part the player reads (world_brief, summary, facts, npc_summaries, inventory, status) gives away a secret from the hidden parts, or first_sign holds more than someone where the PC is could see, hear or know.
-If it has none, reply with fixed empty and change null. Otherwise give one reason in fixed for each fault you fix, and give the whole corrected change in change, keeping all of the proposed change that has no fault.
+If it has none, reply with fixed empty and change null. Otherwise give one reason in fixed for each fault you fix, and give the whole corrected change in change, keeping all of the proposed change that has no fault and mending, never dropping, a part that has one.
 ${CHANGE_FORM}
 ${modelInstructions(context)}
 Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))}`,
@@ -829,9 +831,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
   return reviewed(context, "World Change", proposed, signal, async (reviewer) => {
     const { fixed, change: corrected } = await askForJson(reviewer, prompt, reply, REFUSAL, signal, { call: "worldChangeReview", reviewer: true });
     if (!corrected) return { result: proposed, reasons: [] };
-    // A review fixing another fault left out the sign and plan hours, which default to null, so the change never reached the page
-    // and its plan never fell due. Only a leak or contradiction is a reason to drop a sign, and a plan kept as proposed keeps its hours.
-    const first_sign = corrected.first_sign ?? (fixed.some((fault) => fault === "leaked_secret" || fault === "contradiction") ? null : proposed.first_sign);
+    // A review left out the plan hours, which default to null, so its plan never fell due: a plan kept as proposed keeps its hours.
     const plot_threads = corrected.plot_threads.map((thread) => ({
       ...thread,
       plan_in_hours:
@@ -839,7 +839,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
         proposed.plot_threads.find(({ old, new: truth, plan }) => old === thread.old && truth === thread.new && plan === thread.plan)?.plan_in_hours ??
         null,
     }));
-    return { result: withoutStrangers(state, { ...corrected, first_sign, plot_threads }), reasons: fixed };
+    return { result: withoutStrangers(state, { ...corrected, plot_threads }), reasons: fixed };
   });
 }
 

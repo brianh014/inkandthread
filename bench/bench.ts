@@ -7,9 +7,14 @@
 //   bun bench run --world <file> [...]   plays another world shaped like bench/worlds/adventure.json, such as one kept out of git
 //   bun bench run --draw [...]   draws the pictures on the Settings file's local ComfyUI, never a paid API, into each play's
 //                                pictures folder, to judge the pictures themselves
-//   bun bench run --keep-save [...]   keeps each play's Saves folder in its run folder, to open or play on later
+// Each play's Saves folder is kept in its run folder, to open, play on or replay from later; delete a run once it's not needed.
 //   bun bench run --from <Saves folder> --world <its world> [...]   plays on from a kept Save for --rounds more, with no
 //                                                                   opening, numbering rounds after those it has
+//                                                                   and judging only those; its result names the story,
+//                                                                   and the table and charts never set it beside a fresh run
+//   bun bench run --from <Saves folder> --at <M> --world <its world> [...]   replays the Turn of Message M: cuts the story back
+//                                to before the player's move that led to M and sends that move again as the first round, to
+//                                test a fix on the very Turn that went wrong (--rounds 1 --runs 5, say), with and without it
 //   bun bench judge <run folder> --by <model> --scores <scores.json>   (scores for a --judge self run, one entry per play)
 //   bun bench keep <run folder>        copies the run's numbers, never its story, to bench/results to commit
 //   bun bench table [--csv]            every kept and recent run, side by side
@@ -48,7 +53,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 3;
+const BENCH_ITERATION = 4;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 45;
@@ -56,10 +61,10 @@ const CHART_ROUNDS = 45;
 const fake = process.argv.includes("--fake");
 // --draw draws on local ComfyUI, which costs nothing per picture; a paid image API is never drawn on.
 const draw = process.argv.includes("--draw");
-// Keeps each play's Saves in its folder, to open or play on later, as a long story to test against.
-const keepSave = process.argv.includes("--keep-save");
 // A kept Saves folder to play on from, as long play is tested by going on from a judged run.
 const fromSaves = process.argv.includes("--from") ? resolve(process.argv[process.argv.indexOf("--from") + 1]!) : undefined;
+// The Message whose Turn a --from run replays, as a fix is best tested on the Turn that went wrong.
+const replayAt = process.argv.includes("--at") ? Number(process.argv[process.argv.indexOf("--at") + 1]) : undefined;
 const narratorOf = (settings: ReturnType<typeof settingsStore>) => (fake ? fakeTextProvider : textProvider(settings));
 const RUNS = join(BENCH, "runs");
 const RESULTS = join(BENCH, "results");
@@ -190,6 +195,8 @@ type Result = {
   range: Record<string, [number, number]>;
   coverage: Record<string, number>;
   judge: { by: string; plays: JudgeReply[] } | null;
+  /** The kept Saves folder a --from run played on from and the rounds it held, as runs compare only with those continued from the same story. */
+  continued?: { from: string; round: number; at?: number };
   /** RUBRIC_VERSION it was judged by; absent on runs judged before the second, whose scores don't compare. */
   rubric?: number;
   plays: Flat[];
@@ -206,6 +213,14 @@ const count = (name: string) => {
   if (!Number.isInteger(value) || value < 1) fail(`${name} is required: a whole number of at least 1.`);
   return value;
 };
+/** Cuts a kept story back to before the player's move that led to Message `at`, and returns that move to send again. */
+function replayMove(saves: ReturnType<typeof saveStore>, id: string, at: number) {
+  const messages = saves.messages(id);
+  const move = messages.findLast((message) => message.role === "player" && message.id <= at);
+  if (!move) fail(`--at ${at}: no player move at or before M${at} to replay.`);
+  saves.revert(id, messages.findLast((message) => message.id < move.id)?.id ?? 0);
+  return move.text;
+}
 function fail(message: string): never {
   console.error(message);
   process.exit(1);
@@ -431,8 +446,11 @@ async function play(
   if (fromSaves) cpSync(fromSaves, savesDir, { recursive: true });
   const saves = saveStore(savesDir);
   const id = fromSaves ? saves.list()[0]!.id : saves.create({ ...world.save, playMode: moves ? "free" : "choices", opening: world.opening as Partial<State> });
+  const replayed = replayAt === undefined ? undefined : replayMove(saves, id, replayAt);
   // The rounds a kept Save already holds, so the timeline's rounds follow on from them.
   const first = saves.messages(id).filter(({ role }) => role === "player").length;
+  // Where a kept story left off, so the judge reads only the rounds played on from it.
+  const resumed = fromSaves ? { message: saves.messages(id).at(-1)?.id ?? 0, round: first, state: saves.latestState(id) } : undefined;
   const steps: Step[] = [];
   // Each step's states, for the state checks code can make without a judge.
   const changes: { action: string; before: State; after: State }[] = [];
@@ -498,13 +516,18 @@ async function play(
 
   const latestNarrator = () => saves.messages(id).findLast(({ role }) => role === "narrator");
   // Spread across the play, so each comes after some story; a short play may fit fewer.
-  const due = new Map(ACTIONS.map((action, at) => [Math.max(1, Math.round((rounds * (at + 1)) / (ACTIONS.length + 1))), action] as const).reverse());
+  // None in a replay, which tests only the Turn that went wrong.
+  const due = new Map(
+    (replayAt === undefined ? ACTIONS : [])
+      .map((action, at) => [Math.max(1, Math.round((rounds * (at + 1)) / (ACTIONS.length + 1))), action] as const)
+      .reverse(),
+  );
   try {
     // Tried again once, as a player would, since one dropped connection otherwise left the whole play without its opening.
     if (!fromSaves && !(await send(0, "opening", `/saves/${id}/opening`, {})).ok) await send(0, "opening", `/saves/${id}/opening`, {});
     for (let at = 1; at <= rounds; at++) {
       const round = first + at;
-      const move = moves?.[at - 1];
+      const move = at === 1 && replayed !== undefined ? replayed : moves?.[at - 1];
       const choices = move === undefined ? saves.latestChoices(id) : undefined;
       // A reply kept without Choices leaves the player to Continue.
       const input = move ?? (choices ? choices[Math.floor(pick() * choices.length)]! : CONTINUE);
@@ -651,6 +674,10 @@ async function play(
   );
   // The last Message, so a judge's mistake can't be placed past the story.
   flat.messages = saves.messages(id).at(-1)?.id ?? 0;
+  if (resumed) flat["continued.round"] = resumed.round;
+  // How big the Turn's prompt grew, as a long story's runs compare on it.
+  const sizes = logged("Prompt size").map(({ total }) => Number(total));
+  if (sizes.length > 0) [flat["prompt.tokens.first"], flat["prompt.tokens.last"]] = [sizes[0]!, sizes.at(-1)!];
   flat["cost.total"] = calls.reduce((sum, { cost }) => sum + cost, 0);
   flat["cost.perRound"] = flat["cost.total"] / rounds;
   for (const side of ["narrator", "reviewer"] as const) {
@@ -661,9 +688,9 @@ async function play(
 
   const { textHost, textHostFallback } = settings.read();
   const setup = `Narrator host: ${textHost ? `${textHost}${textHostFallback ? ", falling back" : ", no fallback"}` : "any"}.`;
-  writeFileSync(join(folder, "transcript.md"), transcript(world, saves, id, steps, setup));
+  writeFileSync(join(folder, "transcript.md"), transcript(world, saves, id, steps, setup, resumed));
   if (draw) keepPictures(saves, id, join(folder, "pictures"));
-  if (keepSave) cpSync(savesDir, join(folder, "Saves"), { recursive: true });
+  cpSync(savesDir, join(folder, "Saves"), { recursive: true });
   rmSync(savesDir, { recursive: true, force: true });
   return flat;
 }
@@ -679,7 +706,14 @@ function keepPictures(saves: ReturnType<typeof saveStore>, id: string, into: str
 }
 const pictureName = (kind: string, ref: number, npc: string | null) => `${kind}-${kind === "scene" ? ref : safe(npc ?? "pc")}.png`;
 
-function transcript(world: z.infer<typeof World>, saves: ReturnType<typeof saveStore>, id: string, steps: Step[], setup: string) {
+function transcript(
+  world: z.infer<typeof World>,
+  saves: ReturnType<typeof saveStore>,
+  id: string,
+  steps: Step[],
+  setup: string,
+  resumed?: { message: number; round: number; state: State },
+) {
   const checks = new Map(saves.checks(id).map((check) => [check.messageId, check]));
   // Judges charged the bench's own words to the Narrator, such as an Edit's line taken for a habit of its prose, so each is marked.
   const byBench: Record<string, string> = {
@@ -690,19 +724,22 @@ function transcript(world: z.infer<typeof World>, saves: ReturnType<typeof saveS
   const benched = new Map(steps.flatMap(({ message, action }) => (message === undefined ? [] : [[message, byBench[action] ?? action] as const])));
   const gallery = saves.gallery(id);
   const scenes = new Map(gallery.filter(({ kind }) => kind === "scene").map(({ messageId, prompt }) => [messageId, prompt]));
-  const story = saves.messages(id).map(({ id: messageId, role, text }) => {
-    const check = checks.get(messageId);
-    const rolled = check ? `\n\n> Hidden Check: ${check.action} (difficulty ${check.difficulty}, rolled ${check.roll}): ${check.outcome}` : "";
-    const scene = scenes.get(messageId);
-    const drawn = draw ? `\n>\n> Picture: pictures/${pictureName("scene", messageId, null)}` : "";
-    const pictured = scene ? `\n\n> Picture prompt: ${scene}${drawn}` : "";
-    // Numbered, so a Scene Memory's range of Messages can be found in the story.
-    const bench = benched.get(messageId);
-    // Every Message numbered as a judge names it, the Narrator's too.
-    return role === "player"
-      ? `**Player (M${messageId}):** ${text}`
-      : `${bench ? `> ${bench}\n\n` : ""}**Narrator (M${messageId}):** ${text}${rolled}${pictured}`;
-  });
+  const all = saves.messages(id);
+  const story = all
+    .filter(({ id: messageId }) => !resumed || messageId > resumed.message)
+    .map(({ id: messageId, role, text }) => {
+      const check = checks.get(messageId);
+      const rolled = check ? `\n\n> Hidden Check: ${check.action} (difficulty ${check.difficulty}, rolled ${check.roll}): ${check.outcome}` : "";
+      const scene = scenes.get(messageId);
+      const drawn = draw ? `\n>\n> Picture: pictures/${pictureName("scene", messageId, null)}` : "";
+      const pictured = scene ? `\n\n> Picture prompt: ${scene}${drawn}` : "";
+      // Numbered, so a Scene Memory's range of Messages can be found in the story.
+      const bench = benched.get(messageId);
+      // Every Message numbered as a judge names it, the Narrator's too.
+      return role === "player"
+        ? `**Player (M${messageId}):** ${text}`
+        : `${bench ? `> ${bench}\n\n` : ""}**Narrator (M${messageId}):** ${text}${rolled}${pictured}`;
+    });
   const portraits = gallery
     .filter(({ kind }) => kind === "portrait" || kind === "original")
     .map(
@@ -714,13 +751,20 @@ function transcript(world: z.infer<typeof World>, saves: ReturnType<typeof saveS
     return `- Round ${round}, ${action}${input ? ` "${input}"` : ""}${ok ? "" : " (failed)"}${lines.map((line) => `\n  - ${line}`).join("")}`;
   });
   const list = (items: string[]) => items.map((item) => `- ${item}`).join("\n") || "(none)";
-  const start = world.opening as Partial<State>;
+  const start = (resumed?.state ?? world.opening) as Partial<State>;
   const end = saves.latestState(id);
   // The world as it began and the summary as it ended, so the transcript alone holds what the Narrator was working from.
   const begun = `## World rules at the start\n\n${list(start.worldRules ?? [])}\n\n## Lore at the start (hidden)\n\n${list((start.worldBible ?? []).map(({ title, content }) => `${title}: ${content}`))}`;
-  const time = end.storyTime ? `day ${end.storyTime.day}, ${end.storyTime.date}, ${end.storyTime.timeOfDay}` : "(none)";
-  const ending = `## At the end\n\nStory time: ${time}\n\nSummary the Narrator reads: ${end.summary || "(none)"}\n\nPlot Threads:\n\n${list(end.plotThreads.map((truth) => `${truth}\n  - Now: ${end.threadsNow[truth] || "(none)"}\n  - Plan: ${end.threadsPlan[truth] || "(none)"}`))}\n\nLoose Ends:\n\n${list(end.looseEnds)}`;
-  return `# ${world.save.title}\n\n${setup}\n\n## Plot Threads at the start (hidden)\n\n${list(world.opening.plotThreads as string[])}\n\n${begun}\n\n## The story\n\n${story.join("\n\n")}\n\n## Portrait prompts\n\n${portraits.join("\n") || "(none)"}\n\n## Hidden timeline\n\n${timeline.join("\n")}\n\n${ending}\n`;
+  const when = ({ storyTime }: State) => (storyTime ? `day ${storyTime.day}, ${storyTime.date}, ${storyTime.timeOfDay}` : "(none)");
+  const threads = (state: State) =>
+    list(state.plotThreads.map((truth) => `${truth}\n  - Now: ${state.threadsNow[truth] || "(none)"}\n  - Plan: ${state.threadsPlan[truth] || "(none)"}`));
+  const ending = `## At the end\n\nStory time: ${when(end)}\n\nSummary the Narrator reads: ${end.summary || "(none)"}\n\nPlot Threads:\n\n${threads(end)}\n\nLoose Ends:\n\n${list(end.looseEnds)}`;
+  // A continued play is judged on its own rounds alone, from the kept story's state and the reply it left off on.
+  const lastRead = resumed && all.findLast(({ id: messageId, role }) => role === "narrator" && messageId <= resumed.message);
+  const opening = resumed
+    ? `## Continued from a kept story (hidden)\n\nThis play goes on from a story already ${resumed.round} rounds and ${resumed.message} Messages long. Judge only the Messages after M${resumed.message}: what came before is the starting point, given here.\n\nStory time: ${when(resumed.state)}\n\nSummary the Narrator read: ${resumed.state.summary || "(none)"}\n\nLoose Ends:\n\n${list(resumed.state.looseEnds)}\n\nKnown facts:\n\n${list(resumed.state.pcKnown.facts)}\n\nThe reply it left off on (M${lastRead?.id ?? resumed.message}): ${lastRead?.text ?? "(none)"}\n\n## Plot Threads at the start (hidden)\n\n${threads(resumed.state)}`
+    : `## Plot Threads at the start (hidden)\n\n${list(world.opening.plotThreads as string[])}`;
+  return `# ${world.save.title}\n\n${setup}\n\n${opening}\n\n${begun}\n\n## The story\n\n${story.join("\n\n")}\n\n## Portrait prompts\n\n${portraits.join("\n") || "(none)"}\n\n## Hidden timeline\n\n${timeline.join("\n")}\n\n${ending}\n`;
 }
 
 // ---- Results ----
@@ -871,8 +915,8 @@ async function playApart(index: number, seed: number, rounds: number, movesFile:
       ...["--world", worldFile],
       ...(fake ? ["--fake"] : []),
       ...(draw ? ["--draw"] : []),
-      ...(keepSave ? ["--keep-save"] : []),
       ...(fromSaves ? ["--from", fromSaves] : []),
+      ...(replayAt !== undefined ? ["--at", String(replayAt)] : []),
     ],
     { stdout: "inherit", stderr: "inherit" },
   );
@@ -901,6 +945,8 @@ async function run() {
   if (!fake && !existsSync(given)) fail(`No Settings file at ${given}. Copy settings.json there, set up as the bench should play.`);
   if (!existsSync(worldFile)) fail(`No world file at ${worldFile}.`);
   readWorld();
+  if (replayAt !== undefined && (!fromSaves || movesFile || !Number.isInteger(replayAt) || replayAt < 1))
+    fail("--at takes a Message number, with --from and without --moves.");
 
   // A copy outside the repo, as it holds keys. Pictures are on, drawn by a stand-in, with the player's image Settings, which shape
   // the prompts; with none set up, as an OpenRouter model, which takes prose prompts.
@@ -973,6 +1019,9 @@ async function run() {
     seed,
     rounds,
     runs,
+    ...(fromSaves && {
+      continued: { from: relative(process.cwd(), fromSaves).replaceAll("\\", "/"), round: 0, ...(replayAt !== undefined && { at: replayAt }) },
+    }),
     estimate: dollars,
     summary: {},
     range: {},
@@ -997,6 +1046,7 @@ async function run() {
   const kept = indexes.filter((index) => outcomes[index - 1] !== undefined);
   if (kept.length === 0) fail(`Every play failed; their logs are in ${relative(process.cwd(), folder)}.`);
   result.plays = kept.map((index) => outcomes[index - 1]!);
+  if (result.continued) result.continued.round = result.plays[0]!["continued.round"] ?? 0;
   if (kept.length < runs) {
     result.failedPlays = indexes.filter((index) => !kept.includes(index));
     result.runs = kept.length;
@@ -1089,7 +1139,9 @@ function table() {
     const keys = [...new Set(found.flatMap(({ result }) => Object.keys(result.summary)))].toSorted();
     const quote = (text: string) => `"${text.replaceAll('"', '""')}"`;
     console.log(
-      ["date", "kept", "label", "provider", "narrator", "reviewer", "consistency", "judge", "drawn", "world", "rounds", "runs", ...keys].map(quote).join(","),
+      ["date", "kept", "label", "provider", "narrator", "reviewer", "consistency", "judge", "drawn", "world", "continued", "rounds", "runs", ...keys]
+        .map(quote)
+        .join(","),
     );
     for (const { path, result } of found) {
       const { date, label, provider, models, judge, drawn, world, rounds, runs, summary } = result;
@@ -1104,6 +1156,7 @@ function table() {
         judge?.by ?? "",
         drawn === undefined ? "" : drawn ? "yes" : "no",
         world ?? DEFAULT_WORLD,
+        result.continued ? `${result.continued.from} +${result.continued.round}${result.continued.at ? ` at M${result.continued.at}` : ""}` : "",
       ];
       console.log([...meta.map(quote), rounds, runs, ...keys.map((key) => summary[key] ?? "")].join(","));
     }
@@ -1130,7 +1183,9 @@ function table() {
       (path.startsWith(RESULTS) ? "yes" : "").padEnd(4),
       result.models.narrator.slice(0, 30).padEnd(30),
     ];
-    console.log([...row, `${result.rounds} x ${result.runs}`.padEnd(13), ...cells].join("  "));
+    // A continued run says how far in it began, as it compares only with runs from the same story.
+    const size = `${result.rounds} x ${result.runs}${result.continued ? ` +${result.continued.round}` : ""}`;
+    console.log([...row, size.padEnd(13), ...cells].join("  "));
   }
 }
 

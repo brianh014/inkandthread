@@ -701,6 +701,8 @@ function clockHours(was: StoryTime | null, day: number, timeOfDay: string, passe
 // Checked in order, as "afternoon" holds "noon" and "midnight" holds "night".
 const HOURS: [RegExp, number][] = [
   [/midnight/, 0],
+  // Before "night", as a horror opening's "small hours, dark" was read as noon.
+  [/small hours/, 2],
   [/afternoon/, 15],
   [/noon|midday/, 12],
   [/dawn|sunrise|daybreak/, 6],
@@ -710,10 +712,30 @@ const HOURS: [RegExp, number][] = [
   [/night/, 22],
 ];
 
-/** The hour a time of day gives as a clock time, such as "9:30 pm", or undefined. */
+const NUMBER_WORDS = ["twelve", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven"];
+const MINUTE_WORDS: Record<string, number> = { five: 5, ten: 10, "a quarter": 15, quarter: 15, twenty: 20, "twenty-five": 25, half: 30 };
+// An hour in words with its part of the day, such as "a quarter to twelve in the morning", as Narrators write most times so,
+// and a clock reading only digits set "four in the morning" to noon and stayed eight hours out.
+// The hour is the number word nearest its part of the day, so "five minutes to nine" is nine.
+const WORDED = new RegExp(
+  `\\b(?:(${Object.keys(MINUTE_WORDS).join("|")})(?: minutes)? (past|to) )?(${NUMBER_WORDS.join("|")})(?: o'clock)?\\b(?:(?!\\b(?:${NUMBER_WORDS.join("|")})\\b)[^,])*?\\b(in the morning|in the afternoon|in the evening|at night)\\b`,
+  "i",
+);
+
+/** The hour a time of day gives as a clock time, such as "9:30 pm" or "half past nine at night", or undefined. */
 function clockTimeOf(timeOfDay: string) {
   const clock = /\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m\b/i.exec(timeOfDay);
-  return clock ? (Number(clock[1]) % 12) + (clock[3]!.toLowerCase() === "p" ? 12 : 0) + Number(clock[2] ?? 0) / 60 : undefined;
+  if (clock) return (Number(clock[1]) % 12) + (clock[3]!.toLowerCase() === "p" ? 12 : 0) + Number(clock[2] ?? 0) / 60;
+  const worded = WORDED.exec(timeOfDay);
+  if (!worded) return undefined;
+  const [, minutes, side, number, part] = worded;
+  const past = MINUTE_WORDS[minutes?.toLowerCase() ?? ""] ?? 0;
+  const to = side?.toLowerCase() === "to";
+  // "A quarter to twelve in the morning" is in the hour before twelve, so the morning or night is that hour's.
+  const hour = (NUMBER_WORDS.indexOf(number!.toLowerCase()) + (to ? 11 : 0)) % 12;
+  // At night, twelve to four are the small hours.
+  const pm = /afternoon|evening/i.test(part!) || (/night/i.test(part!) && hour > 4);
+  return hour + (pm ? 12 : 0) + (to ? 60 - past : past) / 60;
 }
 
 /** The hour a time of day names, by its clock time or its words, or undefined when it names neither. */

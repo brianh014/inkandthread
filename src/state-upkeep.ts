@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Check } from "./check-resolver";
 import { errorType, log } from "./logger";
-import { knowsOfPresent, plainMessage, type Prompt } from "./prompt-assembler";
+import { knowsOfPresent, plainMessage, type Prompt, withClock } from "./prompt-assembler";
 import { modelName, reviewerSettings, type TextSettings } from "./settings-store";
 import { type State, StateOperation } from "./state-applier";
 import { lowerThinking } from "./text-provider";
@@ -118,7 +118,7 @@ export async function upkeepOperations(
           pc_appearance: state.pcAppearance,
           inventory: state.inventory,
           scene: state.scene,
-          story_time: state.storyTime,
+          story_time: withClock(state.storyTime),
         },
         previous_reply: previous,
         // In plain words, as the Narrator's instruction for a Continue would tell this call not to move time on.

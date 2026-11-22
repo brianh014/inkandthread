@@ -20,6 +20,8 @@ export type ChartResult = {
   plays: Record<string, number>[];
   /** The rubric it was judged by; absent before the second. */
   rubric?: number;
+  /** Set on a run played on from a kept story, which charts never set beside one from a story's start. */
+  continued?: { from: string };
 };
 
 export type Point = {
@@ -63,6 +65,7 @@ export function points(results: ChartResult[], version: string, rounds: number, 
       String(result.version) === version &&
       (result.rubric ?? 1) === rubric &&
       result.rounds === rounds &&
+      !result.continued &&
       (result.mode ?? "choices") === "choices" &&
       (world === ALL_STORIES || (result.world ?? "adventure.json") === world);
     if (!like || !result.drawn || !result.setup || !result.judge) continue;
@@ -254,7 +257,9 @@ export function chartPage(
   rounds: number,
   { date = new Date().toISOString().slice(0, 10), titles = {} as Record<string, string>, scores: known = [] as string[] } = {},
 ) {
-  const charted = results.filter((result) => result.judge && result.drawn && result.setup && result.version !== undefined && result.rounds === rounds);
+  const charted = results.filter(
+    (result) => result.judge && result.drawn && result.setup && result.version !== undefined && result.rounds === rounds && !result.continued,
+  );
   const versions = [...new Set(charted.map((result) => String(result.version)))].toSorted(byVersion);
   const worlds = [ALL_STORIES, ...new Set(charted.map((result) => result.world ?? "adventure.json"))].toSorted((a, b) =>
     a === ALL_STORIES ? -1 : b === ALL_STORIES ? 1 : a.localeCompare(b),

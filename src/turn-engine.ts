@@ -41,7 +41,7 @@ import {
 } from "./state-applier";
 import { countWords, withinLimit } from "./limits";
 import { knownChoices, withoutUnread, writeChoices } from "./known-choices";
-import { wholeWord } from "./lore-activation";
+import { estimateTokens, wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
@@ -529,26 +529,47 @@ function turnPrompt(
   if (signs > 0) log.info("turn", "World Change sign sent", { save: id, signs });
   const memoryStart = saves.memoryStart(id);
   const save = saves.read(id);
+  const prompt = assemblePrompt({
+    save: withArtStyleFor(save, current),
+    state,
+    messages,
+    memoryStart,
+    windowMessages: current.textRecentMessages,
+    modelInstructions: current.modelInstructions,
+    imageInstructions: current.imageInstructions,
+    directions,
+    journalEdits,
+    memoryTimes: saves.storyTimesAt(
+      id,
+      state.sceneMemories.map(({ firstMessage }) => firstMessage),
+    ),
+    input,
+    responseSchema: JSON.stringify(SCHEMAS.any),
+    promptStyle: picture ? promptStyle(current) : null,
+  });
+  // Tokens by part, counts only, so a long story's log shows which part of the prompt grew.
+  log.info("turn", "Prompt size", () => {
+    const tokens = (items: unknown) => estimateTokens(JSON.stringify(items));
+    const [front, ...rest] = prompt;
+    return {
+      save: id,
+      total: tokens(prompt.map(({ content }) => content)),
+      // The cached front: the rules, Plot Threads and Scene Memories.
+      front: tokens(front?.content),
+      recent: tokens(rest.filter(({ role }) => role !== "system").map(({ content }) => content)),
+      latest: tokens(rest.filter(({ role }) => role === "system").map(({ content }) => content)),
+      sceneMemories: tokens(state.sceneMemories.map(({ text }) => text)),
+      plotThreads: tokens([state.plotThreads, state.threadsNow, state.threadsPlan]),
+      npcs: tokens(state.npcs),
+      npcKnows: tokens(state.npcKnows),
+      known: tokens(state.pcKnown),
+      looseEnds: tokens(state.looseEnds),
+      lore: tokens(state.worldBible),
+    };
+  });
   return {
     playMode: save.playMode,
-    prompt: assemblePrompt({
-      save: withArtStyleFor(save, current),
-      state,
-      messages,
-      memoryStart,
-      windowMessages: current.textRecentMessages,
-      modelInstructions: current.modelInstructions,
-      imageInstructions: current.imageInstructions,
-      directions,
-      journalEdits,
-      memoryTimes: saves.storyTimesAt(
-        id,
-        state.sceneMemories.map(({ firstMessage }) => firstMessage),
-      ),
-      input,
-      responseSchema: JSON.stringify(SCHEMAS.any),
-      promptStyle: picture ? promptStyle(current) : null,
-    }),
+    prompt,
     memory: nextMemory(textProvider, messages, state.sceneMemories, memoryStart, current.textRecentMessages, signal),
     replies: narratorReplies(messages),
     clockBack: clockBack(saves, id, messages),

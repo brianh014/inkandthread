@@ -321,6 +321,7 @@ test("a player's World Change makes news of the nows it writes, which renames ca
     settles: true,
   });
   expect(settledRename.threadsNews).toEqual({ "The pump thread, sabotaged.": now });
+  expect(applyEdit(changed, change("The pump never failed.", { settles: true })).threadsNews).toEqual({});
   const renamed = applyOperations(changed, [
     { op: "update_plot_thread", thread, truth: "The pump thread, sabotaged.", now: "Someone cut the belt.", plan: null },
   ]);

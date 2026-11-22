@@ -118,7 +118,7 @@ test("a move is shown which threads have World Change news, and ends that news e
     for (const input of ["I walk to the dock.", "I watch the barges."]) expect((await turn(id, input)).ok).toBe(true);
   }, "info");
 
-  expect(told.prompts[1]!.at(-1)!.content).toContain('"news":true');
+  expect(told.prompts[1]!.at(-1)!.content).toContain('"news":"The thief hides a lantern."');
   expect(store().latestState(id).threadsNews).toEqual({});
   expect(log).toContain('"news":1');
 });

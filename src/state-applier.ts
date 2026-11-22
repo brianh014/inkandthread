@@ -903,8 +903,8 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       const rewritten = (truth: string) => Object.hasOwn(edit.now ?? {}, truth) || Object.hasOwn(edit.plan ?? {}, truth);
       const due = { ...Object.fromEntries(Object.entries(state.threadsDue).filter(([truth]) => !rewritten(truth))), ...edit.due };
       const threadsDue = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(due, truth) ? [[truth, due[truth]!]] : [])));
-      // A player's change makes news of each now it writes; one that only settles Journal edits makes none, and a move ends the news
-      // it was shown. Each follows a truth the change rewrites.
+      // A player's change makes news of each now it writes; one that only settles Journal edits makes none and ends any its nows
+      // rewrite, as they follow the player's edits; and a move ends the news it was shown. Each follows a truth the change rewrites.
       const renamed = Object.fromEntries(
         Object.entries(state.threadsNews).map(([truth, text]) => [
           edit.update.plot_threads.find(({ old, new: next }) => old === truth && next !== null)?.new ?? truth,
@@ -913,7 +913,9 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       );
       const news = edit.moved
         ? Object.fromEntries(Object.entries(renamed).filter(([truth]) => !edit.news?.includes(truth)))
-        : { ...renamed, ...(edit.settles ? {} : edit.now) };
+        : edit.settles
+          ? Object.fromEntries(Object.entries(renamed).filter(([truth]) => !Object.hasOwn(edit.now ?? {}, truth)))
+          : { ...renamed, ...edit.now };
       const threadsNews = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(news, truth) ? [[truth, news[truth]!]] : [])));
       // Under the name of someone met, or as named until they are, when add_npc takes it up.
       const had = (truth: string) => (Object.hasOwn(state.threadParts, truth) ? state.threadParts[truth]! : []);

@@ -355,7 +355,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
       now,
       ...(plan && { plan }),
       ...(plan && clock !== undefined && due !== undefined && due <= clock && { plan_due: true }),
-      ...(Object.hasOwn(state.threadsNews, truth) && { news: true }),
+      ...(Object.hasOwn(state.threadsNews, truth) && { news: state.threadsNews[truth] }),
       ...(without.length > 0 && { without_part: without }),
       ...(withPcNow.length > 0 && { with_pc: withPcNow }),
       ...(seenLately.length > 0 && { seen_lately: seenLately }),
@@ -481,7 +481,8 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       ),
     );
     // The threads this move was shown with news, which it has now brought on or found the PC met, so the news ends with it.
-    const newsSeen = threads.flatMap(({ truth, news }) => (news ? [truth] : []));
+    // Not a reverted rewrite's, which brought nothing on.
+    const newsSeen = threads.flatMap(({ truth, news }) => (news && !reverted.some(({ thread }) => thread === truth) ? [truth] : []));
     if (kept.length > 0 || Object.keys(question).length > 0 || newsSeen.length > 0)
       saves.addWorldChange(id, basedOn, [
         {

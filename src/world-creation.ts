@@ -898,9 +898,9 @@ export async function applyWorldChange(
   // On the clock, as World Moves On's are, so the next move brings a due plan to the PC; a Save from before it has none.
   const clock = before.storyTime?.hours;
   const due = Object.fromEntries(
-    // A plan kept as it was may be retimed alone.
-    plot_threads.flatMap(({ new: truth, plan, plan_in_hours }) =>
-      truth && (plan || before.threadsPlan[truth]) && plan_in_hours !== null && clock !== undefined ? [[truth, clock + plan_in_hours]] : [],
+    // A plan kept as it was may be retimed alone, though not by a change that rewrites the now, which drops it.
+    plot_threads.flatMap(({ new: truth, now, plan, plan_in_hours }) =>
+      truth && (plan || (before.threadsPlan[truth] && !now)) && plan_in_hours !== null && clock !== undefined ? [[truth, clock + plan_in_hours]] : [],
     ),
   );
   saves.addWorldChange(id, basedOn, [

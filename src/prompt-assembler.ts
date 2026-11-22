@@ -229,13 +229,23 @@ function journalLines(edits: WorldEdit[]) {
   return lines.join(" ");
 }
 
+/** The first signs the player's World Changes since the last reply wrote, each sent once, to the next reply. */
+export const worldSigns = (edits: WorldEdit[]) => edits.flatMap((edit) => (edit.edit === "world" && edit.sign ? [edit.sign] : []));
+
 export function journalNote(edits: WorldEdit[]) {
   const lines = journalLines(edits);
-  return (
+  // As a plain instruction, as news in a now read as out of sight, and news sent as true was played too soon or as scenery.
+  const signs = worldSigns(edits);
+  return [
     lines &&
-    `
-The player changed the Journal since the last reply. ${lines} These are changes to the record, not events, so don't mention them in the narration, and change only the state they touch.`
-  );
+      `
+The player changed the Journal since the last reply. ${lines} These are changes to the record, not events, so don't mention them in the narration, and change only the state they touch.`,
+    signs.length > 0 &&
+      `
+The player changed the hidden world since the last reply, and this happens in this response: ${signs.join(" ")} What the change leaves for later hasn't happened yet, and the rest of it stays secret.`,
+  ]
+    .filter(Boolean)
+    .join("");
 }
 
 /**

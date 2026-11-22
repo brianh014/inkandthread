@@ -447,6 +447,79 @@ test("a thread a World Change adds keeps its truth, now and plan apart", async (
   expect(threadsPlan[truth]).toBe("At dawn the officer rows ashore.");
 });
 
+test("a thread's plan a World Change writes falls due on the story clock, so World Moves On brings it to the PC", async () => {
+  const truth = "A cutter's officer has come to ask about the night landings.";
+  play(update({ plot_threads: [{ old: null, new: truth, now: "The cutter lies off the bar.", plan: "At dawn the officer rows ashore.", plan_in_hours: 6 }] }));
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: { ...WORLD, npcs: NPCS, storyTime: { day: 1, date: "1 May", timeOfDay: "midnight", hours: 24 } },
+  });
+
+  expect((await change(id, "a revenue cutter anchors offshore")).status).toBe(200);
+
+  expect(store().latestState(id).threadsDue).toEqual({ [truth]: 30 });
+  expect(prompts[0]![0]!.content).toContain('"story_time":{"date":"1 May","time_of_day":"midnight"}');
+});
+
+test("a World Change's new plan with no due hour drops the old plan's", async () => {
+  const [truth] = WORLD.plotThreads as [string];
+  play(update({ plot_threads: [{ old: truth, new: truth, now: null, plan: "The bees swarm the town hall.", plan_in_hours: null }] }));
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: { ...WORLD, npcs: NPCS, threadsPlan: { [truth]: "The bees gather." }, threadsDue: { [truth]: 30 } },
+  });
+
+  expect((await change(id, "the bees mean to swarm the town hall")).status).toBe(200);
+
+  const { threadsPlan, threadsDue } = store().latestState(id);
+  expect(threadsPlan[truth]).toBe("The bees swarm the town hall.");
+  expect(threadsDue).toEqual({});
+});
+
+test("a World Change that copies a plan unchanged keeps its due hour", async () => {
+  const [truth] = WORLD.plotThreads as [string];
+  play(
+    update({
+      plot_threads: [{ old: truth, new: truth, now: null, plan: "The bees gather.", plan_in_hours: null }],
+      world_rules: [{ old: null, new: "Bees sting." }],
+    }),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: { ...WORLD, npcs: NPCS, threadsPlan: { [truth]: "The bees gather." }, threadsDue: { [truth]: 30 } },
+  });
+
+  expect((await change(id, "bees sting")).status).toBe(200);
+
+  expect(store().latestState(id).threadsDue).toEqual({ [truth]: 30 });
+});
+
+test("a World Change sees the hours left on each plan, and can retime a plan it keeps", async () => {
+  const [truth] = WORLD.plotThreads as [string];
+  play(update({ plot_threads: [{ old: truth, new: truth, now: null, plan: null, plan_in_hours: 1 }] }));
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      ...WORLD,
+      npcs: NPCS,
+      threadsPlan: { [truth]: "The bees gather." },
+      threadsDue: { [truth]: 30 },
+      storyTime: { day: 1, date: "1 May", timeOfDay: "midnight", hours: 24 },
+    },
+  });
+
+  expect((await change(id, "the bees gather within the hour")).status).toBe(200);
+
+  expect(prompts[0]![0]!.content).toContain('"plan":"The bees gather.","plan_in_hours":6');
+  const { threadsPlan, threadsDue } = store().latestState(id);
+  expect(threadsPlan[truth]).toBe("The bees gather.");
+  expect(threadsDue).toEqual({ [truth]: 25 });
+});
+
 test("a World Change can fix what the PC wears and carries, and their status, which the Journal shows", async () => {
   play(update({ inventory: { wearing: ["oilskin coat"], carrying: ["brass lantern"] }, status: { health: "bruised", injuries: [], conditions: ["soaked"] } }));
   const id = createSave();
@@ -698,6 +771,49 @@ test("the next Turn uses a hidden change", async () => {
   expect(system!.content).toContain("the mayor runs guns.");
   expect(system!.content).not.toContain("keeps bees");
   expect(store().snapshot(id, 2).plotThreads).toContain(`${SECRET} the mayor runs guns.`);
+});
+
+test("a World Change sees the scene, and the next Turn alone is told to bring on its first sign, not an Edit of it", async () => {
+  const sign = "A runner bursts in: the mayor's lugger has been seized.";
+  play(
+    narration("Ash waits by the harbour."),
+    update({ plot_threads: [{ old: null, new: `${SECRET} the mayor runs guns.` }], first_sign: sign }),
+    narration("One."),
+    narration("One, edited."),
+  );
+  const id = createSave();
+  await turn(id);
+
+  const log = await logOf(() => change(id), "info");
+  await turn(id);
+  expect((await app.post(`/saves/${id}/messages/${store().latestMessageId(id)}/edit`, { text: "One, edited." })).status).toBe(201);
+
+  expect(prompts[1]![0]!.content).toContain('"latest_replies":["Ash waits by the harbour."]');
+  expect(log).toContain('"sign":true');
+  const told = prompts.slice(2).map((prompt) => prompt.some(({ content }) => content.includes(`this happens in this response: ${sign}`)));
+  expect(told).toEqual([true, false]);
+});
+
+test("an Edit made while a World Change waits keeps its sign for the next Turn, once", async () => {
+  const sign = "A runner bursts in: the mayor's lugger has been seized.";
+  play(
+    narration("Ash waits by the harbour."),
+    update({ plot_threads: [{ old: null, new: `${SECRET} the mayor runs guns.` }], first_sign: sign }),
+    narration("Ash waits, edited."),
+    narration("One."),
+    narration("Two."),
+  );
+  const id = createSave();
+  await turn(id);
+  await change(id);
+
+  expect((await app.post(`/saves/${id}/messages/${store().latestMessageId(id)}/edit`, { text: "Ash waits, edited." })).status).toBe(201);
+  await turn(id);
+  await turn(id);
+
+  expect(store().latestState(id).plotThreads).toContain(`${SECRET} the mayor runs guns.`);
+  const told = prompts.slice(2).map((prompt) => prompt.some(({ content }) => content.includes(`this happens in this response: ${sign}`)));
+  expect(told).toEqual([false, true, false]);
 });
 
 test("a Revert to before a hidden change undoes it", async () => {

@@ -300,6 +300,19 @@ test("a Journal note says what each change means, and names a reworded item's ol
   expect(journalNote([{ edit: "chapterTitle", index: 0, title: "Low Water" }])).toBe("");
 });
 
+test("the Turn after a World Change is told to bring on its first sign, and not its nows", () => {
+  const update = { lore_entries: [], removed_lore: [], world_rules: [], plot_threads: [] };
+  const now = { "The pump thread.": "The pump has begun to fail." };
+  const note = journalNote([
+    { edit: "world", update, now, made: 0, sign: "The pump coughs and the lights dim." },
+    { edit: "world", update, now, made: 0, sign: "A runner shouts that the lower dock is flooding." },
+  ]);
+
+  expect(note).toContain("this happens in this response: The pump coughs and the lights dim. A runner shouts that the lower dock is flooding.");
+  expect(note).not.toContain("begun to fail");
+  expect(journalNote([{ edit: "world", update, now, made: 0 }])).toBe("");
+});
+
 test("a Journal note follows each item through its edits, from the wording the Narrator last saw", () => {
   // Added and taken off again, which the Narrator never saw.
   expect(

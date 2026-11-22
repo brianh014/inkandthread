@@ -861,6 +861,8 @@ export const WorldEdit = z.discriminatedUnion("edit", [
     parts: z.record(z.string(), z.array(z.string())).optional(),
     // The Scribe's at a pause: by name, the entries of what someone knows folded into one.
     folded: z.record(z.string(), z.object({ knew: z.array(z.string()), into: z.string() })).optional(),
+    // The Scribe's at a pause: the Loose Ends the story has settled.
+    settled: z.array(z.string()).optional(),
   }),
   // Whole lists, as a World Change rewrites what the player says is wrong rather than one item at a time.
   z.object({ edit: z.literal("inventory"), wearing: z.array(z.string()), carrying: z.array(z.string()) }),
@@ -943,7 +945,8 @@ export function applyEdit(state: State, edit: WorldEdit): State {
           return names.length > 0 ? [[truth, names]] : [];
         }),
       );
-      return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, npcKnows, npcParts, threadParts };
+      const looseEnds = edit.settled ? state.looseEnds.filter((looseEnd) => !edit.settled!.includes(looseEnd)) : state.looseEnds;
+      return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, npcKnows, npcParts, threadParts, looseEnds };
     }
     case "inventory":
       return { ...state, inventory: { wearing: edit.wearing, carrying: edit.carrying } };

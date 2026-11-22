@@ -46,7 +46,10 @@ const PC_KNOWS = 6;
  * the last move the fallback waits for the count to pass it again; store it in the Snapshot if that matters.
  */
 const movedAt = new Map<string, number>();
-/** How many replies each Save's coming move reads in full: those since the last, at most MOVE_EVERY. */
+/**
+ * How many replies each Save's coming move reads in full: those since the last, at most MOVE_EVERY. Set by moveDue, which every
+ * move follows. shortcut: in memory like movedAt, so after a restart a first move reads MOVE_EVERY; keep it with movedAt if stored.
+ */
 const repliesSince = new Map<string, number>();
 
 /** The next Turn moves the world, as the move a replaced response read was dropped. */
@@ -133,7 +136,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   // Every reply since the last move, which comes at most MOVE_EVERY replies apart, as with only the last two a move never saw
   // someone the page showed and sent off between them, and went on placing them where the move before had. Never those the last
   // move read, as one the clock brought a reply later would put people back where an older reply showed them.
-  const latestReplies = replies.slice(-Math.min(MOVE_EVERY, Math.max(2, repliesSince.get(id) ?? MOVE_EVERY)));
+  const latestReplies = replies.slice(-Math.min(MOVE_EVERY, Math.max(1, repliesSince.get(id) ?? MOVE_EVERY)));
   // Those the summary doesn't cover yet, as it is written only every few replies.
   // shortcut: at most two rounds' worth, so a Save from before summaryReplies doesn't send its whole story; raise it if summaries go missing for longer.
   const earlierReplies = replies.slice(Math.max(state.summaryReplies, replies.length - 2 * SUMMARY_EVERY), -latestReplies.length);

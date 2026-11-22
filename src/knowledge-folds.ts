@@ -3,7 +3,7 @@ import { withinLimit } from "./limits";
 import { errorType, log } from "./logger";
 import type { Prompt } from "./prompt-assembler";
 import type { SaveStore } from "./save-store";
-import { FOLD_NPC_KNOWS, knownOnly, type State } from "./state-applier";
+import { cleanKnown, FOLD_NPC_KNOWS, type State } from "./state-applier";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
 /** Someone's newest entries a fold keeps word for word. */
@@ -63,7 +63,7 @@ export async function foldKnows(provider: TextProvider, saves: SaveStore, id: st
     const folded = Object.fromEntries(
       people.flatMap((person) => {
         // Cleaned as any fact someone learns is, as a stray run of symbols would go into every prompt after.
-        const into = person && knownOnly(person.summary.replace(/[^\p{L}\p{N}\s.!?"'’)]{3,}$/u, "").trim());
+        const into = person && cleanKnown(person.summary);
         return person && into && Object.hasOwn(due, person.name) ? [[person.name, { knew: due[person.name]!, into }]] : [];
       }),
     );

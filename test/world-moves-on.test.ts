@@ -295,8 +295,7 @@ test("a move the clock brings a reply after the last reads only the replies sinc
   for (const move of ["I go in.", "I search.", "I read.", "I hide it."]) expect((await turn(id, move)).ok).toBe(true);
 
   const sent = JSON.parse(told.prompts[5]!.at(-1)!.content);
-  expect(sent.latest_replies).toHaveLength(2);
-  expect(sent.latest_replies.at(-1)).toContain("hides the ledger");
+  expect(sent.latest_replies).toEqual([expect.stringContaining("hides the ledger")]);
 });
 
 test("a Turn's resolve only asks the next move to close the thread, which the move removes or keeps", async () => {

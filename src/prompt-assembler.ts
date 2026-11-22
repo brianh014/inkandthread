@@ -336,7 +336,7 @@ export function assemblePrompt({
     chapters: _chapters,
     chapterReady: _ready,
     npcKnows: allKnows,
-    olderFacts,
+    heldFacts,
     ...currentState
   },
   messages,
@@ -379,10 +379,10 @@ export function assemblePrompt({
   const npcKnows = knowsOfPresent({ ...currentState, npcKnows: allKnows }, [input, recent.findLast(({ role }) => role === "narrator")?.text ?? ""].join("\n"));
   // Last before the player's words, as models attend most to the end and the slips found in play were exactly these.
   const { inventory, scene, storyTime, pcKnown, ...restOfState } = currentState;
-  // The older facts up front, as they change only at a pause and so keep the cache, and none a later fact repeats or replaces.
-  const [held, dropped] = [new Set(olderFacts.held), new Set(olderFacts.dropped)];
-  const earlier = pcKnown.facts.filter((fact) => held.has(fact) && !dropped.has(fact));
-  const facts = pcKnown.facts.filter((fact) => !held.has(fact) && !dropped.has(fact));
+  // The older facts up front, word for word, as they change only at a pause and so keep the cache.
+  const held = new Set(heldFacts);
+  const earlier = pcKnown.facts.filter((fact) => held.has(fact));
+  const facts = pcKnown.facts.filter((fact) => !held.has(fact));
   // The first Turn opens from the Starting Hook, so the people it names are met with their entries, not given new looks.
   const opening = messages.some(({ role }) => role === "narrator") ? [] : [startingHook];
   // The Plot Threads first, so the people the hidden plot will bring on come with their entries, as a Narrator naming one for the

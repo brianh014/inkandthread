@@ -1,19 +1,14 @@
 import { expect, test } from "bun:test";
-import { CHECK_FACTS, foldKnows, KEEP_KNOWS, knowsDue, pickDrops, RECENT_FACTS, sortFacts } from "../src/digests";
+import { foldKnows, holdFacts, KEEP_KNOWS, knowsDue, RECENT_FACTS } from "../src/digests";
 import { assemblePrompt } from "../src/prompt-assembler";
 import type { SaveStore } from "../src/save-store";
 import { applyEdit, FOLD_NPC_KNOWS, openingState, type State, type WorldEdit } from "../src/state-applier";
 import { scriptedTextProvider } from "./support";
 
 const facts = (count: number) => Array.from({ length: count }, (_, at) => `Fact ${at}.`);
-const stateWith = (list: string[], olderFacts: Partial<State["olderFacts"]> = {}): State => ({
-  ...structuredClone(openingState),
-  pcKnown: { facts: list, npcs: [] },
-  olderFacts: { held: [], dropped: [], checked: 0, ...olderFacts },
-});
+const stateWith = (list: string[], heldFacts: string[] = []): State => ({ ...structuredClone(openingState), pcKnown: { facts: list, npcs: [] }, heldFacts });
 const empty = { lore_entries: [], removed_lore: [], world_rules: [], plot_threads: [] };
 const signal = new AbortController().signal;
-const reply = (...drops: { fact: number; by: number; kind: string }[]) => JSON.stringify({ drops });
 
 /** Just what the pause reads and writes of a Save. */
 const savesWith = (state: State) => {
@@ -22,69 +17,22 @@ const savesWith = (state: State) => {
   return { saves: saves as unknown as SaveStore, changes };
 };
 
-test("only a later fact that is sent can drop an older one, and never in a chain", async () => {
-  const list = facts(RECENT_FACTS + 20);
-  const scribe = scriptedTextProvider(
-    reply(
-      { fact: 1, by: 5, kind: "repeat" },
-      // Not newer, past the facts looked at, past the list, and twice.
-      { fact: 6, by: 3, kind: "superseded" },
-      { fact: 30, by: 70, kind: "repeat" },
-      { fact: 2, by: 999, kind: "repeat" },
-      { fact: 1, by: 9, kind: "repeat" },
-      // Its later fact is dropped too.
-      { fact: 4, by: 7, kind: "superseded" },
-      { fact: 7, by: 8, kind: "repeat" },
-    ),
-  );
+test("the pause holds the facts older than the newest up front, and writes nothing when they haven't changed", () => {
+  const list = facts(RECENT_FACTS + 5);
+  const moved = savesWith(stateWith(list));
+  const unchanged = savesWith(stateWith(list, list.slice(0, 5)));
 
-  const { pairs, refused } = await pickDrops(scribe.textProvider, stateWith(list), signal);
+  holdFacts(moved.saves, "save");
+  holdFacts(unchanged.saves, "save");
 
-  expect(pairs).toEqual([
-    { fact: "Fact 0.", by: "Fact 4.", kind: "repeat" },
-    { fact: "Fact 6.", by: "Fact 7.", kind: "repeat" },
-  ]);
-  expect(refused).toBe(5);
-});
-
-test("a reply marking more than a quarter of the facts drops none", async () => {
-  const list = facts(RECENT_FACTS + 8);
-  const scribe = scriptedTextProvider(reply(...[1, 2, 3].map((fact) => ({ fact, by: 50, kind: "repeat" }))));
-
-  await expect(pickDrops(scribe.textProvider, stateWith(list), signal)).rejects.toThrow("marked 3 of 8");
-});
-
-test("the pause holds the older facts up front and drops what the Scribe found, and still holds them when it fails", async () => {
-  const list = facts(RECENT_FACTS + CHECK_FACTS);
-  const checked = savesWith(stateWith(list));
-  await sortFacts(scriptedTextProvider(reply({ fact: 1, by: 2, kind: "repeat" })).textProvider, checked.saves, "save", signal);
-
-  expect(checked.changes[0]![0]).toMatchObject({ moved: true, facts: { held: list.slice(0, CHECK_FACTS), dropped: ["Fact 0."], checked: CHECK_FACTS } });
-
-  const failed = savesWith(stateWith(list));
-  await sortFacts(scriptedTextProvider(new Error("down")).textProvider, failed.saves, "save", signal);
-
-  expect(failed.changes[0]![0]).toMatchObject({ facts: { held: list.slice(0, CHECK_FACTS), dropped: [], checked: 0 } });
-});
-
-test("a pause with too few newly held facts asks the Scribe nothing, and one that changes nothing writes nothing", async () => {
-  const list = facts(RECENT_FACTS + CHECK_FACTS);
-  const scribe = scriptedTextProvider();
-  const moved = savesWith(stateWith(list, { checked: 1 }));
-  const unchanged = savesWith(stateWith(list, { held: list.slice(0, CHECK_FACTS), checked: CHECK_FACTS }));
-
-  await sortFacts(scribe.textProvider, moved.saves, "save", signal);
-  await sortFacts(scribe.textProvider, unchanged.saves, "save", signal);
-
-  expect(scribe.prompts).toHaveLength(0);
-  expect(moved.changes[0]![0]).toMatchObject({ facts: { held: list.slice(0, CHECK_FACTS), checked: 1 } });
+  expect(moved.changes[0]![0]).toMatchObject({ moved: true, held: list.slice(0, 5) });
   expect(unchanged.changes).toHaveLength(0);
 });
 
-test("the Narrator reads held facts word for word up front, the rest with the state, and dropped ones nowhere", () => {
+test("the Narrator reads held facts word for word up front and the rest with the state", () => {
   const prompt = assemblePrompt({
     save: { worldBrief: "A drowned city", pc: { name: "Ash" }, startingHook: "" },
-    state: stateWith(["Held fact.", "Dropped fact.", "New fact."], { held: ["Held fact.", "Dropped fact."], dropped: ["Dropped fact."] }),
+    state: stateWith(["Held fact.", "New fact."], ["Held fact.", "Fact the player took off."]),
     messages: [],
     modelInstructions: "",
     input: "I wait.",
@@ -97,7 +45,7 @@ test("the Narrator reads held facts word for word up front, the rest with the st
     .join("\n");
 
   expect(prompt[0]!.content).toContain('["Held fact."]');
-  expect(prompt.map(({ content }) => content).join("\n")).not.toContain("Dropped fact.");
+  expect(prompt[0]!.content).not.toContain("Fact the player took off.");
   expect(rest).not.toContain("Held fact.");
   expect(rest).toContain("New fact.");
 });
@@ -117,12 +65,12 @@ test("a fold puts its summary first, in place of the entries it stands for, once
     update: empty,
     moved: true,
     folded: { Wren: { knew: ["Old a.", "Old b."], into: "Summary." }, Gone: { knew: [], into: "Never met." } },
-    facts: { held: ["Old fact."], dropped: [], checked: 1 },
+    held: ["Old fact."],
   };
   const next = applyEdit(applyEdit(state, fold), fold);
 
   expect(next.npcKnows).toEqual({ Wren: ["Summary.", "New."] });
-  expect(next.olderFacts).toEqual({ held: ["Old fact."], dropped: [], checked: 1 });
+  expect(next.heldFacts).toEqual(["Old fact."]);
 });
 
 test("the Scribe's folds reach the Save as a hidden World Change, for the people it was asked about", async () => {

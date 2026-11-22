@@ -45,7 +45,7 @@ import { estimateTokens, wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
-import { foldKnows, sortFacts } from "./digests";
+import { foldKnows, holdFacts } from "./digests";
 import { growLore } from "./lore-growth";
 import { askToClose, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, turnThreadChanges } from "./world-moves-on";
 
@@ -563,9 +563,9 @@ function turnPrompt(
       plotThreads: tokens([state.plotThreads, state.threadsNow, state.threadsPlan]),
       npcs: tokens(state.npcs),
       npcKnows: tokens(state.npcKnows),
-      // The facts the Narrator reads with the state, and those held up front, without any dropped.
-      known: tokens({ ...state.pcKnown, facts: state.pcKnown.facts.filter((fact) => !state.olderFacts.held.includes(fact)) }),
-      olderFacts: tokens(state.olderFacts.held.filter((fact) => !state.olderFacts.dropped.includes(fact))),
+      // The facts the Narrator reads with the state, and those held up front.
+      known: tokens({ ...state.pcKnown, facts: state.pcKnown.facts.filter((fact) => !state.heldFacts.includes(fact)) }),
+      heldFacts: tokens(state.heldFacts),
       looseEnds: tokens(state.looseEnds),
       lore: tokens(state.worldBible),
     };
@@ -725,7 +725,7 @@ export async function playTurn(
     const move = Promise.allSettled([
       moveWorldOn(textProvider, settings, saves, id, limit),
       reviewProvider && growLore(reviewProvider, saves, id, limit),
-      sortFacts(reviewProvider, saves, id, limit),
+      holdFacts(saves, id),
       reviewProvider && foldKnows(reviewProvider, saves, id, limit),
     ])
       .then(() => undefined)

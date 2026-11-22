@@ -355,7 +355,7 @@ const toVersion29 = addMissingSections;
 // npcParts, threadsQuestion and threadsDue.
 const toVersion30 = addMissingSections;
 
-/** The older known facts held up front and those dropped, none until a story has enough of them. */
+/** The older known facts held up front, none until a story has enough of them. */
 const toVersion31 = addMissingSections;
 
 /** One step per schema version, where step N takes a Save from version N to N + 1. New Saves take them too, so they can't drift from old ones. */

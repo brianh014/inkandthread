@@ -14,17 +14,19 @@ const savesWith = (state: State) => {
     latestMessageId: () => 7,
     latestState: () => state,
     messages: () => [{ id: 7, role: "narrator", text: "Ash keeps the promise." }],
+    pendingEdits: () => [],
     addWorldChange: (_id: string, _on: number, edits: WorldEdit[]) => changes.push(edits),
   };
   return { saves: saves as unknown as SaveStore, changes };
 };
 
-test("a reply's numbers name each Loose End once, and none past the list", () => {
-  expect(settledOf(ends(12), [1, 1, 3, 0, 13])).toEqual(["Loose end 0.", "Loose end 2."]);
+test("a reply's numbers name each Loose End once, none past the list and none the player just wrote", () => {
+  expect(settledOf(ends(12), [1, 1, 3, 0, 13, 5], ["Loose end 4."])).toEqual({ named: 3, settled: ["Loose end 0.", "Loose end 2."] });
 });
 
-test("a reply closing more than a quarter of the Loose Ends closes none", () => {
-  expect(() => settledOf(ends(12), [1, 2, 3, 4])).toThrow("closed 4 of 12");
+test("a pause closes at most a quarter of the Loose Ends, the first named first, and none when a reply names over half", () => {
+  expect(settledOf(ends(12), [4, 1, 2, 3]).settled).toEqual(["Loose end 3.", "Loose end 0.", "Loose end 1."]);
+  expect(settledOf(ends(12), [1, 2, 3, 4, 5, 6, 7])).toEqual({ named: 7, settled: [] });
 });
 
 test("the pause closes what the Scribe found settled, asks nothing with few open, and a failure closes none", async () => {

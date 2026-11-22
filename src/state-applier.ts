@@ -945,7 +945,8 @@ export function applyEdit(state: State, edit: WorldEdit): State {
           return names.length > 0 ? [[truth, names]] : [];
         }),
       );
-      const looseEnds = edit.settled ? state.looseEnds.filter((looseEnd) => !edit.settled!.includes(looseEnd)) : state.looseEnds;
+      const settled = new Set(edit.settled);
+      const looseEnds = state.looseEnds.filter((looseEnd) => !settled.has(looseEnd));
       return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, npcKnows, npcParts, threadParts, looseEnds };
     }
     case "inventory":

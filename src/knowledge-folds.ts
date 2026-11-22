@@ -3,7 +3,7 @@ import { withinLimit } from "./limits";
 import { errorType, log } from "./logger";
 import type { Prompt } from "./prompt-assembler";
 import type { SaveStore } from "./save-store";
-import { FOLD_NPC_KNOWS, type State } from "./state-applier";
+import { FOLD_NPC_KNOWS, knownOnly, type State } from "./state-applier";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
 /** Someone's newest entries a fold keeps word for word. */
@@ -61,7 +61,11 @@ export async function foldKnows(provider: TextProvider, saves: SaveStore, id: st
       { call: "knowsFold", reviewer: true },
     );
     const folded = Object.fromEntries(
-      people.flatMap((person) => (person && Object.hasOwn(due, person.name) ? [[person.name, { knew: due[person.name]!, into: person.summary }]] : [])),
+      people.flatMap((person) => {
+        // Cleaned as any fact someone learns is, as a stray run of symbols would go into every prompt after.
+        const into = person && knownOnly(person.summary.replace(/[^\p{L}\p{N}\s.!?"'’)]{3,}$/u, "").trim());
+        return person && into && Object.hasOwn(due, person.name) ? [[person.name, { knew: due[person.name]!, into }]] : [];
+      }),
     );
     if (Object.keys(folded).length > 0) saves.addWorldChange(id, basedOn, [{ edit: "world", update: empty, made: 0, moved: true, folded }]);
     log.info("world", "Knowledge folded", {

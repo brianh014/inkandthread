@@ -264,6 +264,23 @@ test("a move reads every reply since the last in full, as with only the last two
   expect(sent.latest_replies[1]).toContain("Kit takes the cart");
 });
 
+test("a move the clock brings a reply after the last reads only the replies since, never those the last move read", async () => {
+  const told = play(
+    narration("Ash enters the archive."),
+    narration("Ash finds the ledger."),
+    narration("Ash reads the ledger.", nextDay()),
+    moved(),
+    narration("Ash hides the ledger.", { op: "set_story_time", days_passed: 1, date: "4th of Thaw", time_of_day: "dawn" }),
+    moved(),
+  );
+  const id = createSave();
+  for (const move of ["I go in.", "I search.", "I read.", "I hide it."]) expect((await turn(id, move)).ok).toBe(true);
+
+  const sent = JSON.parse(told.prompts[5]!.at(-1)!.content);
+  expect(sent.latest_replies).toHaveLength(2);
+  expect(sent.latest_replies.at(-1)).toContain("hides the ledger");
+});
+
 test("a Turn's resolve only asks the next move to close the thread, which the move removes or keeps", async () => {
   const told = play(
     narration(

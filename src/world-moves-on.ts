@@ -44,6 +44,8 @@ const MOVE_HOURS = 3;
  * the last move the fallback waits for the count to pass it again; store it in the Snapshot if that matters.
  */
 const movedAt = new Map<string, number>();
+/** How many replies each Save's coming move reads in full: those since the last, at most MOVE_EVERY. */
+const repliesSince = new Map<string, number>();
 
 /** The next Turn moves the world, as the move a replaced response read was dropped. */
 export const moveSoon = (id: string) => movedAt.set(id, Number.NEGATIVE_INFINITY);
@@ -60,8 +62,12 @@ export function moveDue(id: string, before: State, after: State, replies: number
   // Not the date filled in for a day the clock already rolled, as that night would move the world twice.
   const newDate =
     (after.storyTime?.day ?? 0) > (before.storyTime?.day ?? 0) || (after.storyTime?.date !== before.storyTime?.date && !before.storyTime?.dateDue);
-  const due = hoursOn || newDate || replies - (movedAt.get(id) ?? 0) >= MOVE_EVERY;
-  if (due) movedAt.set(id, replies);
+  const since = replies - (movedAt.get(id) ?? 0);
+  const due = hoursOn || newDate || since >= MOVE_EVERY;
+  if (due) {
+    movedAt.set(id, replies);
+    repliesSince.set(id, since);
+  }
   return due;
 }
 
@@ -123,11 +129,12 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   closeAsked.delete(id);
   const replies = messages.filter(({ role }) => role === "narrator").map(({ text }) => text);
   // Every reply since the last move, which comes at most MOVE_EVERY replies apart, as with only the last two a move never saw
-  // someone the page showed and sent off between them, and went on placing them where the move before had.
-  const latestReplies = replies.slice(-MOVE_EVERY);
+  // someone the page showed and sent off between them, and went on placing them where the move before had. Never those the last
+  // move read, as one the clock brought a reply later would put people back where an older reply showed them.
+  const latestReplies = replies.slice(-Math.min(MOVE_EVERY, Math.max(2, repliesSince.get(id) ?? MOVE_EVERY)));
   // Those the summary doesn't cover yet, as it is written only every few replies.
   // shortcut: at most two rounds' worth, so a Save from before summaryReplies doesn't send its whole story; raise it if summaries go missing for longer.
-  const earlierReplies = replies.slice(Math.max(state.summaryReplies, replies.length - 2 * SUMMARY_EVERY), -MOVE_EVERY);
+  const earlierReplies = replies.slice(Math.max(state.summaryReplies, replies.length - 2 * SUMMARY_EVERY), -latestReplies.length);
   const shown = latestReplies.join("\n");
   const played = [state.summary, ...earlierReplies, shown].join("\n");
   const { named, mentions } = threadPeople(state);

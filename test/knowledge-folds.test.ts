@@ -52,3 +52,20 @@ test("the Scribe's folds reach the Save as a hidden World Change, for the people
   expect(changes[0]![0]).toMatchObject({ folded: { Wren: { knew: facts(FOLD_NPC_KNOWS + 1).slice(0, -KEEP_KNOWS), into: "Wren knows the old facts." } } });
   expect(Object.keys((changes[0]![0] as { folded: object }).folded)).toEqual(["Wren"]);
 });
+
+test("a fold's summary is cleaned as a learned fact is, and one with nothing left folds no one", async () => {
+  const { saves, changes } = savesWith({ ...structuredClone(openingState), npcKnows: { Wren: facts(FOLD_NPC_KNOWS + 1), Ada: facts(FOLD_NPC_KNOWS + 1) } });
+  const scribe = scriptedTextProvider(
+    JSON.stringify({
+      people: [
+        { name: "Wren", summary: "Wren saw the ledger burn +#+#+#" },
+        { name: "Ada", summary: "Ada has not heard of the ledger." },
+      ],
+    }),
+  );
+
+  await foldKnows(scribe.textProvider, saves, "save", signal);
+
+  expect(Object.keys((changes[0]![0] as { folded: object }).folded)).toEqual(["Wren"]);
+  expect(changes[0]![0]).toMatchObject({ folded: { Wren: { into: "Wren saw the ledger burn" } } });
+});

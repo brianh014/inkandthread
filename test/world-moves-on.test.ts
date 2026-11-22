@@ -244,10 +244,10 @@ test("a move is told which of each thread's people the latest replies showed aft
   expect(thread.with_pc).toBeUndefined();
 });
 
-test("a move reads the replies the summary doesn't cover yet, as the summary is written only every few replies", async () => {
+test("a move reads every reply since the last in full, as with only the last two it never saw someone shown and sent off between moves", async () => {
   const told = play(
     narration("Ash enters the archive.", { summary: "Ash entered the archive." }),
-    narration("Ash finds the ledger."),
+    narration("Ash finds the ledger, and Kit takes the cart out of town."),
     narration("Ash reads the ledger."),
     narration("Ash hides the ledger.", nextDay()),
     moved(),
@@ -259,8 +259,9 @@ test("a move reads the replies the summary doesn't cover yet, as the summary is 
 
   const sent = JSON.parse(told.prompts[4]!.at(-1)!.content);
   expect(sent.summary).toBe("Ash entered the archive.");
-  expect(sent.earlier_replies).toEqual([expect.stringContaining("finds the ledger")]);
-  expect(sent.latest_replies).toEqual([expect.stringContaining("reads the ledger"), expect.stringContaining("hides the ledger")]);
+  expect(sent.earlier_replies).toEqual([]);
+  expect(sent.latest_replies).toHaveLength(4);
+  expect(sent.latest_replies[1]).toContain("Kit takes the cart");
 });
 
 test("a Turn's resolve only asks the next move to close the thread, which the move removes or keeps", async () => {

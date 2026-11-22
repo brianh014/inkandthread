@@ -122,10 +122,12 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const asked = [...(closeAsked.get(id) ?? [])].filter((thread) => plotThreads.includes(thread));
   closeAsked.delete(id);
   const replies = messages.filter(({ role }) => role === "narrator").map(({ text }) => text);
-  const latestReplies = replies.slice(-2);
+  // Every reply since the last move, which comes at most MOVE_EVERY replies apart, as with only the last two a move never saw
+  // someone the page showed and sent off between them, and went on placing them where the move before had.
+  const latestReplies = replies.slice(-MOVE_EVERY);
   // Those the summary doesn't cover yet, as it is written only every few replies.
   // shortcut: at most two rounds' worth, so a Save from before summaryReplies doesn't send its whole story; raise it if summaries go missing for longer.
-  const earlierReplies = replies.slice(Math.max(state.summaryReplies, replies.length - 2 * SUMMARY_EVERY), -2);
+  const earlierReplies = replies.slice(Math.max(state.summaryReplies, replies.length - 2 * SUMMARY_EVERY), -MOVE_EVERY);
   const shown = latestReplies.join("\n");
   const played = [state.summary, ...earlierReplies, shown].join("\n");
   const { named, mentions } = threadPeople(state);

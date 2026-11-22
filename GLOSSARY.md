@@ -77,9 +77,6 @@ _Avoid_: Redo
 A second AI call that checks a new world, or a World Change before it is applied, for faults such as contradictions and plot holes, and quietly fixes them. It is the Scribe's work.
 _Avoid_: Critic, judge, validator
 
-**Held Facts**:
-The PC's known facts older than the newest sixty, which move to the front of the Narrator's prompt word for word at each pause, so the provider caches them until the next. No model shortens or rewrites them.
-
 **Scribe**:
 The AI that keeps the story's record and reviews the world: State Upkeep after every reply, the Review of a new world and of each World Change, and, at each pause when the world moves on, new Lore and the folding of What an NPC Knows. It is the Narrator's model unless the player chooses another in Settings. The stored settings keep their old `review` names.
 _Avoid_: Reviewer, Review model, Lore Keeper (Lore is the World Bible's)

@@ -6,8 +6,6 @@ import type { SaveStore } from "./save-store";
 import { FOLD_NPC_KNOWS, type State } from "./state-applier";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
-/** The newest known facts, sent with the rest of the state, as they change every Turn; older ones go up front, where they are cached. */
-export const RECENT_FACTS = 60;
 /** Someone's newest entries a fold keeps word for word. */
 export const KEEP_KNOWS = 6;
 // A summary stands for up to a dozen entries of a sentence each, and the last summary, so fewer words dropped what mattered.
@@ -27,9 +25,6 @@ const Summary = z.object({
 });
 const KnowsReply = z.object({ people: z.array(Summary.nullable().catch(null)) });
 
-/** The facts older than the newest, to hold up front, by their words. */
-export const olderThanRecent = (facts: string[]) => facts.slice(0, Math.max(0, facts.length - RECENT_FACTS));
-
 /** By name, the oldest entries to fold of each NPC whose list has grown past FOLD_NPC_KNOWS, never their parts, as those were their secrets. */
 export function knowsDue({ npcKnows, npcParts }: Pick<State, "npcKnows" | "npcParts">) {
   return Object.fromEntries(
@@ -45,24 +40,6 @@ const promptOf = (rules: string, schema: z.ZodType, input: unknown): Prompt => [
   { role: "system", content: `${rules}\nReply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(schema))}` },
   { role: "user", content: JSON.stringify(input) },
 ];
-
-/**
- * At the same pause as the world moving on, holds the facts older than the newest at the front of the Narrator's prompt, word for
- * word, so they are cached until the next pause. No model reads them: a digest of them lost about a fifth of what it folded.
- */
-export function holdFacts(saves: SaveStore, id: string) {
-  try {
-    const basedOn = saves.latestMessageId(id);
-    const { pcKnown, heldFacts } = saves.latestState(id);
-    const held = olderThanRecent(pcKnown.facts);
-    if (held.length === heldFacts.length && held.every((fact, at) => fact === heldFacts[at])) return;
-    saves.addWorldChange(id, basedOn, [{ edit: "world", update: empty, made: 0, moved: true, held }]);
-    log.info("world", "Facts held", { save: id, held: held.length, recent: pcKnown.facts.length - held.length });
-  } catch (error) {
-    // The next pause holds them; until then they go with the state, as before.
-    log.warning("world", "Facts not held", { save: id, ...errorType(error) });
-  }
-}
 
 /**
  * Folds the oldest of what each NPC knows into one entry, once their list is long, by the Scribe at the same pause, as dropping

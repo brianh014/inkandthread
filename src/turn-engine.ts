@@ -22,7 +22,6 @@ import {
   summaryDue,
   SET_SCENE_NOTE,
   worldSigns,
-  splitHeld,
 } from "./prompt-assembler";
 import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } from "./save-store";
 import { modelName, type SettingsStore } from "./settings-store";
@@ -46,7 +45,7 @@ import { estimateTokens, wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
-import { foldKnows, holdFacts } from "./digests";
+import { foldKnows } from "./knowledge-folds";
 import { growLore } from "./lore-growth";
 import { askToClose, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, turnThreadChanges } from "./world-moves-on";
 
@@ -564,9 +563,7 @@ function turnPrompt(
       plotThreads: tokens([state.plotThreads, state.threadsNow, state.threadsPlan]),
       npcs: tokens(state.npcs),
       npcKnows: tokens(state.npcKnows),
-      // The facts the Narrator reads with the state, and those held up front.
-      known: tokens({ ...state.pcKnown, facts: splitHeld(state.pcKnown.facts, state.heldFacts).facts }),
-      heldFacts: tokens(splitHeld(state.pcKnown.facts, state.heldFacts).earlier),
+      known: tokens(state.pcKnown),
       looseEnds: tokens(state.looseEnds),
       lore: tokens(state.worldBible),
     };
@@ -720,13 +717,12 @@ export async function playTurn(
   });
   if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies + 1)) {
     // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
-    // Lore and the digests beside the move, by the Scribe, as Upkeep is, so the next Turn waits on them all at most one MOVE_LIMIT, never one after the other.
+    // Lore and the folds beside the move, by the Scribe, as Upkeep is, so the next Turn waits on them all at most one MOVE_LIMIT, never one after the other.
     const limit = AbortSignal.timeout(MOVE_LIMIT.ms);
     // Settled both, as a move that threw let the next Turn start while the Lore was still being written, which then came too late.
     const move = Promise.allSettled([
       moveWorldOn(textProvider, settings, saves, id, limit),
       reviewProvider && growLore(reviewProvider, saves, id, limit),
-      holdFacts(saves, id),
       reviewProvider && foldKnows(reviewProvider, saves, id, limit),
     ])
       .then(() => undefined)

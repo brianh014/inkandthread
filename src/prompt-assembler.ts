@@ -312,12 +312,6 @@ export function knowsOfPresent({ scene, npcs, npcKnows }: Pick<State, "scene" | 
   return Object.fromEntries(Object.entries(npcKnows).filter(([name]) => present.has(name)));
 }
 
-/** The facts held up front, word for word, as they change only at a pause and so keep the cache, and the rest, sent with the state. */
-export function splitHeld(facts: string[], heldFacts: string[]) {
-  const held = new Set(heldFacts);
-  return { earlier: facts.filter((fact) => held.has(fact)), facts: facts.filter((fact) => !held.has(fact)) };
-}
-
 export function assemblePrompt({
   save: { worldBrief, pc, startingHook, artStyle = "", theme = "" },
   // Director's Notes are taken out so that any left in a Save can't steer the story now the player can't see them.
@@ -342,7 +336,6 @@ export function assemblePrompt({
     chapters: _chapters,
     chapterReady: _ready,
     npcKnows: allKnows,
-    heldFacts,
     ...currentState
   },
   messages,
@@ -384,8 +377,7 @@ export function assemblePrompt({
   const recent = messageWindow(messages, sceneMemories, memoryStart, windowMessages);
   const npcKnows = knowsOfPresent({ ...currentState, npcKnows: allKnows }, [input, recent.findLast(({ role }) => role === "narrator")?.text ?? ""].join("\n"));
   // Last before the player's words, as models attend most to the end and the slips found in play were exactly these.
-  const { inventory, scene, storyTime, pcKnown, ...restOfState } = currentState;
-  const { earlier, facts } = splitHeld(pcKnown.facts, heldFacts);
+  const { inventory, scene, storyTime, ...restOfState } = currentState;
   // The first Turn opens from the Starting Hook, so the people it names are met with their entries, not given new looks.
   const opening = messages.some(({ role }) => role === "narrator") ? [] : [startingHook];
   // The Plot Threads first, so the people the hidden plot will bring on come with their entries, as a Narrator naming one for the
@@ -417,19 +409,14 @@ storyTime in the current state is the date and time of day the PC is living in, 
 ${imageInstruction(promptStyle, { artStyle, theme, worldBrief: currentBrief }, imageInstructions)}
 Plot Threads: ${JSON.stringify(plotThreads)}
 Model Instructions, which are the player's out-of-character guidance to follow: ${modelInstructions}
-Scene Memories of the story so far, oldest first, each opening with the date and time its scene began where the story had one: ${JSON.stringify(sceneMemories.map(({ firstMessage, text }) => (memoryTimes[firstMessage] ? `${memoryTimes[firstMessage]}: ${text}` : text)))}${
-        earlier.length > 0
-          ? `
-The PC's older known facts, oldest first, before those in the current state: ${JSON.stringify(earlier)}`
-          : ""
-      }`,
+Scene Memories of the story so far, oldest first, each opening with the date and time its scene began where the story had one: ${JSON.stringify(sceneMemories.map(({ firstMessage, text }) => (memoryTimes[firstMessage] ? `${memoryTimes[firstMessage]}: ${text}` : text)))}`,
     },
     ...recent.map(toPrompt(pc.name, currentState.npcs, recent.filter(({ role }) => role === "narrator").at(-REPLIES_SHOWING_PEOPLE)?.id ?? 0)),
     {
       role: "system",
       // Everything that changes from Turn to Turn stays down here, as the provider's cache only covers an unchanged start.
       content: `Lore Entries: ${JSON.stringify(activeEntries.map(({ title, content }) => ({ title, content })))}
-Current state, apart from its inventory, scene and storyTime, which come last: ${JSON.stringify({ ...restOfState, pcKnown: { ...pcKnown, facts }, npcKnows })}
+Current state, apart from its inventory, scene and storyTime, which come last: ${JSON.stringify({ ...restOfState, npcKnows })}
 Summary of the story so far: ${summary}${firstTurnInstruction(startingHook, messages)}
 world_rules: ${JSON.stringify(worldRules)}
 Evaluate the player's action against world_rules. If it violates them, rate it None, as no roll can make it work, and describe the failure in character rather than fulfilling the action.

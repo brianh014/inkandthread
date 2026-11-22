@@ -107,3 +107,11 @@ test("the Scribe's digest and folds reach the Save as a hidden World Change, and
   expect(fold).toMatchObject({ folded: { Wren: { knew: facts(FOLD_NPC_KNOWS + 1).slice(0, -KEEP_KNOWS), into: "Wren knows the old facts." } } });
   expect(Object.keys((fold as { folded: object }).folded)).toEqual(["Wren"]);
 });
+
+test("a fact the player took off the digest's facts asks for a fold at once, with no batch due", () => {
+  const list = facts(RECENT_FACTS + 5);
+  const due = factsDue(withFacts(list.slice(1), list.slice(0, 5)))!;
+
+  expect(due.dropped).toEqual(["Fact 0."]);
+  expect(due.batch).toEqual([]);
+});

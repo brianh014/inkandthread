@@ -563,7 +563,8 @@ function turnPrompt(
       plotThreads: tokens([state.plotThreads, state.threadsNow, state.threadsPlan]),
       npcs: tokens(state.npcs),
       npcKnows: tokens(state.npcKnows),
-      known: tokens(state.pcKnown),
+      // What the Narrator reads: the facts the digest doesn't cover, and the digest.
+      known: tokens({ ...state.pcKnown, facts: state.pcKnown.facts.filter((fact) => !state.factsDigest.covered.includes(fact)) }),
       factsDigest: tokens(state.factsDigest.text),
       looseEnds: tokens(state.looseEnds),
       lore: tokens(state.worldBible),

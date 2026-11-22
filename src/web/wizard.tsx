@@ -405,10 +405,12 @@ export function NewStory({ step }: { step?: string }) {
       2,
       <div className="fields wizard review">
         <div>
-          <Heading step={3} title={draft.title} busy={!!busy} />
-          <p className="muted">
-            What your PC would know. Begin the story in this world, or have the Narrator make another. Changing a picture keeps the world.
-          </p>
+          <Heading
+            step={3}
+            title={draft.title}
+            help="What your PC would know. Begin the story in this world, or have the Narrator make another. Changing a picture keeps the world."
+            busy={!!busy}
+          />
         </div>
         <div className="overview">
           <p>{world!.overview}</p>
@@ -486,7 +488,12 @@ export function NewStory({ step }: { step?: string }) {
       1,
       <div className="fields wizard">
         <div>
-          <Heading step={2} title="Art" busy={!!busy} />
+          <Heading
+            step={2}
+            title="Art"
+            help="Pick how every picture in your story is drawn. You can draw the portraits and Cover now, or leave them for later."
+            busy={!!busy}
+          />
         </div>
         <div id="art-style" className="fields wizard">
           <ArtStylePicker
@@ -528,7 +535,14 @@ export function NewStory({ step }: { step?: string }) {
       setDraft={setDraft}
       setCharacter={setCharacter}
       enhanceTools={enhanceTools}
-      heading={<Heading step={1} title="Your World and Characters" busy={!!busy} />}
+      heading={
+        <Heading
+          step={1}
+          title="Your World and Characters"
+          help="Say what kind of story you want and who's in it. Fill in as much or as little as you like, and the Narrator invents the rest."
+          busy={!!busy}
+        />
+      }
     />,
     null,
     <>

@@ -2037,9 +2037,64 @@ a.action {
   }
 
   .message:hover .actions button,
-  .message .actions button:focus-visible {
+  .message .actions button:focus-visible,
+  .message .actions.tip-shown button {
     opacity: 1;
   }
+}
+
+/* A first-time tip, placed over its tool by story-tips.tsx. */
+.story-tip {
+  position: fixed;
+  z-index: 20;
+  width: min(300px, calc(100vw - 32px));
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+  background: var(--page);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  /* Compact whatever the reading size, as it sits over the page. */
+  font-size: 15px;
+  line-height: 1.4;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 35%);
+}
+
+.story-tip p {
+  margin: 0;
+}
+
+.story-tip .row {
+  align-items: center;
+  gap: 8px;
+}
+
+.story-tip .row .muted {
+  margin-right: auto;
+  font-size: 13px;
+}
+
+.tip-arrow {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  background: var(--page);
+  border: 1px solid var(--line);
+  rotate: 45deg;
+}
+
+.story-tip[data-side="above"] .tip-arrow {
+  bottom: -7px;
+  border-top: none;
+  border-left: none;
+}
+
+.story-tip[data-side="below"] .tip-arrow {
+  top: -7px;
+  border-bottom: none;
+  border-right: none;
 }
 
 .waiting {

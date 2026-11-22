@@ -17,7 +17,8 @@ export function Working({ message, onCancel }: { message: string; onCancel: () =
   );
 }
 
-export function Heading({ step, title, busy }: { step: number; title: string; busy: boolean }) {
+/** A step's heading, with `help`: one sentence on what the step is for. */
+export function Heading({ step, title, help, busy }: { step: number; title: string; help: string; busy: boolean }) {
   const heading = useRef<HTMLHeadingElement>(null);
   // The control that led here is gone, so keyboard and screen reader users would otherwise restart from the top.
   useEffect(() => {
@@ -30,6 +31,7 @@ export function Heading({ step, title, busy }: { step: number; title: string; bu
       <h1 ref={heading} tabIndex={-1} className="big">
         {title}
       </h1>
+      <p className="muted">{help}</p>
     </>
   );
 }

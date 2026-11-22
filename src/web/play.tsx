@@ -48,6 +48,7 @@ import { CheckResult, type MessageActions, MessageControls } from "./message-con
 import { Book, BookTabs, ConfirmDialog, Fold, leftFolded, MoreBelow, rememberLeftFolded } from "./menu";
 import { ChapterEnd, FeedbackForm, PictureForm, QuestionForm, sendOnEnter } from "./play-asks";
 import { InlineImages, RequestedRows, SceneImage, useStoryPictures } from "./story-pictures";
+import { useStoryTips } from "./story-tips";
 import { StoryRecap } from "./story-recap";
 import { firstMove, type RunningTurn, runningTurn, startTurn, takeMissedFailure } from "./turns";
 
@@ -179,6 +180,8 @@ export function Play({ id }: { id: string }) {
   const [chatStyle, setChatStyle] = useState<ChatStyle>("prose");
   const [openNewImages, setOpenNewImages] = useState(true);
   const [showChecks, setShowChecks] = useState(false);
+  // Seen until Settings say otherwise, so the tips never flash up on a page that can't read them.
+  const [tipsSeen, setTipsSeen] = useState(true);
   const [checks, setChecks] = useState(new Map<number, MessageCheck>());
   // Unset until the player moves, so that each new response opens on its first beat.
   const [chosenBeat, setChosenBeat] = useState<number>();
@@ -224,12 +227,33 @@ export function Play({ id }: { id: string }) {
   const [endingChapter, setEndingChapter] = useState(false);
   const inputBox = useRef<HTMLTextAreaElement>(null);
   const story = useRef<HTMLDivElement>(null);
-  const pictures = useStoryPictures(id, messages.at(-1)?.id, (failure) => {
+  const pictures = useStoryPictures(id, messages, (failure) => {
     setError(failure.error);
     setWords((typed) => typed || failure.words);
     setAsking(true);
   });
   const { more, room, onScroll, refit } = useTurnScroll(story, turn, messages.at(-1)?.id, pictures.count, folded);
+  // A move, or a tool's form over the box, ends the tips.
+  const playing = !!turn || asking || questioning || telling || rewriting !== undefined;
+  const tips = useStoryTips({
+    seen: tipsSeen,
+    // Only once a response is in, and nothing else stands over the screen.
+    idle:
+      messages.some(({ role }) => role === "narrator") &&
+      !turn &&
+      !error &&
+      !setupNotice &&
+      !chapterOffer &&
+      !endingChapter &&
+      !deciding &&
+      !regenerating &&
+      !reverting &&
+      !duplicatingFrom &&
+      !offeringChoices &&
+      !playing,
+    playing,
+    box: inputBox,
+  });
   const rewriteButton = useRef<HTMLButtonElement>(null);
   const drawButton = useRef<HTMLButtonElement>(null);
   const leaving = useRef(new AbortController());
@@ -266,6 +290,7 @@ export function Play({ id }: { id: string }) {
           setImagesReady(settings.imagesReady);
           setOpenNewImages(settings.openNewImages);
           setShowChecks(settings.showChecks);
+          setTipsSeen(settings.tipsSeen);
         }
         setSave(save);
         setPlayMode(save.playMode);
@@ -900,6 +925,7 @@ export function Play({ id }: { id: string }) {
           )}
         </div>
       </form>
+      {tips}
       {/* Outside the chat form, as the dialog holds a form of its own. */}
       {telling && <TellTheNarrator id={id} onDone={pictures.rereadJournal} onClose={() => setTelling(false)} />}
       {duplicatingFrom && (

@@ -111,6 +111,8 @@ export const SettingsUpdate = z
     logLevel: z.enum(LOG_LEVELS).nullable(),
     // Writes every prompt and reply, story text included, to the Server Log, for debugging only.
     storyInLog: z.boolean(),
+    // The first-time tips on the story screen have been shown. Not on the Settings screen: the tips and the Reader's Guide set it.
+    tipsSeen: z.boolean(),
   })
   .partial();
 
@@ -206,6 +208,7 @@ const defaults = {
   fontSize: "medium",
   theme: "system",
   storyInLog: false,
+  tipsSeen: false,
 } satisfies SettingsChange;
 
 export type SettingsStore = ReturnType<typeof settingsStore>;

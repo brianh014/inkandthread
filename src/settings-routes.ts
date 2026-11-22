@@ -24,6 +24,8 @@ const unkeyed = <T extends object>(profiles: Record<string, T>, key: keyof T) =>
 const SAME_SERVICE = { openrouter: OPENROUTER_URL, google: GOOGLE_URL, nanogpt: NANOGPT_URL };
 // Setup's save can ask for the Narrator's key to draw with too.
 const SettingsSave = SettingsUpdate.extend({ imageKeyFromText: z.boolean().optional() });
+/** How the first-time tips ended, or `again` from the Reader's Guide to show them on the next story opened. */
+const TipsChange = z.object({ how: z.enum(["finished", "skipped", "played", "left", "again"]) });
 
 /** Settings and their tests. `local` is the ComfyUI adapter, and `workflow` how its last job went, which only the screen shows. */
 export function settingsRoutes({ options, images, saves }: ServerContext, local: ImageAdapter, workflow: { problem: string }) {
@@ -84,6 +86,7 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
       theme,
       logLevel,
       storyInLog,
+      tipsSeen,
       textProfiles,
       imageProfiles,
       textCommand,
@@ -151,11 +154,20 @@ export function settingsRoutes({ options, images, saves }: ServerContext, local:
       logLevel: logLevel ?? null,
       defaultLogLevel: defaultLogLevel(),
       storyInLog,
+      tipsSeen,
       canQuit: !!options.quittable,
     };
   };
 
   return routes({
+    "/settings/tips": {
+      POST: async (req) => {
+        const { how } = await parseBody(req, TipsChange);
+        settings.update({ tipsSeen: how !== "again" });
+        log.info("settings", how === "again" ? "Tips shown again" : "Tips ended", { how });
+        return new Response(null, { status: 204 });
+      },
+    },
     "/settings": {
       GET: (req, server) => Response.json(publicSettings(fromThisComputer(req, server))),
       PATCH: async (req, server) => {

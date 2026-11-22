@@ -14,10 +14,11 @@ export type State = {
   /** `summaries` says who each known NPC is, as the PC understands it. A Save from before them has none. */
   pcKnown: { facts: string[]; npcs: string[]; summaries?: Record<string, string> };
   /**
-   * The Scribe's digest of the older known facts, which the Narrator reads in their place, and the facts it covers, word for word.
-   * The facts themselves stay, for the Journal and later digests. Empty until a story has enough of them.
+   * The known facts moved up front at the last pause, word for word, so the provider caches them (`held`); those the Scribe found a
+   * later fact repeats or replaces, which the Narrator no longer reads (`dropped`); and how many were held when it last looked
+   * (`checked`). By their words, so an edit can't shift them; the facts themselves all stay, for the Journal.
    */
-  factsDigest: { text: string; covered: string[] };
+  olderFacts: { held: string[]; dropped: string[]; checked: number };
   /** What the PC knows is still unresolved. Unlike a Plot Thread, the player reads these. */
   looseEnds: string[];
   /** The story's older Messages in about 100 words each, oldest first. The server sets each range, so a wrong memory can be traced to its source. */
@@ -86,7 +87,7 @@ export const openingState: State = {
   npcKnows: {},
   scene: { location: "", visibleCast: [] },
   pcKnown: { facts: [], npcs: [] },
-  factsDigest: { text: "", covered: [] },
+  olderFacts: { held: [], dropped: [], checked: 0 },
   looseEnds: [],
   sceneMemories: [],
   worldBible: [],
@@ -120,7 +121,7 @@ export const StateSections = {
   npcKnows: z.record(z.string(), stringList),
   scene: z.object({ location: z.string(), visibleCast: stringList }),
   pcKnown: z.object({ facts: stringList, npcs: stringList, summaries: z.record(z.string(), z.string()).optional() }),
-  factsDigest: z.object({ text: z.string(), covered: stringList }),
+  olderFacts: z.object({ held: stringList, dropped: stringList, checked: z.number().int().nonnegative() }),
   looseEnds: stringList,
   sceneMemories: z.array(z.object({ firstMessage: z.number().int(), lastMessage: z.number().int(), text: z.string() })),
   worldBible: z.array(z.object({ title: z.string(), keywords: stringList, content: z.string(), alwaysOn: z.boolean() })),
@@ -864,8 +865,8 @@ export const WorldEdit = z.discriminatedUnion("edit", [
     knows: z.record(z.string(), z.array(z.string())).optional(),
     // By truth, who those parts went to.
     parts: z.record(z.string(), z.array(z.string())).optional(),
-    // The Scribe's: a new digest of the known facts, and by name, the entries of what someone knows folded into one.
-    digest: z.object({ text: z.string(), covered: z.array(z.string()) }).optional(),
+    // At a pause: the older known facts moved up front, and the Scribe's, by name, the entries of what someone knows folded into one.
+    facts: z.object({ held: z.array(z.string()), dropped: z.array(z.string()), checked: z.number().int().nonnegative() }).optional(),
     folded: z.record(z.string(), z.object({ knew: z.array(z.string()), into: z.string() })).optional(),
   }),
   // Whole lists, as a World Change rewrites what the player says is wrong rather than one item at a time.
@@ -948,8 +949,8 @@ export function applyEdit(state: State, edit: WorldEdit): State {
           return names.length > 0 ? [[truth, names]] : [];
         }),
       );
-      const factsDigest = edit.digest ?? state.factsDigest;
-      return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, npcKnows, npcParts, threadParts, factsDigest };
+      const olderFacts = edit.facts ?? state.olderFacts;
+      return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, npcKnows, npcParts, threadParts, olderFacts };
     }
     case "inventory":
       return { ...state, inventory: { wearing: edit.wearing, carrying: edit.carrying } };

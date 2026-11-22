@@ -15,6 +15,9 @@
 //   bun bench run --from <Saves folder> --at <M> --world <its world> [...]   replays the Turn of Message M: cuts the story back
 //                                to before the player's move that led to M and sends that move again as the first round, to
 //                                test a fix on the very Turn that went wrong (--rounds 1 --runs 5, say), with and without it
+//   bun bench facts --from <Saves folder> --runs N [--label name]   runs only the Scribe's check of the kept story's known facts
+//                                N times at once, for the repeats and replaced facts it would drop, and writes every pair to read
+//                                in the run folder, with how many runs agreed, to test the check without playing a story
 //   bun bench judge <run folder> --by <model> --scores <scores.json>   (scores for a --judge self run, one entry per play)
 //   bun bench keep <run folder>        copies the run's numbers, never its story, to bench/results to commit
 //   bun bench table [--csv]            every kept and recent run, side by side
@@ -31,10 +34,12 @@ import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, 
 import { tmpdir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { z } from "zod";
+
 import { fakeImages, fakeTextProvider } from "../src/fake-services";
 import { setLogLevel, startLog } from "../src/logger";
 import { CONTINUE } from "../src/prompt-assembler";
 import { startServer } from "../src/rest-api";
+import { pickDrops, RECENT_FACTS } from "../src/digests";
 import { MAX_NPC_KNOWS, type State, StateOperation } from "../src/state-applier";
 import { saveStore } from "../src/save-store";
 import { localIsSetUp } from "../src/graph-builder";
@@ -379,8 +384,9 @@ function hiddenChanges(before: State, after: State) {
   diff("World rule", before.worldRules, after.worldRules);
   diff("Director's note", before.directorsNotes, after.directorsNotes);
   diff("Known fact", before.pcKnown.facts, after.pcKnown.facts);
-  if (after.factsDigest.text !== before.factsDigest.text)
-    lines.push(`Known facts digest, covering ${after.factsDigest.covered.length} facts: ${after.factsDigest.text}`);
+  // Dropped facts only, as which are held up front changes every pause and tells a judge nothing.
+  for (const fact of after.olderFacts.dropped.filter((fact) => !before.olderFacts.dropped.includes(fact)))
+    lines.push(`Known fact no longer sent, as a later one repeats or replaces it: ${fact}`);
   diff("Known NPC", before.pcKnown.npcs, after.pcKnown.npcs);
   diff(
     "Known NPC summary",
@@ -1255,8 +1261,62 @@ function chart() {
 const command = args[0];
 if (command === "run") await run();
 else if (command === "play") await playOne();
+else if (command === "facts") await checkFacts();
 else if (command === "judge") judgeRun();
 else if (command === "keep") keep();
 else if (command === "table") table();
 else if (command === "chart") chart();
 else fail("Use: bun bench run | judge | keep | table | chart (see the top of bench/bench.ts).");
+
+/** The Scribe's check of known facts alone, on a copy of a kept story, so a change to it is tested without a play. */
+async function checkFacts() {
+  const from = option("--from");
+  if (!from || !existsSync(from)) fail("--from names a kept Saves folder.");
+  const runs = count("--runs");
+  const given = option("--settings") ?? "bench/settings.json";
+  if (!fake && !existsSync(given)) fail(`No Settings file at ${given}.`);
+  const temp = mkdtempSync(join(tmpdir(), "inkandthread-facts-"));
+  process.on("exit", () => rmSync(temp, { recursive: true, force: true }));
+  // Copies, as opening a Save upgrades it, and the Settings hold keys.
+  cpSync(from, join(temp, "Saves"), { recursive: true });
+  if (!fake) copyFileSync(given, join(temp, "settings.json"));
+  const settings = reviewerSettings(settingsStore(join(temp, "settings.json")));
+  const saves = saveStore(join(temp, "Saves"));
+  const id = saves.list()[0]?.id ?? fail("The Saves folder holds no Save.");
+  // As at a first check: every older fact looked at, none dropped yet.
+  const state = { ...saves.latestState(id), olderFacts: { held: [], dropped: [], checked: 0 } };
+  const provider = fake ? fakeTextProvider : textProvider(settings);
+  const started = Date.now();
+  const results = await Promise.allSettled(Array.from({ length: runs }, () => pickDrops(provider, state, AbortSignal.timeout(600_000))));
+  const facts = state.pcKnown.facts;
+  const votes = new Map<string, number>();
+  const lines = [`# Known facts check: ${facts.length} facts, the oldest ${Math.max(0, facts.length - RECENT_FACTS)} looked at, ${runs} runs`, ""];
+  for (const [at, result] of results.entries()) {
+    lines.push(`## Run ${at + 1}`, "");
+    if (result.status === "rejected") {
+      lines.push(`Failed: ${result.reason instanceof Error ? result.reason.message : "unknown"}`, "");
+      continue;
+    }
+    lines.push(`${result.value.pairs.length} dropped, ${result.value.refused} refused by code.`, "");
+    for (const { fact, by, kind } of result.value.pairs) {
+      votes.set(fact, (votes.get(fact) ?? 0) + 1);
+      lines.push(`- ${kind}: #${facts.indexOf(fact) + 1} ${fact}`, `  by #${facts.indexOf(by) + 1} ${by}`);
+    }
+    lines.push("");
+  }
+  lines.push("## Agreement", "", ...[...votes].toSorted(([, a], [, b]) => b - a).map(([fact, n]) => `- ${n}/${runs}: #${facts.indexOf(fact) + 1} ${fact}`), "");
+  lines.push("## Every fact", "", ...facts.map((fact, at) => `${at + 1}. ${fact}`));
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
+  const folder = join(
+    RUNS,
+    fake ? "fake" : providerOf(settings.read().textBaseUrl),
+    safe(settings.read().textModel),
+    `${stamp}-facts-${safe(option("--label") ?? "check")}`,
+  );
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(join(folder, "facts.md"), lines.join("\n"));
+  const done = results.filter((result) => result.status === "fulfilled").map(({ value }) => value.pairs.length);
+  console.log(
+    `${runs} runs in ${Math.round((Date.now() - started) / 1000)}s: dropped ${done.join(", ") || "none"}; ${runs - done.length} failed. Pairs in ${join(folder, "facts.md")}`,
+  );
+}

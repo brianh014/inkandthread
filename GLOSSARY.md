@@ -77,11 +77,11 @@ _Avoid_: Redo
 A second AI call that checks a new world, or a World Change before it is applied, for faults such as contradictions and plot holes, and quietly fixes them. It is the Scribe's work.
 _Avoid_: Critic, judge, validator
 
-**Facts Digest**:
-The Scribe's short digest of the PC's older known facts, which the Narrator reads in their place once a story has many. The newest sixty, and any the digest doesn't yet cover, go word for word. The Save keeps every fact, for the Journal.
+**Older Facts**:
+The PC's known facts older than the newest sixty, which move to the front of the Narrator's prompt word for word at each pause, so the provider caches them. There the Scribe looks for facts a later one repeats or replaces, and the Narrator stops reading those. The Save keeps every fact, for the Journal.
 
 **Scribe**:
-The AI that keeps the story's record and reviews the world: State Upkeep after every reply, the Review of a new world and of each World Change, and, at each pause when the world moves on, new Lore, the Facts Digest and the folding of What an NPC Knows. It is the Narrator's model unless the player chooses another in Settings. The stored settings keep their old `review` names.
+The AI that keeps the story's record and reviews the world: State Upkeep after every reply, the Review of a new world and of each World Change, and, at each pause when the world moves on, new Lore, the check of Older Facts and the folding of What an NPC Knows. It is the Narrator's model unless the player chooses another in Settings. The stored settings keep their old `review` names.
 _Avoid_: Reviewer, Review model, Lore Keeper (Lore is the World Bible's)
 
 **State Upkeep**:

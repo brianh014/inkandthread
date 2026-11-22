@@ -336,7 +336,7 @@ export function assemblePrompt({
     chapters: _chapters,
     chapterReady: _ready,
     npcKnows: allKnows,
-    factsDigest,
+    olderFacts,
     ...currentState
   },
   messages,
@@ -379,9 +379,10 @@ export function assemblePrompt({
   const npcKnows = knowsOfPresent({ ...currentState, npcKnows: allKnows }, [input, recent.findLast(({ role }) => role === "narrator")?.text ?? ""].join("\n"));
   // Last before the player's words, as models attend most to the end and the slips found in play were exactly these.
   const { inventory, scene, storyTime, pcKnown, ...restOfState } = currentState;
-  // The facts the digest covers are read in it, up front, as it changes only at a pause and so keeps the cache.
-  const covered = new Set(factsDigest.covered);
-  const facts = pcKnown.facts.filter((fact) => !covered.has(fact));
+  // The older facts up front, as they change only at a pause and so keep the cache, and none a later fact repeats or replaces.
+  const [held, dropped] = [new Set(olderFacts.held), new Set(olderFacts.dropped)];
+  const earlier = pcKnown.facts.filter((fact) => held.has(fact) && !dropped.has(fact));
+  const facts = pcKnown.facts.filter((fact) => !held.has(fact) && !dropped.has(fact));
   // The first Turn opens from the Starting Hook, so the people it names are met with their entries, not given new looks.
   const opening = messages.some(({ role }) => role === "narrator") ? [] : [startingHook];
   // The Plot Threads first, so the people the hidden plot will bring on come with their entries, as a Narrator naming one for the
@@ -414,9 +415,10 @@ ${imageInstruction(promptStyle, { artStyle, theme, worldBrief: currentBrief }, i
 Plot Threads: ${JSON.stringify(plotThreads)}
 Model Instructions, which are the player's out-of-character guidance to follow: ${modelInstructions}
 Scene Memories of the story so far, oldest first, each opening with the date and time its scene began where the story had one: ${JSON.stringify(sceneMemories.map(({ firstMessage, text }) => (memoryTimes[firstMessage] ? `${memoryTimes[firstMessage]}: ${text}` : text)))}${
-        factsDigest.text &&
-        `
-Digest of the PC's older known facts, which the known facts in the current state overrule where they differ: ${factsDigest.text}`
+        earlier.length > 0
+          ? `
+The PC's older known facts, oldest first, before those in the current state: ${JSON.stringify(earlier)}`
+          : ""
       }`,
     },
     ...recent.map(toPrompt(pc.name, currentState.npcs, recent.filter(({ role }) => role === "narrator").at(-REPLIES_SHOWING_PEOPLE)?.id ?? 0)),

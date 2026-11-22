@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { settingsStore } from "../src/settings-store";
-import { narration, scriptedTextProvider, startApp, tempFolder } from "./support";
+import { logOf, narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
 let app: ReturnType<typeof startApp>;
@@ -97,10 +97,22 @@ test("a fresh install has images on, Prose, medium type, blank Model Instruction
     logLevel: null,
     defaultLogLevel: "warning",
     storyInLog: false,
+    tipsSeen: false,
     canQuit: false,
     textCommand: [],
     commandHere: true,
   });
+});
+
+test("the tips are seen once they end, shown again from the Guide, and how they ended is logged", async () => {
+  const log = await logOf(() => app.post("/settings/tips", { how: "skipped" }), "info");
+  expect(log).toContain("Tips ended");
+  expect(log).toContain('"how":"skipped"');
+  expect((await settings()).tipsSeen).toBe(true);
+
+  expect(await logOf(() => app.post("/settings/tips", { how: "again" }), "info")).toContain("Tips shown again");
+  expect((await settings()).tipsSeen).toBe(false);
+  expect((await app.post("/settings/tips", { how: "maybe" })).status).toBe(400);
 });
 
 test("a server can't be quit from a page", async () => {
@@ -138,6 +150,7 @@ test("every setting survives a restart, and no key comes back", async () => {
     comfyWorkflow: JSON.stringify({ "1": { class_type: "CLIPTextEncode", inputs: { text: "{{prompt}}" } } }),
     comfyFreeMemory: true,
     storyInLog: true,
+    tipsSeen: true,
   };
   const response = await change({
     textBaseUrl: "http://localhost:1234/v1",

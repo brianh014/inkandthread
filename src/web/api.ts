@@ -137,6 +137,12 @@ export const getSettings = () => request<Settings>("/settings");
 
 export const quitApp = () => fetch("/quit", { method: "POST" });
 
+/** Ends the first-time tips, or with `again` shows them on the next story opened. Kept alive, as leaving the page ends them too. */
+export const endTips = (how: "finished" | "skipped" | "played" | "left" | "again") =>
+  fetch("/settings/tips", { ...jsonBody({ how }), keepalive: true }).then((response) => {
+    if (!response.ok) throw new Error("The tips couldn't be saved.");
+  });
+
 /** This copy's version, and a newer release if there is one. `installable` when this copy can replace itself with it. */
 export type UpdateStatus = { version: string; failed: boolean; latest?: { version: string; url: string; notes: string }; installable: boolean };
 

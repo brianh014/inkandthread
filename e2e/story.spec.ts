@@ -193,6 +193,34 @@ test("a story makes and shows everything: pictures, characters, Turns, a Questio
   await expectRealImages(page, page.locator("main"));
 });
 
+test("a picture that finishes late shows where the player is reading, and under its own response after a refresh", async ({ page }) => {
+  await newStory(page);
+  await picturesDone(page);
+  const narrator = page.getByRole("region", { name: "Story" }).getByTestId("message-narrator");
+  const asked = (message: Locator) => message.locator("details > summary", { hasText: "Picture: The lamps on the sea wall" });
+
+  // The page hears of no new picture asked for until let go, as if it took minutes to draw.
+  let held = true;
+  await page.route(/\/saves\/[^/]+\/requested-images$/, async (route) => {
+    if (!held || route.request().method() !== "GET") return route.continue();
+    const response = await route.fetch();
+    return route.fulfill({ response, json: { ...(await response.json()), images: [], drawing: 1 } });
+  });
+  await page.getByRole("button", { name: "Draw a picture" }).click();
+  await page.getByPlaceholder(/Describe what you want/).fill("The lamps on the sea wall");
+  await page.getByRole("button", { name: "Draw", exact: true }).click();
+  await sendTurn(page, "I follow the shore.");
+  await sendTurn(page, "I climb toward the light.");
+
+  held = false;
+  await expect(asked(narrator.last())).toHaveCount(1, { timeout: 20_000 });
+  await expect(asked(narrator.first())).toHaveCount(0);
+
+  await page.reload();
+  await expect(asked(narrator.first())).toHaveCount(1);
+  await expect(asked(narrator.last())).toHaveCount(0);
+});
+
 test("the wizard asks before removing an Important Character and before regenerating the world", async ({ page }) => {
   await page.goto("/#/new");
   await page.getByRole("button", { name: "Add a character" }).click();

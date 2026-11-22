@@ -41,7 +41,9 @@ const firstFakeRun = fake && !existsSync(settingsPath);
 const settings = settingsStore(settingsPath);
 // Filled in once, so play and pictures work at the start, and anything changed in Settings afterwards stays. The
 // address is the closed discard port, so model listings come back empty at once instead of reaching a real server.
-if (firstFakeRun) settings.update({ textBaseUrl: "http://127.0.0.1:9/v1", textModel: "fake-narrator", imageModel: "fake-images", imageApiKey: "fake-key" });
+// The tips start seen, so they never stand over a test; the tips' own test shows them again.
+if (firstFakeRun)
+  settings.update({ textBaseUrl: "http://127.0.0.1:9/v1", textModel: "fake-narrator", imageModel: "fake-images", imageApiKey: "fake-key", tipsSeen: true });
 
 function openBrowser(url: string) {
   // Tests run the app many times over.

@@ -183,6 +183,10 @@ One line of a Message, spoken or not, and what a Stage box shows at a time.
 A newer full release of Ink & Thread on GitHub, which a toast on every screen and Settings → Updates offer, and Install puts in place of the running program, which then restarts. Pre-releases are never offered.
 _Avoid_: Update (that redraws a Cover or portrait)
 
+**Tips**:
+The first-time tour of the story screen: one bubble at a time over each tool by the box, then the tools under the latest response, once the first response is in. Shown once per install, recorded as `tipsSeen` in Settings, and shown again from the Reader's Guide.
+_Avoid_: Tutorial, onboarding
+
 **Reader's Guide**:
 The player's help, opened from the Menu: what Ink & Thread is and how to use each part of it.
 _Avoid_: Wiki, help, manual

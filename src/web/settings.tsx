@@ -1122,8 +1122,19 @@ function InstallSettings({
   const keyHint = (stored: boolean) => (stored ? "Saved. Type a new key to replace it." : "None saved");
 
   const { busy, submit, feedback } = useSubmit(async () => {
-    const { hasTextApiKey, hasImageApiKey, hasReviewApiKey, textKeysFor, imageKeysFor, textProfiles, imageProfiles, workflowProblem, commandHere, ...change } =
-      draft;
+    const {
+      hasTextApiKey,
+      hasImageApiKey,
+      hasReviewApiKey,
+      textKeysFor,
+      imageKeysFor,
+      textProfiles,
+      imageProfiles,
+      workflowProblem,
+      commandHere,
+      tipsSeen,
+      ...change
+    } = draft;
     const next = await saveSettings({
       ...change,
       ...(textKey.trim() && { textApiKey: textKey.trim() }),

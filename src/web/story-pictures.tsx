@@ -44,9 +44,11 @@ type Shown = "scene" | "requested" | "portrait";
 
 /**
  * A story's pictures and its Journal, which holds the portraits. They draw in the background, so this looks for them
- * apart from the Turn, for as long as any are on the way. `latestId` is the Message a portrait updated now shows under.
+ * apart from the Turn, for as long as any are on the way. A portrait updated now, or a picture that finishes now, shows
+ * under the latest Message.
  */
-export function useStoryPictures(id: string, latestId: number | undefined, onFailure: (failure: { error: string; words: string }) => void) {
+export function useStoryPictures(id: string, messages: Message[], onFailure: (failure: { error: string; words: string }) => void) {
+  const latestId = messages.at(-1)?.id;
   const [images, setImages] = useState<SceneImages>({ images: [], pending: false, session: 0 });
   const [requested, setRequested] = useState<RequestedImages>({ images: [], drawing: 0 });
   const [journal, setJournal] = useState<Journal>();
@@ -55,6 +57,9 @@ export function useStoryPictures(id: string, latestId: number | undefined, onFai
   const lastJournal = useRef<Journal>(undefined);
   // Pictures each list held when first fetched. They stay folded, and only ones drawn later open by themselves.
   const loaded = useRef<Partial<Record<Shown, Set<number>>>>({});
+  // Pictures that finished while the page is open, by the latest Message then, so a slow one shows where the player is
+  // reading, not far back where it began. Only in memory, so a refresh puts each under its own Message, as the Journal does.
+  const arrived = useRef(new Map<string, number>());
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const gone = useRef(false);
   // Whether pictures were drawing at the last check, so the Journal is read again once they stop.
@@ -84,6 +89,12 @@ export function useStoryPictures(id: string, latestId: number | undefined, onFai
       ([next, asked]) => {
         loaded.current.scene ??= new Set(next.images.map(({ messageId }) => messageId));
         loaded.current.requested ??= new Set(asked.images.map(({ ref }) => ref));
+        const arrive = (list: Shown, key: number) => {
+          const at = `${list}/${key}`;
+          if (latest.current !== undefined && !loaded.current[list]!.has(key) && !arrived.current.has(at)) arrived.current.set(at, latest.current);
+        };
+        for (const { messageId } of next.images) arrive("scene", messageId);
+        for (const { ref } of asked.images) arrive("requested", ref);
         setImages(next);
         setRequested(asked);
         if (next.pending && !gone.current) {
@@ -123,6 +134,11 @@ export function useStoryPictures(id: string, latestId: number | undefined, onFai
     updated,
     /** Whether the picture was drawn after the page first looked, so it may open by itself. */
     isNew: (list: Shown, key: number) => !loaded.current[list]?.has(key),
+    /** The Message a picture shows under: where it finished, while that Message is still there, or else its own. */
+    shownAt(list: Shown, key: number, own: number) {
+      const at = arrived.current.get(`${list}/${key}`);
+      return at !== undefined && messages.some(({ id }) => id === at) ? at : own;
+    },
     check,
     rereadJournal,
     /** Changes the height of the story, so the Turn's scroll has to fit again. */
@@ -137,7 +153,7 @@ type InlineProps = { id: string; message: Message; pictures: StoryPictures; open
 /** Pictures the player asked for, which have no other place in the story. */
 export function RequestedRows({ id, message, pictures, openNew, refit }: InlineProps) {
   return pictures.requested.images
-    .filter(({ messageId }) => messageId === message.id)
+    .filter(({ ref, messageId }) => pictures.shownAt("requested", ref, messageId) === message.id)
     .map((image) => (
       <details key={image.ref} className="inline-image requested" open={openNew && pictures.isNew("requested", image.ref)} onToggle={refit}>
         <summary>Picture: {image.caption}</summary>
@@ -149,16 +165,18 @@ export function RequestedRows({ id, message, pictures, openNew, refit }: InlineP
 /** Folded in the story under the response they came with. */
 export function InlineImages(props: InlineProps & { pc: string }) {
   const { id, message, pictures, openNew, refit, pc } = props;
-  const image = pictures.images.images.find(({ messageId }) => messageId === message.id);
   return (
     <>
-      {image && (
-        <details className="inline-image" open={openNew && pictures.isNew("scene", image.messageId)} onToggle={refit}>
-          <summary>Picture{image.caption && `: ${image.caption}`}</summary>
-          {/* Only an open row loads its picture, and only then is its height known. */}
-          <SceneImage id={id} image={image} onLoad={refit} />
-        </details>
-      )}
+      {/* A slow one can share a Message with that Message's own. */}
+      {pictures.images.images
+        .filter(({ messageId }) => pictures.shownAt("scene", messageId, messageId) === message.id)
+        .map((image) => (
+          <details key={image.messageId} className="inline-image" open={openNew && pictures.isNew("scene", image.messageId)} onToggle={refit}>
+            <summary>Picture{image.caption && `: ${image.caption}`}</summary>
+            {/* Only an open row loads its picture, and only then is its height known. */}
+            <SceneImage id={id} image={image} onLoad={refit} />
+          </details>
+        ))}
       {(pictures.journal?.portraits ?? [])
         .filter(({ npc, messageId }) => npc && messageId === message.id)
         .map((portrait) => (

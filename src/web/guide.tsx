@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
+import { endTips } from "./api";
 import { BenchChart } from "./bench-chart";
 import {
   AskIcon,
@@ -289,6 +290,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             {tool(RewriteIcon, "Tell Narrator what to change")}: change the world in your own words. See {link("fix", "Changing the story")}.
           </li>
         </ul>
+        <p>The first time you read a story, tips point at each of these tools in turn. To see them again:</p>
+        <ShowTipsAgain />
         <h3>Luck and risk</h3>
         <p>
           An AI tends to be agreeable: left to itself, it lets nearly everything your PC tries work, and a story where nothing can fail soon goes flat. So Ink &
@@ -679,6 +682,29 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
     ),
   },
 ];
+
+/** Clears `tipsSeen`, so the tips show on the next story opened. */
+function ShowTipsAgain() {
+  const [said, setSaid] = useState("");
+  return (
+    <p className="row">
+      <button
+        type="button"
+        onClick={() =>
+          endTips("again").then(
+            () => setSaid("The tips will show the next time you open a story."),
+            (failure: Error) => setSaid(failure.message),
+          )
+        }
+      >
+        Show the tips again
+      </button>
+      <span role="status" className="muted">
+        {said}
+      </span>
+    </p>
+  );
+}
 
 export function Guide({ section }: { section?: string }) {
   const shown = SECTIONS.find(({ slug }) => slug === section) ?? SECTIONS[0]!;

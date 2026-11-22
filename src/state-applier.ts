@@ -841,6 +841,8 @@ export const WorldEdit = z.discriminatedUnion("edit", [
     moved: z.boolean().optional(),
     // A World Change that only settles the player's Journal edits, whose nows are record-keeping rather than news for the PC.
     settles: z.boolean().optional(),
+    // World Moves On's: the truths it was shown with news, which it brought on or found the PC met, so their news ends.
+    news: z.array(z.string()).optional(),
     // World Moves On's: by name, each person's own part of the threads it wrote, kept as what they know.
     knows: z.record(z.string(), z.array(z.string())).optional(),
     // By truth, who those parts went to.
@@ -901,11 +903,17 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       const rewritten = (truth: string) => Object.hasOwn(edit.now ?? {}, truth) || Object.hasOwn(edit.plan ?? {}, truth);
       const due = { ...Object.fromEntries(Object.entries(state.threadsDue).filter(([truth]) => !rewritten(truth))), ...edit.due };
       const threadsDue = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(due, truth) ? [[truth, due[truth]!]] : [])));
-      // A player's change makes news of each now it writes; a move that rewrites a now has folded its news into the story; one that
-      // only settles Journal edits makes none.
+      // A player's change makes news of each now it writes; one that only settles Journal edits makes none, and a move ends the news
+      // it was shown. Each follows a truth the change rewrites.
+      const renamed = Object.fromEntries(
+        Object.entries(state.threadsNews).map(([truth, text]) => [
+          edit.update.plot_threads.find(({ old, new: next }) => old === truth && next !== null)?.new ?? truth,
+          text,
+        ]),
+      );
       const news = edit.moved
-        ? Object.fromEntries(Object.entries(state.threadsNews).filter(([truth]) => !Object.hasOwn(edit.now ?? {}, truth)))
-        : { ...state.threadsNews, ...(edit.settles ? {} : edit.now) };
+        ? Object.fromEntries(Object.entries(renamed).filter(([truth]) => !edit.news?.includes(truth)))
+        : { ...renamed, ...(edit.settles ? {} : edit.now) };
       const threadsNews = Object.fromEntries(merged.plotThreads.flatMap((truth) => (Object.hasOwn(news, truth) ? [[truth, news[truth]!]] : [])));
       // Under the name of someone met, or as named until they are, when add_npc takes it up.
       const had = (truth: string) => (Object.hasOwn(state.threadParts, truth) ? state.threadParts[truth]! : []);

@@ -917,6 +917,7 @@ export async function applyWorldChange(
     journal: journal.length,
     looks: looks.length,
     due: Object.keys(due).length,
+    news: settles ? 0 : Object.keys(by("now")).length,
   }));
 }
 

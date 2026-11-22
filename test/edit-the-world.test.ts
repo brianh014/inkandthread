@@ -760,12 +760,15 @@ test("a World Change's news stays in the Turn's prompt until its thread's now is
   play(update({ plot_threads: [{ old: null, new: truth, now }] }), narration("One."), narration("Two."), narration("Three."));
   const id = createSave();
   await change(id);
-  const news = (prompt: (typeof prompts)[number]) => prompt.some(({ content }) => content.includes(`these are now true: ${JSON.stringify([now])}`));
+  const news = (prompt: (typeof prompts)[number]) =>
+    prompt.some(({ content }) => content.includes(`these happened out of the PC's sight: ${JSON.stringify([now])}`));
 
   await turn(id);
   await turn(id);
   const empty = { lore_entries: [], removed_lore: [], world_rules: [], plot_threads: [] };
-  store().addWorldChange(id, store().latestMessageId(id), [{ edit: "world", update: empty, now: { [truth]: "The lugger has sailed." }, made: 0, moved: true }]);
+  store().addWorldChange(id, store().latestMessageId(id), [
+    { edit: "world", update: empty, now: { [truth]: "The lugger has sailed." }, made: 0, moved: true, news: [truth] },
+  ]);
   await turn(id);
 
   expect(prompts.slice(1).map(news)).toEqual([true, true, false]);

@@ -106,6 +106,23 @@ test("on a new day the world moves on out of sight, rewriting a thread's now and
   expect(log).not.toContain("barge");
 });
 
+test("a move is shown which threads have World Change news, and ends that news even when it leaves the thread as it was", async () => {
+  const told = play(narration("Ash walks to the dock.", nextDay()), moved(), narration("Ash watches the barges."));
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: { plotThreads: [THIEF], threadsNow: { [THIEF]: "The thief hides a lantern." }, threadsNews: { [THIEF]: "The thief hides a lantern." } },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I walk to the dock.", "I watch the barges."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(told.prompts[1]!.at(-1)!.content).toContain('"news":true');
+  expect(store().latestState(id).threadsNews).toEqual({});
+  expect(log).toContain('"news":1');
+});
+
 test("a move can't change what a thread hides: a truth it gives for a rewrite is left out, and its now is kept", async () => {
   play(
     narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),

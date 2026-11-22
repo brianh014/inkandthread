@@ -233,14 +233,15 @@ function journalLines(edits: WorldEdit[]) {
 export function journalNote(edits: WorldEdit[], news: string[] = []) {
   const lines = journalLines(edits);
   // A World Change's news sat in a thread's now, which the Narrator reads as out of sight, so it never reached the page; sent
-  // once, it was lost when the PC was somewhere it couldn't reach them.
+  // once, it was lost when the PC was somewhere it couldn't reach them. Told as what happened, so a now written since doesn't
+  // contradict it. shortcut: sent until World Moves On next runs, so with moves off it never ends; end it after some replies then.
   return [
     lines &&
       `
 The player changed the Journal since the last reply. ${lines} These are changes to the record, not events, so don't mention them in the narration, and change only the state they touch.`,
     news.length > 0 &&
       `
-The player changed the hidden world, and these are now true: ${JSON.stringify(news)}. Whatever of them the PC would see, hear or be told where they are reaches them as soon as it can, unless the story above already shows it, and the rest stays secret.`,
+The player changed the hidden world, and these happened out of the PC's sight: ${JSON.stringify(news)}. Whatever of them the PC would see, hear or be told where they are reaches them as soon as it can, unless the story above already shows it, and the rest stays secret.`,
   ]
     .filter(Boolean)
     .join("");

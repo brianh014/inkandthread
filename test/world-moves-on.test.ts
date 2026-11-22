@@ -244,6 +244,24 @@ test("a move is told which of each thread's people the latest replies showed aft
   expect(thread.with_pc).toBeUndefined();
 });
 
+test("a move is told what the PC knows of each thread's people, so no plan calls them from a place they have left", async () => {
+  const told = play(
+    narration(
+      "Ash learns Kit now sleeps above the bakery.",
+      { op: "add_npc", name: "Kit", appearance: "a boy in a cap" },
+      { op: "add_known_fact", fact: "Kit sleeps above the bakery now." },
+      { op: "add_known_fact", fact: "The tide turns at noon." },
+      { op: "update_plot_thread", thread: THIEF, truth: null, now: "Kit watches the library stacks.", plan: null },
+      nextDay(),
+    ),
+    moved(),
+  );
+  const id = createSave();
+  expect((await turn(id, "I listen.")).ok).toBe(true);
+
+  expect(JSON.parse(told.prompts[1]!.at(-1)!.content).plot_threads[0].pc_knows).toEqual(["Kit sleeps above the bakery now."]);
+});
+
 test("a move reads every reply since the last in full, as with only the last two it never saw someone shown and sent off between moves", async () => {
   const told = play(
     narration("Ash enters the archive.", { summary: "Ash entered the archive." }),

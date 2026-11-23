@@ -215,7 +215,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             <b>Theme</b>: the kind of story, such as High Fantasy, Cyberpunk or Horror, or your own.
           </li>
           <li>
-            <b>Tone</b>: how the story is told, such as Wry, Whimsical or Grim, or your own. The world's own leaves it to the theme. It changes only the
+            <b>Tone</b>: how the story is told, such as Wry, Whimsical or Grim, or your own. The world's own leaves it to the world. It changes only the
             telling, never what happens. You can change it later in the Journal.
           </li>
           <li>

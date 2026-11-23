@@ -1,4 +1,4 @@
-import { OWN_TONE, toneFor, toneText } from "../tones";
+import { OWN_TONE, toneFor, toneLabel, toneText } from "../tones";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   editJournal,
@@ -181,7 +181,7 @@ function ToneEditable({ tone, onSave }: { tone: string; onSave: (text: string) =
   if (!pick) {
     return (
       <div className="editable">
-        <p>{shown.tone === OWN_TONE ? shown.ownTone : shown.tone}</p>
+        <p>{toneLabel(tone)}</p>
         <button type="button" className="icon" aria-label="Edit: Tone" title="Edit" onClick={() => setPick(shown)}>
           {EditIcon}
         </button>
@@ -212,7 +212,7 @@ function ToneEditable({ tone, onSave }: { tone: string; onSave: (text: string) =
         </p>
       )}
       <div className="row">
-        <button type="submit" className="action" disabled={busy}>
+        <button type="submit" className="action" disabled={busy || (pick.tone === OWN_TONE && !pick.ownTone.trim())}>
           Save
         </button>
         <button type="button" className="quiet" disabled={busy} onClick={() => setPick(undefined)}>

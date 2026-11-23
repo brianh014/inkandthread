@@ -15,7 +15,7 @@ import {
   setupProblem,
   uploadHeldImage,
 } from "./api";
-import { OWN_TONE, toneText, WORLDS_OWN } from "../tones";
+import { toneLabel, toneText } from "../tones";
 import { DecideIcon, EditIcon } from "./icons";
 import { ConfirmDialog, MenuRibbon, Sheet } from "./menu";
 import { blank, characterLabel, type Draft, newRef, npcPicture, OWN_THEME, redrew, STEPS, STORAGE_KEY, stored, THEMES, withCoverChoice } from "./wizard-draft";
@@ -423,7 +423,7 @@ export function NewStory({ step }: { step?: string }) {
           </div>
           <dl>
             {shown("Theme", theme)}
-            {shown("Tone", toneText(draft.tone, draft.ownTone) ? (draft.tone === OWN_TONE ? draft.ownTone.trim() : draft.tone) : WORLDS_OWN)}
+            {shown("Tone", toneLabel(toneText(draft.tone, draft.ownTone)))}
             {shown("World Brief", draft.worldBrief)}
             {shown("Starting Hook", worldChoices.startingHook || "None. Your PC just starts in the world.")}
             {shown("Your Character", draft.pc.name)}

@@ -236,7 +236,7 @@ export const worldSigns = (edits: WorldEdit[]) => edits.flatMap((edit) => (edit.
 const toneLine = (tone: string) =>
   tone
     ? `
-Tell the story in this tone: ${JSON.stringify(tone)}. It sets only the mood and voice of the telling, within the rules above, never what happens or how a Check falls. Where world_rules or the replies above carry another mood, this one replaces it, but the Model Instructions win over it.`
+Tell the story in this tone: ${JSON.stringify(tone)}. It sets only the mood and voice of the telling, never what happens or how a Check falls. Where world_rules or the replies above carry another mood, this one replaces it, but the Model Instructions win over it.`
     : "";
 
 export function journalNote(edits: WorldEdit[]) {

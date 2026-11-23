@@ -112,7 +112,7 @@ The optional opening situation chosen during story creation.
 _Avoid_: Hook (alone)
 
 **Tone**:
-The mood and voice the Narrator tells the story in, such as wry or grim, picked on the New Story form and changed in the Journal. It is separate from the theme, which says what kind of world and story it is: a Tone says how it is told, and wins on that where the two differ, though the player's Model Instructions win over it. It never changes what happens or how a Check falls. The default, The world's own, sets none and takes the tone from the theme. Words only, never the pictures.
+The mood and voice the Narrator tells the story in, such as wry or grim, picked on the New Story form and changed in the Journal. It is separate from the theme, which says what kind of world and story it is: a Tone says how it is told, and wins on that where the two differ, though the player's Model Instructions win over it. It never changes what happens or how a Check falls. The default, The world's own, sets none, leaving the mood the world was built with. Words only, never the pictures.
 _Avoid_: Mood, style (the Art Style and Chat style), intensity
 
 **Sparks**:

@@ -182,6 +182,7 @@ export const StateOperation = z.discriminatedUnion("op", [
     thread: nonEmpty,
     now: nonEmpty,
     plan: nonEmpty.nullable().default(null),
+    plan_in_hours: z.number().min(0).nullable().default(null),
     truth: nonEmpty.nullable().default(null),
   }),
   z.object({ op: z.literal("resolve_plot_thread"), thread: nonEmpty }),
@@ -582,9 +583,11 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       state.threadsNow = { ...others, [truth]: operation.now };
       const { [thread]: _planned, ...otherPlans } = state.threadsPlan;
       state.threadsPlan = operation.plan ? { ...otherPlans, [truth]: operation.plan } : otherPlans;
-      // A Turn's plan has no hour on the clock, so the old one goes with the old plan.
+      // Timed on the clock as a move's are, as a rewritten plan with no hour never fell due and sat stale for ten rounds.
       const { [thread]: _due, ...otherDue } = state.threadsDue;
-      state.threadsDue = otherDue;
+      const clock = state.storyTime?.hours;
+      state.threadsDue =
+        operation.plan && operation.plan_in_hours !== null && clock !== undefined ? { ...otherDue, [truth]: clock + operation.plan_in_hours } : otherDue;
       const { [thread]: question, ...otherQuestions } = state.threadsQuestion;
       if (question) state.threadsQuestion = { ...otherQuestions, [truth]: question };
       const { [thread]: parts, ...otherParts } = state.threadParts;

@@ -68,7 +68,9 @@ export function moveDue(id: string, before: State, after: State, replies: number
   const newDate =
     (after.storyTime?.day ?? 0) > (before.storyTime?.day ?? 0) || (after.storyTime?.date !== before.storyTime?.date && !before.storyTime?.dateDue);
   const since = replies - (movedAt.get(id) ?? 0);
-  const due = hoursOn || newDate || since >= MOVE_EVERY;
+  // A plan falling due, as one past its hour waited about four rounds for the next move to bring it about.
+  const planFalls = was !== undefined && now !== undefined && Object.values(after.threadsDue).some((at) => was < at && at <= now);
+  const due = hoursOn || newDate || planFalls || since >= MOVE_EVERY;
   if (due) {
     movedAt.set(id, replies);
     repliesSince.set(id, since);

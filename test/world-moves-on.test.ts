@@ -733,6 +733,16 @@ test("a plan is its doer's, the person it names first, so one aimed at someone w
   expect(store().latestState(id).threadsDue).toEqual({ [THIEF]: 30 });
 });
 
+test("a plan whose hour has come goes as overtaken when the reply shows its doer, though not in the scene", async () => {
+  play(narration("Across the water Kit is still mending nets on the far quay.", hoursOn(1, "nine")));
+  const id = planned(8.5, "Kit will rob the library stacks for the ledger.");
+
+  const log = await logOf(async () => expect((await turn(id, "I watch the quay.")).ok).toBe(true), "info");
+
+  expect(log).toContain('"plansOvertaken":1');
+  expect(store().latestState(id)).toMatchObject({ threadsPlan: {}, threadsDue: {} });
+});
+
 test("a plan whose hour comes while its doer is with the PC was overtaken by play, and goes", async () => {
   play(narration("Kit comes down the dock to Ash.", { op: "set_scene", location: "The dock", visible_cast: ["Kit"] }, hoursOn(1, "nine")));
   const id = planned(8.5, "Kit will rob the library stacks for the ledger.");

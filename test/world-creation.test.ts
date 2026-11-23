@@ -310,6 +310,19 @@ test("Pick for me can fail and be retried like a generated world", async () => {
   expect((await pick()).status).toBe(200);
 });
 
+test("Pick for me asks again when a box comes back as filler", async () => {
+  play(
+    JSON.stringify({ title: "placeholder", worldBrief: "Placeholder" }),
+    JSON.stringify({ title: "Tide", worldBrief: "..." }),
+    JSON.stringify({ title: "Tide", worldBrief: "A city on a whale." }),
+  );
+
+  const response = await app.post("/worlds/pick", { theme: "Steampunk", title: "", worldBrief: "" });
+
+  expect(await response.json()).toEqual({ title: "Tide", worldBrief: "A city on a whale." });
+  expect(prompts).toHaveLength(3);
+});
+
 const setup = { theme: "Steampunk", title: "", worldBrief: "A city on a whale", startingHook: "", characters: [] };
 
 test("Enhance rewrites one box from the player's words and their other choices", async () => {

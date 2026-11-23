@@ -64,7 +64,13 @@ export type EnhanceField = (typeof ENHANCE_FIELDS)[number];
 /** `reviewProvider` reviews the world and World Changes. Without one, as in a test's script, nothing is reviewed. */
 type Context = { textProvider: TextProvider; settings: SettingsStore; reviewProvider?: TextProvider };
 
-const text = z.string().trim().min(1);
+// Some models fill a schema with a stand-in word, which parses but holds nothing, so it's asked again like any unusable reply.
+const FILLER = /^(placeholder|lorem ipsum.*|todo|tbd|string|\.{3}|…)$/i;
+const text = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((words) => !FILLER.test(words), "filler instead of text");
 
 // Always-on entries bypass the token budget, so the Narrator can only add keyword-activated ones.
 const toLoreEntries = (entries: z.infer<typeof LoreEntryReply>[]) => entries.map((entry) => ({ ...entry, alwaysOn: false }));

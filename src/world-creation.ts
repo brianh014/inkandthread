@@ -81,6 +81,7 @@ const WorldReply = z.object({
   world_rules: z.array(text).min(1),
   plot_threads: z.array(text).min(1).max(MAX_PLOT_THREADS),
   calendar: text,
+  naming: text,
   start_date: text,
   start_time_of_day: text,
 });
@@ -224,6 +225,91 @@ const SPARKS = {
     "our own world, long ago",
     "an invented world of its own",
   ],
+  // For a World Brief written from nothing, as given goods came back as a small town feuding by the water, the stock that
+  // models fall back on. Mostly inland, as coasts pull toward fishing villages.
+  region: [
+    "Kerala",
+    "Hokkaido",
+    "northern Chile",
+    "Ghana",
+    "Anatolia",
+    "Quebec",
+    "the American Midwest",
+    "Mongolia",
+    "Bavaria",
+    "Poland",
+    "Sicily",
+    "Oaxaca",
+    "Morocco",
+    "Finnish Lapland",
+    "Kazakhstan",
+    "the Andes of Peru",
+    "Ethiopia",
+    "Nepal",
+    "Senegal",
+    "Wales",
+    "the Basque Country",
+    "Bangladesh",
+    "Iran",
+    "Croatia",
+    "Georgia (the country)",
+    "Java",
+    "Nigeria",
+    "Korea",
+    "Brazil's northeast",
+    "Ukraine",
+    "Vietnam",
+    "Uzbekistan",
+    "Punjab",
+    "Sichuan",
+    "Rajasthan",
+    "Bohemia",
+    "the Hungarian plain",
+    "Transylvania",
+    "Lebanon",
+    "the Yemeni highlands",
+    "Sudan",
+    "the Kenyan highlands",
+    "Zimbabwe",
+    "the Congo basin",
+    "Madagascar",
+    "Mali",
+    "Tibet",
+    "Laos",
+    "Mindanao",
+    "the Australian outback",
+    "Patagonia",
+    "Colombia's coffee country",
+    "the Bolivian altiplano",
+    "northern Mexico",
+    "Texas",
+    "Appalachia",
+    "the Canadian prairies",
+    "Siberia",
+    "the Urals",
+  ],
+  place: [
+    "a capital's government quarter",
+    "a mining camp",
+    "a border post",
+    "a tenement block",
+    "a ship or caravan always moving",
+    "a university",
+    "a factory district",
+    "a mountain monastery",
+    "a garrison",
+    "a crossroads market city",
+    "a rail or road junction",
+    "a hospital or sanatorium",
+    "a prison",
+    "a palace household",
+    "a suburb",
+    "a refugee camp",
+    "a great estate",
+    "a pilgrimage road",
+    "a dam or great works being built",
+    "a research station",
+  ],
 };
 /** Built-in themes whose description already says when they are set. */
 const ERA_SET = [
@@ -240,42 +326,6 @@ const ERA_SET = [
   "Western",
   "Post-Apocalyptic",
 ];
-// For a World Brief written from nothing: plain goods, as a model bends an abstract Spark into its own favourite premise. A
-// livelihood, not what holds the world up, as "the thing everything rests on is failing" is that favourite. Two, in different roles, so the premise must join them, as a pair given alike came back as "a town built on two trades".
-const GOODS = [
-  "salt",
-  "bells",
-  "glass",
-  "wool",
-  "ink",
-  "maps",
-  "horses",
-  "bees",
-  "masks",
-  "clocks",
-  "bridges",
-  "rope",
-  "paper",
-  "dyes",
-  "spices",
-  "copper",
-  "bread",
-  "wine",
-  "ice",
-  "silk",
-  "furs",
-  "pearls",
-  "timber",
-  "stone",
-  "oil",
-  "medicine",
-  "fish",
-  "cattle",
-  "letters",
-  "tea",
-  "bones",
-  "music",
-];
 // Not Q, X or Z, which models reach for when told to be unusual.
 const NAME_LETTERS = "ABCDEFGHIJKLMNOPRSTVWY";
 
@@ -286,11 +336,10 @@ const distinct = <T>(items: ArrayLike<T>, count: number) => {
   return [...drawn];
 };
 
-type SparkKind = keyof typeof SPARKS | "trade" | "prize" | "nameLetters";
+type SparkKind = keyof typeof SPARKS | "nameLetters";
 export type Sparks = Partial<Record<SparkKind, string>>;
 
-const drawOne = (kind: SparkKind) =>
-  kind === "trade" || kind === "prize" ? pick(GOODS) : kind === "nameLetters" ? distinct(NAME_LETTERS, 5).join(", ") : pick(SPARKS[kind]);
+const drawOne = (kind: SparkKind) => (kind === "nameLetters" ? distinct(NAME_LETTERS, 5).join(", ") : pick(SPARKS[kind]));
 
 /** A Spark of each kind asked for, logged with `about`, such as the world's id, so a world can be traced to what it was built from. */
 export function drawSparks(about: Record<string, string>, kinds: SparkKind[] = ["pressure", "constraint", "secret", "nameLetters"]): Sparks {
@@ -303,10 +352,12 @@ const SPARK_WORDS: Record<SparkKind, string> = {
   pressure: "a pressure on the world now:",
   constraint: "a constraint it lives under:",
   secret: "a secret for a plot thread:",
-  trade: "something people here make or sell:",
-  prize: "something they fight over:",
+  // Land, livelihood and the sound of names only, as customs, dress and faith are where a borrowed culture turns to costume.
+  region:
+    "a real region whose land, weather, livelihoods and sound of names it takes after, from what someone there knows of a normal week, not its famous sights, using less where you know little of it, and never naming it:",
+  place: "the kind of place the story centres on:",
   era: "when it is set:",
-  nameLetters: "invented names of people and places starting with",
+  nameLetters: "names of people and places starting with",
 };
 
 // Bent rather than dropped, as "ignore what doesn't fit" is the easy way back to the average. With no World Brief, they are what it's built from.
@@ -314,7 +365,7 @@ const sparksLine = (sparks: Sparks) =>
   `Sparks, drawn at random so it isn't the most familiar pick: ${Object.entries(sparks)
     .map(([kind, spark]) => `${SPARK_WORDS[kind as SparkKind]} ${spark}`)
     .join("; ")}. ${
-    sparks.trade
+    sparks.place
       ? "Build the world from them, each fitting the theme and what the player wrote."
       : "Bend each to fit where the player's choices leave room, leaving one out only where it contradicts them."
   }`;
@@ -344,6 +395,7 @@ ${STORY_CRAFT}
 ${sparksLine(sparks)}
 ${SHORT_LINES}
 calendar says in two or three sentences how people in this world count days, months and years, with the names they use, so that dates stay consistent in play. start_date and start_time_of_day are when the story opens, in that calendar, as the PC would reckon them, such as "3rd of Frostmoon, 412 AR" and "late evening". Make them fit the starting_hook, if there is one.
+naming says in a sentence or two how people here name people and places and how those names sound, so that names given in play fit the world.
 world_overview is the only part the player ever reads. In a few short paragraphs, cover only what the PC would plausibly know from living in this world. It must be spoiler-free: never reveal or hint at a plot thread, and leave out every secret in the lore entries.
 ${modelInstructions(context)}`,
   },
@@ -388,7 +440,7 @@ export async function pickForMe(
   // Only the kinds its empty boxes can hold, and never the secret, as these boxes are the player's to read.
   const kinds: SparkKind[] = [
     ...(world.worldBrief === "" && !ERA_SET.includes(theme.split(":")[0]!) ? (["era"] as const) : []),
-    ...(world.worldBrief === "" ? (["trade", "prize"] as const) : []),
+    ...(world.worldBrief === "" ? (["region", "place"] as const) : []),
     ...(world.worldBrief === "" || world.startingHook === "" ? (["pressure", "constraint"] as const) : []),
     ...(pc?.name === "" || world.worldBrief === "" ? (["nameLetters"] as const) : []),
   ];
@@ -1155,6 +1207,7 @@ function withReview(world: WorldReply, review: WorldReview): WorldReply {
     world_rules: changed(world.world_rules, review.world_rules),
     plot_threads: changed(world.plot_threads, review.plot_threads),
     calendar: review.calendar?.text ?? world.calendar,
+    naming: world.naming,
     start_date: review.start?.date ?? world.start_date,
     start_time_of_day: review.start?.time_of_day ?? world.start_time_of_day,
   };
@@ -1212,7 +1265,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
 export async function generateWorld(context: Context, choices: WorldChoices, pc: WorldPc, sparks: Sparks, signal: AbortSignal) {
   // The review looks for a leak in the Overview, but past that it is Narrator free text, kept clean only by the prompts.
   const written = await askForJson(context.textProvider, worldPrompt(context, choices, pc, sparks), WorldReply, REFUSAL, signal, { call: "world" });
-  const { world_overview, lore_entries, world_rules, plot_threads, calendar, start_date, start_time_of_day } = await reviewWorld(
+  const { world_overview, lore_entries, world_rules, plot_threads, calendar, naming, start_date, start_time_of_day } = await reviewWorld(
     context,
     choices,
     pc,
@@ -1222,7 +1275,12 @@ export async function generateWorld(context: Context, choices: WorldChoices, pc:
   );
   const world: World & Pick<State, "storyTime"> = {
     // Always on, as every Turn can move the date, and its rules are what keep it consistent.
-    worldBible: [...toLoreEntries(lore_entries), { title: "Calendar", keywords: ["calendar", "date", "day"], content: calendar, alwaysOn: true }],
+    // Naming too, as anyone new can be named on any Turn, and only this keeps their names from the model's own stock.
+    worldBible: [
+      ...toLoreEntries(lore_entries),
+      { title: "Calendar", keywords: ["calendar", "date", "day"], content: calendar, alwaysOn: true },
+      { title: "Naming", keywords: ["name", "names", "naming"], content: naming, alwaysOn: true },
+    ],
     worldRules: world_rules,
     plotThreads: plot_threads,
     storyTime: { day: 1, date: start_date, timeOfDay: start_time_of_day },

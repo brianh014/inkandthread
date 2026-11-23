@@ -26,6 +26,7 @@ const generated = JSON.stringify({
   calendar: "Days run in weeks of seven under the Tide Reckoning.",
   start_date: "3rd of Lowtide",
   start_time_of_day: "dusk",
+  naming: "Names are short and plain.",
   lore_entries: [{ title: "Magic", keywords: ["magic", "spell", "sorcery"], content: `${SECRET} magic is real.` }],
   world_rules: [`${SECRET} rule.`],
   plot_threads: [`${SECRET} the mayor is a ghost.`],

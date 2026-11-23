@@ -34,6 +34,7 @@ const generated = (mark = "", changes = {}) =>
     calendar: "Days run in weeks of seven under the Tide Reckoning.",
     start_date: "3rd of Lowtide",
     start_time_of_day: "dusk",
+    naming: "Names are short and plain.",
     lore_entries: [{ title: `${mark}The Tide Court`, keywords: ["Tide Court", "the court", "magistrates"], content: `${mark}Its judges drown the guilty.` }],
     world_rules: [`${mark}Magic does not exist.`],
     plot_threads: [`${mark}The mayor is a drowned ghost.`],
@@ -82,6 +83,7 @@ test("a generated world reaches the player only as its World Overview, and its S
       alwaysOn: false,
     },
     { title: "Calendar", keywords: ["calendar", "date", "day"], content: "Days run in weeks of seven under the Tide Reckoning.", alwaysOn: true },
+    { title: "Naming", keywords: ["name", "names", "naming"], content: "Names are short and plain.", alwaysOn: true },
   ]);
   expect(worldRules).toEqual(["Magic does not exist."]);
   expect(plotThreads).toEqual(["The mayor is a drowned ghost."]);
@@ -219,7 +221,7 @@ test("each world build and Regenerate is sent Sparks of its own, logged with the
   for (const line of drawn) expect(line).toContain(`"world":"${id}"`);
   for (const prompt of [prompts[1]!, prompts[2]!]) {
     expect(prompt[0]!.content).toMatch(
-      /Sparks, drawn at random.*a pressure on the world now: .+; a constraint.+; a secret for a plot thread: .+; invented names of people and places starting with [A-Z](, [A-Z]){4}\./,
+      /Sparks, drawn at random.*a pressure on the world now: .+; a constraint.+; a secret for a plot thread: .+; names of people and places starting with [A-Z](, [A-Z]){4}\./,
     );
   }
 });
@@ -268,9 +270,9 @@ test("Pick for me is sent only the Sparks its empty boxes can hold, never a secr
 
   const [world, name, title] = prompts.map((prompt) => prompt[0]!.content);
   expect(world).toMatch(
-    /Sparks.*something people here make or sell: \w+; something they fight over: \w+; a pressure on the world now: .+; a constraint it lives under: .+; invented names of people and places starting with [A-Z](, [A-Z]){4}\. Build the world from them/,
+    /Sparks.*a real region whose .+?: [^;]+; the kind of place the story centres on: [^;]+; a pressure on the world now: .+; a constraint it lives under: .+; names of people and places starting with [A-Z](, [A-Z]){4}\. Build the world from them/,
   );
-  expect(name).toMatch(/Sparks.*: invented names of people and places starting with [A-Z](, [A-Z]){4}\./);
+  expect(name).toMatch(/Sparks.*: names of people and places starting with [A-Z](, [A-Z]){4}\./);
   expect(name).not.toContain("a pressure");
   expect(name).toContain("Bend each to fit");
   expect(title).not.toContain("Sparks");
@@ -285,7 +287,7 @@ test("Pick for me draws when a World Brief is set only for a theme that leaves i
   await app.post("/worlds/pick", { theme: "A story of my own", title: "Dread", worldBrief: "" });
 
   for (const prompt of prompts)
-    expect(prompt[0]!.content).toMatch(/Sparks, drawn at random so it isn't the most familiar pick: when it is set: [^;]+; something people/);
+    expect(prompt[0]!.content).toMatch(/Sparks, drawn at random so it isn't the most familiar pick: when it is set: [^;]+; a real region/);
 });
 
 test("Pick for me needs every empty box back, and retries a Title too long for a cover", async () => {

@@ -27,6 +27,7 @@ const WORLD = {
   calendar: "Days by tides.",
   start_date: "First Tide",
   start_time_of_day: "dusk",
+  naming: "Names are short and plain.",
 };
 const NO_EDITS = { world_overview: null, lore_entries: [], world_rules: [], plot_threads: [], calendar: null, start: null };
 const CHOICES = { title: "Salt", theme: "Fantasy", worldBrief: "A drowned city", startingHook: "" };
@@ -56,7 +57,7 @@ test("the World review's edits are made, each with its fault counted in the log,
   let result: Awaited<typeof made> | undefined;
   const log = await logOf(async () => (result = await made));
   expect(result!.world.plotThreads).toEqual(["The mayor's bees spy for the drowned queen.", "The tide is rising."]);
-  expect(result!.world.worldBible.map(({ title }) => title)).toEqual(["The Mayor", "The Tide", "The Queen", "Calendar"]);
+  expect(result!.world.worldBible.map(({ title }) => title)).toEqual(["The Mayor", "The Tide", "The Queen", "Calendar", "Naming"]);
   expect(log).toContain("World reviewed");
   expect(log).toContain('"thin_story":1');
   expect(log).not.toContain("drowned queen");

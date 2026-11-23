@@ -6,7 +6,7 @@ import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
 import { applyEdit, applyOperations, MAX_NPC_KNOWS, openingState, type WorldEdit } from "../src/state-applier";
 import { journalChange } from "../src/prompt-assembler";
-import { MOVE_EVERY, moveDue, sameDeed, turnThreadChanges } from "../src/world-moves-on";
+import { MOVE_EVERY, moveDue, sameDeed, threadPeople, turnThreadChanges } from "../src/world-moves-on";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -646,7 +646,10 @@ const planned = (due: number, plan = "The thief will rob the library stacks for 
       summary: "",
       worldRules: [],
       worldBible: [],
-      npcs: [{ name: "Kit", appearance: "a boy in a cap" }],
+      npcs: [
+        { name: "Kit", appearance: "a boy in a cap" },
+        { name: "Thorne", appearance: "a tall man in black" },
+      ],
       plotThreads: [THIEF],
       threadsNow: { [THIEF]: "The thief waits by the dock." },
       threadsPlan: { [THIEF]: plan },
@@ -728,6 +731,16 @@ test("a move reads a plan whose people are with the PC as their intent, and keep
 
   expect(JSON.parse(told.prompts[1]!.at(-1)!.content).plot_threads[0]).toMatchObject({ intent: plan });
   expect(store().latestState(id)).toMatchObject({ threadsPlan: { [THIEF]: plan }, threadsDue: {} });
+});
+
+test("a plan is its doer's, the person it names first, so one aimed at someone with the PC keeps its hour", async () => {
+  play(narration("Kit comes down the dock to Ash.", { op: "set_scene", location: "The dock", visible_cast: ["Kit"] }));
+  const plan = "At dusk Thorne will take Kit from the dock.";
+  const id = planned(30, plan);
+  expect(threadPeople(store().latestState(id)).doer(plan)).toContain("Thorne");
+
+  expect((await turn(id, "I wave.")).ok).toBe(true);
+  expect(store().latestState(id).threadsDue).toEqual({ [THIEF]: 30 });
 });
 
 test("a plan whose people come on the page loses its hour, and the Narrator reads it as an intent to play out in the scene", async () => {

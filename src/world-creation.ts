@@ -210,7 +210,14 @@ const SPARKS = {
     "a place that isn't empty",
   ],
   // Only for a theme that leaves it open, as goods otherwise drew every Horror and Romance into a timeless invented valley.
-  era: ["today", "a generation ago", "a century or so ago", "long ago, in history", "an invented world of its own"],
+  // "Our own world", as a bare "today" was read as today in an invented one.
+  era: [
+    "our own world, today",
+    "our own world, a generation ago",
+    "our own world, a century or so ago",
+    "our own world, long ago",
+    "an invented world of its own",
+  ],
 };
 /** Built-in themes whose description already says when they are set. */
 const ERA_SET = [

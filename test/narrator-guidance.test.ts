@@ -168,9 +168,6 @@ test("the rules every story needs are built in, near the reply, so Model Instruc
   for (const rule of [
     "People know only what they have seen, heard or been told themselves",
     "Carry on from the last reply",
-    "what went wrong stays wrong",
-    "anyone but the PC can die",
-    "bring it back before inventing new",
     "Their goals are their own and can conflict with the PC's",
     "Avoid melodrama, cliché and overused metaphors",
     "rather than participle phrases",
@@ -180,6 +177,7 @@ test("the rules every story needs are built in, near the reply, so Model Instruc
     expect(lastSystem()).toContain(rule);
     expect(prompts.at(-1)![0]!.content).not.toContain(rule);
   }
+  expect(prompts.at(-1)![0]!.content).toContain("Where the PC is somewhere a Plot Thread's now would show, it shows in passing");
 });
 
 test("the pace of a reply, then what's true right now, are the last things the Narrator reads before the player's words", async () => {

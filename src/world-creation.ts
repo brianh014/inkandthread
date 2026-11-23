@@ -77,11 +77,12 @@ const toLoreEntries = (entries: z.infer<typeof LoreEntryReply>[]) => entries.map
 
 const WorldReply = z.object({
   world_overview: text,
+  // Before the people and places, so it shapes their names rather than describing them afterwards.
+  naming: text,
   lore_entries: z.array(LoreEntryReply).min(1),
   world_rules: z.array(text).min(1),
   plot_threads: z.array(text).min(1).max(MAX_PLOT_THREADS),
   calendar: text,
-  naming: text,
   start_date: text,
   start_time_of_day: text,
 });
@@ -226,7 +227,7 @@ const SPARKS = {
     "an invented world of its own",
   ],
   // For a World Brief written from nothing, as given goods came back as a small town feuding by the water, the stock that
-  // models fall back on. Mostly inland, as coasts pull toward fishing villages.
+  // models fall back on. Inland and coastal both, as the model's own pick is a small town on the water.
   region: [
     "Kerala",
     "Hokkaido",
@@ -357,7 +358,7 @@ const SPARK_WORDS: Record<SparkKind, string> = {
     "a real region whose land, weather, livelihoods and sound of names it takes after, from what someone there knows of a normal week, not its famous sights, using less where you know little of it, and never naming it:",
   place: "the kind of place the story centres on:",
   era: "when it is set:",
-  nameLetters: "names of people and places starting with",
+  nameLetters: "invented names of people and places starting with",
 };
 
 // Bent rather than dropped, as "ignore what doesn't fit" is the easy way back to the average. With no World Brief, they are what it's built from.
@@ -388,6 +389,7 @@ const worldPrompt = (context: Context, choices: WorldChoices, given: WorldPc, sp
 Build the world from the theme, title and world_brief. If there is a starting_hook, make sure the world can open with it. important_characters are people the player wants in the story, and they are canon: give each a lore entry of their own, and weave them into the world and plot threads.
 pc and inventory are the player's PC and what they start with. ${PC_IS_CANON} The PC belongs in this world from the start. If anything about them conflicts with the theme or world_brief, the world changes and the PC does not. Change only what the conflict needs, and keep the theme and tone. For example, a wizard who throws fireballs in a strict modern-day world means magic exists there.
 Reply only with JSON matching this schema, with its keys in the same order: ${JSON.stringify(jsonSchemaOf(WorldReply))}
+naming says in a sentence or two how people here name people and places and how those names sound. Give every name in the world by it, and in play new names will follow it too.
 lore_entries is the World Bible, which is secret. Write at least twelve entries covering places, factions, people, history and how the world works. Each must make sense on its own, because in play you only see the entries a recent Message activates. Give each at least three keywords, including names, nicknames and everyday paraphrases, so that a player's wording still activates it.
 world_rules are strict statements of what is and is not possible in this world. Start with its theme and tone, because you will see these on every Turn and nothing else carries them.
 plot_threads are secret storylines for play to reveal. Write three to six.
@@ -395,7 +397,6 @@ ${STORY_CRAFT}
 ${sparksLine(sparks)}
 ${SHORT_LINES}
 calendar says in two or three sentences how people in this world count days, months and years, with the names they use, so that dates stay consistent in play. start_date and start_time_of_day are when the story opens, in that calendar, as the PC would reckon them, such as "3rd of Frostmoon, 412 AR" and "late evening". Make them fit the starting_hook, if there is one.
-naming says in a sentence or two how people here name people and places and how those names sound, so that names given in play fit the world.
 world_overview is the only part the player ever reads. In a few short paragraphs, cover only what the PC would plausibly know from living in this world. It must be spoiler-free: never reveal or hint at a plot thread, and leave out every secret in the lore entries.
 ${modelInstructions(context)}`,
   },
@@ -442,7 +443,8 @@ export async function pickForMe(
     ...(world.worldBrief === "" && !ERA_SET.includes(theme.split(":")[0]!) ? (["era"] as const) : []),
     ...(world.worldBrief === "" ? (["region", "place"] as const) : []),
     ...(world.worldBrief === "" || world.startingHook === "" ? (["pressure", "constraint"] as const) : []),
-    ...(pc?.name === "" || world.worldBrief === "" ? (["nameLetters"] as const) : []),
+    // Not with a region, whose own sound of names the letters would fight.
+    ...(pc?.name === "" && world.worldBrief !== "" ? (["nameLetters"] as const) : []),
   ];
   const sparks = kinds.length ? drawSparks({ call: "pickForMe" }, kinds) : {};
   const prompt: Prompt = [
@@ -1192,6 +1194,7 @@ const WorldReview = z.object({
   world_rules: z.array(ReviewedChange),
   plot_threads: z.array(ReviewedChange),
   calendar: z.object({ fault, text }).nullable(),
+  naming: z.object({ fault, text }).nullable(),
   start: z.object({ fault, date: text, time_of_day: text }).nullable(),
 });
 type WorldReview = z.infer<typeof WorldReview>;
@@ -1207,7 +1210,7 @@ function withReview(world: WorldReply, review: WorldReview): WorldReply {
     world_rules: changed(world.world_rules, review.world_rules),
     plot_threads: changed(world.plot_threads, review.plot_threads),
     calendar: review.calendar?.text ?? world.calendar,
-    naming: world.naming,
+    naming: review.naming?.text ?? world.naming,
     start_date: review.start?.date ?? world.start_date,
     start_time_of_day: review.start?.time_of_day ?? world.start_time_of_day,
   };
@@ -1242,8 +1245,8 @@ Fix only what has one of these faults:
 - unreachable_thread: the PC could never come across a plot thread from where the story opens.
 - leaked_secret: world_overview, the only part the player reads, reveals or hints at a plot thread or a secret of the lore entries.
 - thin_story: a part falls short of this, so strengthen only what is thin. ${STORY_CRAFT}
-Keep every name and idea the world has, never swap one for something more familiar, and leave the rest exactly as it is.${sparks.nameLetters ? ` A name you add, first or surname, starts with one of ${sparks.nameLetters}, unless it contradicts the player's choices.` : ""} If nothing has a fault, give null and empty lists.
-Give each edit the fault it fixes. lore_entries holds each entry you add or rewrite: to rewrite one, use its exact title and give its whole new content and at least three keywords. Each change in world_rules and plot_threads has old, copied exactly from the world or null to add one, and new, the text to put there or null to remove it. Keep three to ${MAX_PLOT_THREADS} plot_threads. ${SHORT_LINES} world_overview, calendar and start replace those parts whole.
+Keep every name and idea the world has, never swap one for something more familiar, and leave the rest exactly as it is.${sparks.nameLetters ? ` A name you add, first or surname, follows naming and starts with one of ${sparks.nameLetters}, unless that contradicts the player's choices.` : ""} If nothing has a fault, give null and empty lists.
+Give each edit the fault it fixes. lore_entries holds each entry you add or rewrite: to rewrite one, use its exact title and give its whole new content and at least three keywords. Each change in world_rules and plot_threads has old, copied exactly from the world or null to add one, and new, the text to put there or null to remove it. Keep three to ${MAX_PLOT_THREADS} plot_threads. ${SHORT_LINES} world_overview, calendar, naming and start replace those parts whole.
 ${modelInstructions(context)}
 Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))}`,
     },
@@ -1252,7 +1255,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
   return reviewed(context, "World", world, signal, async (reviewer) => {
     const review = await askForJson(reviewer, prompt, reply, REFUSAL, signal, { call: "worldReview", reviewer: true });
     const faults = [
-      ...[review.world_overview, review.calendar, review.start].filter((edit) => edit !== null),
+      ...[review.world_overview, review.calendar, review.naming, review.start].filter((edit) => edit !== null),
       ...review.lore_entries,
       ...review.world_rules,
       ...review.plot_threads,

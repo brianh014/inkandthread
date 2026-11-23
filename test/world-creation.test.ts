@@ -221,7 +221,7 @@ test("each world build and Regenerate is sent Sparks of its own, logged with the
   for (const line of drawn) expect(line).toContain(`"world":"${id}"`);
   for (const prompt of [prompts[1]!, prompts[2]!]) {
     expect(prompt[0]!.content).toMatch(
-      /Sparks, drawn at random.*a pressure on the world now: .+; a constraint.+; a secret for a plot thread: .+; names of people and places starting with [A-Z](, [A-Z]){4}\./,
+      /Sparks, drawn at random.*a pressure on the world now: .+; a constraint.+; a secret for a plot thread: .+; invented names of people and places starting with [A-Z](, [A-Z]){4}\./,
     );
   }
 });
@@ -270,9 +270,9 @@ test("Pick for me is sent only the Sparks its empty boxes can hold, never a secr
 
   const [world, name, title] = prompts.map((prompt) => prompt[0]!.content);
   expect(world).toMatch(
-    /Sparks.*a real region whose .+?: [^;]+; the kind of place the story centres on: [^;]+; a pressure on the world now: .+; a constraint it lives under: .+; names of people and places starting with [A-Z](, [A-Z]){4}\. Build the world from them/,
+    /Sparks.*a real region whose .+?: [^;]+; the kind of place the story centres on: [^;]+; a pressure on the world now: .+; a constraint it lives under: [^;]+\. Build the world from them/,
   );
-  expect(name).toMatch(/Sparks.*: names of people and places starting with [A-Z](, [A-Z]){4}\./);
+  expect(name).toMatch(/Sparks.*: invented names of people and places starting with [A-Z](, [A-Z]){4}\./);
   expect(name).not.toContain("a pressure");
   expect(name).toContain("Bend each to fit");
   expect(title).not.toContain("Sparks");

@@ -209,7 +209,24 @@ const SPARKS = {
     "a vow broken and never confessed",
     "a place that isn't empty",
   ],
+  // Only for a theme that leaves it open, as goods otherwise drew every Horror and Romance into a timeless invented valley.
+  era: ["today", "a generation ago", "a century or so ago", "long ago, in history", "an invented world of its own"],
 };
+/** Built-in themes whose description already says when they are set. */
+const ERA_SET = [
+  "High Fantasy",
+  "Dark Fantasy",
+  "Urban Fantasy",
+  "Romantasy",
+  "Cyberpunk",
+  "Space Opera",
+  "Sci Fi",
+  "Modern Day",
+  "Steampunk",
+  "Realistic medieval",
+  "Western",
+  "Post-Apocalyptic",
+];
 // For a World Brief written from nothing: plain goods, as a model bends an abstract Spark into its own favourite premise. A
 // livelihood, not what holds the world up, as "the thing everything rests on is failing" is that favourite. Two, in different roles, so the premise must join them, as a pair given alike came back as "a town built on two trades".
 const GOODS = [
@@ -275,6 +292,7 @@ const SPARK_WORDS: Record<SparkKind, string> = {
   secret: "a secret for a plot thread:",
   trade: "something people here make or sell:",
   prize: "something they fight over:",
+  era: "when it is set:",
   nameLetters: "invented names of people and places starting with",
 };
 
@@ -356,6 +374,7 @@ export async function pickForMe(
   );
   // Only the kinds its empty boxes can hold, and never the secret, as these boxes are the player's to read.
   const kinds: SparkKind[] = [
+    ...(world.worldBrief === "" && !ERA_SET.includes(theme.split(":")[0]!) ? (["era"] as const) : []),
     ...(world.worldBrief === "" ? (["trade", "prize"] as const) : []),
     ...(world.worldBrief === "" || world.startingHook === "" ? (["pressure", "constraint"] as const) : []),
     ...(pc?.name === "" || world.worldBrief === "" ? (["nameLetters"] as const) : []),

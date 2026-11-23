@@ -738,6 +738,19 @@ function datesApart(from: string | undefined, to: string | null) {
 export const clockOf = (time: StoryTime | null | undefined) => (time ? (time.hours ?? ((time.day ?? 1) - 1) * 24 + (hourOf(time.timeOfDay) ?? 12)) : undefined);
 
 /**
+ * Story time moved on to at least `hours` past `before`, as a reply takes at least as long as its telling, and Turns that set no
+ * time or a few minutes for a whole scene held the clock at five for ten rounds. Only the clock: its words follow it, as the
+ * Narrator keeps them true to the clock it is shown. shortcut: never across midnight, which needs a date only the Narrator can
+ * give; carry the day over with dateDue if stalls at night matter.
+ */
+export function atLeast(before: StoryTime | null, after: StoryTime | null, hours: number) {
+  const [was, now] = [clockOf(before), clockOf(after)];
+  if (!after || was === undefined || now === undefined || now - was >= hours || after.dateDue) return after;
+  const floor = was + hours;
+  return Math.floor(floor / 24) === Math.floor(now / 24) ? { ...after, hours: floor } : after;
+}
+
+/**
  * The story hours since the Opening after a set_story_time: the old count plus the reply's hours_passed, or the hours its words
  * moved on when it gives none, never short of the days passed. A Save from before it starts from its day and time of day.
  */

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { assemblePrompt, withClock } from "../src/prompt-assembler";
 import { saveStore } from "../src/save-store";
 import { tempFolder } from "./support";
-import { applyEdit, applyOperations, hourOf, openingState, type State, type StateOperation } from "../src/state-applier";
+import { applyEdit, applyOperations, atLeast, hourOf, openingState, type State, type StateOperation } from "../src/state-applier";
 
 const at = (storyTime: State["storyTime"]) => ({ ...structuredClone(openingState), storyTime });
 const set = (days_passed: number, date: string | null, time_of_day: string, hours_passed: number | null = null): StateOperation => ({
@@ -249,4 +249,16 @@ test("a time of day in words reads as its clock hour, as a clock reading only di
   ] as const) {
     expect(hourOf(words)).toBe(hour);
   }
+});
+
+test("a reply moves the clock at least as long as its telling takes, never past midnight or a date it waits on", () => {
+  const at = (hours: number | undefined, timeOfDay = "five in the morning", extra = {}) => ({ day: 1, date: "1st of Thaw", timeOfDay, hours, ...extra });
+  expect(atLeast(at(5), at(5.05), 0.1)).toEqual(at(5.1));
+  // Time the reply set beyond its telling stands.
+  expect(atLeast(at(5), at(7), 0.1)).toEqual(at(7));
+  // From the words where there is no clock yet.
+  expect(atLeast(at(undefined), at(undefined), 0.25)).toEqual(at(5.25));
+  expect(atLeast(at(23.95), at(23.95), 0.1)).toEqual(at(23.95));
+  expect(atLeast(at(5), at(5, "five in the morning", { dateDue: true }), 0.1)).toEqual(at(5, "five in the morning", { dateDue: true }));
+  expect(atLeast(null, at(5), 0.1)).toEqual(at(5));
 });

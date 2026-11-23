@@ -49,6 +49,7 @@ import { foldKnows } from "./knowledge-folds";
 import { closeLooseEnds } from "./loose-ends-check";
 import { growLore } from "./lore-growth";
 import { askToClose, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, turnThreadChanges } from "./world-moves-on";
+import { threadPeople } from "./thread-people";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
 const moving = new Map<string, Promise<void>>();
@@ -1175,6 +1176,7 @@ async function narrate(
       let restyled: Scene["restyled"] = [];
       let repeated = 0;
       let ignored: Refusal[] = [];
+      let overtakenPlans = 0;
       const messages = commit(
         narration,
         check,
@@ -1190,12 +1192,20 @@ async function narrate(
           upkeepDropped = [...kept.refused, ...kept.ignored];
           upkeepRefused = upkeepDropped.length;
           const next = kept.next;
-          // A plan this Turn timed counts from the reply's end, so it moves on with the time Upkeep gave the reply.
-          const added = (next.storyTime?.hours ?? 0) - (told.storyTime?.hours ?? 0);
-          if (added > 0 && told.storyTime?.hours !== undefined)
-            next.threadsDue = Object.fromEntries(
-              Object.entries(next.threadsDue).map(([truth, due]) => [truth, state.threadsDue[truth] === due ? due : due + added]),
-            );
+          // A plan whose hour came while its doer is with the PC was overtaken by play, as it could not happen off the page and
+          // moves put it off again and again: it goes, and the next move gives its thread another.
+          const { doerIn } = threadPeople(next);
+          const clock = next.storyTime?.hours;
+          // A plan with no hour counts as come, as moves read it as due.
+          const overtaken = Object.keys(next.threadsPlan).filter(
+            (truth) =>
+              clock !== undefined &&
+              (next.threadsDue[truth] === undefined || next.threadsDue[truth]! <= clock) &&
+              doerIn(next.threadsPlan[truth]!, next.scene.visibleCast),
+          );
+          next.threadsPlan = Object.fromEntries(Object.entries(next.threadsPlan).filter(([truth]) => !overtaken.includes(truth)));
+          next.threadsDue = Object.fromEntries(Object.entries(next.threadsDue).filter(([truth]) => !overtaken.includes(truth)));
+          overtakenPlans = overtaken.length;
           // Through this Turn's amended truths, so an ask follows its thread to its new words, as the next move matches them exactly.
           rewrites = [...state_operations, ...(upkept ?? [])].flatMap((operation) =>
             operation.op === "update_plot_thread" && operation.truth
@@ -1280,6 +1290,8 @@ async function narrate(
         ...(upkeep && { upkeep: (upkept ?? []).map(({ op }) => op), upkeepRefused }),
         sceneChanged: !!scene_changed,
         chapterEnds: !!chapter_ends,
+        // Plans dropped as overtaken, their hour come while their doer was with the PC.
+        ...(overtakenPlans > 0 && { plansOvertaken: overtakenPlans }),
         // The asks that matched an open thread, as the Narrator's own count logged asks of threads that never existed.
         ...(asks.length > 0 && { closeAsked: asked.length }),
       }));

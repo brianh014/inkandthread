@@ -6,7 +6,8 @@ import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
 import { applyEdit, applyOperations, MAX_NPC_KNOWS, openingState, type WorldEdit } from "../src/state-applier";
 import { journalChange } from "../src/prompt-assembler";
-import { MOVE_EVERY, moveDue, turnThreadChanges } from "../src/world-moves-on";
+import { MOVE_EVERY, moveDue, sameDeed, turnThreadChanges } from "../src/world-moves-on";
+import { threadPeople } from "../src/thread-people";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -414,10 +415,8 @@ test("a story with no clock yet counts from its opening's hour, so a plan timed 
     threadsNow: { [THIEF]: "He waits." },
     storyTime: { day: 2, date: "2nd of Thaw", timeOfDay: "small hours, dark" },
   };
-  const timed = applyOperations(opening, [
-    { op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: "He will hide.", plan_in_hours: 1, truth: null },
-  ]).next;
-  expect(timed.threadsDue).toEqual({ [THIEF]: 27 });
+  // Timed by a move at the opening's hour, 26.
+  const timed = { ...opening, threadsPlan: { [THIEF]: "He will hide." }, threadsDue: { [THIEF]: 27 } };
   const passing = { op: "set_story_time", days_passed: 0, hours_passed: 1.5, time_of_day: "small hours", date: null } as const;
   const later = applyOperations(timed, [passing]).next;
   expect(later.storyTime?.hours).toBe(27.5);
@@ -630,8 +629,127 @@ test("a thread keeps the question it began with, and a plan whose hour the clock
   // The first question stands, never the one a later move gave.
   expect(store().latestState(id).threadsQuestion[TIDE]).toBe("Whether the lower town floods.");
   const moves = told.prompts.filter((prompt) => prompt[0]!.content.startsWith("You plot the hidden side"));
-  expect(JSON.parse(moves[0]!.at(-1)!.content).plot_threads[0]).not.toHaveProperty("plan_due");
-  expect(JSON.parse(moves[1]!.at(-1)!.content).plot_threads[0]).toMatchObject({ question: "Whether the lower town floods.", plan_due: true });
+  expect(JSON.parse(moves[0]!.at(-1)!.content).plot_threads[0]).not.toHaveProperty("due_deed");
+  // A deed whose time has come, not a plan to edit.
+  const due = JSON.parse(moves[1]!.at(-1)!.content).plot_threads[0];
+  expect(due).toMatchObject({ question: "Whether the lower town floods.", due_deed: "He opens the sluice at dusk." });
+  expect(due).not.toHaveProperty("plan");
+});
+
+/** A Save whose thread has a plan due at `due` on a clock at 8, and Kit in the story, off the page. */
+const planned = (due: number, plan = "The thief will rob the library stacks for the ledger.") =>
+  store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The dock", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      worldBible: [],
+      npcs: [
+        { name: "Kit", appearance: "a boy in a cap" },
+        { name: "Thorne", appearance: "a tall man in black" },
+      ],
+      plotThreads: [THIEF],
+      threadsNow: { [THIEF]: "The thief waits by the dock." },
+      threadsPlan: { [THIEF]: plan },
+      threadsDue: { [THIEF]: due },
+      storyTime: { day: 1, date: "1st of Thaw", timeOfDay: "morning", hours: 8 },
+    },
+  });
+const hoursOn = (hours: number, time: string) => ({ op: "set_story_time", days_passed: 0, hours_passed: hours, time_of_day: time, date: null });
+
+test("a deed whose time has come reaches the move as a due deed, and one given again as its plan loses that plan", async () => {
+  const told = play(
+    narration("Ash waits.", hoursOn(4, "noon")),
+    moved({ ...change(THIEF, "The thief rests at the dock."), plan: "The thief will rob the library stacks for the ledger at dusk.", plan_in_hours: 3 }),
+    narration("Ash waits on."),
+  );
+  const id = planned(11);
+
+  const log = await logOf(async () => {
+    expect((await turn(id, "I wait.")).ok).toBe(true);
+    expect((await turn(id, "I wait on.")).ok).toBe(true);
+  }, "info");
+
+  const thread = JSON.parse(told.prompts[1]!.at(-1)!.content).plot_threads[0];
+  expect(thread).toMatchObject({ due_deed: "The thief will rob the library stacks for the ledger." });
+  expect(thread).not.toHaveProperty("plan");
+  const state = store().latestState(id);
+  expect(state.threadsNow[THIEF]).toBe("The thief rests at the dock.");
+  expect(state.threadsPlan[THIEF]).toBeUndefined();
+  expect(state.threadsDue[THIEF]).toBeUndefined();
+  expect(log).toContain('"putOff":1');
+});
+
+test("a plan whose hour is still ahead stands through a move, which changes only what its people have done", async () => {
+  const plan = "The thief will rob the library stacks for the ledger.";
+  play(
+    narration("Ash waits.", hoursOn(4, "noon")),
+    moved({ ...change(THIEF, "The thief rests at the dock."), plan: "The thief will rob the library at midnight instead.", plan_in_hours: 12 }),
+    narration("Ash waits on."),
+  );
+  const id = planned(20, plan);
+
+  const log = await logOf(async () => {
+    expect((await turn(id, "I wait.")).ok).toBe(true);
+    expect((await turn(id, "I wait on.")).ok).toBe(true);
+  }, "info");
+
+  const state = store().latestState(id);
+  expect(state.threadsNow[THIEF]).toBe("The thief rests at the dock.");
+  expect(state.threadsPlan[THIEF]).toBe(plan);
+  expect(state.threadsDue[THIEF]).toBe(20);
+  expect(log).toContain('"planKept":1');
+});
+
+test("a plan whose hour is ahead gives way when the move shows its deed done early", async () => {
+  play(
+    narration("Ash waits.", hoursOn(4, "noon")),
+    moved({
+      ...change(THIEF, "The thief burned the ledger in the chapel early and fled the dock."),
+      plan: "The thief will hide in the hills.",
+      plan_in_hours: 3,
+    }),
+    narration("Ash waits on."),
+  );
+  const id = planned(20, "The thief will burn the ledger in the chapel.");
+
+  for (const input of ["I wait.", "I wait on."]) expect((await turn(id, input)).ok).toBe(true);
+
+  const state = store().latestState(id);
+  expect(state.threadsPlan[THIEF]).toBe("The thief will hide in the hills.");
+  expect(state.threadsDue[THIEF]).toBe(15);
+});
+
+test("a plan is its doer's, the person it names first, so one aimed at someone with the PC keeps its hour", async () => {
+  play(narration("Kit comes down the dock to Ash.", { op: "set_scene", location: "The dock", visible_cast: ["Kit"] }));
+  const plan = "At dusk Thorne will take Kit from the dock.";
+  const id = planned(30, plan);
+  expect(threadPeople(store().latestState(id)).doer(plan)).toContain("Thorne");
+
+  expect((await turn(id, "I wave.")).ok).toBe(true);
+  expect(store().latestState(id).threadsDue).toEqual({ [THIEF]: 30 });
+});
+
+test("a plan whose hour comes while its doer is with the PC was overtaken by play, and goes", async () => {
+  play(narration("Kit comes down the dock to Ash.", { op: "set_scene", location: "The dock", visible_cast: ["Kit"] }, hoursOn(1, "nine")));
+  const id = planned(8.5, "Kit will rob the library stacks for the ledger.");
+
+  const log = await logOf(async () => expect((await turn(id, "I wave.")).ok).toBe(true), "info");
+
+  expect(log).toContain('"plansOvertaken":1');
+  expect(store().latestState(id)).toMatchObject({ threadsPlan: {}, threadsDue: {} });
+});
+
+test("a deed counts as put off by its own words, never by the names and places another deed shares", () => {
+  const old = "At seven Thorne will search Crane's chimney for the ledger.";
+  expect(sameDeed(old, "At half past nine Thorne will search the chimney for the ledger.")).toBe(true);
+  expect(sameDeed(old, "Thorne will burn Crane's letters at the vicarage.")).toBe(false);
+  expect(sameDeed("Kit will steal the ledger.", "Kit will steal the ledger at dawn.")).toBe(true);
+  // One shared word is no deed again.
+  expect(sameDeed("Thorne will leave at dawn.", "Thorne will leave the city for the coast.")).toBe(false);
 });
 
 test("a move keeps its usable changes and drops only those that change a thread twice, misquote one or add one without its truth", async () => {
@@ -909,7 +1027,7 @@ test("a move keeps what a thread's people have done apart from what they plan, a
   const plan = "He will sell them at the dock by noon tomorrow.";
   const told = play(
     narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
-    moved({ ...change(THIEF, done), plan }),
+    moved({ ...change(THIEF, done), plan, plan_in_hours: 1 }),
     narration("Ash watches the barges.", nextDay("3rd of Thaw")),
     moved(change(THIEF, "The thief sold the books at noon.")),
     narration("Ash waits."),
@@ -921,7 +1039,8 @@ test("a move keeps what a thread's people have done apart from what they plan, a
   const next = told.prompts[2]!.map(({ content }) => content).join("\n");
   expect(next).toContain(JSON.stringify({ truth: THIEF, now: done, plan }));
   expect(next).toContain("unless play has prevented it");
-  expect(JSON.parse(told.prompts[3]!.at(-1)!.content).plot_threads).toEqual([{ truth: THIEF, now: done, plan }]);
+  // Its hour passed by the next move, which reads it as a deed whose time has come.
+  expect(JSON.parse(told.prompts[3]!.at(-1)!.content).plot_threads).toEqual([{ truth: THIEF, now: done, due_deed: plan }]);
   // A move that gives no plan leaves none, and an old now with none reads as done.
   expect(store().latestState(id).threadsNow).toEqual({ [THIEF]: "The thief sold the books at noon." });
   expect(store().latestState(id).threadsPlan).toEqual({});
@@ -937,35 +1056,19 @@ test("a Save from before plans opens with none, so its now reads as done", () =>
   expect(store().latestState(id)).toMatchObject({ threadsNow: { [THIEF]: "He waits." }, threadsPlan: {} });
 });
 
-test("a Turn's update of a thread sets its plan, or clears it", () => {
-  const state = { ...structuredClone(openingState), plotThreads: [THIEF], threadsNow: { [THIEF]: "He waits." }, threadsPlan: { [THIEF]: "He will run." } };
-  const planned = applyOperations(state, [
-    { op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: "He will hide by dusk.", plan_in_hours: null, truth: null },
-  ]).next;
-  expect(planned.threadsPlan).toEqual({ [THIEF]: "He will hide by dusk." });
-  const timed = { ...state, storyTime: { day: 1, date: "1st of Thaw", timeOfDay: "morning", hours: 10 } };
-  const due = applyOperations(timed, [
-    { op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: "He will hide by dusk.", plan_in_hours: 6, truth: null },
-  ]).next;
-  expect(due.threadsDue).toEqual({ [THIEF]: 16 });
-  // Counted from the reply's clock whatever the order, and a plan copied as it was keeps its hour rather than sliding later.
-  const passing = { op: "set_story_time", days_passed: 0, hours_passed: 3, time_of_day: "early afternoon", date: null } as const;
-  const after = applyOperations(timed, [
-    { op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: "He will hide by dusk.", plan_in_hours: 6, truth: null },
-    passing,
-  ]).next;
-  expect(after.threadsDue).toEqual({ [THIEF]: 19 });
-  const restated = applyOperations(after, [
-    { op: "update_plot_thread", thread: THIEF, now: "He hid.", plan: "He will hide by dusk.", plan_in_hours: 6, truth: null },
-  ]).next;
-  expect(restated.threadsDue).toEqual({ [THIEF]: 19 });
-  const copied = applyOperations(after, [
-    { op: "update_plot_thread", thread: THIEF, now: "He hid.", plan: "He will hide by dusk.", plan_in_hours: null, truth: null },
-  ]);
-  expect(copied.next.threadsDue).toEqual({ [THIEF]: 19 });
-  expect(
-    applyOperations(state, [{ op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: null, plan_in_hours: null, truth: null }]).next.threadsPlan,
-  ).toEqual({});
+test("a Turn's update of a thread keeps its plan and hour, renamed with its truth, as only a move writes plans", () => {
+  const state = {
+    ...structuredClone(openingState),
+    plotThreads: [THIEF],
+    threadsNow: { [THIEF]: "He waits." },
+    threadsPlan: { [THIEF]: "He will run." },
+    threadsDue: { [THIEF]: 16 },
+  };
+  const kept = applyOperations(state, [{ op: "update_plot_thread", thread: THIEF, now: "He ran.", truth: null }]).next;
+  expect(kept).toMatchObject({ threadsNow: { [THIEF]: "He ran." }, threadsPlan: { [THIEF]: "He will run." }, threadsDue: { [THIEF]: 16 } });
+  const revealed = "A thief, the librarian's son, plans to rob the library.";
+  const renamed = applyOperations(state, [{ op: "update_plot_thread", thread: THIEF, now: "He ran.", truth: revealed }]).next;
+  expect(renamed).toMatchObject({ threadsPlan: { [revealed]: "He will run." }, threadsDue: { [revealed]: 16 } });
 });
 
 test("a move that tells as done a plan whose people were with the PC is asked again once", async () => {
@@ -995,6 +1098,8 @@ test("a move that tells as done a plan whose people were with the PC is asked ag
       plotThreads: [drowned],
       threadsNow: { [drowned]: "Grout dug a grave." },
       threadsPlan: { [drowned]: plan },
+      // Far ahead, so it stands rather than going as overtaken with Grout on the page.
+      threadsDue: { [drowned]: 100 },
       worldBible: [],
     },
   });

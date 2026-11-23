@@ -470,32 +470,3 @@ test("an Edit that adds to the response gives State Upkeep only the added words,
   expect(edited.ok).toBe(true);
   expect(JSON.parse(upkeep.prompts[1]!.at(-1)!.content)).toMatchObject({ previous_reply: GIVEN, reply: "A gull cries." });
 });
-
-test("a plan the Narrator times in a Turn counts from the reply's end, after the time State Upkeep gives it", async () => {
-  const thread = "A thief plans to rob the library.";
-  const { upkeep } = play(
-    [
-      narration("Ash keeps watch.", { op: "update_plot_thread", thread, now: "He waits.", plan: "He will strike.", plan_in_hours: 1, truth: null }),
-      // Earlier than now, so refused: no time moved, and Upkeep is asked for it.
-      narration("Ash keeps watch still.", { op: "set_story_time", days_passed: 0, hours_passed: null, date: "1st of Thaw", time_of_day: "dawn" }),
-    ],
-    [
-      JSON.stringify({ state_operations: [], story_time: { days_passed: 0, hours_passed: 2, date: "1st of Thaw", time_of_day: "noon" } }),
-      JSON.stringify({ state_operations: [], story_time: { days_passed: 0, hours_passed: 0.5, date: "1st of Thaw", time_of_day: "just after noon" } }),
-    ],
-  );
-  const id = store().create({
-    worldBrief: "A drowned city",
-    pc: { name: "Ash" },
-    opening: { plotThreads: [thread], storyTime: { day: 1, date: "1st of Thaw", timeOfDay: "ten in the morning", hours: 10 } },
-  });
-
-  expect((await turn(id)).ok).toBe(true);
-  expect(store().latestState(id).threadsDue[thread]).toBe(13);
-
-  expect((await turn(id)).ok).toBe(true);
-  expect(JSON.stringify(upkeep.schemas[1])).toContain("story_time");
-  expect(store().latestState(id).storyTime?.hours).toBe(12.5);
-  // Set in an earlier Turn, so it stays.
-  expect(store().latestState(id).threadsDue[thread]).toBe(13);
-});

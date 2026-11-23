@@ -1638,19 +1638,16 @@ test("placeholder operations, a known fact that is only a name, and a reply's re
 });
 
 test("a reply changes a record once, so a chain of rewrites keeps only its first link", () => {
-  const first = { op: "update_plot_thread", thread: "A", now: "a", plan: null, plan_in_hours: null, truth: "B" } as const;
+  const first = { op: "update_plot_thread", thread: "A", now: "a", truth: "B" } as const;
   const fact = { op: "update_known_fact", fact: "B", replacement: "C" } as const;
   const chain = [
     first,
-    { op: "update_plot_thread", thread: "B", now: "b", plan: null, plan_in_hours: null, truth: "C" } as const,
-    { op: "update_plot_thread", thread: "C", now: "c", plan: null, plan_in_hours: null, truth: "D" } as const,
+    { op: "update_plot_thread", thread: "B", now: "b", truth: "C" } as const,
+    { op: "update_plot_thread", thread: "C", now: "c", truth: "D" } as const,
   ];
   expect(withoutLoop([...chain, fact], 30)).toEqual([first, fact]);
   // A rewrite of its now alone keeps the thread's truth, so it is no link of a chain.
-  const moves = [
-    { op: "update_plot_thread", thread: "A", now: "a", plan: null, plan_in_hours: null, truth: null } as const,
-    { op: "update_known_fact", fact: "A", replacement: "B" } as const,
-  ];
+  const moves = [{ op: "update_plot_thread", thread: "A", now: "a", truth: null } as const, { op: "update_known_fact", fact: "A", replacement: "B" } as const];
   expect(withoutLoop(moves, 30)).toEqual(moves);
 });
 

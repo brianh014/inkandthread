@@ -142,6 +142,14 @@ export const StateSections = {
 const nonEmpty = z.string().min(1);
 const statusKind = z.enum(["injuries", "conditions"]);
 
+/** How a reply moves Story Time on: set_story_time without its op, which State Upkeep gives as a field of its own. */
+export const StoryTimeMove = z.object({
+  days_passed: z.number().int().min(0),
+  // Missing reads as unknown, so a reply from before it still moves the clock by its words.
+  hours_passed: z.preprocess((hours) => hours ?? null, z.number().min(0).nullable()),
+  date: nonEmpty.nullable(),
+  time_of_day: nonEmpty,
+});
 export const StateOperation = z.discriminatedUnion("op", [
   z.object({ op: z.literal("add_item"), slot: z.enum(["wearing", "carrying"]), item: nonEmpty }),
   z.object({ op: z.literal("remove_item"), item: nonEmpty }),
@@ -188,14 +196,7 @@ export const StateOperation = z.discriminatedUnion("op", [
   z.object({ op: z.literal("resolve_plot_thread"), thread: nonEmpty }),
   z.object({ op: z.literal("set_pc_appearance"), appearance: nonEmpty }),
   z.object({ op: z.literal("set_era"), era: nonEmpty }),
-  z.object({
-    op: z.literal("set_story_time"),
-    days_passed: z.number().int().min(0),
-    // Missing reads as unknown, so a reply from before it still moves the clock by its words.
-    hours_passed: z.preprocess((hours) => hours ?? null, z.number().min(0).nullable()),
-    date: nonEmpty.nullable(),
-    time_of_day: nonEmpty,
-  }),
+  z.object({ op: z.literal("set_story_time"), ...StoryTimeMove.shape }),
 ]);
 export type StateOperation = z.infer<typeof StateOperation>;
 
@@ -736,20 +737,6 @@ function datesApart(from: string | undefined, to: string | null) {
  * the hour its day and words give, which that first set_story_time counts on from, so plans timed before it fall due on time.
  */
 export const clockOf = (time: StoryTime | null | undefined) => (time ? (time.hours ?? ((time.day ?? 1) - 1) * 24 + (hourOf(time.timeOfDay) ?? 12)) : undefined);
-
-/**
- * Story time moved on to at least `hours` past `before`, as a reply takes at least as long as its telling, and Turns that set no
- * time or a few minutes for a whole scene held the clock at five for ten rounds. Only the clock: its words follow it, as the
- * Narrator keeps them true to the clock it is shown. Not a clock set back to the hour its words name, which the words win, nor
- * one not yet started, which would start from a guess; and up to a minute short of midnight, as only the Narrator can give the
- * next date.
- */
-export function atLeast(before: StoryTime | null, after: StoryTime | null, hours: number) {
-  const [was, now] = [before?.hours, after?.hours];
-  if (!after || was === undefined || now === undefined || now < was || now - was >= hours || after.dateDue) return after;
-  const floor = Math.min(was + hours, Math.floor(now / 24) * 24 + 24 - 1 / 60);
-  return floor > now ? { ...after, hours: floor } : after;
-}
 
 /**
  * The story hours since the Opening after a set_story_time: the old count plus the reply's hours_passed, or the hours its words

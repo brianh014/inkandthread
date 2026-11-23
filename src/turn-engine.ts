@@ -28,7 +28,6 @@ import { modelName, type SettingsStore } from "./settings-store";
 import type { NarratorTurn, UsageStore } from "./usage-store";
 import {
   applyOperations,
-  atLeast,
   closestThread,
   findPerson,
   givenName,
@@ -588,8 +587,6 @@ function turnPrompt(
 // passed three hours, a minute a reply, its seeded picks never offered a way to let time pass.
 const STILL_REPLIES = 6;
 const STILL_HOURS = 1;
-/** Story hours a reply's words take at the least: read aloud at about 150 a minute. */
-const WORDS_AN_HOUR = 9000;
 const RECENT_MOVES = 4;
 /** The clock's hours a few replies back, undefined in a short story or one from before the clock. */
 function clockBack(saves: SaveStore, id: string, messages: Message[]) {
@@ -1167,7 +1164,6 @@ async function narrate(
       let restyled: Scene["restyled"] = [];
       let repeated = 0;
       let ignored: Refusal[] = [];
-      let clockFloor = 0;
       const messages = commit(
         narration,
         check,
@@ -1183,15 +1179,6 @@ async function narrate(
           upkeepDropped = [...kept.refused, ...kept.ignored];
           upkeepRefused = upkeepDropped.length;
           const next = kept.next;
-          const timed = next.storyTime;
-          next.storyTime = atLeast(state.storyTime, timed, countWords(narration) / WORDS_AN_HOUR);
-          const added = (next.storyTime?.hours ?? 0) - (timed?.hours ?? 0);
-          clockFloor = Math.round(added * 600) / 10;
-          // Plans timed this Turn move on with it, so none falls behind the clock and never falls due.
-          if (added > 0)
-            next.threadsDue = Object.fromEntries(
-              Object.entries(next.threadsDue).map(([truth, due]) => [truth, state.threadsDue[truth] === due ? due : due + added]),
-            );
           // Through this Turn's amended truths, so an ask follows its thread to its new words, as the next move matches them exactly.
           rewrites = [...state_operations, ...(upkept ?? [])].flatMap((operation) =>
             operation.op === "update_plot_thread" && operation.truth
@@ -1276,8 +1263,6 @@ async function narrate(
         ...(upkeep && { upkeep: (upkept ?? []).map(({ op }) => op), upkeepRefused }),
         sceneChanged: !!scene_changed,
         chapterEnds: !!chapter_ends,
-        // Minutes code added to the clock, as the reply set less time than its telling takes.
-        ...(clockFloor > 0 && { clockFloor }),
         // The asks that matched an open thread, as the Narrator's own count logged asks of threads that never existed.
         ...(asks.length > 0 && { closeAsked: asked.length }),
       }));

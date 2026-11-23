@@ -221,7 +221,7 @@ export type Sparks = Partial<Record<SparkKind, string>>;
 const drawOne = (kind: SparkKind) => {
   if (kind !== "nameLetters") return pick(SPARKS[kind]);
   const letters = new Set<string>();
-  while (letters.size < 3) letters.add(pick(NAME_LETTERS));
+  while (letters.size < 5) letters.add(pick(NAME_LETTERS));
   return [...letters].join(", ");
 };
 
@@ -236,7 +236,7 @@ const SPARK_WORDS: Record<SparkKind, string> = {
   pressure: "a pressure on the world now:",
   constraint: "a constraint it lives under:",
   secret: "a secret for a plot thread:",
-  nameLetters: "invented names starting with",
+  nameLetters: "invented first names and surnames starting with",
 };
 
 // Bent rather than dropped, as "ignore what doesn't fit" is the easy way back to the average.
@@ -1085,7 +1085,7 @@ function withReview(world: WorldReply, review: WorldReview): WorldReply {
 }
 
 /** The World review: a second look at a new world for faults, and for story where it's thin, before the player sees it. */
-function reviewWorld(context: Context, choices: WorldChoices, pc: WorldPc, world: WorldReply, signal: AbortSignal) {
+function reviewWorld(context: Context, choices: WorldChoices, pc: WorldPc, world: WorldReply, sparks: Sparks, signal: AbortSignal) {
   // An edit must name what it changes, and the world it leaves must still be one a new world could be. Each says its own fault, as a retry tells the model which.
   const reply = WorldReview.refine(
     (review) => quotes(world.world_rules, review.world_rules) && quotes(world.plot_threads, review.plot_threads),
@@ -1113,7 +1113,7 @@ Fix only what has one of these faults:
 - unreachable_thread: the PC could never come across a plot thread from where the story opens.
 - leaked_secret: world_overview, the only part the player reads, reveals or hints at a plot thread or a secret of the lore entries.
 - thin_story: a part falls short of this, so strengthen only what is thin. ${STORY_CRAFT}
-Keep every name and idea the world has, never swap one for something more familiar, and leave the rest exactly as it is. If nothing has a fault, give null and empty lists.
+Keep every name and idea the world has, never swap one for something more familiar, and leave the rest exactly as it is.${sparks.nameLetters ? ` A name you add, first or surname, starts with one of ${sparks.nameLetters}, unless it contradicts the player's choices.` : ""} If nothing has a fault, give null and empty lists.
 Give each edit the fault it fixes. lore_entries holds each entry you add or rewrite: to rewrite one, use its exact title and give its whole new content and at least three keywords. Each change in world_rules and plot_threads has old, copied exactly from the world or null to add one, and new, the text to put there or null to remove it. Keep three to ${MAX_PLOT_THREADS} plot_threads. ${SHORT_LINES} world_overview, calendar and start replace those parts whole.
 ${modelInstructions(context)}
 Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))}`,
@@ -1141,6 +1141,7 @@ export async function generateWorld(context: Context, choices: WorldChoices, pc:
     choices,
     pc,
     written,
+    sparks,
     signal,
   );
   const world: World & Pick<State, "storyTime"> = {

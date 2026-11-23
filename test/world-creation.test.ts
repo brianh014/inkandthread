@@ -219,7 +219,7 @@ test("each world build and Regenerate is sent Sparks of its own, logged with the
   for (const line of drawn) expect(line).toContain(`"world":"${id}"`);
   for (const prompt of [prompts[1]!, prompts[2]!]) {
     expect(prompt[0]!.content).toMatch(
-      /Sparks, drawn at random.*a pressure on the world now: .+; a constraint.+; a secret for a plot thread: .+; invented names starting with [A-Z], [A-Z], [A-Z]\./,
+      /Sparks, drawn at random.*a pressure on the world now: .+; a constraint.+; a secret for a plot thread: .+; invented first names and surnames starting with [A-Z](, [A-Z]){4}\./,
     );
   }
 });
@@ -268,8 +268,8 @@ test("Pick for me is sent only the Sparks its empty boxes can hold, never a secr
 
   const [world, name, title] = prompts.map((prompt) => prompt[0]!.content);
   expect(world).toMatch(/Sparks.*a pressure on the world now: .+; a constraint it lives under: [^;]+\./);
-  expect(world).not.toContain("invented names");
-  expect(name).toMatch(/Sparks.*: invented names starting with [A-Z], [A-Z], [A-Z]\./);
+  expect(world).not.toContain("invented");
+  expect(name).toMatch(/Sparks.*: invented first names and surnames starting with [A-Z](, [A-Z]){4}\./);
   expect(name).not.toContain("a pressure");
   expect(title).not.toContain("Sparks");
   expect(log).not.toContain("secret");

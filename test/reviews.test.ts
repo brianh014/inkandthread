@@ -88,6 +88,7 @@ test("a plot thread rewritten well past a sentence or two is asked again, as the
   expect(reviewer.prompts).toHaveLength(2);
   expect(world.plotThreads[0]!.split(" ")).toHaveLength(120);
   expect(reviewer.prompts[0]![0]!.content).toContain("Keep each world rule and plot thread to a sentence or two");
+  expect(reviewer.prompts[0]![0]!.content).toContain("A name you add, first or surname, starts with one of B, M, T");
 });
 
 test("a rewrite of a long thread may run as long as it, with the same leeway", async () => {

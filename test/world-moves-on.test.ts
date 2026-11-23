@@ -6,7 +6,7 @@ import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
 import { applyEdit, applyOperations, MAX_NPC_KNOWS, openingState, type WorldEdit } from "../src/state-applier";
 import { journalChange } from "../src/prompt-assembler";
-import { MOVE_EVERY, moveDue, turnThreadChanges } from "../src/world-moves-on";
+import { MOVE_EVERY, moveDue, sameDeed, turnThreadChanges } from "../src/world-moves-on";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -630,8 +630,59 @@ test("a thread keeps the question it began with, and a plan whose hour the clock
   // The first question stands, never the one a later move gave.
   expect(store().latestState(id).threadsQuestion[TIDE]).toBe("Whether the lower town floods.");
   const moves = told.prompts.filter((prompt) => prompt[0]!.content.startsWith("You plot the hidden side"));
-  expect(JSON.parse(moves[0]!.at(-1)!.content).plot_threads[0]).not.toHaveProperty("plan_due");
-  expect(JSON.parse(moves[1]!.at(-1)!.content).plot_threads[0]).toMatchObject({ question: "Whether the lower town floods.", plan_due: true });
+  expect(JSON.parse(moves[0]!.at(-1)!.content).plot_threads[0]).not.toHaveProperty("due_deed");
+  // A deed whose time has come, not a plan to edit.
+  const due = JSON.parse(moves[1]!.at(-1)!.content).plot_threads[0];
+  expect(due).toMatchObject({ question: "Whether the lower town floods.", due_deed: "He opens the sluice at dusk." });
+  expect(due).not.toHaveProperty("plan");
+});
+
+test("a deed whose time came while its people were with the PC is a missed deed, and a move that puts it off loses that plan", async () => {
+  const told = play(
+    narration(
+      "Ash meets Kit in the library.",
+      { op: "add_npc", name: "Kit", appearance: "a boy in a cap" },
+      { op: "set_scene", location: "The library", visible_cast: ["Kit"] },
+      {
+        op: "update_plot_thread",
+        thread: THIEF,
+        truth: null,
+        now: "Kit watches the library stacks.",
+        plan: "Kit will search the stacks for the ledger.",
+        plan_in_hours: 0,
+      },
+      nextDay(),
+    ),
+    moved({
+      ...change(THIEF, "Kit reads in the library beside Ash."),
+      plan: "Kit will search the stacks for the ledger at midnight.",
+      plan_in_hours: 2,
+      knows: [{ name: "Kit", knows: "A thief is coming." }],
+    }),
+    narration("Ash reads."),
+  );
+  const id = createSave();
+
+  const log = await logOf(async () => {
+    expect((await turn(id, "I go in.")).ok).toBe(true);
+    expect((await turn(id, "I read.")).ok).toBe(true);
+  }, "info");
+
+  const thread = JSON.parse(told.prompts[1]!.at(-1)!.content).plot_threads[0];
+  expect(thread).toMatchObject({ missed_deed: "Kit will search the stacks for the ledger.", with_pc: ["Kit"] });
+  expect(thread).not.toHaveProperty("plan");
+  const state = store().latestState(id);
+  expect(state.threadsNow[THIEF]).toBe("Kit reads in the library beside Ash.");
+  expect(state.threadsPlan[THIEF]).toBeUndefined();
+  expect(state.threadsDue[THIEF]).toBeUndefined();
+  expect(log).toContain('"putOff":1');
+});
+
+test("a deed counts as put off by its own words, never by the names and places another deed shares", () => {
+  const old = "At seven Thorne will search Crane's chimney for the ledger.";
+  expect(sameDeed(old, "At half past nine Thorne will search the chimney for the ledger.")).toBe(true);
+  expect(sameDeed(old, "Thorne will burn Crane's letters at the vicarage.")).toBe(false);
+  expect(sameDeed("Kit will steal the ledger.", "Kit will steal the ledger at dawn.")).toBe(true);
 });
 
 test("a move keeps its usable changes and drops only those that change a thread twice, misquote one or add one without its truth", async () => {

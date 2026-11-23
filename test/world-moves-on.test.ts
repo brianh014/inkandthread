@@ -407,6 +407,14 @@ test("a move is due after hours of story time, on a new day or every few replies
   expect(moveDue("i", { ...clocked, threadsDue: { "A thread.": 13.5 } }, { ...later, threadsDue: { "A thread.": 13.5 } }, 1)).toBe(true);
 });
 
+test("a new story's clock starts at its opening's hour, so a plan timed before the first set_story_time can fall due", () => {
+  const at = (timeOfDay: string) => ({ day: 2, date: "2nd of Thaw", timeOfDay });
+  const opening = (timeOfDay: string) =>
+    store().latestState(store().create({ worldBrief: "A drowned city", pc: { name: "Ash" }, opening: { storyTime: at(timeOfDay) } })).storyTime;
+  expect(opening("small hours, dark")).toEqual({ ...at("small hours, dark"), hours: 26 });
+  expect(opening("a while later")).toEqual(at("a while later"));
+});
+
 test("the fallback move counts replies since the last move, so a move due on time is never followed by one a reply later", () => {
   const before = { ...openingState, storyTime: { date: "1st of Thaw", timeOfDay: "dawn", day: 1 } };
   const nextDay = { ...before, storyTime: { date: "2nd of Thaw", timeOfDay: "dawn", day: 2 } };

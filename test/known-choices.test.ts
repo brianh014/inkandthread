@@ -163,6 +163,8 @@ test("Choices asked for alone are sent the PC's Journal, so they build on what t
   // The journal first and the replies last, so the provider's cache reaches past the journal, which mostly grows at its end.
   expect(Object.keys(JSON.parse(prompts[0]!.at(-1)!.content))).toEqual(["journal", "story_time", "previous_reply", "player_move", "reply"]);
   expect(prompts[0]![0]!.content).toContain("the story time now");
+  // A refused ask isn't offered again until something new gives reason, as Choices pressed the same ask round after round.
+  expect(prompts[0]![0]!.content.match(/nor an ask someone refused, stopped or put off unless something new gives reason to ask again/g)).toHaveLength(2);
 });
 
 test("a Choice built on what the PC hasn't learned is dropped, not reworded, and the others are kept", () => {

@@ -1194,8 +1194,8 @@ async function narrate(
           // A plan whose doer is with the PC loses its hour and is theirs to act on in the scene, as one timed for someone on the
           // page could never happen off it and was put off again and again. Its doer only, as pausing every plan naming a companion
           // held one for twenty rounds whose doer was far off.
-          const { doer } = threadPeople(next);
-          const onPage = (plan: string) => doer(plan)?.some((name) => next.scene.visibleCast.includes(name)) ?? false;
+          const { doerIn } = threadPeople(next);
+          const onPage = (plan: string) => doerIn(plan, next.scene.visibleCast);
           const pausing = Object.keys(next.threadsDue).filter((truth) => next.threadsPlan[truth] && onPage(next.threadsPlan[truth]!));
           next.threadsDue = Object.fromEntries(Object.entries(next.threadsDue).filter(([truth]) => !pausing.includes(truth)));
           paused = pausing.length;

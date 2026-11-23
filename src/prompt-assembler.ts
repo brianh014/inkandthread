@@ -1,5 +1,6 @@
 import type { Check } from "./check-resolver";
 import { activateLore, estimateTokens, wholeWord } from "./lore-activation";
+import { threadPeople } from "./thread-people";
 import type { Message, Save } from "./save-store";
 import { MAX_PLOT_THREADS, playersOwn, type SceneMemory, type State, type WorldEdit } from "./state-applier";
 import type { PromptStyle } from "./graph-builder";
@@ -370,16 +371,16 @@ export function assemblePrompt({
   /** Null when no image will be drawn. */
   promptStyle: PromptStyle | null;
 }): Prompt {
+  const { doerIn } = threadPeople({ npcs: currentState.npcs, worldBible });
   // A Save from before the limit can hold far more, which would crowd the prompt.
   const plotThreads = allThreads
     .slice(0, MAX_PLOT_THREADS)
-    // A plan with no hour is an intent, as its hour is taken while its doer is with the PC, so the Narrator stages it.
-    // shortcut: one a move gave no hour is called an intent too, until the next move times it; mark paused plans if that misleads.
-    .map((truth) => ({
-      truth,
-      now: threadsNow[truth] ?? "",
-      ...(threadsPlan[truth] && (threadsDue[truth] === undefined ? { intent: threadsPlan[truth] } : { plan: threadsPlan[truth] })),
-    }));
+    // A plan with no hour whose doer is with the PC is their intent, for the Narrator to stage; any other stays a plan.
+    .map((truth) => {
+      const plan = threadsPlan[truth];
+      const intent = plan && threadsDue[truth] === undefined && doerIn(plan, currentState.scene.visibleCast);
+      return { truth, now: threadsNow[truth] ?? "", ...(plan && (intent ? { intent: plan } : { plan })) };
+    });
   const recent = messageWindow(messages, sceneMemories, memoryStart, windowMessages);
   const npcKnows = knowsOfPresent({ ...currentState, npcKnows: allKnows }, [input, recent.findLast(({ role }) => role === "narrator")?.text ?? ""].join("\n"));
   // Last before the player's words, as models attend most to the end and the slips found in play were exactly these.

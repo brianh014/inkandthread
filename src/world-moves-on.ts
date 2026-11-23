@@ -8,6 +8,7 @@ import type { SaveStore } from "./save-store";
 import type { SettingsStore } from "./settings-store";
 import { clockOf, closestThread, hourOf, isBody, type ListChange, MAX_PLAN_HOURS, nameForms, type State, type StateOperation } from "./state-applier";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
+import { threadPeople } from "./thread-people";
 
 /** Replies between moves when nothing else calls for one, as a long scene in one place would otherwise never let the world act. */
 export const MOVE_EVERY = 5;
@@ -125,27 +126,7 @@ const LOOSE_FAULTS = [SOMEWHERE_ELSE, SECRET, PC_TOLD];
 
 const countOf = (reasons: string[]) => Object.fromEntries([...new Set(reasons)].map((why) => [why, reasons.filter((each) => each === why).length]));
 
-/**
- * Who each thread names, for the checks on ending one: each person or place is all the names it goes by, so a thread naming
- * "Thorne" is about "Reverend Amos Thorne". The always-on setting isn't one, or naming the city would tie every thread to it.
- */
-export function threadPeople(state: State) {
-  const people = [
-    ...state.npcs.map(({ name }) => nameForms(name)),
-    ...state.worldBible
-      .filter(({ alwaysOn }) => !alwaysOn)
-      .map(({ keywords }) => keywords.filter((word) => /^\p{Lu}/u.test(word)).flatMap(nameForms))
-      .filter((names) => names.length > 0),
-  ];
-  const mentions = (text: string, name: string, flags = "iu") => wholeWord(name, flags).test(text);
-  const named = (thread: string) => people.filter((names) => names.some((name) => mentions(thread, name, "u")));
-  /** Who does a plan: the person it names first, as "At six Okafor will burn the page" or "Kit will slip away", not those it touches. */
-  const doer = (plan: string) =>
-    named(plan)
-      .map((names) => ({ names, at: Math.min(...names.map((name) => plan.search(wholeWord(name, "u"))).filter((at) => at >= 0)) }))
-      .sort((one, other) => one.at - other.at)[0]?.names;
-  return { named, mentions, doer };
-}
+export { threadPeople } from "./thread-people";
 
 /**
  * The world moving on: one Narrator call at a natural pause, after the Turn is saved, that moves each Plot Thread's now on by what
@@ -263,8 +244,8 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
       ...latestReplies,
     ].join("\n");
   const withPc = (text: string) => people(text).some((name) => state.scene.visibleCast.includes(name));
-  const { doer } = threadPeople(state);
-  const doerWithPc = (plan: string) => doer(plan)?.some((name) => state.scene.visibleCast.includes(name)) ?? false;
+  const { doerIn } = threadPeople(state);
+  const doerWithPc = (plan: string) => doerIn(plan, state.scene.visibleCast);
   // Each clause of a now that opens on someone with the PC, which places them or has them act, as faulting any now that only named
   // one, or had another act on them, reverted true nows to stale ones.
   const opensOn = state.scene.visibleCast.flatMap(nameForms).map((form) => new RegExp(String.raw`^(?:the\s+)?${RegExp.escape(form)}(?![\p{L}\p{N}])`, "iu"));
@@ -304,8 +285,9 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const keepsPlan = ({ thread, now }: ThreadMove) => {
     if (thread === null || now === null || !threadsPlan[thread]) return false;
     const plan = threadsPlan[thread]!;
-    const standing = ahead.has(thread) || (threadsDue[thread] === undefined && doerWithPc(plan));
-    return standing && !shownDone(plan, threadsNow[thread] ?? "", now);
+    const standing = ahead.has(thread) || (clock !== undefined && threadsDue[thread] === undefined && doerWithPc(plan));
+    const was = threadsNow[thread] ?? "";
+    return standing && !shownDone(plan, was, now) && !shownDone(plan, was, played);
   };
   /** Why a now or plan can't stand: it waits on the PC, puts someone with the PC somewhere else, hands its people a secret, or tells as done a plan whose people were with the PC. */
   const nowFaults = (kept: ThreadMove[]) =>
@@ -320,7 +302,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
       if (named.length > 0 && secretWords(both, secrets, theirs(named, change)).length > 0) faults.push(SECRET);
       if (both.split(/(?<=[.!?;])\s+/).some((sentence) => toldPc.test(sentence) && secretWords(sentence, secrets, pcKnew).length > 0)) faults.push(PC_TOLD);
       const plan = change.thread === null ? "" : (threadsPlan[change.thread] ?? "");
-      if (withPc(plan) && tellsDone(plan, threadsNow[change.thread!] ?? "", change.now))
+      if (doerWithPc(plan) && tellsDone(plan, threadsNow[change.thread!] ?? "", change.now))
         faults.push("a now tells as done a plan whose people were with the PC");
       return faults;
     });
@@ -392,8 +374,12 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     if (plot_threads.length === 0 || kept.length > 0 || faults.length === 0 || first !== undefined) return;
     for (const message of new Set(faults)) context.addIssue({ code: "custom", message });
   });
+  // Due too once an intent's doer has left the PC, as they went to do it.
   const fell = new Set(
-    plotThreads.filter((truth) => threadsPlan[truth] && clock !== undefined && threadsDue[truth] !== undefined && threadsDue[truth]! <= clock),
+    plotThreads.filter(
+      (truth) =>
+        threadsPlan[truth] && clock !== undefined && (threadsDue[truth] === undefined ? !doerWithPc(threadsPlan[truth]!) : threadsDue[truth]! <= clock),
+    ),
   );
   // Plans whose hour is still ahead, which stand through a move.
   const ahead = new Set(

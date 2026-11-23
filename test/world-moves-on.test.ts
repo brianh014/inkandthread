@@ -637,7 +637,7 @@ test("a thread keeps the question it began with, and a plan whose hour the clock
   expect(due).not.toHaveProperty("plan");
 });
 
-test("a deed whose time came while its people were with the PC is a missed deed, and a move that puts it off loses that plan", async () => {
+test("a deed whose time came while its people were with the PC is a due deed with them named, and a move that puts it off loses that plan", async () => {
   const told = play(
     narration(
       "Ash meets Kit in the library.",
@@ -669,7 +669,7 @@ test("a deed whose time came while its people were with the PC is a missed deed,
   }, "info");
 
   const thread = JSON.parse(told.prompts[1]!.at(-1)!.content).plot_threads[0];
-  expect(thread).toMatchObject({ missed_deed: "Kit will search the stacks for the ledger.", with_pc: ["Kit"] });
+  expect(thread).toMatchObject({ due_deed: "Kit will search the stacks for the ledger.", with_pc: ["Kit"] });
   expect(thread).not.toHaveProperty("plan");
   const state = store().latestState(id);
   expect(state.threadsNow[THIEF]).toBe("Kit reads in the library beside Ash.");
@@ -683,6 +683,8 @@ test("a deed counts as put off by its own words, never by the names and places a
   expect(sameDeed(old, "At half past nine Thorne will search the chimney for the ledger.")).toBe(true);
   expect(sameDeed(old, "Thorne will burn Crane's letters at the vicarage.")).toBe(false);
   expect(sameDeed("Kit will steal the ledger.", "Kit will steal the ledger at dawn.")).toBe(true);
+  // One shared word is no deed again.
+  expect(sameDeed("Thorne will leave at dawn.", "Thorne will leave the city for the coast.")).toBe(false);
 });
 
 test("a move keeps its usable changes and drops only those that change a thread twice, misquote one or add one without its truth", async () => {

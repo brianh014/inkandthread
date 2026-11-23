@@ -111,6 +111,10 @@ _Avoid_: World details, lore
 The optional opening situation chosen during story creation.
 _Avoid_: Hook (alone)
 
+**Sparks**:
+Starting points drawn at random in code each time a world is built, Regenerated or written by Pick for me: a pressure on the world, a constraint it lives under, a secret (never for Pick for me, whose boxes the player reads) and the first letters of invented names of people and places; and for a World Brief Pick for me writes from nothing, something people there make or sell, something they fight over, and, for a theme that doesn't say, when it is set. The Narrator builds them in where the player's choices leave room, so the same idea doesn't build the same world. Unseen, with no setting.
+_Avoid_: Seeds (the image seed and the bench's Seeded Choices)
+
 **Important Characters**:
 People besides the PC that the player wants in the story, added on the New Story form, each with a name and a description, up to ten. They are canon, and the world is built around them. Pick for me never writes them; only Enhance does, when the player presses it. A Save keeps them as Begin had them, with who was on the Cover, so a Cover Update pictures the same people.
 _Avoid_: Cast, NPCs (those are whoever the story meets)

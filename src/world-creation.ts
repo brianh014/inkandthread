@@ -64,7 +64,13 @@ export type EnhanceField = (typeof ENHANCE_FIELDS)[number];
 /** `reviewProvider` reviews the world and World Changes. Without one, as in a test's script, nothing is reviewed. */
 type Context = { textProvider: TextProvider; settings: SettingsStore; reviewProvider?: TextProvider };
 
-const text = z.string().trim().min(1);
+// Some models fill a schema with a stand-in word, which parses but holds nothing, so it's asked again like any unusable reply.
+const FILLER = /^(placeholder|lorem ipsum.*|todo|tbd|string|\.{3}|…)$/i;
+const text = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((words) => !FILLER.test(words), "filler instead of text");
 
 // Always-on entries bypass the token budget, so the Narrator can only add keyword-activated ones.
 const toLoreEntries = (entries: z.infer<typeof LoreEntryReply>[]) => entries.map((entry) => ({ ...entry, alwaysOn: false }));
@@ -152,6 +158,167 @@ const LINE_WORDS = 80;
 const STORY_CRAFT =
   "Make it a world stories grow from: every plot thread is a story of its own, not one more part of the same secret, with someone who wants something and something at stake, and says plainly who and what is behind it, as only the Narrator reads it, never what the PC will do; people and factions pull against each other, the opening draws the PC into one thread while the others unfold at their own pace, every mystery has its answer in the lore entries, and every part is particular to this world rather than stock.";
 
+// Sparks: starting points drawn in code, as a model can't be prompted out of its own most average pick but can be handed one to work with.
+// No tone, era or scale, as the theme and World Brief own those, and a random one would fight them.
+const SPARKS = {
+  pressure: [
+    "a debt that comes due this season",
+    "a succession nobody agrees on",
+    "something everyone depends on is running out",
+    "a newcomer power buying its way in",
+    "a truce about to break",
+    "people arriving faster than anyone can take them in",
+    "an old crime that has just come to light",
+    "a new invention that makes an old trade worthless",
+    "a contest or election with everything riding on it",
+    "a sickness spreading through one quarter",
+    "a marriage or alliance half the people oppose",
+    "a disaster everyone saw coming and nobody stopped",
+    "a promise made long ago that must now be kept",
+    "an inquiry nobody can afford to pass",
+    "the one person holding things together is failing",
+    "the one road out is closing",
+  ],
+  constraint: [
+    "travel is slow, dangerous or forbidden",
+    "one common thing is scarce and rationed",
+    "a whole group may not own anything",
+    "an oath, once sworn, binds in everyone's eyes",
+    "strangers must be vouched for",
+    "nothing gets done without a patron's say",
+    "every message passes through hands that read it",
+    "the old ways are outlawed but kept in secret",
+    "one place is closed to everyone",
+    "the weather rules every plan",
+    "two who hate each other share power",
+    "the law is for sale and everyone knows the price",
+    "a curfew everyone keeps",
+    "no one is allowed to leave",
+    "a tool everyone relied on no longer works",
+    "help is far away and slow to come",
+  ],
+  secret: [
+    "a lie everyone agreed to tell",
+    "the wrong person was punished",
+    "something hidden out of love",
+    "a hero who didn't do what they're praised for",
+    "a death that was no accident",
+    "a debt owed to the wrong people",
+    "two enemies secretly working together",
+    "someone raised as who they are not",
+    "a record quietly changed",
+    "a missing person who chose to disappear",
+    "a gift that was a bribe or a trap",
+    "a crime the place was founded on",
+    "a trusted person paid by a rival",
+    "a cure or discovery kept back",
+    "a vow broken and never confessed",
+    "a place that isn't empty",
+  ],
+  // Only for a theme that leaves it open, as goods otherwise drew every Horror and Romance into a timeless invented valley.
+  // "Our own world", as a bare "today" was read as today in an invented one.
+  era: [
+    "our own world, today",
+    "our own world, a generation ago",
+    "our own world, a century or so ago",
+    "our own world, long ago",
+    "an invented world of its own",
+  ],
+};
+/** Built-in themes whose description already says when they are set. */
+const ERA_SET = [
+  "High Fantasy",
+  "Dark Fantasy",
+  "Urban Fantasy",
+  "Romantasy",
+  "Cyberpunk",
+  "Space Opera",
+  "Sci Fi",
+  "Modern Day",
+  "Steampunk",
+  "Realistic medieval",
+  "Western",
+  "Post-Apocalyptic",
+];
+// For a World Brief written from nothing: plain goods, as a model bends an abstract Spark into its own favourite premise. A
+// livelihood, not what holds the world up, as "the thing everything rests on is failing" is that favourite. Two, in different roles, so the premise must join them, as a pair given alike came back as "a town built on two trades".
+const GOODS = [
+  "salt",
+  "bells",
+  "glass",
+  "wool",
+  "ink",
+  "maps",
+  "horses",
+  "bees",
+  "masks",
+  "clocks",
+  "bridges",
+  "rope",
+  "paper",
+  "dyes",
+  "spices",
+  "copper",
+  "bread",
+  "wine",
+  "ice",
+  "silk",
+  "furs",
+  "pearls",
+  "timber",
+  "stone",
+  "oil",
+  "medicine",
+  "fish",
+  "cattle",
+  "letters",
+  "tea",
+  "bones",
+  "music",
+];
+// Not Q, X or Z, which models reach for when told to be unusual.
+const NAME_LETTERS = "ABCDEFGHIJKLMNOPRSTVWY";
+
+const pick = <T>(items: ArrayLike<T>) => items[Math.floor(Math.random() * items.length)]!;
+const distinct = <T>(items: ArrayLike<T>, count: number) => {
+  const drawn = new Set<T>();
+  while (drawn.size < count) drawn.add(pick(items));
+  return [...drawn];
+};
+
+type SparkKind = keyof typeof SPARKS | "trade" | "prize" | "nameLetters";
+export type Sparks = Partial<Record<SparkKind, string>>;
+
+const drawOne = (kind: SparkKind) =>
+  kind === "trade" || kind === "prize" ? pick(GOODS) : kind === "nameLetters" ? distinct(NAME_LETTERS, 5).join(", ") : pick(SPARKS[kind]);
+
+/** A Spark of each kind asked for, logged with `about`, such as the world's id, so a world can be traced to what it was built from. */
+export function drawSparks(about: Record<string, string>, kinds: SparkKind[] = ["pressure", "constraint", "secret", "nameLetters"]): Sparks {
+  const sparks = Object.fromEntries(kinds.map((kind) => [kind, drawOne(kind)]));
+  log.info("world", "Sparks drawn", { ...about, ...sparks });
+  return sparks;
+}
+
+const SPARK_WORDS: Record<SparkKind, string> = {
+  pressure: "a pressure on the world now:",
+  constraint: "a constraint it lives under:",
+  secret: "a secret for a plot thread:",
+  trade: "something people here make or sell:",
+  prize: "something they fight over:",
+  era: "when it is set:",
+  nameLetters: "invented names of people and places starting with",
+};
+
+// Bent rather than dropped, as "ignore what doesn't fit" is the easy way back to the average. With no World Brief, they are what it's built from.
+const sparksLine = (sparks: Sparks) =>
+  `Sparks, drawn at random so it isn't the most familiar pick: ${Object.entries(sparks)
+    .map(([kind, spark]) => `${SPARK_WORDS[kind as SparkKind]} ${spark}`)
+    .join("; ")}. ${
+    sparks.trade
+      ? "Build the world from them, each fitting the theme and what the player wrote."
+      : "Bend each to fit where the player's choices leave room, leaving one out only where it contradicts them."
+  }`;
+
 /** The player's choices a world is built from, as the Narrator is sent them. */
 const worldChoicesData = ({ title, theme, worldBrief, startingHook, characters = [] }: WorldChoices, { pc, inventory }: WorldPc) => ({
   title,
@@ -163,7 +330,7 @@ const worldChoicesData = ({ title, theme, worldBrief, startingHook, characters =
   inventory,
 });
 
-const worldPrompt = (context: Context, choices: WorldChoices, given: WorldPc): Prompt => [
+const worldPrompt = (context: Context, choices: WorldChoices, given: WorldPc, sparks: Sparks): Prompt => [
   {
     role: "system",
     content: `You are the Narrator of a story, creating its world before play begins. ${CHOICES_ARE_DATA}
@@ -174,6 +341,7 @@ lore_entries is the World Bible, which is secret. Write at least twelve entries 
 world_rules are strict statements of what is and is not possible in this world. Start with its theme and tone, because you will see these on every Turn and nothing else carries them.
 plot_threads are secret storylines for play to reveal. Write three to six.
 ${STORY_CRAFT}
+${sparksLine(sparks)}
 ${SHORT_LINES}
 calendar says in two or three sentences how people in this world count days, months and years, with the names they use, so that dates stay consistent in play. start_date and start_time_of_day are when the story opens, in that calendar, as the PC would reckon them, such as "3rd of Frostmoon, 412 AR" and "late evening". Make them fit the starting_hook, if there is one.
 world_overview is the only part the player ever reads. In a few short paragraphs, cover only what the PC would plausibly know from living in this world. It must be spoiler-free: never reveal or hint at a plot thread, and leave out every secret in the lore entries.
@@ -217,13 +385,21 @@ export async function pickForMe(
       ]),
     ),
   );
+  // Only the kinds its empty boxes can hold, and never the secret, as these boxes are the player's to read.
+  const kinds: SparkKind[] = [
+    ...(world.worldBrief === "" && !ERA_SET.includes(theme.split(":")[0]!) ? (["era"] as const) : []),
+    ...(world.worldBrief === "" ? (["trade", "prize"] as const) : []),
+    ...(world.worldBrief === "" || world.startingHook === "" ? (["pressure", "constraint"] as const) : []),
+    ...(pc?.name === "" || world.worldBrief === "" ? (["nameLetters"] as const) : []),
+  ];
+  const sparks = kinds.length ? drawSparks({ call: "pickForMe" }, kinds) : {};
   const prompt: Prompt = [
     {
       role: "system",
       content: `You are the Narrator of a story, helping a player set up its world and their PC. ${CHOICES_ARE_DATA}
 Write what's missing, fresh and specific, fitting the theme and agreeing with everything the player already wrote. Reply only with JSON matching this schema, which holds only the empty fields: ${JSON.stringify(jsonSchemaOf(reply))}
 ${empty.map((field) => `${field} is ${ABOUT[field]}${WORD_LIMITS[field] ? `, in at most ${WORD_LIMITS[field]} words` : ""}${field === "inventory" ? ", about four to eight items that suit the world and their background" : ""}.`).join(" ")}
-${modelInstructions(context)}`,
+${Object.keys(sparks).length ? `${sparksLine(sparks)}\n` : ""}${modelInstructions(context)}`,
     },
     playerChoices({ theme, ...world, ...(pc && { pc }) }),
   ];
@@ -985,7 +1161,7 @@ function withReview(world: WorldReply, review: WorldReview): WorldReply {
 }
 
 /** The World review: a second look at a new world for faults, and for story where it's thin, before the player sees it. */
-function reviewWorld(context: Context, choices: WorldChoices, pc: WorldPc, world: WorldReply, signal: AbortSignal) {
+function reviewWorld(context: Context, choices: WorldChoices, pc: WorldPc, world: WorldReply, sparks: Sparks, signal: AbortSignal) {
   // An edit must name what it changes, and the world it leaves must still be one a new world could be. Each says its own fault, as a retry tells the model which.
   const reply = WorldReview.refine(
     (review) => quotes(world.world_rules, review.world_rules) && quotes(world.plot_threads, review.plot_threads),
@@ -1013,7 +1189,7 @@ Fix only what has one of these faults:
 - unreachable_thread: the PC could never come across a plot thread from where the story opens.
 - leaked_secret: world_overview, the only part the player reads, reveals or hints at a plot thread or a secret of the lore entries.
 - thin_story: a part falls short of this, so strengthen only what is thin. ${STORY_CRAFT}
-Keep every name and idea the world has, never swap one for something more familiar, and leave the rest exactly as it is. If nothing has a fault, give null and empty lists.
+Keep every name and idea the world has, never swap one for something more familiar, and leave the rest exactly as it is.${sparks.nameLetters ? ` A name you add, first or surname, starts with one of ${sparks.nameLetters}, unless it contradicts the player's choices.` : ""} If nothing has a fault, give null and empty lists.
 Give each edit the fault it fixes. lore_entries holds each entry you add or rewrite: to rewrite one, use its exact title and give its whole new content and at least three keywords. Each change in world_rules and plot_threads has old, copied exactly from the world or null to add one, and new, the text to put there or null to remove it. Keep three to ${MAX_PLOT_THREADS} plot_threads. ${SHORT_LINES} world_overview, calendar and start replace those parts whole.
 ${modelInstructions(context)}
 Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))}`,
@@ -1033,14 +1209,15 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
 }
 
 /** Only `overview` may reach the player. */
-export async function generateWorld(context: Context, choices: WorldChoices, pc: WorldPc, signal: AbortSignal) {
+export async function generateWorld(context: Context, choices: WorldChoices, pc: WorldPc, sparks: Sparks, signal: AbortSignal) {
   // The review looks for a leak in the Overview, but past that it is Narrator free text, kept clean only by the prompts.
-  const written = await askForJson(context.textProvider, worldPrompt(context, choices, pc), WorldReply, REFUSAL, signal, { call: "world" });
+  const written = await askForJson(context.textProvider, worldPrompt(context, choices, pc, sparks), WorldReply, REFUSAL, signal, { call: "world" });
   const { world_overview, lore_entries, world_rules, plot_threads, calendar, start_date, start_time_of_day } = await reviewWorld(
     context,
     choices,
     pc,
     written,
+    sparks,
     signal,
   );
   const world: World & Pick<State, "storyTime"> = {

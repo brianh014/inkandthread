@@ -31,11 +31,18 @@ const WORLD = {
 const NO_EDITS = { world_overview: null, lore_entries: [], world_rules: [], plot_threads: [], calendar: null, start: null };
 const CHOICES = { title: "Salt", theme: "Fantasy", worldBrief: "A drowned city", startingHook: "" };
 const PC = { pc: { name: "Ash" }, inventory: "" };
+const SPARKS = { pressure: "a truce about to break", constraint: "a curfew everyone keeps", secret: "a record quietly changed", nameLetters: "B, M, T" };
 
 const build = (world: string, ...reviews: (string | Error)[]) => {
   const narrator = scriptedTextProvider(world);
   const reviewer = scriptedTextProvider(...reviews);
-  const made = generateWorld({ textProvider: narrator.textProvider, reviewProvider: reviewer.textProvider, settings: settings() }, CHOICES, PC, signal());
+  const made = generateWorld(
+    { textProvider: narrator.textProvider, reviewProvider: reviewer.textProvider, settings: settings() },
+    CHOICES,
+    PC,
+    SPARKS,
+    signal(),
+  );
   return { made, reviewer };
 };
 
@@ -81,6 +88,7 @@ test("a plot thread rewritten well past a sentence or two is asked again, as the
   expect(reviewer.prompts).toHaveLength(2);
   expect(world.plotThreads[0]!.split(" ")).toHaveLength(120);
   expect(reviewer.prompts[0]![0]!.content).toContain("Keep each world rule and plot thread to a sentence or two");
+  expect(reviewer.prompts[0]![0]!.content).toContain("A name you add, first or surname, starts with one of B, M, T");
 });
 
 test("a rewrite of a long thread may run as long as it, with the same leeway", async () => {
@@ -94,7 +102,7 @@ test("a rewrite of a long thread may run as long as it, with the same leeway", a
 
 test("without a reviewer, the world isn't reviewed", async () => {
   const narrator = scriptedTextProvider(JSON.stringify(WORLD));
-  await generateWorld({ textProvider: narrator.textProvider, settings: settings() }, CHOICES, PC, signal());
+  await generateWorld({ textProvider: narrator.textProvider, settings: settings() }, CHOICES, PC, SPARKS, signal());
   expect(narrator.prompts).toHaveLength(1);
 });
 

@@ -206,6 +206,24 @@ test("Regenerate replaces the world, shows only the new Overview, and never tell
   expect(saveStore(savesDir).latestState(id).plotThreads).toEqual(["New The mayor is a drowned ghost."]);
 });
 
+test("each world build and Regenerate is sent Sparks of its own, logged with the world's id", async () => {
+  play(sheet, generated(), generated());
+  let id = "";
+  const log = await logOf(async () => {
+    id = (await generate()).body.id;
+    await app.post(`/worlds/${id}/regenerate`, choices);
+  });
+
+  const drawn = log.split("\n").filter((line) => line.includes("Sparks drawn"));
+  expect(drawn).toHaveLength(2);
+  for (const line of drawn) expect(line).toContain(`"world":"${id}"`);
+  for (const prompt of [prompts[1]!, prompts[2]!]) {
+    expect(prompt[0]!.content).toMatch(
+      /Sparks, drawn at random.*a pressure on the world now: .+; a constraint.+; a secret for a plot thread: .+; invented names of people and places starting with [A-Z](, [A-Z]){4}\./,
+    );
+  }
+});
+
 test("a failed Regenerate keeps the world it would have replaced", async () => {
   play(sheet, generated(), new Error("offline"));
   const { body } = await generate();
@@ -238,6 +256,38 @@ test("Pick for me writes only the empty world boxes, from the theme and what the
   expect(JSON.parse(user!.content)).toEqual({ theme: "Steampunk", title: "", worldBrief: "A city on a whale", startingHook: "" });
 });
 
+test("Pick for me is sent only the Sparks its empty boxes can hold, never a secret", async () => {
+  play(JSON.stringify({ worldBrief: "A city on a whale." }), JSON.stringify({ name: "Ash" }), JSON.stringify({ title: "The Whale City" }));
+  const pc = (name: string) => ({ name, background: "A diver", physicalTraits: "Tall", inventory: "a knife" });
+
+  const log = await logOf(async () => {
+    await app.post("/worlds/pick", { theme: "Steampunk", title: "Whales", worldBrief: "", pc: pc("Ash") });
+    await app.post("/worlds/pick", { theme: "Steampunk", title: "Whales", worldBrief: "A city on a whale.", pc: pc("") });
+    await app.post("/worlds/pick", { theme: "Steampunk", title: "", worldBrief: "A city on a whale.", pc: pc("Ash") });
+  });
+
+  const [world, name, title] = prompts.map((prompt) => prompt[0]!.content);
+  expect(world).toMatch(
+    /Sparks.*something people here make or sell: \w+; something they fight over: \w+; a pressure on the world now: .+; a constraint it lives under: .+; invented names of people and places starting with [A-Z](, [A-Z]){4}\. Build the world from them/,
+  );
+  expect(name).toMatch(/Sparks.*: invented names of people and places starting with [A-Z](, [A-Z]){4}\./);
+  expect(name).not.toContain("a pressure");
+  expect(name).toContain("Bend each to fit");
+  expect(title).not.toContain("Sparks");
+  expect(log).not.toContain('"secret":');
+  expect(world).not.toContain("when it is set");
+});
+
+test("Pick for me draws when a World Brief is set only for a theme that leaves it open", async () => {
+  play(JSON.stringify({ worldBrief: "A haunted town." }), JSON.stringify({ worldBrief: "A haunted town." }));
+
+  await app.post("/worlds/pick", { theme: "Horror: Ordinary lives unravel.", title: "Dread", worldBrief: "" });
+  await app.post("/worlds/pick", { theme: "A story of my own", title: "Dread", worldBrief: "" });
+
+  for (const prompt of prompts)
+    expect(prompt[0]!.content).toMatch(/Sparks, drawn at random so it isn't the most familiar pick: when it is set: [^;]+; something people/);
+});
+
 test("Pick for me needs every empty box back, and retries a Title too long for a cover", async () => {
   play(
     JSON.stringify({ title: "x".repeat(81), worldBrief: "A city on a whale." }),
@@ -258,6 +308,19 @@ test("Pick for me can fail and be retried like a generated world", async () => {
   expect((await pick()).status).toBe(422);
   expect((await pick()).status).toBe(502);
   expect((await pick()).status).toBe(200);
+});
+
+test("Pick for me asks again when a box comes back as filler", async () => {
+  play(
+    JSON.stringify({ title: "placeholder", worldBrief: "Placeholder" }),
+    JSON.stringify({ title: "Tide", worldBrief: "..." }),
+    JSON.stringify({ title: "Tide", worldBrief: "A city on a whale." }),
+  );
+
+  const response = await app.post("/worlds/pick", { theme: "Steampunk", title: "", worldBrief: "" });
+
+  expect(await response.json()).toEqual({ title: "Tide", worldBrief: "A city on a whale." });
+  expect(prompts).toHaveLength(3);
 });
 
 const setup = { theme: "Steampunk", title: "", worldBrief: "A city on a whale", startingHook: "", characters: [] };

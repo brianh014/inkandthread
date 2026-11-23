@@ -423,21 +423,6 @@ test("a story with no clock yet counts from its opening's hour, so a plan timed 
   expect(moveDue("clockless", timed, later, 1)).toBe(true);
 });
 
-test("a move is due once an intent's doer leaves the PC, as they went to do it", () => {
-  const kit = "Kit will slip down to the dock.";
-  const base = {
-    ...openingState,
-    npcs: [{ name: "Kit", appearance: "a boy" }],
-    plotThreads: [THIEF],
-    threadsPlan: { [THIEF]: kit },
-    storyTime: { day: 1, date: "1st of Thaw", timeOfDay: "noon", hours: 12 },
-  };
-  const withKit = { ...base, scene: { location: "The library", visibleCast: ["Kit"] } };
-  const gone = { ...base, scene: { location: "The library", visibleCast: [] } };
-  expect(moveDue("left", withKit, gone, 1)).toBe(true);
-  expect(moveDue("stays", withKit, withKit, 1)).toBe(false);
-});
-
 test("the fallback move counts replies since the last move, so a move due on time is never followed by one a reply later", () => {
   const before = { ...openingState, storyTime: { date: "1st of Thaw", timeOfDay: "dawn", day: 1 } };
   const nextDay = { ...before, storyTime: { date: "2nd of Thaw", timeOfDay: "dawn", day: 2 } };
@@ -722,31 +707,20 @@ test("a plan whose hour is still ahead stands through a move, which changes only
 test("a plan whose hour is ahead gives way when the move shows its deed done early", async () => {
   play(
     narration("Ash waits.", hoursOn(4, "noon")),
-    moved({ ...change(THIEF, "The thief burned the ledger early and fled the dock."), plan: "The thief will hide in the hills.", plan_in_hours: 3 }),
+    moved({
+      ...change(THIEF, "The thief burned the ledger in the chapel early and fled the dock."),
+      plan: "The thief will hide in the hills.",
+      plan_in_hours: 3,
+    }),
     narration("Ash waits on."),
   );
-  const id = planned(20, "The thief will burn the ledger.");
+  const id = planned(20, "The thief will burn the ledger in the chapel.");
 
   for (const input of ["I wait.", "I wait on."]) expect((await turn(id, input)).ok).toBe(true);
 
   const state = store().latestState(id);
   expect(state.threadsPlan[THIEF]).toBe("The thief will hide in the hills.");
   expect(state.threadsDue[THIEF]).toBe(15);
-});
-
-test("a move reads a plan whose people are with the PC as their intent, and keeps it while they stay and it isn't done", async () => {
-  const plan = "Kit will rob the library stacks for the ledger.";
-  const told = play(
-    narration("Kit comes down the dock to Ash.", { op: "set_scene", location: "The dock", visible_cast: ["Kit"] }, hoursOn(4, "noon")),
-    moved({ ...change(THIEF, "Kit idles at the dock beside Ash."), knows: [{ name: "Kit", knows: "A thief is coming." }] }),
-    narration("Kit shrugs."),
-  );
-  const id = planned(30, plan);
-
-  for (const input of ["I wave.", "I ask him what he wants."]) expect((await turn(id, input)).ok).toBe(true);
-
-  expect(JSON.parse(told.prompts[1]!.at(-1)!.content).plot_threads[0]).toMatchObject({ intent: plan });
-  expect(store().latestState(id)).toMatchObject({ threadsPlan: { [THIEF]: plan }, threadsDue: {} });
 });
 
 test("a plan is its doer's, the person it names first, so one aimed at someone with the PC keeps its hour", async () => {
@@ -759,19 +733,14 @@ test("a plan is its doer's, the person it names first, so one aimed at someone w
   expect(store().latestState(id).threadsDue).toEqual({ [THIEF]: 30 });
 });
 
-test("a plan whose people come on the page loses its hour, and the Narrator reads it as an intent to play out in the scene", async () => {
-  const plan = "Kit will rob the library stacks for the ledger.";
-  const told = play(narration("Kit comes down the dock to Ash.", { op: "set_scene", location: "The dock", visible_cast: ["Kit"] }), narration("Kit shrugs."));
-  const id = planned(30, plan);
+test("a plan whose hour comes while its doer is with the PC was overtaken by play, and goes", async () => {
+  play(narration("Kit comes down the dock to Ash.", { op: "set_scene", location: "The dock", visible_cast: ["Kit"] }, hoursOn(1, "nine")));
+  const id = planned(8.5, "Kit will rob the library stacks for the ledger.");
 
-  const log = await logOf(async () => {
-    expect((await turn(id, "I wave.")).ok).toBe(true);
-    expect((await turn(id, "I ask him what he wants.")).ok).toBe(true);
-  }, "info");
+  const log = await logOf(async () => expect((await turn(id, "I wave.")).ok).toBe(true), "info");
 
-  expect(log).toContain('"plansPaused":1');
-  expect(store().latestState(id).threadsDue).toEqual({});
-  expect(told.prompts[1]![0]!.content).toContain(JSON.stringify({ truth: THIEF, now: "The thief waits by the dock.", intent: plan }));
+  expect(log).toContain('"plansOvertaken":1');
+  expect(store().latestState(id)).toMatchObject({ threadsPlan: {}, threadsDue: {} });
 });
 
 test("a deed counts as put off by its own words, never by the names and places another deed shares", () => {

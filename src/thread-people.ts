@@ -31,6 +31,10 @@ export function threadPeople(state: Pick<State, "npcs" | "worldBible">) {
     return byPlace[0]?.names;
   };
   /** Whether a plan's doer is among these, as the people with the PC. */
-  const doerIn = (plan: string, cast: string[]) => doer(plan)?.some((name) => cast.includes(name)) ?? false;
+  const doerIn = (plan: string, cast: string[]) => {
+    const names = doer(plan);
+    // By any name either goes by, as a character's Lore Entry, holding their full name, outranked their own entry.
+    return !!names && cast.some((person) => nameForms(person).some((form) => names.includes(form)));
+  };
   return { named, mentions, doer, doerIn };
 }

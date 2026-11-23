@@ -1192,14 +1192,17 @@ async function narrate(
           upkeepDropped = [...kept.refused, ...kept.ignored];
           upkeepRefused = upkeepDropped.length;
           const next = kept.next;
-          // A plan whose doer is with the PC loses its hour and is theirs to act on in the scene, as one timed for someone on the
-          // page could never happen off it and was put off again and again. Its doer only, as pausing every plan naming a companion
-          // held one for twenty rounds whose doer was far off.
+          // A plan whose hour came while its doer is with the PC was overtaken by play, as it could not happen off the page and
+          // moves put it off again and again: it goes, and the next move gives its thread another.
           const { doerIn } = threadPeople(next);
-          const onPage = (plan: string) => doerIn(plan, next.scene.visibleCast);
-          const pausing = Object.keys(next.threadsDue).filter((truth) => next.threadsPlan[truth] && onPage(next.threadsPlan[truth]!));
-          next.threadsDue = Object.fromEntries(Object.entries(next.threadsDue).filter(([truth]) => !pausing.includes(truth)));
-          paused = pausing.length;
+          const clock = next.storyTime?.hours;
+          const overtaken = Object.keys(next.threadsDue).filter(
+            (truth) =>
+              clock !== undefined && next.threadsDue[truth]! <= clock && next.threadsPlan[truth] && doerIn(next.threadsPlan[truth]!, next.scene.visibleCast),
+          );
+          next.threadsPlan = Object.fromEntries(Object.entries(next.threadsPlan).filter(([truth]) => !overtaken.includes(truth)));
+          next.threadsDue = Object.fromEntries(Object.entries(next.threadsDue).filter(([truth]) => !overtaken.includes(truth)));
+          paused = overtaken.length;
           // Through this Turn's amended truths, so an ask follows its thread to its new words, as the next move matches them exactly.
           rewrites = [...state_operations, ...(upkept ?? [])].flatMap((operation) =>
             operation.op === "update_plot_thread" && operation.truth
@@ -1284,8 +1287,8 @@ async function narrate(
         ...(upkeep && { upkeep: (upkept ?? []).map(({ op }) => op), upkeepRefused }),
         sceneChanged: !!scene_changed,
         chapterEnds: !!chapter_ends,
-        // Plans whose hour was taken, as their people are with the PC.
-        ...(paused > 0 && { plansPaused: paused }),
+        // Plans dropped as overtaken, their hour come while their doer was with the PC.
+        ...(paused > 0 && { plansOvertaken: paused }),
         // The asks that matched an open thread, as the Narrator's own count logged asks of threads that never existed.
         ...(asks.length > 0 && { closeAsked: asked.length }),
       }));

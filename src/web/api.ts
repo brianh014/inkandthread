@@ -97,7 +97,7 @@ export const listSaves = () => request<{ saves: ListedSave[] }>("/saves").then((
 
 export const getSave = (id: string) => request<OpenSave>(`/saves/${id}`);
 /** A Save's first step of the New Story form, as the story began, for Start Over. */
-export type SaveSetup = Pick<OpenSave, "worldBrief" | "title" | "theme" | "startingHook"> & {
+export type SaveSetup = Pick<OpenSave, "worldBrief" | "title" | "theme" | "tone" | "startingHook"> & {
   pc: OpenSave["pc"];
   importantCharacters: Pick<Character, "name" | "description">[];
 };

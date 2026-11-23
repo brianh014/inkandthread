@@ -3,6 +3,7 @@ import { Choices } from "./art-style-picker";
 import type { Character, EnhanceField, PcDraft, WorldField } from "./api";
 import { LONG_TEXT } from "../limits";
 import { ConfirmDialog } from "./menu";
+import { TonePicker } from "./tone-picker";
 import { characterLabel, type Draft, MAX_CHARACTERS, newRef, OWN_THEME, THEMES } from "./wizard-draft";
 
 /** A box's Enhance, or Write when it's empty, with an Undo. `row` is for an Important Character's box. */
@@ -56,6 +57,7 @@ export function WorldForm(props: {
             <input value={draft.ownTheme} onChange={(e) => set({ ownTheme: e.target.value })} />
           </label>
         )}
+        <TonePicker tone={draft.tone} ownTone={draft.ownTone} onChange={set} />
         <div className="enhanceable">
           <label>
             What is your story called?

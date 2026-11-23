@@ -4,6 +4,7 @@ import { ArtStyleRequest, imageResponse, NoFields, parseBody, routes, type Serve
 import { log } from "./logger";
 import { NoteNotFound, StaleTurn } from "./save-store";
 import { VisibleEdit } from "./state-applier";
+import { toneName } from "./tones";
 import { askForChapterTitle, TurnFailed, worldMoved } from "./turn-engine";
 import { readable } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
@@ -88,9 +89,9 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
     "/saves/:id": {
       GET: (req) => {
         // An allowlist, so a secret added to the Save can never reach the player by default.
-        const { title, worldBrief, pc, artStyle, startingHook, hasCover, coverRedraws } = saves.read(req.params.id);
+        const { title, worldBrief, tone, pc, artStyle, startingHook, hasCover, coverRedraws } = saves.read(req.params.id);
         log.info("saves", "Save opened");
-        return Response.json({ title, worldBrief, pc: { name: pc.name }, artStyle, startingHook, hasCover, coverRedraws });
+        return Response.json({ title, worldBrief, tone, pc: { name: pc.name }, artStyle, startingHook, hasCover, coverRedraws });
       },
       PATCH: async (req) => {
         const { artStyle } = await parseBody(req, SaveChange);
@@ -212,7 +213,9 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         const edit = await parseBody(req, VisibleEdit);
         const { id } = req.params;
         turns.assertIdle(id);
+        const before = edit.edit === "tone" ? saves.read(id).tone : "";
         saves.addEdit(id, edit);
+        if (edit.edit === "tone") log.info("saves", "Tone changed", { save: id, from: toneName(before), to: toneName(edit.text) });
         return Response.json({});
       },
     },
@@ -247,12 +250,13 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
     "/saves/:id/setup": {
       // The New Story form's first step, for Start Over. An allowlist, so nothing hidden reaches the player.
       GET: (req) => {
-        const { worldBrief, title, theme, startingHook, pc, importantCharacters } = saves.setup(req.params.id);
+        const { worldBrief, title, theme, tone, startingHook, pc, importantCharacters } = saves.setup(req.params.id);
         const { name, background, physicalTraits, skills, personality, other } = pc;
         return Response.json({
           worldBrief,
           title,
           theme,
+          tone,
           startingHook,
           pc: { name, background, physicalTraits, skills, personality, other },
           importantCharacters: importantCharacters.map(({ name, description }) => ({ name, description })),

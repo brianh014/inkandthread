@@ -39,6 +39,8 @@ import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 export type WorldChoices = {
   title: string;
   theme: string;
+  /** The Tone, empty for none. */
+  tone?: string;
   worldBrief: string;
   startingHook: string;
   characters?: Character[];
@@ -606,9 +608,10 @@ const sparksLine = (sparks: Sparks) =>
   }`;
 
 /** The player's choices a world is built from, as the Narrator is sent them. */
-const worldChoicesData = ({ title, theme, worldBrief, startingHook, characters = [] }: WorldChoices, { pc, inventory }: WorldPc) => ({
+const worldChoicesData = ({ title, theme, tone, worldBrief, startingHook, characters = [] }: WorldChoices, { pc, inventory }: WorldPc) => ({
   title,
   theme,
+  ...(tone && { tone }),
   world_brief: worldBrief,
   starting_hook: startingHook,
   important_characters: characters.map(({ name, description }) => ({ name, description })),
@@ -621,11 +624,11 @@ const worldPrompt = (context: Context, choices: WorldChoices, given: WorldPc, sp
     role: "system",
     content: `You are the Narrator of a story, creating its world before play begins. ${CHOICES_ARE_DATA}
 Build the world from the theme, title and world_brief. If there is a starting_hook, make sure the world can open with it. important_characters are people the player wants in the story, and they are canon: give each a lore entry of their own, and weave them into the world and plot threads.
-pc and inventory are the player's PC and what they start with. ${PC_IS_CANON} The PC belongs in this world from the start. If anything about them conflicts with the theme or world_brief, the world changes and the PC does not. Change only what the conflict needs, and keep the theme and tone. For example, a wizard who throws fireballs in a strict modern-day world means magic exists there.
+pc and inventory are the player's PC and what they start with. ${PC_IS_CANON} The PC belongs in this world from the start. If anything about them conflicts with the theme or world_brief, the world changes and the PC does not. Change only what the conflict needs, and keep the theme${choices.tone ? "" : " and tone"}. For example, a wizard who throws fireballs in a strict modern-day world means magic exists there.
 Reply only with JSON matching this schema, with its keys in the same order: ${JSON.stringify(jsonSchemaOf(WorldReply))}
 naming says in a sentence or two how people here name people and places and how those names sound. Give every name in the world by it, and in play new names will follow it too.
 lore_entries is the World Bible, which is secret. Write at least twelve entries covering places, factions, people, history and how the world works. Each must make sense on its own, because in play you only see the entries a recent Message activates. Give each at least three keywords, including names, nicknames and everyday paraphrases, so that a player's wording still activates it.
-world_rules are strict statements of what is and is not possible in this world. Start with its theme and tone, because you will see these on every Turn and nothing else carries them.
+world_rules are strict statements of what is and is not possible in this world. ${choices.tone ? "tone is how the story will be told, and every Turn is sent it, so build a world it fits, and start world_rules with the kind of world its theme makes it, leaving its mood to tone" : "Start with its theme and tone"}, because you will see these on every Turn and nothing else carries them.
 plot_threads are secret storylines for play to reveal. Write three to six.
 ${STORY_CRAFT}
 ${sparksLine(sparks)}
@@ -1475,7 +1478,7 @@ function reviewWorld(context: Context, choices: WorldChoices, pc: WorldPc, world
 Fix only what has one of these faults:
 - contradiction: parts of the world contradict each other, start_date and the calendar among them.
 - plot_hole: something rests on what the rest of the world rules out.
-- strays_from_choices: it ignores or changes the theme, title, world_brief, starting_hook, important_characters or pc.
+- strays_from_choices: it ignores or changes the theme, tone, title, world_brief, starting_hook, important_characters or pc.
 - unreachable_thread: the PC could never come across a plot thread from where the story opens.
 - leaked_secret: world_overview, the only part the player reads, reveals or hints at a plot thread or a secret of the lore entries.
 - thin_story: a part falls short of this, so strengthen only what is thin. ${STORY_CRAFT}

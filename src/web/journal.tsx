@@ -1,3 +1,4 @@
+import { OWN_TONE, toneFor, toneText } from "../tones";
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   editJournal,
@@ -8,7 +9,7 @@ import {
   getSave,
   type Journal as JournalContent,
   type RequestedImage,
-  type Save,
+  type OpenSave,
   type SceneImageInfo,
   statusWords,
   tellNarrator,
@@ -16,6 +17,7 @@ import {
 import { ContinueRule, isContinue, readable } from "./chat-style";
 import { EditIcon, Quilling, RenameIcon, RewriteIcon } from "./icons";
 import { Book, BookTabs } from "./menu";
+import { TonePicker } from "./tone-picker";
 import { IMAGE_CHECK_MS, RequestedPicture, SceneImage } from "./story-pictures";
 import { Person } from "./zoom";
 
@@ -169,6 +171,58 @@ function Editable(props: {
   );
 }
 
+/** The Tone, picked as on the New Story form, which the next reply is told in. */
+function ToneEditable({ tone, onSave }: { tone: string; onSave: (text: string) => Promise<unknown> }) {
+  const [pick, setPick] = useState<{ tone: string; ownTone: string }>();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const shown = toneFor(tone);
+
+  if (!pick) {
+    return (
+      <div className="editable">
+        <p>{shown.tone === OWN_TONE ? shown.ownTone : shown.tone}</p>
+        <button type="button" className="icon" aria-label="Edit: Tone" title="Edit" onClick={() => setPick(shown)}>
+          {EditIcon}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <form
+      className="edit-box"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        setBusy(true);
+        setError("");
+        try {
+          await onSave(toneText(pick.tone, pick.ownTone));
+          setPick(undefined);
+        } catch (failure) {
+          setError((failure as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <TonePicker {...pick} onChange={setPick} />
+      {error && (
+        <p role="alert" className="error">
+          {error}
+        </p>
+      )}
+      <div className="row">
+        <button type="submit" className="action" disabled={busy}>
+          Save
+        </button>
+        <button type="button" className="quiet" disabled={busy} onClick={() => setPick(undefined)}>
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
 /** Words about the world, hidden parts included, so the reply can only say that it was done or that it failed. Stays open until it's answered, as nothing else would tell the player. */
 export function TellTheNarrator({ id, onDone, onClose }: { id: string; onDone: () => Promise<unknown>; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -242,7 +296,7 @@ export function TellTheNarrator({ id, onDone, onClose }: { id: string; onDone: (
 }
 
 export function Journal({ id }: { id: string }) {
-  const [save, setSave] = useState<Save>();
+  const [save, setSave] = useState<OpenSave>();
   const [journal, setJournal] = useState<JournalContent>();
   const [images, setImages] = useState<SceneImageInfo[]>([]);
   const [requested, setRequested] = useState<RequestedImage[]>([]);
@@ -370,6 +424,8 @@ export function Journal({ id }: { id: string }) {
             <Editable label="World Brief" text={save.worldBrief} onSave={(text) => edit({ edit: "worldBrief", text })}>
               <Clamped text={save.worldBrief} />
             </Editable>
+            <h2>Tone</h2>
+            <ToneEditable tone={save.tone} onSave={(text) => edit({ edit: "tone", text })} />
             <h2>Recent summary</h2>
             <Editable label="Recent summary" text={journal.recentSummary} onSave={(text) => edit({ edit: "recentSummary", text })}>
               {journal.recentSummary ? <p>{journal.recentSummary}</p> : <p className="muted">Nothing recent yet.</p>}

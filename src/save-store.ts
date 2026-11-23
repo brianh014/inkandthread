@@ -5,6 +5,7 @@ import { z } from "zod";
 import { type Check, StoredCheck } from "./check-resolver";
 import { errorFields, log } from "./logger";
 import { applyEdit, openingState, type State, StateSections, WorldEdit } from "./state-applier";
+import { toneName } from "./tones";
 
 /**
  * The PC as the player wrote them, apart from the name. Each field is optional, as Saves from before these fields have
@@ -355,6 +356,9 @@ const toVersion29 = addMissingSections;
 // npcParts, threadsQuestion and threadsDue.
 const toVersion30 = addMissingSections;
 
+/** The Tone, which starts empty, so an older Save is told as before. */
+const toVersion31 = addMissingSections;
+
 /** One step per schema version, where step N takes a Save from version N to N + 1. New Saves take them too, so they can't drift from old ones. */
 const MIGRATIONS = [
   toVersion1,
@@ -387,6 +391,7 @@ const MIGRATIONS = [
   toVersion28,
   toVersion29,
   toVersion30,
+  toVersion31,
 ];
 
 function schemaVersion(db: Database) {
@@ -693,7 +698,7 @@ export function saveStore(savesDir: string) {
       }
       // Renaming last means a crash can never leave a half-built file that looks like a Save.
       renameSync(unfinishedPath, pathOf(id));
-      log.info("saves", "Save created", { save: id });
+      log.info("saves", "Save created", { save: id, tone: toneName(opening?.tone ?? "") });
       return id;
     },
 
@@ -720,6 +725,7 @@ export function saveStore(savesDir: string) {
       startingHook: string;
       title: string;
       theme: string;
+      tone: string;
       hasCover: boolean;
       coverRedraws: number;
       importantCharacters?: ImportantCharacter[];
@@ -741,8 +747,10 @@ export function saveStore(savesDir: string) {
           []
         >("SELECT pc_name, art_style, starting_hook, pc_details, title, theme, important_characters, pc_on_cover FROM save")
         .get()!;
+      const { worldBrief, tone } = currentState(db);
       return {
-        worldBrief: currentState(db).worldBrief,
+        worldBrief,
+        tone,
         pc: { ...(JSON.parse(save.pc_details) as PcDetails), name: save.pc_name },
         artStyle: save.art_style,
         startingHook: save.starting_hook,
@@ -790,6 +798,8 @@ export function saveStore(savesDir: string) {
         worldBrief: save.world_brief,
         title: save.title,
         theme: save.theme,
+        // As the story began, as with the World Brief.
+        tone: toState(sectionsAt(db, OPENING_SNAPSHOT)).tone ?? "",
         startingHook: save.starting_hook,
         pc: { ...(JSON.parse(save.pc_details) as PcDetails), name: save.pc_name },
         importantCharacters: save.important_characters === null ? [] : (JSON.parse(save.important_characters) as ImportantCharacter[]),

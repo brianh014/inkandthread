@@ -1474,6 +1474,7 @@ test("a Save reports its World Brief and PC, and an unknown Save is not found", 
   expect(await found.json()).toEqual({
     title: "",
     worldBrief: "A drowned city",
+    tone: "",
     pc: { name: "Ash" },
     artStyle: "",
     startingHook: "",

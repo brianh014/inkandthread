@@ -145,6 +145,7 @@ test("an exported Save imports as a new Save with the same story", async () => {
   expect(await app.get(`/saves/${copy}`).then((r) => r.json())).toEqual({
     title: "",
     worldBrief: "A drowned city",
+    tone: "",
     pc: { name: "Ash" },
     artStyle: "",
     startingHook: "",
@@ -760,6 +761,7 @@ test("Start Over gets a Save's first step as the story began, with nothing hidde
     worldBrief: "A drowned city",
     title: "",
     theme: "",
+    tone: "",
     startingHook: "",
     pc: { name: "Ash" },
     importantCharacters: [],

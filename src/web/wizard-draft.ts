@@ -1,5 +1,6 @@
 import { ART_STYLES } from "./art-styles";
 import { LONG_TEXT } from "../limits";
+import { toneFor, WORLDS_OWN } from "../tones";
 import type { Character, HeldPicture, PcDraft, SaveSetup } from "./api";
 
 /** Each description is shown to the player and sent to the Narrator with the theme's name. */
@@ -43,6 +44,8 @@ export const newRef = (length = 8) => Array.from({ length }, () => Math.floor(Ma
 export const blank = {
   theme: "High Fantasy",
   ownTheme: "",
+  tone: WORLDS_OWN,
+  ownTone: "",
   worldBrief: "",
   title: "",
   hookOn: true,
@@ -109,11 +112,12 @@ const NAME_CHARS = 80;
 const fit = (text: string | undefined, most = LONG_TEXT) => (text ?? "").slice(0, most);
 
 /** Start Over: the form's first step from a Save, and the later steps fresh, so no world or picture carries over. */
-export function draftFrom({ worldBrief, title, theme, startingHook, pc, importantCharacters }: SaveSetup): Draft {
+export function draftFrom({ worldBrief, title, theme, tone, startingHook, pc, importantCharacters }: SaveSetup): Draft {
   const background = [pc.background, pc.skills, pc.personality, pc.other].filter((part) => part?.trim()).join("\n\n");
   return {
     ...structuredClone(blank),
     ...themeFor(theme),
+    ...toneFor(tone ?? ""),
     worldBrief: fit(worldBrief),
     title: fit(title, NAME_CHARS),
     hookOn: startingHook !== "",

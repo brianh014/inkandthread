@@ -395,6 +395,33 @@ test("a move is due after hours of story time, on a new day or every few replies
   expect(moveDue("d", before, { ...before, storyTime: at("dawn", "2nd of Thaw") }, 1)).toBe(true);
   expect(moveDue("a", before, before, MOVE_EVERY)).toBe(true);
   expect(moveDue("e", before, { ...before, plotThreads: [] }, MOVE_EVERY)).toBe(true);
+  // A plan falling due within the hour moves the world, once, so the plan comes about on time rather than at the next pause.
+  const clocked = { ...before, threadsDue: { "A thread.": 14 }, storyTime: { ...at("early afternoon"), hours: 13.5 } };
+  expect(moveDue("f", clocked, { ...clocked, storyTime: { ...clocked.storyTime, hours: 14.25 } }, 1)).toBe(true);
+  expect(
+    moveDue("g", { ...clocked, storyTime: { ...clocked.storyTime, hours: 14.25 } }, { ...clocked, storyTime: { ...clocked.storyTime, hours: 15 } }, 1),
+  ).toBe(false);
+  // Not for an hour this Turn wrote, but for one set exactly at the clock once time moves.
+  const later = { ...clocked, storyTime: { ...clocked.storyTime, hours: 14.25 } };
+  expect(moveDue("h", { ...clocked, threadsDue: {} }, later, 1)).toBe(false);
+  expect(moveDue("i", { ...clocked, threadsDue: { "A thread.": 13.5 } }, { ...later, threadsDue: { "A thread.": 13.5 } }, 1)).toBe(true);
+});
+
+test("a story with no clock yet counts from its opening's hour, so a plan timed before the first set_story_time falls due", () => {
+  const opening = {
+    ...openingState,
+    plotThreads: [THIEF],
+    threadsNow: { [THIEF]: "He waits." },
+    storyTime: { day: 2, date: "2nd of Thaw", timeOfDay: "small hours, dark" },
+  };
+  const timed = applyOperations(opening, [
+    { op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: "He will hide.", plan_in_hours: 1, truth: null },
+  ]).next;
+  expect(timed.threadsDue).toEqual({ [THIEF]: 27 });
+  const passing = { op: "set_story_time", days_passed: 0, hours_passed: 1.5, time_of_day: "small hours", date: null } as const;
+  const later = applyOperations(timed, [passing]).next;
+  expect(later.storyTime?.hours).toBe(27.5);
+  expect(moveDue("clockless", timed, later, 1)).toBe(true);
 });
 
 test("the fallback move counts replies since the last move, so a move due on time is never followed by one a reply later", () => {
@@ -912,9 +939,33 @@ test("a Save from before plans opens with none, so its now reads as done", () =>
 
 test("a Turn's update of a thread sets its plan, or clears it", () => {
   const state = { ...structuredClone(openingState), plotThreads: [THIEF], threadsNow: { [THIEF]: "He waits." }, threadsPlan: { [THIEF]: "He will run." } };
-  const planned = applyOperations(state, [{ op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: "He will hide by dusk.", truth: null }]).next;
+  const planned = applyOperations(state, [
+    { op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: "He will hide by dusk.", plan_in_hours: null, truth: null },
+  ]).next;
   expect(planned.threadsPlan).toEqual({ [THIEF]: "He will hide by dusk." });
-  expect(applyOperations(state, [{ op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: null, truth: null }]).next.threadsPlan).toEqual({});
+  const timed = { ...state, storyTime: { day: 1, date: "1st of Thaw", timeOfDay: "morning", hours: 10 } };
+  const due = applyOperations(timed, [
+    { op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: "He will hide by dusk.", plan_in_hours: 6, truth: null },
+  ]).next;
+  expect(due.threadsDue).toEqual({ [THIEF]: 16 });
+  // Counted from the reply's clock whatever the order, and a plan copied as it was keeps its hour rather than sliding later.
+  const passing = { op: "set_story_time", days_passed: 0, hours_passed: 3, time_of_day: "early afternoon", date: null } as const;
+  const after = applyOperations(timed, [
+    { op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: "He will hide by dusk.", plan_in_hours: 6, truth: null },
+    passing,
+  ]).next;
+  expect(after.threadsDue).toEqual({ [THIEF]: 19 });
+  const restated = applyOperations(after, [
+    { op: "update_plot_thread", thread: THIEF, now: "He hid.", plan: "He will hide by dusk.", plan_in_hours: 6, truth: null },
+  ]).next;
+  expect(restated.threadsDue).toEqual({ [THIEF]: 19 });
+  const copied = applyOperations(after, [
+    { op: "update_plot_thread", thread: THIEF, now: "He hid.", plan: "He will hide by dusk.", plan_in_hours: null, truth: null },
+  ]);
+  expect(copied.next.threadsDue).toEqual({ [THIEF]: 19 });
+  expect(
+    applyOperations(state, [{ op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: null, plan_in_hours: null, truth: null }]).next.threadsPlan,
+  ).toEqual({});
 });
 
 test("a move that tells as done a plan whose people were with the PC is asked again once", async () => {

@@ -6,7 +6,7 @@ import { activateLore, wholeWord } from "./lore-activation";
 import { LORE_TOKEN_BUDGET, type Prompt, SUMMARY_EVERY, withClock } from "./prompt-assembler";
 import type { SaveStore } from "./save-store";
 import type { SettingsStore } from "./settings-store";
-import { closestThread, hourOf, isBody, type ListChange, nameForms, type State, type StateOperation } from "./state-applier";
+import { clockOf, closestThread, hourOf, isBody, type ListChange, nameForms, type State, type StateOperation } from "./state-applier";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 
 /** Replies between moves when nothing else calls for one, as a long scene in one place would otherwise never let the world act. */
@@ -68,8 +68,17 @@ export function moveDue(id: string, before: State, after: State, replies: number
   const newDate =
     (after.storyTime?.day ?? 0) > (before.storyTime?.day ?? 0) || (after.storyTime?.date !== before.storyTime?.date && !before.storyTime?.dateDue);
   const since = replies - (movedAt.get(id) ?? 0);
-  const due = hoursOn || newDate || since >= MOVE_EVERY;
+  // A plan falling due as time passes, as one past its hour waited about four rounds for the next move to bring it about. Only
+  // hours set before this Turn, so a plan the Turn just wrote isn't carried out while the PC is still in the scene that set it up.
+  const [start, end] = [clockOf(before.storyTime), clockOf(after.storyTime)];
+  const planFalls =
+    start !== undefined &&
+    end !== undefined &&
+    end > start &&
+    Object.entries(after.threadsDue).some(([truth, at]) => before.threadsDue[truth] === at && start <= at && at <= end);
+  const due = hoursOn || newDate || planFalls || since >= MOVE_EVERY;
   if (due) {
+    log.info("world", "World move due", { save: id, hoursOn, newDate, planFalls, replies: since });
     movedAt.set(id, replies);
     repliesSince.set(id, since);
   }
@@ -128,7 +137,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const basedOn = saves.latestMessageId(id);
   const state = saves.latestState(id);
   const { plotThreads, threadsNow, threadsPlan, threadsQuestion, threadsDue } = state;
-  const clock = state.storyTime?.hours;
+  const clock = clockOf(state.storyTime);
   const messages = saves.messages(id);
   const asked = [...(closeAsked.get(id) ?? [])].filter((thread) => plotThreads.includes(thread));
   closeAsked.delete(id);
@@ -491,7 +500,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
         kept.flatMap(({ thread, truth, now, question }) => (thread === null && now !== null && question ? [[truth!, question] as const] : [])),
       ),
     };
-    // On the clock, so the next move knows which plans are due; a Save from before it has none.
+    // On the clock, so the next move knows which plans are due, a time with no clock yet counting from its words (clockOf).
     const due = Object.fromEntries(
       kept.flatMap(({ thread, truth, now, plan, plan_in_hours }) =>
         now === null || !plan || plan_in_hours === null || clock === undefined ? [] : [[thread ?? truth!, clock + plan_in_hours] as const],

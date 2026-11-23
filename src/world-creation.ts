@@ -19,6 +19,7 @@ import type { Message, Save, SaveStore } from "./save-store";
 import {
   applyOperations,
   changeList,
+  clockOf,
   hasNumber,
   MAX_PLOT_THREADS,
   ListChange,
@@ -765,7 +766,8 @@ const worldAsItStands = (
   // The hours left on each plan, so a change that keeps or retimes one counts from them rather than guessing.
   plot_threads: plotThreads.map((truth) => {
     const due = threadsDue[truth];
-    const left = due !== undefined && storyTime?.hours !== undefined ? Math.max(0, Math.round(due - storyTime.hours)) : undefined;
+    const clock = clockOf(storyTime);
+    const left = due !== undefined && clock !== undefined ? Math.max(0, Math.round(due - clock)) : undefined;
     return { truth, now: threadsNow[truth] ?? "", ...(threadsPlan[truth] && { plan: threadsPlan[truth], ...(left !== undefined && { plan_in_hours: left }) }) };
   }),
   npcs: Object.fromEntries(npcs.map(({ name, appearance }) => [name, appearance])),
@@ -925,8 +927,8 @@ export async function applyWorldChange(
   const made = [...looks, ...journal];
   const update = { ...rest, plot_threads: plot_threads.map(({ old, new: truth }) => ({ old, new: truth })) };
   const by = (part: "now" | "plan") => Object.fromEntries(plot_threads.flatMap((change) => (change.new && change[part] ? [[change.new, change[part]]] : [])));
-  // On the clock, as World Moves On's are, so the next move brings a due plan to the PC; a Save from before it has none.
-  const clock = before.storyTime?.hours;
+  // On the clock, as World Moves On's are, so the next move brings a due plan to the PC, a time with no clock yet counting from its words (clockOf).
+  const clock = clockOf(before.storyTime);
   const due = Object.fromEntries(
     // A plan kept as it was may be retimed alone, though not by a change that rewrites the now, which drops it.
     plot_threads.flatMap(({ new: truth, now, plan, plan_in_hours }) =>

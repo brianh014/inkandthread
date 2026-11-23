@@ -29,3 +29,15 @@ test("a doer is with the PC by any name they go by, as a character's Lore Entry 
   expect(station.doerIn("At six Okafor will burn the page.", ["Okafor"])).toBe(true);
   expect(station.doerIn("At six Brandt Okafor will burn the page.", ["Okafor"])).toBe(true);
 });
+
+test("a doer is never with the PC by a surname shared with someone who is", () => {
+  const family = threadPeople({
+    npcs: [
+      { name: "Jon Vell", appearance: "a man" },
+      { name: "Mara Vell", appearance: "a woman" },
+    ],
+    worldBible: [],
+  });
+  expect(family.doerIn("At six Jon Vell will burn the letter.", ["Mara Vell"])).toBe(false);
+  expect(family.doerIn("At six Jon Vell will burn the letter.", ["Jon Vell"])).toBe(true);
+});

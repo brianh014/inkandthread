@@ -72,11 +72,7 @@ export function moveDue(id: string, before: State, after: State, replies: number
   // A plan falling due as time passes, as one past its hour waited about four rounds for the next move to bring it about. Only
   // hours set before this Turn, so a plan the Turn just wrote isn't carried out while the PC is still in the scene that set it up.
   const [start, end] = [clockOf(before.storyTime), clockOf(after.storyTime)];
-  const planFalls =
-    start !== undefined &&
-    end !== undefined &&
-    end > start &&
-    Object.entries(after.threadsDue).some(([truth, at]) => before.threadsDue[truth] === at && start <= at && at <= end);
+  const planFalls = start !== undefined && end !== undefined && end > start && Object.values(before.threadsDue).some((at) => start <= at && at <= end);
   const due = hoursOn || newDate || planFalls || since >= MOVE_EVERY;
   if (due) {
     log.info("world", "World move due", { save: id, hoursOn, newDate, planFalls, replies: since });
@@ -286,7 +282,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     if (thread === null || now === null || !ahead.has(thread)) return false;
     const plan = threadsPlan[thread]!;
     const words = deedWords(plan).filter((word) => !mentions(threadsNow[thread] ?? "", word));
-    return echoes(words, now) < 2 && echoes(words, shown) < 2;
+    return echoes(words, now) < Math.max(1, Math.min(2, words.length)) && echoes(words, shown) < 2;
   };
   /** Why a now or plan can't stand: it waits on the PC, puts someone with the PC somewhere else, hands its people a secret, or tells as done a plan whose people were with the PC. */
   const nowFaults = (kept: ThreadMove[]) =>
@@ -374,7 +370,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     for (const message of new Set(faults)) context.addIssue({ code: "custom", message });
   });
   const fell = new Set(
-    plotThreads.filter((truth) => threadsPlan[truth] && clock !== undefined && threadsDue[truth] !== undefined && threadsDue[truth]! <= clock),
+    plotThreads.filter((truth) => threadsPlan[truth] && clock !== undefined && (threadsDue[truth] === undefined || threadsDue[truth]! <= clock)),
   );
   // Plans whose hour is still ahead, which stand through a move.
   const ahead = new Set(

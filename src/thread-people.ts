@@ -21,11 +21,17 @@ export function threadPeople(state: Pick<State, "npcs" | "worldBible">) {
    * Thorne will burn it", not a place or someone it touches; the first it names when it has no such verb.
    */
   const doer = (plan: string) => {
-    const at = (names: string[]) => Math.min(...names.map((name) => plan.search(wholeWord(name, "u"))).filter((found) => found >= 0));
+    // Each person by the longest of their names the plan holds, and none whose words lie inside another's longer name, as
+    // "Vell" in "Jon Vell" is not Mara Vell.
+    const found = named(plan).map((names) => {
+      const [name] = names.filter((form) => mentions(plan, form, "u")).toSorted((one, other) => other.length - one.length);
+      const at = plan.search(wholeWord(name!, "u"));
+      return { names, at, end: at + name!.length };
+    });
+    const inside = (person: (typeof found)[number]) =>
+      found.some((other) => other !== person && other.at <= person.at && person.end <= other.end && other.end - other.at > person.end - person.at);
     const verb = plan.search(/\b(?:will|means|intends|plans|is to)\b/u);
-    const byPlace = named(plan)
-      .map((names) => ({ names, at: at(names) }))
-      .sort((one, other) => one.at - other.at);
+    const byPlace = found.filter((person) => !inside(person)).sort((one, other) => one.at - other.at);
     // No one named before its verb is someone not yet known, as "the smugglers will drag Kit off", never the one it touches.
     if (verb >= 0) return byPlace.filter((person) => person.at < verb).at(-1)?.names;
     return byPlace[0]?.names;
@@ -33,8 +39,10 @@ export function threadPeople(state: Pick<State, "npcs" | "worldBible">) {
   /** Whether a plan's doer is among these, as the people with the PC. */
   const doerIn = (plan: string, cast: string[]) => {
     const names = doer(plan);
-    // By any name either goes by, as a character's Lore Entry, holding their full name, outranked their own entry.
-    return !!names && cast.some((person) => nameForms(person).some((form) => names.includes(form)));
+    // By a full name, as a character's Lore Entry, holding their full name, outranked their own entry; never by a shared
+    // surname alone, as "Jon Vell" is not "Mara Vell".
+    const full = names?.toSorted((one, other) => other.length - one.length)[0];
+    return !!names && cast.some((person) => names.includes(person) || nameForms(person).includes(full!));
   };
   return { named, mentions, doer, doerIn };
 }

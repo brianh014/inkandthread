@@ -1176,7 +1176,7 @@ async function narrate(
       let restyled: Scene["restyled"] = [];
       let repeated = 0;
       let ignored: Refusal[] = [];
-      let paused = 0;
+      let overtakenPlans = 0;
       const messages = commit(
         narration,
         check,
@@ -1202,7 +1202,7 @@ async function narrate(
           );
           next.threadsPlan = Object.fromEntries(Object.entries(next.threadsPlan).filter(([truth]) => !overtaken.includes(truth)));
           next.threadsDue = Object.fromEntries(Object.entries(next.threadsDue).filter(([truth]) => !overtaken.includes(truth)));
-          paused = overtaken.length;
+          overtakenPlans = overtaken.length;
           // Through this Turn's amended truths, so an ask follows its thread to its new words, as the next move matches them exactly.
           rewrites = [...state_operations, ...(upkept ?? [])].flatMap((operation) =>
             operation.op === "update_plot_thread" && operation.truth
@@ -1288,7 +1288,7 @@ async function narrate(
         sceneChanged: !!scene_changed,
         chapterEnds: !!chapter_ends,
         // Plans dropped as overtaken, their hour come while their doer was with the PC.
-        ...(paused > 0 && { plansOvertaken: paused }),
+        ...(overtakenPlans > 0 && { plansOvertaken: overtakenPlans }),
         // The asks that matched an open thread, as the Narrator's own count logged asks of threads that never existed.
         ...(asks.length > 0 && { closeAsked: asked.length }),
       }));

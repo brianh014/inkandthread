@@ -215,33 +215,35 @@ const NAME_LETTERS = "ABCDEFGHIJKLMNOPRSTVWY";
 
 const pick = <T>(items: ArrayLike<T>) => items[Math.floor(Math.random() * items.length)]!;
 
-export type Sparks = Record<keyof typeof SPARKS | "nameLetters", string>;
+type SparkKind = keyof typeof SPARKS | "nameLetters";
+export type Sparks = Partial<Record<SparkKind, string>>;
 
-/** One of each kind of Spark, logged with `about`, such as the world's id, so a world can be traced to what it was built from. */
-export function drawSparks(about: Record<string, string>): Sparks {
+const drawOne = (kind: SparkKind) => {
+  if (kind !== "nameLetters") return pick(SPARKS[kind]);
   const letters = new Set<string>();
   while (letters.size < 3) letters.add(pick(NAME_LETTERS));
-  const sparks = { pressure: pick(SPARKS.pressure), constraint: pick(SPARKS.constraint), secret: pick(SPARKS.secret), nameLetters: [...letters].join(", ") };
+  return [...letters].join(", ");
+};
+
+/** A Spark of each kind asked for, logged with `about`, such as the world's id, so a world can be traced to what it was built from. */
+export function drawSparks(about: Record<string, string>, kinds: SparkKind[] = ["pressure", "constraint", "secret", "nameLetters"]): Sparks {
+  const sparks = Object.fromEntries(kinds.map((kind) => [kind, drawOne(kind)]));
   log.info("world", "Sparks drawn", { ...about, ...sparks });
   return sparks;
 }
 
-const SPARKED: string[] = ["worldBrief", "startingHook", "name"];
-
-const SPARK_WORDS: Sparks = {
+const SPARK_WORDS: Record<SparkKind, string> = {
   pressure: "a pressure on the world now:",
   constraint: "a constraint it lives under:",
-  secret: "a secret:",
+  secret: "a secret for a plot thread:",
   nameLetters: "invented names starting with",
 };
 
 // Bent rather than dropped, as "ignore what doesn't fit" is the easy way back to the average.
-const sparksLine = (sparks: Partial<Sparks>) =>
-  `Sparks, drawn at random so this world isn't the most familiar one: ${Object.entries(sparks)
-    .map(([kind, spark]) => `${SPARK_WORDS[kind as keyof Sparks]} ${spark}`)
-    .join(
-      "; ",
-    )}. Build them in where the player's choices leave room, bending each to fit the theme, and leave one out only where it contradicts what the player wrote.`;
+const sparksLine = (sparks: Sparks) =>
+  `Sparks, drawn at random so it isn't the most familiar pick: ${Object.entries(sparks)
+    .map(([kind, spark]) => `${SPARK_WORDS[kind as SparkKind]} ${spark}`)
+    .join("; ")}. Bend each to fit where the player's choices leave room, leaving one out only where it contradicts them.`;
 
 /** The player's choices a world is built from, as the Narrator is sent them. */
 const worldChoicesData = ({ title, theme, worldBrief, startingHook, characters = [] }: WorldChoices, { pc, inventory }: WorldPc) => ({
@@ -309,8 +311,12 @@ export async function pickForMe(
       ]),
     ),
   );
-  // Only where it invents the world or a name from nothing, and never the secret, as these boxes are the player's to read.
-  const { secret: _, ...sparks } = empty.some((field) => SPARKED.includes(field)) ? drawSparks({ call: "pickForMe" }) : ({} as Partial<Sparks>);
+  // Only the kinds its empty boxes can hold, and never the secret, as these boxes are the player's to read.
+  const kinds: SparkKind[] = [
+    ...(world.worldBrief === "" || world.startingHook === "" ? (["pressure", "constraint"] as const) : []),
+    ...(pc?.name === "" ? (["nameLetters"] as const) : []),
+  ];
+  const sparks = kinds.length ? drawSparks({ call: "pickForMe" }, kinds) : {};
   const prompt: Prompt = [
     {
       role: "system",

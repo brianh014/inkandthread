@@ -219,7 +219,7 @@ test("each world build and Regenerate is sent Sparks of its own, logged with the
   for (const line of drawn) expect(line).toContain(`"world":"${id}"`);
   for (const prompt of [prompts[1]!, prompts[2]!]) {
     expect(prompt[0]!.content).toMatch(
-      /Sparks, drawn at random.*a pressure on the world now: .+; a constraint.+; a secret: .+; invented names starting with [A-Z], [A-Z], [A-Z]\./,
+      /Sparks, drawn at random.*a pressure on the world now: .+; a constraint.+; a secret for a plot thread: .+; invented names starting with [A-Z], [A-Z], [A-Z]\./,
     );
   }
 });
@@ -256,16 +256,23 @@ test("Pick for me writes only the empty world boxes, from the theme and what the
   expect(JSON.parse(user!.content)).toEqual({ theme: "Steampunk", title: "", worldBrief: "A city on a whale", startingHook: "" });
 });
 
-test("Pick for me is sent Sparks, but no secret, only when it invents the world or a name", async () => {
-  play(JSON.stringify({ worldBrief: "A city on a whale." }), JSON.stringify({ title: "The Whale City" }));
+test("Pick for me is sent only the Sparks its empty boxes can hold, never a secret", async () => {
+  play(JSON.stringify({ worldBrief: "A city on a whale." }), JSON.stringify({ name: "Ash" }), JSON.stringify({ title: "The Whale City" }));
+  const pc = (name: string) => ({ name, background: "A diver", physicalTraits: "Tall", inventory: "a knife" });
 
-  await app.post("/worlds/pick", { theme: "Steampunk", title: "Whales", worldBrief: "" });
-  await app.post("/worlds/pick", { theme: "Steampunk", title: "", worldBrief: "A city on a whale." });
+  const log = await logOf(async () => {
+    await app.post("/worlds/pick", { theme: "Steampunk", title: "Whales", worldBrief: "", pc: pc("Ash") });
+    await app.post("/worlds/pick", { theme: "Steampunk", title: "Whales", worldBrief: "A city on a whale.", pc: pc("") });
+    await app.post("/worlds/pick", { theme: "Steampunk", title: "", worldBrief: "A city on a whale.", pc: pc("Ash") });
+  });
 
-  expect(prompts[0]![0]!.content).toContain("Sparks, drawn at random");
-  expect(prompts[0]![0]!.content).toContain("invented names starting with");
-  expect(prompts[0]![0]!.content).not.toContain("a secret:");
-  expect(prompts[1]![0]!.content).not.toContain("Sparks");
+  const [world, name, title] = prompts.map((prompt) => prompt[0]!.content);
+  expect(world).toMatch(/Sparks.*a pressure on the world now: .+; a constraint it lives under: [^;]+\./);
+  expect(world).not.toContain("invented names");
+  expect(name).toMatch(/Sparks.*: invented names starting with [A-Z], [A-Z], [A-Z]\./);
+  expect(name).not.toContain("a pressure");
+  expect(title).not.toContain("Sparks");
+  expect(log).not.toContain("secret");
 });
 
 test("Pick for me needs every empty box back, and retries a Title too long for a cover", async () => {

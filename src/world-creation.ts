@@ -152,6 +152,97 @@ const LINE_WORDS = 80;
 const STORY_CRAFT =
   "Make it a world stories grow from: every plot thread is a story of its own, not one more part of the same secret, with someone who wants something and something at stake, and says plainly who and what is behind it, as only the Narrator reads it, never what the PC will do; people and factions pull against each other, the opening draws the PC into one thread while the others unfold at their own pace, every mystery has its answer in the lore entries, and every part is particular to this world rather than stock.";
 
+// Sparks: starting points drawn in code, as a model can't be prompted out of its own most average pick but can be handed one to work with.
+// No tone, era or scale, as the theme and World Brief own those, and a random one would fight them.
+const SPARKS = {
+  pressure: [
+    "a debt that comes due this season",
+    "a succession nobody agrees on",
+    "something everyone depends on is running out",
+    "a newcomer power buying its way in",
+    "a truce about to break",
+    "people arriving faster than anyone can take them in",
+    "an old crime that has just come to light",
+    "a new invention that makes an old trade worthless",
+    "a contest or election with everything riding on it",
+    "a sickness spreading through one quarter",
+    "a marriage or alliance half the people oppose",
+    "a disaster everyone saw coming and nobody stopped",
+    "a promise made long ago that must now be kept",
+    "an inquiry nobody can afford to pass",
+    "the one person holding things together is failing",
+    "the one road out is closing",
+  ],
+  constraint: [
+    "travel is slow, dangerous or forbidden",
+    "one common thing is scarce and rationed",
+    "a whole group may not own anything",
+    "an oath, once sworn, binds in everyone's eyes",
+    "strangers must be vouched for",
+    "nothing gets done without a patron's say",
+    "every message passes through hands that read it",
+    "the old ways are outlawed but kept in secret",
+    "one place is closed to everyone",
+    "the weather rules every plan",
+    "two who hate each other share power",
+    "the law is for sale and everyone knows the price",
+    "a curfew everyone keeps",
+    "no one is allowed to leave",
+    "a tool everyone relied on no longer works",
+    "help is far away and slow to come",
+  ],
+  secret: [
+    "a lie everyone agreed to tell",
+    "the wrong person was punished",
+    "something hidden out of love",
+    "a hero who didn't do what they're praised for",
+    "a death that was no accident",
+    "a debt owed to the wrong people",
+    "two enemies secretly working together",
+    "someone raised as who they are not",
+    "a record quietly changed",
+    "a missing person who chose to disappear",
+    "a gift that was a bribe or a trap",
+    "a crime the place was founded on",
+    "a trusted person paid by a rival",
+    "a cure or discovery kept back",
+    "a vow broken and never confessed",
+    "a place that isn't empty",
+  ],
+};
+// Not Q, X or Z, which models reach for when told to be unusual.
+const NAME_LETTERS = "ABCDEFGHIJKLMNOPRSTVWY";
+
+const pick = <T>(items: ArrayLike<T>) => items[Math.floor(Math.random() * items.length)]!;
+
+export type Sparks = Record<keyof typeof SPARKS | "nameLetters", string>;
+
+/** One of each kind of Spark, logged with `about`, such as the world's id, so a world can be traced to what it was built from. */
+export function drawSparks(about: Record<string, string>): Sparks {
+  const letters = new Set<string>();
+  while (letters.size < 3) letters.add(pick(NAME_LETTERS));
+  const sparks = { pressure: pick(SPARKS.pressure), constraint: pick(SPARKS.constraint), secret: pick(SPARKS.secret), nameLetters: [...letters].join(", ") };
+  log.info("world", "Sparks drawn", { ...about, ...sparks });
+  return sparks;
+}
+
+const SPARKED: string[] = ["worldBrief", "startingHook", "name"];
+
+const SPARK_WORDS: Sparks = {
+  pressure: "a pressure on the world now:",
+  constraint: "a constraint it lives under:",
+  secret: "a secret:",
+  nameLetters: "invented names starting with",
+};
+
+// Bent rather than dropped, as "ignore what doesn't fit" is the easy way back to the average.
+const sparksLine = (sparks: Partial<Sparks>) =>
+  `Sparks, drawn at random so this world isn't the most familiar one: ${Object.entries(sparks)
+    .map(([kind, spark]) => `${SPARK_WORDS[kind as keyof Sparks]} ${spark}`)
+    .join(
+      "; ",
+    )}. Build them in where the player's choices leave room, bending each to fit the theme, and leave one out only where it contradicts what the player wrote.`;
+
 /** The player's choices a world is built from, as the Narrator is sent them. */
 const worldChoicesData = ({ title, theme, worldBrief, startingHook, characters = [] }: WorldChoices, { pc, inventory }: WorldPc) => ({
   title,
@@ -163,7 +254,7 @@ const worldChoicesData = ({ title, theme, worldBrief, startingHook, characters =
   inventory,
 });
 
-const worldPrompt = (context: Context, choices: WorldChoices, given: WorldPc): Prompt => [
+const worldPrompt = (context: Context, choices: WorldChoices, given: WorldPc, sparks: Sparks): Prompt => [
   {
     role: "system",
     content: `You are the Narrator of a story, creating its world before play begins. ${CHOICES_ARE_DATA}
@@ -174,6 +265,7 @@ lore_entries is the World Bible, which is secret. Write at least twelve entries 
 world_rules are strict statements of what is and is not possible in this world. Start with its theme and tone, because you will see these on every Turn and nothing else carries them.
 plot_threads are secret storylines for play to reveal. Write three to six.
 ${STORY_CRAFT}
+${sparksLine(sparks)}
 ${SHORT_LINES}
 calendar says in two or three sentences how people in this world count days, months and years, with the names they use, so that dates stay consistent in play. start_date and start_time_of_day are when the story opens, in that calendar, as the PC would reckon them, such as "3rd of Frostmoon, 412 AR" and "late evening". Make them fit the starting_hook, if there is one.
 world_overview is the only part the player ever reads. In a few short paragraphs, cover only what the PC would plausibly know from living in this world. It must be spoiler-free: never reveal or hint at a plot thread, and leave out every secret in the lore entries.
@@ -217,13 +309,15 @@ export async function pickForMe(
       ]),
     ),
   );
+  // Only where it invents the world or a name from nothing, and never the secret, as these boxes are the player's to read.
+  const { secret: _, ...sparks } = empty.some((field) => SPARKED.includes(field)) ? drawSparks({ call: "pickForMe" }) : ({} as Partial<Sparks>);
   const prompt: Prompt = [
     {
       role: "system",
       content: `You are the Narrator of a story, helping a player set up its world and their PC. ${CHOICES_ARE_DATA}
 Write what's missing, fresh and specific, fitting the theme and agreeing with everything the player already wrote. Reply only with JSON matching this schema, which holds only the empty fields: ${JSON.stringify(jsonSchemaOf(reply))}
 ${empty.map((field) => `${field} is ${ABOUT[field]}${WORD_LIMITS[field] ? `, in at most ${WORD_LIMITS[field]} words` : ""}${field === "inventory" ? ", about four to eight items that suit the world and their background" : ""}.`).join(" ")}
-${modelInstructions(context)}`,
+${Object.keys(sparks).length ? `${sparksLine(sparks)}\n` : ""}${modelInstructions(context)}`,
     },
     playerChoices({ theme, ...world, ...(pc && { pc }) }),
   ];
@@ -1033,9 +1127,9 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
 }
 
 /** Only `overview` may reach the player. */
-export async function generateWorld(context: Context, choices: WorldChoices, pc: WorldPc, signal: AbortSignal) {
+export async function generateWorld(context: Context, choices: WorldChoices, pc: WorldPc, sparks: Sparks, signal: AbortSignal) {
   // The review looks for a leak in the Overview, but past that it is Narrator free text, kept clean only by the prompts.
-  const written = await askForJson(context.textProvider, worldPrompt(context, choices, pc), WorldReply, REFUSAL, signal, { call: "world" });
+  const written = await askForJson(context.textProvider, worldPrompt(context, choices, pc, sparks), WorldReply, REFUSAL, signal, { call: "world" });
   const { world_overview, lore_entries, world_rules, plot_threads, calendar, start_date, start_time_of_day } = await reviewWorld(
     context,
     choices,

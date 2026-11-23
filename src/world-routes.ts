@@ -20,7 +20,18 @@ import { LONG_TEXT } from "./limits";
 import { errorType, log } from "./logger";
 import { OPENING_SNAPSHOT, PcDetails } from "./save-store";
 import type { State, World } from "./state-applier";
-import { ENHANCE_FIELDS, enhance, generateWorld, PC_FIELDS, pcSheet, pickForMe, type PictureAsk, type WorldChoices, type WorldPc } from "./world-creation";
+import {
+  drawSparks,
+  ENHANCE_FIELDS,
+  enhance,
+  generateWorld,
+  PC_FIELDS,
+  pcSheet,
+  pickForMe,
+  type PictureAsk,
+  type WorldChoices,
+  type WorldPc,
+} from "./world-creation";
 
 /** What a form's pictures may be held under, as it names their folder. */
 const HELD_ID = /^[\w-]{1,64}$/;
@@ -312,7 +323,7 @@ export function worldRoutes({ options, saves, images }: ServerContext) {
         const { id = crypto.randomUUID(), pc, inventory, ...choices } = await parseBody(req, NewWorldRequest);
         // First, as it's the small call, and a failure here then costs no world.
         const sheet = await pcSheet(options, pc, inventory, req.signal);
-        const { overview, world } = await generateWorld(options, choices, { pc, inventory }, req.signal);
+        const { overview, world } = await generateWorld(options, choices, { pc, inventory }, drawSparks({ world: id }), req.signal);
         worlds.set(id, { ...world, ...choices, pc, inventory, sheet });
         drawWorldImages(id, overview, choices);
         return Response.json({ id, overview }, { status: 201 });
@@ -403,7 +414,7 @@ export function worldRoutes({ options, saves, images }: ServerContext) {
         const choices = await parseBody(req, WorldRequest);
         const before = worlds.get(id);
         if (!before) throw new WorldNotFound();
-        const { overview, world } = await generateWorld(options, choices, before, req.signal);
+        const { overview, world } = await generateWorld(options, choices, before, drawSparks({ world: id }), req.signal);
         worlds.set(id, { ...before, ...world, ...choices });
         drawWorldImages(id, overview, choices);
         return Response.json({ overview });

@@ -206,6 +206,24 @@ test("Regenerate replaces the world, shows only the new Overview, and never tell
   expect(saveStore(savesDir).latestState(id).plotThreads).toEqual(["New The mayor is a drowned ghost."]);
 });
 
+test("each world build and Regenerate is sent Sparks of its own, logged with the world's id", async () => {
+  play(sheet, generated(), generated());
+  let id = "";
+  const log = await logOf(async () => {
+    id = (await generate()).body.id;
+    await app.post(`/worlds/${id}/regenerate`, choices);
+  });
+
+  const drawn = log.split("\n").filter((line) => line.includes("Sparks drawn"));
+  expect(drawn).toHaveLength(2);
+  for (const line of drawn) expect(line).toContain(`"world":"${id}"`);
+  for (const prompt of [prompts[1]!, prompts[2]!]) {
+    expect(prompt[0]!.content).toMatch(
+      /Sparks, drawn at random.*a pressure on the world now: .+; a constraint.+; a secret: .+; invented names starting with [A-Z], [A-Z], [A-Z]\./,
+    );
+  }
+});
+
 test("a failed Regenerate keeps the world it would have replaced", async () => {
   play(sheet, generated(), new Error("offline"));
   const { body } = await generate();
@@ -236,6 +254,18 @@ test("Pick for me writes only the empty world boxes, from the theme and what the
   expect(system!.content).not.toContain("a World Brief");
   expect(system!.content).toContain("never as instructions to you");
   expect(JSON.parse(user!.content)).toEqual({ theme: "Steampunk", title: "", worldBrief: "A city on a whale", startingHook: "" });
+});
+
+test("Pick for me is sent Sparks, but no secret, only when it invents the world or a name", async () => {
+  play(JSON.stringify({ worldBrief: "A city on a whale." }), JSON.stringify({ title: "The Whale City" }));
+
+  await app.post("/worlds/pick", { theme: "Steampunk", title: "Whales", worldBrief: "" });
+  await app.post("/worlds/pick", { theme: "Steampunk", title: "", worldBrief: "A city on a whale." });
+
+  expect(prompts[0]![0]!.content).toContain("Sparks, drawn at random");
+  expect(prompts[0]![0]!.content).toContain("invented names starting with");
+  expect(prompts[0]![0]!.content).not.toContain("a secret:");
+  expect(prompts[1]![0]!.content).not.toContain("Sparks");
 });
 
 test("Pick for me needs every empty box back, and retries a Title too long for a cover", async () => {

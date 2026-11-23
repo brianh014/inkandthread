@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TONE_MAX } from "./tones";
 
 export type LoreEntry = { title: string; keywords: string[]; content: string; alwaysOn: boolean };
 
@@ -54,6 +55,8 @@ export type State = {
   directorsNotes: string[];
   /** Here rather than on the Save, so a Revert undoes an edit to it. */
   worldBrief: string;
+  /** The Tone the story is told in, as `Name: description` or the player's own, empty for none. Here so a Revert undoes a change. */
+  tone: string;
   /** Closed Chapters, oldest first. A null `lastMessage` was closed after the latest Message, and the next Turn fills it in. */
   chapters: Chapter[];
   /** Whether the latest Narrator reply suggested ending the open Chapter. */
@@ -97,6 +100,7 @@ export const openingState: State = {
   recentSummary: "",
   directorsNotes: [],
   worldBrief: "",
+  tone: "",
   chapters: [],
   chapterReady: false,
   storyTime: null,
@@ -130,6 +134,7 @@ export const StateSections = {
   recentSummary: z.string(),
   directorsNotes: stringList,
   worldBrief: z.string(),
+  tone: z.string(),
   chapters: z.array(z.object({ lastMessage: z.number().int().nullable(), title: z.string() })),
   chapterReady: z.boolean(),
   storyTime: z
@@ -881,6 +886,8 @@ export function mergeWorldUpdate(world: World, update: WorldUpdate): World {
 /** What the player can change directly, which is all text they can already read. */
 export const VisibleEdit = z.discriminatedUnion("edit", [
   z.object({ edit: z.literal("worldBrief"), text: words }),
+  // Empty for none.
+  z.object({ edit: z.literal("tone"), text: z.string().trim().max(TONE_MAX) }),
   z.object({ edit: z.literal("summary"), text: words }),
   z.object({ edit: z.literal("recentSummary"), text: words }),
   z.object({ edit: z.literal("fact"), old: quote.nullable(), new: words.nullable() }).refine(namesSomething),
@@ -949,6 +956,8 @@ export function applyEdit(state: State, edit: WorldEdit): State {
   switch (edit.edit) {
     case "worldBrief":
       return { ...state, worldBrief: edit.text };
+    case "tone":
+      return { ...state, tone: edit.text };
     case "summary":
       return { ...state, summary: edit.text };
     case "recentSummary":

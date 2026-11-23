@@ -39,6 +39,8 @@ import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 export type WorldChoices = {
   title: string;
   theme: string;
+  /** The Tone, empty for none. */
+  tone?: string;
   worldBrief: string;
   startingHook: string;
   characters?: Character[];
@@ -161,7 +163,7 @@ const STORY_CRAFT =
   "Make it a world stories grow from: every plot thread is a story of its own, not one more part of the same secret, with someone who wants something and something at stake, and says plainly who and what is behind it, as only the Narrator reads it, never what the PC will do; people and factions pull against each other, the opening draws the PC into one thread while the others unfold at their own pace, every mystery has its answer in the lore entries, and every part is particular to this world rather than stock.";
 
 // Sparks: starting points drawn in code, as a model can't be prompted out of its own most average pick but can be handed one to work with.
-// No tone, era or scale, as the theme and World Brief own those, and a random one would fight them.
+// No tone, era or scale, as the theme, the Tone and World Brief own those, and a random one would fight them.
 // Long lists, as models use a Spark nearly word for word, often in the title, so a repeat across a player's worlds shows. Each item
 // differs in kind, with no word a title would take up (curfew, vouch, oath), and no region in a war or crisis today.
 const SPARKS = {
@@ -606,9 +608,10 @@ const sparksLine = (sparks: Sparks) =>
   }`;
 
 /** The player's choices a world is built from, as the Narrator is sent them. */
-const worldChoicesData = ({ title, theme, worldBrief, startingHook, characters = [] }: WorldChoices, { pc, inventory }: WorldPc) => ({
+const worldChoicesData = ({ title, theme, tone, worldBrief, startingHook, characters = [] }: WorldChoices, { pc, inventory }: WorldPc) => ({
   title,
   theme,
+  ...(tone && { tone }),
   world_brief: worldBrief,
   starting_hook: startingHook,
   important_characters: characters.map(({ name, description }) => ({ name, description })),
@@ -625,7 +628,7 @@ pc and inventory are the player's PC and what they start with. ${PC_IS_CANON} Th
 Reply only with JSON matching this schema, with its keys in the same order: ${JSON.stringify(jsonSchemaOf(WorldReply))}
 naming says in a sentence or two how people here name people and places and how those names sound. Give every name in the world by it, and in play new names will follow it too.
 lore_entries is the World Bible, which is secret. Write at least twelve entries covering places, factions, people, history and how the world works. Each must make sense on its own, because in play you only see the entries a recent Message activates. Give each at least three keywords, including names, nicknames and everyday paraphrases, so that a player's wording still activates it.
-world_rules are strict statements of what is and is not possible in this world. Start with its theme and tone, because you will see these on every Turn and nothing else carries them.
+world_rules are strict statements of what is and is not possible in this world. Start with its theme and tone${choices.tone ? ", taking the tone from tone, and build a world it fits" : ""}, because you will see these on every Turn and nothing else carries them.
 plot_threads are secret storylines for play to reveal. Write three to six.
 ${STORY_CRAFT}
 ${sparksLine(sparks)}
@@ -1475,7 +1478,7 @@ function reviewWorld(context: Context, choices: WorldChoices, pc: WorldPc, world
 Fix only what has one of these faults:
 - contradiction: parts of the world contradict each other, start_date and the calendar among them.
 - plot_hole: something rests on what the rest of the world rules out.
-- strays_from_choices: it ignores or changes the theme, title, world_brief, starting_hook, important_characters or pc.
+- strays_from_choices: it ignores or changes the theme, ${choices.tone ? "tone, " : ""}title, world_brief, starting_hook, important_characters or pc.
 - unreachable_thread: the PC could never come across a plot thread from where the story opens.
 - leaked_secret: world_overview, the only part the player reads, reveals or hints at a plot thread or a secret of the lore entries.
 - thin_story: a part falls short of this, so strengthen only what is thin. ${STORY_CRAFT}

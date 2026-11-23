@@ -20,6 +20,7 @@ import { LONG_TEXT } from "./limits";
 import { errorType, log } from "./logger";
 import { OPENING_SNAPSHOT, PcDetails } from "./save-store";
 import type { State, World } from "./state-applier";
+import { TONE_MAX } from "./tones";
 import {
   drawSparks,
   ENHANCE_FIELDS,
@@ -44,6 +45,7 @@ const Ref = z.string().regex(/^[\w-]{1,40}$/);
 const WorldRequest = z.object({
   title: z.string().trim().min(1).max(80),
   theme: z.string().trim().min(1),
+  tone: z.string().trim().max(TONE_MAX).default(""),
   worldBrief: longText.min(1),
   startingHook: longText,
   characters: z
@@ -354,8 +356,22 @@ export function worldRoutes({ options, saves, images }: ServerContext) {
         const { artStyle } = await parseBody(req, ArtStyleRequest);
         const world = worlds.get(req.params.id);
         if (!world) throw new WorldNotFound();
-        const { title, theme, worldBrief, startingHook, pc, worldBible, worldRules, plotThreads, storyTime, sheet, characters = [], pcOnCover = true } = world;
-        const opening = { worldBible, worldRules, plotThreads, storyTime, ...sheet };
+        const {
+          title,
+          theme,
+          tone = "",
+          worldBrief,
+          startingHook,
+          pc,
+          worldBible,
+          worldRules,
+          plotThreads,
+          storyTime,
+          sheet,
+          characters = [],
+          pcOnCover = true,
+        } = world;
+        const opening = { worldBible, worldRules, plotThreads, storyTime, tone, ...sheet };
         const importantCharacters = characters.map(({ name, description, onCover = true }) => ({ name, description, onCover }));
         const id = saves.create({ title, theme, worldBrief, startingHook, pc, artStyle, importantCharacters, pcOnCover, opening });
         worlds.delete(req.params.id);

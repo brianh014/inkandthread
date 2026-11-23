@@ -64,6 +64,7 @@ test("a generated world reaches the player only as its World Overview, and its S
   expect(saves.read(id)).toEqual({
     title: "The Salt Reckoning",
     worldBrief: "A drowned city",
+    tone: "",
     pc: { name: "Ash" },
     artStyle: "Ink wash",
     theme: "Western",

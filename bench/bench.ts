@@ -15,6 +15,8 @@
 //   bun bench run --from <Saves folder> --at <M> --world <its world> [...]   replays the Turn of Message M: cuts the story back
 //                                to before the player's move that led to M and sends that move again as the first round, to
 //                                test a fix on the very Turn that went wrong (--rounds 1 --runs 5, say), with and without it
+//   bun bench run --from <Saves folder> --tone <name|none> [...]   sets that Tone on the copy before playing on, to test a Tone
+//                                changed mid-story, against the same run without --tone
 //   bun bench judge <run folder> --by <model> --scores <scores.json>   (scores for a --judge self run, one entry per play)
 //   bun bench keep <run folder>        copies the run's numbers, never its story, to bench/results to commit
 //   bun bench table [--csv]            every kept and recent run, side by side
@@ -40,6 +42,7 @@ import { saveStore } from "../src/save-store";
 import { localIsSetUp } from "../src/graph-builder";
 import { reviewerSettings, settingsStore } from "../src/settings-store";
 import { textProvider } from "../src/text-provider";
+import { TONES, toneText } from "../src/tones";
 import { VERSION } from "../src/updater";
 import { askForJson, type TextProvider, worldMoved } from "../src/turn-engine";
 import { chartPage } from "./chart";
@@ -53,7 +56,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 1;
+const BENCH_ITERATION = 2;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 45;
@@ -65,6 +68,8 @@ const draw = process.argv.includes("--draw");
 const fromSaves = process.argv.includes("--from") ? resolve(process.argv[process.argv.indexOf("--from") + 1]!) : undefined;
 // The Message whose Turn a --from run replays, as a fix is best tested on the Turn that went wrong.
 const replayAt = process.argv.includes("--at") ? Number(process.argv[process.argv.indexOf("--at") + 1]) : undefined;
+// The Tone a --from run sets on its copy before it plays, by name, or none, to test a Tone changed mid-story.
+const toneArg = process.argv.includes("--tone") ? process.argv[process.argv.indexOf("--tone") + 1]! : undefined;
 const narratorOf = (settings: ReturnType<typeof settingsStore>) => (fake ? fakeTextProvider : textProvider(settings));
 const RUNS = join(BENCH, "runs");
 const RESULTS = join(BENCH, "results");
@@ -196,7 +201,7 @@ type Result = {
   coverage: Record<string, number>;
   judge: { by: string; plays: JudgeReply[] } | null;
   /** The kept Saves folder a --from run played on from and the rounds it held, as runs compare only with those continued from the same story. */
-  continued?: { from: string; round: number; at?: number };
+  continued?: { from: string; round: number; at?: number; tone?: string };
   /** RUBRIC_VERSION it was judged by; absent on runs judged before the second, whose scores don't compare. */
   rubric?: number;
   plays: Flat[];
@@ -451,6 +456,7 @@ async function play(
   const saves = saveStore(savesDir);
   const id = fromSaves ? saves.list()[0]!.id : saves.create({ ...world.save, opening: world.opening as Partial<State> });
   const replayed = replayAt === undefined ? undefined : replayMove(saves, id, replayAt);
+  if (toneArg !== undefined) saves.addEdit(id, { edit: "tone", text: toneText(toneArg, "") });
   // The rounds a kept Save already holds, so the timeline's rounds follow on from them.
   const first = saves.messages(id).filter(({ role }) => role === "player").length;
   // Where a kept story left off, so the judge reads only the rounds played on from it.
@@ -922,6 +928,7 @@ async function playApart(index: number, seed: number, rounds: number, movesFile:
       ...(draw ? ["--draw"] : []),
       ...(fromSaves ? ["--from", fromSaves] : []),
       ...(replayAt !== undefined ? ["--at", String(replayAt)] : []),
+      ...(toneArg !== undefined ? ["--tone", toneArg] : []),
     ],
     { stdout: "inherit", stderr: "inherit" },
   );
@@ -952,6 +959,8 @@ async function run() {
   readWorld();
   if (replayAt !== undefined && (!fromSaves || movesFile || !Number.isInteger(replayAt) || replayAt < 1))
     fail("--at takes a Message number, with --from and without --moves.");
+  if (toneArg !== undefined && (!fromSaves || (toneArg !== "none" && !TONES[toneArg])))
+    fail(`--tone takes none or one of ${Object.keys(TONES).join(", ")}, with --from.`);
 
   // A copy outside the repo, as it holds keys. Pictures are on, drawn by a stand-in, with the player's image Settings, which shape
   // the prompts; with none set up, as an OpenRouter model, which takes prose prompts.
@@ -1025,7 +1034,12 @@ async function run() {
     rounds,
     runs,
     ...(fromSaves && {
-      continued: { from: relative(process.cwd(), fromSaves).replaceAll("\\", "/"), round: 0, ...(replayAt !== undefined && { at: replayAt }) },
+      continued: {
+        from: relative(process.cwd(), fromSaves).replaceAll("\\", "/"),
+        round: 0,
+        ...(replayAt !== undefined && { at: replayAt }),
+        ...(toneArg !== undefined && { tone: toneArg }),
+      },
     }),
     estimate: dollars,
     summary: {},

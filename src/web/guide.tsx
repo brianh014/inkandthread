@@ -215,6 +215,10 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             <b>Theme</b>: the kind of story, such as High Fantasy, Cyberpunk or Horror, or your own.
           </li>
           <li>
+            <b>Tone</b>: how the story is told, such as Wry, Whimsical or Grim, or your own. The world's own leaves it to the world. It changes only the
+            telling, never what happens. You can change it later in the Journal.
+          </li>
+          <li>
             <b>World Brief</b>: your description of the world. A line is enough; more gives you more say. You can change it later in the Journal.
           </li>
           <li>
@@ -370,6 +374,9 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           </li>
           <li>
             <b>World Brief</b>: your description of the world, which you can change.
+          </li>
+          <li>
+            <b>Tone</b>: how the story is told, which you can change. The next reply takes it up.
           </li>
           <li>
             <b>Story Summary</b> and <b>Recent summary</b>: the story so far, and what just happened.

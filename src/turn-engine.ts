@@ -1192,19 +1192,16 @@ async function narrate(
           upkeepDropped = [...kept.refused, ...kept.ignored];
           upkeepRefused = upkeepDropped.length;
           const next = kept.next;
-          // A plan whose hour came while its doer is with the PC, or shown in this reply, was overtaken by play, as it could not
-          // happen off the page, moves put it off again and again, and one carried out while the page showed its doer at the harbour
-          // steps put him in the vestry: it goes, and the next move gives its thread another.
-          // shortcut: a doer only talked of counts as shown; tell the two apart if plans go that shouldn't.
-          const { doerIn, doer } = threadPeople(next);
-          const shownHere = (plan: string) => doer(plan)?.some((name) => wholeWord(name, "u").test(narration)) ?? false;
+          // A plan whose hour came while its doer is with the PC was overtaken by play, as it could not happen off the page and
+          // moves put it off again and again: it goes, and the next move gives its thread another.
+          const { doerIn } = threadPeople(next);
           const clock = next.storyTime?.hours;
           // A plan with no hour counts as come, as moves read it as due.
           const overtaken = Object.keys(next.threadsPlan).filter(
             (truth) =>
               clock !== undefined &&
               (next.threadsDue[truth] === undefined || next.threadsDue[truth]! <= clock) &&
-              (doerIn(next.threadsPlan[truth]!, next.scene.visibleCast) || shownHere(next.threadsPlan[truth]!)),
+              doerIn(next.threadsPlan[truth]!, next.scene.visibleCast),
           );
           next.threadsPlan = Object.fromEntries(Object.entries(next.threadsPlan).filter(([truth]) => !overtaken.includes(truth)));
           next.threadsDue = Object.fromEntries(Object.entries(next.threadsDue).filter(([truth]) => !overtaken.includes(truth)));

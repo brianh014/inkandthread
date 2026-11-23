@@ -210,6 +210,8 @@ test("no one echoes the PC, re-argues a case the PC turned down, or ends most re
   await playTurn(id);
 
   expect(lastSystem()).toContain("no one opens by echoing what the PC just said");
+  // Nor a line the replies above already gave, word for word, as a confession was told again to a newcomer as it was.
+  expect(lastSystem()).toContain("never have anyone say again word for word what was said in them");
   expect(lastSystem()).toContain("that person doesn't raise it again unless something new gives them reason");
   expect(lastSystem()).toContain("once the PC has said there's time, no one asks how long is left or counts it down");
   expect(lastSystem()).toContain("they don't all argue for the same view");

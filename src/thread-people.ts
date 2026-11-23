@@ -26,8 +26,9 @@ export function threadPeople(state: Pick<State, "npcs" | "worldBible">) {
     const byPlace = named(plan)
       .map((names) => ({ names, at: at(names) }))
       .sort((one, other) => one.at - other.at);
-    const before = verb < 0 ? [] : byPlace.filter((person) => person.at < verb);
-    return (before.at(-1) ?? byPlace[0])?.names;
+    // No one named before its verb is someone not yet known, as "the smugglers will drag Kit off", never the one it touches.
+    if (verb >= 0) return byPlace.filter((person) => person.at < verb).at(-1)?.names;
+    return byPlace[0]?.names;
   };
   /** Whether a plan's doer is among these, as the people with the PC. */
   const doerIn = (plan: string, cast: string[]) => doer(plan)?.some((name) => cast.includes(name)) ?? false;

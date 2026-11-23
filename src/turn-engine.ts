@@ -48,7 +48,8 @@ import { applyWorldChange } from "./world-creation";
 import { foldKnows } from "./knowledge-folds";
 import { closeLooseEnds } from "./loose-ends-check";
 import { growLore } from "./lore-growth";
-import { askToClose, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, threadPeople, turnThreadChanges } from "./world-moves-on";
+import { askToClose, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, turnThreadChanges } from "./world-moves-on";
+import { threadPeople } from "./thread-people";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
 const moving = new Map<string, Promise<void>>();

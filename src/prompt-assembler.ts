@@ -2,7 +2,7 @@ import type { Check } from "./check-resolver";
 import { activateLore, estimateTokens, wholeWord } from "./lore-activation";
 import { threadPeople } from "./thread-people";
 import type { Message, Save } from "./save-store";
-import { MAX_PLOT_THREADS, playersOwn, type SceneMemory, type State, type WorldEdit } from "./state-applier";
+import { clockOf, MAX_PLOT_THREADS, playersOwn, type SceneMemory, type State, type WorldEdit } from "./state-applier";
 import type { PromptStyle } from "./graph-builder";
 
 export type Prompt = { role: "system" | "user" | "assistant"; content: string }[];
@@ -378,7 +378,7 @@ export function assemblePrompt({
     // A plan with no hour whose doer is with the PC is their intent, for the Narrator to stage; any other stays a plan.
     .map((truth) => {
       const plan = threadsPlan[truth];
-      const intent = plan && threadsDue[truth] === undefined && doerIn(plan, currentState.scene.visibleCast);
+      const intent = plan && threadsDue[truth] === undefined && clockOf(currentState.storyTime) !== undefined && doerIn(plan, currentState.scene.visibleCast);
       return { truth, now: threadsNow[truth] ?? "", ...(plan && (intent ? { intent: plan } : { plan })) };
     });
   const recent = messageWindow(messages, sceneMemories, memoryStart, windowMessages);

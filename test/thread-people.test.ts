@@ -14,6 +14,7 @@ test("a plan's doer is the last person it names before its verb, never a place o
   expect(people.doer("At six Thorne will take Kit from the dock.")).toContain("Thorne");
   expect(people.doer("After Kit leaves, Thorne will burn the page.")).toContain("Thorne");
   expect(people.doer("At the Gilded Rose, Kit will slip the ledger to Mara.")).toContain("Kit");
+  expect(people.doer("At dawn the smugglers will drag Kit to the cove.")).toBeUndefined();
   // With no such verb, the first it names.
   expect(people.doer("Mara, at the forge by noon.")).toContain("Mara");
   expect(people.doerIn("At six Thorne will take Kit from the dock.", ["Kit"])).toBe(false);

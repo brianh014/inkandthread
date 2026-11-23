@@ -6,7 +6,8 @@ import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
 import { applyEdit, applyOperations, MAX_NPC_KNOWS, openingState, type WorldEdit } from "../src/state-applier";
 import { journalChange } from "../src/prompt-assembler";
-import { MOVE_EVERY, moveDue, sameDeed, threadPeople, turnThreadChanges } from "../src/world-moves-on";
+import { MOVE_EVERY, moveDue, sameDeed, turnThreadChanges } from "../src/world-moves-on";
+import { threadPeople } from "../src/thread-people";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -420,6 +421,21 @@ test("a story with no clock yet counts from its opening's hour, so a plan timed 
   const later = applyOperations(timed, [passing]).next;
   expect(later.storyTime?.hours).toBe(27.5);
   expect(moveDue("clockless", timed, later, 1)).toBe(true);
+});
+
+test("a move is due once an intent's doer leaves the PC, as they went to do it", () => {
+  const kit = "Kit will slip down to the dock.";
+  const base = {
+    ...openingState,
+    npcs: [{ name: "Kit", appearance: "a boy" }],
+    plotThreads: [THIEF],
+    threadsPlan: { [THIEF]: kit },
+    storyTime: { day: 1, date: "1st of Thaw", timeOfDay: "noon", hours: 12 },
+  };
+  const withKit = { ...base, scene: { location: "The library", visibleCast: ["Kit"] } };
+  const gone = { ...base, scene: { location: "The library", visibleCast: [] } };
+  expect(moveDue("left", withKit, gone, 1)).toBe(true);
+  expect(moveDue("stays", withKit, withKit, 1)).toBe(false);
 });
 
 test("the fallback move counts replies since the last move, so a move due on time is never followed by one a reply later", () => {

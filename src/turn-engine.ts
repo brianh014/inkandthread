@@ -1196,9 +1196,12 @@ async function narrate(
           // moves put it off again and again: it goes, and the next move gives its thread another.
           const { doerIn } = threadPeople(next);
           const clock = next.storyTime?.hours;
-          const overtaken = Object.keys(next.threadsDue).filter(
+          // A plan with no hour counts as come, as moves read it as due.
+          const overtaken = Object.keys(next.threadsPlan).filter(
             (truth) =>
-              clock !== undefined && next.threadsDue[truth]! <= clock && next.threadsPlan[truth] && doerIn(next.threadsPlan[truth]!, next.scene.visibleCast),
+              clock !== undefined &&
+              (next.threadsDue[truth] === undefined || next.threadsDue[truth]! <= clock) &&
+              doerIn(next.threadsPlan[truth]!, next.scene.visibleCast),
           );
           next.threadsPlan = Object.fromEntries(Object.entries(next.threadsPlan).filter(([truth]) => !overtaken.includes(truth)));
           next.threadsDue = Object.fromEntries(Object.entries(next.threadsDue).filter(([truth]) => !overtaken.includes(truth)));

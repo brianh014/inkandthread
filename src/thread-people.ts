@@ -24,12 +24,15 @@ export function threadPeople(state: Pick<State, "npcs" | "worldBible">) {
     // Each person by the longest of their names the plan holds, and none whose words lie inside another's longer name, as
     // "Vell" in "Jon Vell" is not Mara Vell.
     const found = named(plan).map((names) => {
-      const [name] = names.filter((form) => mentions(plan, form, "u")).toSorted((one, other) => other.length - one.length);
-      const at = plan.search(wholeWord(name!, "u"));
-      return { names, at, end: at + name!.length };
+      const held = names.filter((form) => mentions(plan, form, "u"));
+      const [name] = held.toSorted((one, other) => other.length - one.length);
+      const from = plan.search(wholeWord(name!, "u"));
+      // Placed by the first name of theirs it holds, as "Thorne will burn the letter signed Amos Thorne" is Thorne's.
+      const at = Math.min(...held.map((form) => plan.search(wholeWord(form, "u"))));
+      return { names, at, from, end: from + name!.length };
     });
     const inside = (person: (typeof found)[number]) =>
-      found.some((other) => other !== person && other.at <= person.at && person.end <= other.end && other.end - other.at > person.end - person.at);
+      found.some((other) => other !== person && other.from <= person.from && person.end <= other.end && other.end - other.from > person.end - person.from);
     const verb = plan.search(/\b(?:will|means|intends|plans|is to)\b/u);
     const byPlace = found.filter((person) => !inside(person)).sort((one, other) => one.at - other.at);
     // No one named before its verb is someone not yet known, as "the smugglers will drag Kit off", never the one it touches.

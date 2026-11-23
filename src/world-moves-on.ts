@@ -281,8 +281,8 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const keepsPlan = ({ thread, now }: ThreadMove) => {
     if (thread === null || now === null || !ahead.has(thread)) return false;
     const plan = threadsPlan[thread]!;
-    const words = deedWords(plan).filter((word) => !mentions(threadsNow[thread] ?? "", word));
-    return echoes(words, now) < Math.max(1, Math.min(2, words.length)) && echoes(words, shown) < 2;
+    const was = threadsNow[thread] ?? "";
+    return !shownDone(plan, was, now) && !shownDone(plan, was, shown);
   };
   /** Why a now or plan can't stand: it waits on the PC, puts someone with the PC somewhere else, hands its people a secret, or tells as done a plan whose people were with the PC. */
   const nowFaults = (kept: ThreadMove[]) =>

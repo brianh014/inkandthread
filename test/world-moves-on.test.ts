@@ -1098,6 +1098,8 @@ test("a move that tells as done a plan whose people were with the PC is asked ag
       plotThreads: [drowned],
       threadsNow: { [drowned]: "Grout dug a grave." },
       threadsPlan: { [drowned]: plan },
+      // Far ahead, so it stands rather than going as overtaken with Grout on the page.
+      threadsDue: { [drowned]: 100 },
       worldBible: [],
     },
   });

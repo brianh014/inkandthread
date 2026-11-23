@@ -48,7 +48,7 @@ import { applyWorldChange } from "./world-creation";
 import { foldKnows } from "./knowledge-folds";
 import { closeLooseEnds } from "./loose-ends-check";
 import { growLore } from "./lore-growth";
-import { askToClose, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, turnThreadChanges } from "./world-moves-on";
+import { askToClose, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, threadPeople, turnThreadChanges } from "./world-moves-on";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
 const moving = new Map<string, Promise<void>>();
@@ -1175,6 +1175,7 @@ async function narrate(
       let restyled: Scene["restyled"] = [];
       let repeated = 0;
       let ignored: Refusal[] = [];
+      let paused = 0;
       const messages = commit(
         narration,
         check,
@@ -1190,12 +1191,13 @@ async function narrate(
           upkeepDropped = [...kept.refused, ...kept.ignored];
           upkeepRefused = upkeepDropped.length;
           const next = kept.next;
-          // A plan this Turn timed counts from the reply's end, so it moves on with the time Upkeep gave the reply.
-          const added = (next.storyTime?.hours ?? 0) - (told.storyTime?.hours ?? 0);
-          if (added > 0 && told.storyTime?.hours !== undefined)
-            next.threadsDue = Object.fromEntries(
-              Object.entries(next.threadsDue).map(([truth, due]) => [truth, state.threadsDue[truth] === due ? due : due + added]),
-            );
+          // A plan whose people are with the PC loses its hour and is theirs to act on in the scene, as one timed for someone on the
+          // page could never happen off it and was put off again and again.
+          const { named } = threadPeople(next);
+          const onPage = (plan: string) => named(plan).some((names) => names.some((name) => next.scene.visibleCast.includes(name)));
+          const pausing = Object.keys(next.threadsDue).filter((truth) => next.threadsPlan[truth] && onPage(next.threadsPlan[truth]!));
+          next.threadsDue = Object.fromEntries(Object.entries(next.threadsDue).filter(([truth]) => !pausing.includes(truth)));
+          paused = pausing.length;
           // Through this Turn's amended truths, so an ask follows its thread to its new words, as the next move matches them exactly.
           rewrites = [...state_operations, ...(upkept ?? [])].flatMap((operation) =>
             operation.op === "update_plot_thread" && operation.truth
@@ -1280,6 +1282,8 @@ async function narrate(
         ...(upkeep && { upkeep: (upkept ?? []).map(({ op }) => op), upkeepRefused }),
         sceneChanged: !!scene_changed,
         chapterEnds: !!chapter_ends,
+        // Plans whose hour was taken, as their people are with the PC.
+        ...(paused > 0 && { plansPaused: paused }),
         // The asks that matched an open thread, as the Narrator's own count logged asks of threads that never existed.
         ...(asks.length > 0 && { closeAsked: asked.length }),
       }));

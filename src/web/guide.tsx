@@ -377,7 +377,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           </li>
           <li>
             <b>Loose Ends</b>: what your PC knows is still unsettled, such as promises, plans and open questions. Add, change or remove them. Removing one only
-            tells the Narrator to stop pressing it: it still happened.
+            tells the Narrator to stop pressing it: it still happened. When many are open, the AI clears a few the story has moved past.
           </li>
           <li>
             <b>What your PC knows</b>: the facts your PC has learned so far. Add, change or remove them, and the Narrator takes what you write as true.

@@ -937,6 +937,32 @@ test("a Save from before plans opens with none, so its now reads as done", () =>
   expect(store().latestState(id)).toMatchObject({ threadsNow: { [THIEF]: "He waits." }, threadsPlan: {} });
 });
 
+test("a long reply moves the clock at least as long as its telling, and a plan it times moves on with it", async () => {
+  play(
+    narration(`${"The tide turns. ".repeat(300)}`, {
+      op: "update_plot_thread",
+      thread: THIEF,
+      now: "He waits.",
+      plan: "He will run.",
+      plan_in_hours: 0,
+      truth: null,
+    }),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: { plotThreads: [THIEF], storyTime: { day: 1, date: "1st of Thaw", timeOfDay: "ten in the morning", hours: 10 } },
+  });
+
+  const log = await logOf(async () => expect((await turn(id, "I wait.")).ok).toBe(true), "info");
+
+  // 900 words, read aloud at 150 a minute.
+  const { storyTime, threadsDue } = store().latestState(id);
+  expect(storyTime?.hours).toBeCloseTo(10.1);
+  expect(threadsDue[THIEF]).toBeCloseTo(10.1);
+  expect(log).toContain('"clockFloor":6');
+});
+
 test("a Turn's update of a thread sets its plan, or clears it", () => {
   const state = { ...structuredClone(openingState), plotThreads: [THIEF], threadsNow: { [THIEF]: "He waits." }, threadsPlan: { [THIEF]: "He will run." } };
   const planned = applyOperations(state, [

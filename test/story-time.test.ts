@@ -251,14 +251,16 @@ test("a time of day in words reads as its clock hour, as a clock reading only di
   }
 });
 
-test("a reply moves the clock at least as long as its telling takes, never past midnight or a date it waits on", () => {
-  const at = (hours: number | undefined, timeOfDay = "five in the morning", extra = {}) => ({ day: 1, date: "1st of Thaw", timeOfDay, hours, ...extra });
-  expect(atLeast(at(5), at(5.05), 0.1)).toEqual(at(5.1));
-  // Time the reply set beyond its telling stands.
-  expect(atLeast(at(5), at(7), 0.1)).toEqual(at(7));
-  // From the words where there is no clock yet.
-  expect(atLeast(at(undefined), at(undefined), 0.25)).toEqual(at(5.25));
-  expect(atLeast(at(23.95), at(23.95), 0.1)).toEqual(at(23.95));
-  expect(atLeast(at(5), at(5, "five in the morning", { dateDue: true }), 0.1)).toEqual(at(5, "five in the morning", { dateDue: true }));
-  expect(atLeast(null, at(5), 0.1)).toEqual(at(5));
+test("a reply moves the clock at least as long as its telling takes, short of midnight, and never against the words", () => {
+  const time = (hours: number | undefined, extra = {}) => ({ day: 1, date: "1st of Thaw", timeOfDay: "five in the morning", hours, ...extra });
+  expect(atLeast(time(5), time(5.05), 0.1)).toEqual(time(5.1));
+  // Time the reply set beyond its telling stands, and so does a clock set back to the hour its words name.
+  expect(atLeast(time(5), time(7), 0.1)).toEqual(time(7));
+  expect(atLeast(time(10), time(7), 0.1)).toEqual(time(7));
+  // A clock not yet started isn't started from a guess.
+  expect(atLeast(time(undefined), time(undefined), 0.25)).toEqual(time(undefined));
+  // Up to a minute short of midnight, as only the Narrator can give the next date.
+  expect(atLeast(time(23.9), time(23.9), 0.25)?.hours).toBeCloseTo(24 - 1 / 60);
+  expect(atLeast(time(5), time(5, { dateDue: true }), 0.1)).toEqual(time(5, { dateDue: true }));
+  expect(atLeast(null, time(5), 0.1)).toEqual(time(5));
 });

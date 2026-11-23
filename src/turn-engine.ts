@@ -29,7 +29,6 @@ import type { NarratorTurn, UsageStore } from "./usage-store";
 import {
   applyOperations,
   atLeast,
-  clockOf,
   closestThread,
   findPerson,
   givenName,
@@ -1186,7 +1185,13 @@ async function narrate(
           const next = kept.next;
           const timed = next.storyTime;
           next.storyTime = atLeast(state.storyTime, timed, countWords(narration) / WORDS_AN_HOUR);
-          clockFloor = next.storyTime !== timed ? Math.round(((next.storyTime?.hours ?? 0) - (clockOf(timed) ?? 0)) * 600) / 10 : 0;
+          const added = (next.storyTime?.hours ?? 0) - (timed?.hours ?? 0);
+          clockFloor = Math.round(added * 600) / 10;
+          // Plans timed this Turn move on with it, so none falls behind the clock and never falls due.
+          if (added > 0)
+            next.threadsDue = Object.fromEntries(
+              Object.entries(next.threadsDue).map(([truth, due]) => [truth, state.threadsDue[truth] === due ? due : due + added]),
+            );
           // Through this Turn's amended truths, so an ask follows its thread to its new words, as the next move matches them exactly.
           rewrites = [...state_operations, ...(upkept ?? [])].flatMap((operation) =>
             operation.op === "update_plot_thread" && operation.truth

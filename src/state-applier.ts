@@ -740,14 +740,15 @@ export const clockOf = (time: StoryTime | null | undefined) => (time ? (time.hou
 /**
  * Story time moved on to at least `hours` past `before`, as a reply takes at least as long as its telling, and Turns that set no
  * time or a few minutes for a whole scene held the clock at five for ten rounds. Only the clock: its words follow it, as the
- * Narrator keeps them true to the clock it is shown. shortcut: never across midnight, which needs a date only the Narrator can
- * give; carry the day over with dateDue if stalls at night matter.
+ * Narrator keeps them true to the clock it is shown. Not a clock set back to the hour its words name, which the words win, nor
+ * one not yet started, which would start from a guess; and up to a minute short of midnight, as only the Narrator can give the
+ * next date.
  */
 export function atLeast(before: StoryTime | null, after: StoryTime | null, hours: number) {
-  const [was, now] = [clockOf(before), clockOf(after)];
-  if (!after || was === undefined || now === undefined || now - was >= hours || after.dateDue) return after;
-  const floor = was + hours;
-  return Math.floor(floor / 24) === Math.floor(now / 24) ? { ...after, hours: floor } : after;
+  const [was, now] = [before?.hours, after?.hours];
+  if (!after || was === undefined || now === undefined || now < was || now - was >= hours || after.dateDue) return after;
+  const floor = Math.min(was + hours, Math.floor(now / 24) * 24 + 24 - 1 / 60);
+  return floor > now ? { ...after, hours: floor } : after;
 }
 
 /**

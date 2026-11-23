@@ -638,9 +638,10 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
         before.hours === undefined ||
         operation.hours_passed === null ||
         wentBack ||
-        // Past the story's own day, not the hours' day, as hours run past midnight with words still before it left day 1 on
-        // Monday, and the real night that followed lost its day and date.
-        Math.floor((before.hours + operation.hours_passed) / 24) + 1 > before.day;
+        Math.floor((before.hours + operation.hours_passed) / 24) > Math.floor(before.hours / 24) ||
+        // Or an hour into a day past the story's own, as hours run past midnight with words still before it left day 1 on
+        // Monday, and the real night that followed lost its day and date; not minutes past, which over-counted talk reaches.
+        before.hours + operation.hours_passed >= before.day * 24 + 1;
       const date = (reached ? operation.date : null) ?? before?.date;
       if (date === undefined) return "no date";
       // The date wins over days_passed when they disagree, as models gave the day count there, doubling it each time (day 280 in

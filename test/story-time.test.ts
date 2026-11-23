@@ -258,3 +258,9 @@ test("a night passed is a new day though the clock already ran past midnight wit
   ]);
   expect(next.storyTime).toMatchObject({ day: 2, date: "Tuesday, 16th", timeOfDay: "twenty past six in the morning" });
 });
+
+test("a short walk after talk over-counted past midnight is no new day, however the reply dates it", () => {
+  const before = { ...openingState, storyTime: { day: 1, date: "Monday, 15th", timeOfDay: "evening", hours: 24.5 } };
+  const { next } = applyOperations(before, [{ op: "set_story_time", days_passed: 1, hours_passed: 0.17, date: "Tuesday, 16th", time_of_day: "evening" }]);
+  expect(next.storyTime).toMatchObject({ day: 1, date: "Monday, 15th" });
+});

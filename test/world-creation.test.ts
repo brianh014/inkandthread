@@ -280,14 +280,17 @@ test("Pick for me is sent only the Sparks its empty boxes can hold, never a secr
   expect(world).not.toContain("when it is set");
 });
 
-test("Pick for me draws when a World Brief is set only for a theme that leaves it open", async () => {
-  play(JSON.stringify({ worldBrief: "A haunted town." }), JSON.stringify({ worldBrief: "A haunted town." }));
+test("Pick for me draws when a World Brief is set only for a built-in theme that leaves it open, and the theme comes first", async () => {
+  play(...Array(3).fill(JSON.stringify({ worldBrief: "A haunted town." })));
 
   await app.post("/worlds/pick", { theme: "Horror: Ordinary lives unravel.", title: "Dread", worldBrief: "" });
-  await app.post("/worlds/pick", { theme: "A story of my own", title: "Dread", worldBrief: "" });
+  await app.post("/worlds/pick", { theme: "Western: The American frontier.", title: "Dread", worldBrief: "" });
+  await app.post("/worlds/pick", { theme: "A Victorian ghost story", title: "Dread", worldBrief: "" });
 
-  for (const prompt of prompts)
-    expect(prompt[0]!.content).toMatch(/Sparks, drawn at random so it isn't the most familiar pick: when it is set: [^;]+; a real region/);
+  const [open, fixed, own] = prompts.map((prompt) => prompt[0]!.content);
+  expect(open).toMatch(/Sparks, drawn at random so it isn't the most familiar pick: when it is set: [^;]+; a real region/);
+  for (const prompt of [fixed, own]) expect(prompt).toMatch(/Sparks, drawn at random so it isn't the most familiar pick: a real region/);
+  expect(own).toContain("the theme and what the player wrote come first");
 });
 
 test("Pick for me needs every empty box back, and retries a Title too long for a cover", async () => {

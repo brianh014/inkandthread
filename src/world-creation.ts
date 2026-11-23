@@ -312,21 +312,8 @@ const SPARKS = {
     "a research station",
   ],
 };
-/** Built-in themes whose description already says when they are set. */
-const ERA_SET = [
-  "High Fantasy",
-  "Dark Fantasy",
-  "Urban Fantasy",
-  "Romantasy",
-  "Cyberpunk",
-  "Space Opera",
-  "Sci Fi",
-  "Modern Day",
-  "Steampunk",
-  "Realistic medieval",
-  "Western",
-  "Post-Apocalyptic",
-];
+/** Built-in themes that leave when they are set open. A player's own theme isn't one, as it often says, such as "Victorian" or "far future". */
+const ERA_OPEN = ["Romance", "Horror", "Noir", "Mystery", "Spy Thriller"];
 // Not Q, X or Z, which models reach for when told to be unusual.
 const NAME_LETTERS = "ABCDEFGHIJKLMNOPRSTVWY";
 
@@ -367,7 +354,7 @@ const sparksLine = (sparks: Sparks) =>
     .map(([kind, spark]) => `${SPARK_WORDS[kind as SparkKind]} ${spark}`)
     .join("; ")}. ${
     sparks.place
-      ? "Build the world from them, each fitting the theme and what the player wrote."
+      ? "Build the world from them, but the theme and what the player wrote come first: bend each Spark to them, and leave out any they rule out."
       : "Bend each to fit where the player's choices leave room, leaving one out only where it contradicts them."
   }`;
 
@@ -440,7 +427,7 @@ export async function pickForMe(
   );
   // Only the kinds its empty boxes can hold, and never the secret, as these boxes are the player's to read.
   const kinds: SparkKind[] = [
-    ...(world.worldBrief === "" && !ERA_SET.includes(theme.split(":")[0]!) ? (["era"] as const) : []),
+    ...(world.worldBrief === "" && ERA_OPEN.includes(theme.split(":")[0]!) ? (["era"] as const) : []),
     ...(world.worldBrief === "" ? (["region", "place"] as const) : []),
     ...(world.worldBrief === "" || world.startingHook === "" ? (["pressure", "constraint"] as const) : []),
     // Not with a region, whose own sound of names the letters would fight.

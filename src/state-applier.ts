@@ -426,7 +426,7 @@ function mergeNpcKnows(state: State, name: string, into: string) {
 }
 
 /** What this reply made of each Plot Thread's truth it changed, its amended truth or null once resolved. */
-type ThreadsSoFar = { became: Map<string, string | null>; held?: Set<string> };
+type ThreadsSoFar = { became: Map<string, string | null>; held?: Set<string>; timed?: Map<string, number> };
 
 /**
  * The open thread `text` names, followed to what this reply made of it, so that a thread already changed is never matched
@@ -581,13 +581,14 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const truth = operation.truth ?? thread;
       const { [thread]: _was, ...others } = state.threadsNow;
       state.threadsNow = { ...others, [truth]: operation.now };
-      const { [thread]: _planned, ...otherPlans } = state.threadsPlan;
+      const { [thread]: planned, ...otherPlans } = state.threadsPlan;
       state.threadsPlan = operation.plan ? { ...otherPlans, [truth]: operation.plan } : otherPlans;
-      // Timed on the clock as a move's are, as a rewritten plan with no hour never fell due and sat stale for ten rounds.
-      const { [thread]: _due, ...otherDue } = state.threadsDue;
-      const clock = state.storyTime?.hours;
-      state.threadsDue =
-        operation.plan && operation.plan_in_hours !== null && clock !== undefined ? { ...otherDue, [truth]: clock + operation.plan_in_hours } : otherDue;
+      // Timed on the clock as a move's are, as a rewritten plan with no hour never fell due and sat stale for ten rounds. A plan
+      // copied as it was keeps its hour, so restating it never puts it off; a new one is timed once the reply's clock is known.
+      const { [thread]: due, ...otherDue } = state.threadsDue;
+      const kept = operation.plan !== null && operation.plan === planned && due !== undefined;
+      state.threadsDue = kept ? { ...otherDue, [truth]: due } : otherDue;
+      if (!kept && operation.plan && operation.plan_in_hours !== null) threads.timed?.set(truth, operation.plan_in_hours);
       const { [thread]: question, ...otherQuestions } = state.threadsQuestion;
       if (question) state.threadsQuestion = { ...otherQuestions, [truth]: question };
       const { [thread]: parts, ...otherParts } = state.threadParts;
@@ -813,12 +814,20 @@ const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }
 export function applyOperations(state: State, operations: StateOperation[]) {
   const next = structuredClone(state);
   let repeats = 0;
-  const threads: ThreadsSoFar = { became: new Map(), held: new Set([...state.inventory.wearing, ...state.inventory.carrying].map(itemWords)) };
+  const threads: ThreadsSoFar = {
+    became: new Map(),
+    held: new Set([...state.inventory.wearing, ...state.inventory.carrying].map(itemWords)),
+    timed: new Map(),
+  };
   const refusals = operations.flatMap(({ ...operation }) => {
     if (isRepeat(next, operation)) repeats++;
     const reason = apply(next, operation, threads);
     return reason ? [{ op: operation.op, reason }] : [];
   });
+  // From the reply's own clock, whatever order its operations came in, as hours counted before its set_story_time fell due at once.
+  const clock = next.storyTime?.hours;
+  for (const [truth, hours] of threads.timed!)
+    if (clock !== undefined && next.threadsPlan[truth]) next.threadsDue = { ...next.threadsDue, [truth]: clock + hours };
   return { next, refused: refusals.filter((refusal) => !isHarmless(refusal)), ignored: refusals.filter(isHarmless), repeats };
 }
 

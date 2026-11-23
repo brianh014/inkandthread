@@ -401,6 +401,10 @@ test("a move is due after hours of story time, on a new day or every few replies
   expect(
     moveDue("g", { ...clocked, storyTime: { ...clocked.storyTime, hours: 14.25 } }, { ...clocked, storyTime: { ...clocked.storyTime, hours: 15 } }, 1),
   ).toBe(false);
+  // Not for an hour this Turn wrote, but for one set exactly at the clock once time moves.
+  const later = { ...clocked, storyTime: { ...clocked.storyTime, hours: 14.25 } };
+  expect(moveDue("h", { ...clocked, threadsDue: {} }, later, 1)).toBe(false);
+  expect(moveDue("i", { ...clocked, threadsDue: { "A thread.": 13.5 } }, { ...later, threadsDue: { "A thread.": 13.5 } }, 1)).toBe(true);
 });
 
 test("the fallback move counts replies since the last move, so a move due on time is never followed by one a reply later", () => {
@@ -927,6 +931,21 @@ test("a Turn's update of a thread sets its plan, or clears it", () => {
     { op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: "He will hide by dusk.", plan_in_hours: 6, truth: null },
   ]).next;
   expect(due.threadsDue).toEqual({ [THIEF]: 16 });
+  // Counted from the reply's clock whatever the order, and a plan copied as it was keeps its hour rather than sliding later.
+  const passing = { op: "set_story_time", days_passed: 0, hours_passed: 3, time_of_day: "early afternoon", date: null } as const;
+  const after = applyOperations(timed, [
+    { op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: "He will hide by dusk.", plan_in_hours: 6, truth: null },
+    passing,
+  ]).next;
+  expect(after.threadsDue).toEqual({ [THIEF]: 19 });
+  const restated = applyOperations(after, [
+    { op: "update_plot_thread", thread: THIEF, now: "He hid.", plan: "He will hide by dusk.", plan_in_hours: 6, truth: null },
+  ]).next;
+  expect(restated.threadsDue).toEqual({ [THIEF]: 19 });
+  const copied = applyOperations(after, [
+    { op: "update_plot_thread", thread: THIEF, now: "He hid.", plan: "He will hide by dusk.", plan_in_hours: null, truth: null },
+  ]);
+  expect(copied.next.threadsDue).toEqual({ [THIEF]: 19 });
   expect(
     applyOperations(state, [{ op: "update_plot_thread", thread: THIEF, now: "He ran.", plan: null, plan_in_hours: null, truth: null }]).next.threadsPlan,
   ).toEqual({});

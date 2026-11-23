@@ -68,10 +68,16 @@ export function moveDue(id: string, before: State, after: State, replies: number
   const newDate =
     (after.storyTime?.day ?? 0) > (before.storyTime?.day ?? 0) || (after.storyTime?.date !== before.storyTime?.date && !before.storyTime?.dateDue);
   const since = replies - (movedAt.get(id) ?? 0);
-  // A plan falling due, as one past its hour waited about four rounds for the next move to bring it about.
-  const planFalls = was !== undefined && now !== undefined && Object.values(after.threadsDue).some((at) => was < at && at <= now);
+  // A plan falling due as time passes, as one past its hour waited about four rounds for the next move to bring it about. Only
+  // hours set before this Turn, so a plan the Turn just wrote isn't carried out while the PC is still in the scene that set it up.
+  const planFalls =
+    was !== undefined &&
+    now !== undefined &&
+    now > was &&
+    Object.entries(after.threadsDue).some(([truth, at]) => before.threadsDue[truth] === at && was <= at && at <= now);
   const due = hoursOn || newDate || planFalls || since >= MOVE_EVERY;
   if (due) {
+    log.info("world", "World move due", { save: id, hoursOn, newDate, planFalls, replies: since });
     movedAt.set(id, replies);
     repliesSince.set(id, since);
   }

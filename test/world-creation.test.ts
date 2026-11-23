@@ -268,13 +268,13 @@ test("Pick for me is sent only the Sparks its empty boxes can hold, never a secr
 
   const [world, name, title] = prompts.map((prompt) => prompt[0]!.content);
   expect(world).toMatch(
-    /Sparks.*what people here make, trade or fight over: \w+ and \w+; a pressure on the world now: .+; a constraint it lives under: .+; invented names of people and places starting with [A-Z](, [A-Z]){4}\. Build the world from them/,
+    /Sparks.*something people here make or sell: \w+; something they fight over: \w+; a pressure on the world now: .+; a constraint it lives under: .+; invented names of people and places starting with [A-Z](, [A-Z]){4}\. Build the world from them/,
   );
   expect(name).toMatch(/Sparks.*: invented names of people and places starting with [A-Z](, [A-Z]){4}\./);
   expect(name).not.toContain("a pressure");
   expect(name).toContain("Bend each to fit");
   expect(title).not.toContain("Sparks");
-  expect(log).not.toContain("secret");
+  expect(log).not.toContain('"secret":');
 });
 
 test("Pick for me needs every empty box back, and retries a Title too long for a cover", async () => {

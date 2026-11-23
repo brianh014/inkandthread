@@ -211,7 +211,7 @@ const SPARKS = {
   ],
 };
 // For a World Brief written from nothing: plain goods, as a model bends an abstract Spark into its own favourite premise. A
-// livelihood, not what holds the world up, as "the thing everything rests on is failing" is that favourite. Two, so the premise must join them.
+// livelihood, not what holds the world up, as "the thing everything rests on is failing" is that favourite. Two, in different roles, so the premise must join them, as a pair given alike came back as "a town built on two trades".
 const GOODS = [
   "salt",
   "bells",
@@ -256,11 +256,11 @@ const distinct = <T>(items: ArrayLike<T>, count: number) => {
   return [...drawn];
 };
 
-type SparkKind = keyof typeof SPARKS | "goods" | "nameLetters";
+type SparkKind = keyof typeof SPARKS | "trade" | "prize" | "nameLetters";
 export type Sparks = Partial<Record<SparkKind, string>>;
 
 const drawOne = (kind: SparkKind) =>
-  kind === "goods" ? distinct(GOODS, 2).join(" and ") : kind === "nameLetters" ? distinct(NAME_LETTERS, 5).join(", ") : pick(SPARKS[kind]);
+  kind === "trade" || kind === "prize" ? pick(GOODS) : kind === "nameLetters" ? distinct(NAME_LETTERS, 5).join(", ") : pick(SPARKS[kind]);
 
 /** A Spark of each kind asked for, logged with `about`, such as the world's id, so a world can be traced to what it was built from. */
 export function drawSparks(about: Record<string, string>, kinds: SparkKind[] = ["pressure", "constraint", "secret", "nameLetters"]): Sparks {
@@ -273,7 +273,8 @@ const SPARK_WORDS: Record<SparkKind, string> = {
   pressure: "a pressure on the world now:",
   constraint: "a constraint it lives under:",
   secret: "a secret for a plot thread:",
-  goods: "what people here make, trade or fight over:",
+  trade: "something people here make or sell:",
+  prize: "something they fight over:",
   nameLetters: "invented names of people and places starting with",
 };
 
@@ -282,7 +283,7 @@ const sparksLine = (sparks: Sparks) =>
   `Sparks, drawn at random so it isn't the most familiar pick: ${Object.entries(sparks)
     .map(([kind, spark]) => `${SPARK_WORDS[kind as SparkKind]} ${spark}`)
     .join("; ")}. ${
-    sparks.goods
+    sparks.trade
       ? "Build the world from them, each fitting the theme and what the player wrote."
       : "Bend each to fit where the player's choices leave room, leaving one out only where it contradicts them."
   }`;
@@ -355,7 +356,7 @@ export async function pickForMe(
   );
   // Only the kinds its empty boxes can hold, and never the secret, as these boxes are the player's to read.
   const kinds: SparkKind[] = [
-    ...(world.worldBrief === "" ? (["goods"] as const) : []),
+    ...(world.worldBrief === "" ? (["trade", "prize"] as const) : []),
     ...(world.worldBrief === "" || world.startingHook === "" ? (["pressure", "constraint"] as const) : []),
     ...(pc?.name === "" || world.worldBrief === "" ? (["nameLetters"] as const) : []),
   ];

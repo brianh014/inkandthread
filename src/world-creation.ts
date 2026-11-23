@@ -21,6 +21,7 @@ import {
   changeList,
   clockOf,
   hasNumber,
+  MAX_PLAN_HOURS,
   MAX_PLOT_THREADS,
   ListChange,
   LoreEntryReply,
@@ -932,7 +933,9 @@ export async function applyWorldChange(
   const due = Object.fromEntries(
     // A plan kept as it was may be retimed alone, though not by a change that rewrites the now, which drops it.
     plot_threads.flatMap(({ new: truth, now, plan, plan_in_hours }) =>
-      truth && (plan || (before.threadsPlan[truth] && !now)) && plan_in_hours !== null && clock !== undefined ? [[truth, clock + plan_in_hours]] : [],
+      truth && (plan || (before.threadsPlan[truth] && !now)) && plan_in_hours !== null && clock !== undefined
+        ? [[truth, clock + Math.min(plan_in_hours, MAX_PLAN_HOURS)]]
+        : [],
     ),
   );
   saves.addWorldChange(id, basedOn, [...made, { edit: "world", update, now: by("now"), plan: by("plan"), due, made: made.length, ...(sign && { sign }) }]);

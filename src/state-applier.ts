@@ -143,6 +143,9 @@ const nonEmpty = z.string().min(1);
 const statusKind = z.enum(["injuries", "conditions"]);
 
 /** How a reply moves Story Time on: set_story_time without its op, which State Upkeep gives as a field of its own. */
+/** The most story hours ahead a plan may fall due, as one timed for days off would stand while play made it absurd. */
+export const MAX_PLAN_HOURS = 12;
+
 export const StoryTimeMove = z.object({
   days_passed: z.number().int().min(0),
   // Missing reads as unknown, so a reply from before it still moves the clock by its words.

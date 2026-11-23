@@ -1479,7 +1479,6 @@ test("a Save reports its World Brief and PC, and an unknown Save is not found", 
     startingHook: "",
     hasCover: false,
     coverRedraws: 0,
-    playMode: "free",
   });
   expect(missing.status).toBe(404);
 });

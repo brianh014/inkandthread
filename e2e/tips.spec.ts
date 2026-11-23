@@ -1,12 +1,15 @@
 import { expect, test } from "@playwright/test";
-import { newStory, sendTurn } from "./support";
+import { hideChoices, newStory, sendTurn, showChoicesAgain } from "./support";
 
 // The fake server starts with the tips seen, so no other test meets them. These show them again, and leave them seen.
 const showAgain = (request: import("@playwright/test").APIRequestContext) => request.post("/settings/tips", { data: { how: "again" } });
 test.afterEach(({ request }) => request.post("/settings/tips", { data: { how: "finished" } }));
+test.afterEach(showChoicesAgain);
 
 test("the first-time tips walk the tools by the box and under the response, once", async ({ page, request }) => {
   await showAgain(request);
+  // Typing, so the walk reaches Decide for me and Send, which sit with the text box.
+  await hideChoices(page);
   await newStory(page);
 
   const tip = page.getByRole("dialog", { name: /^Tip: / });

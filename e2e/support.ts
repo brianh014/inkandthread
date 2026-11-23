@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { type APIRequestContext, expect, type Page } from "@playwright/test";
 import { join } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 
@@ -13,8 +13,17 @@ export async function sendTurn(page: Page, words: string) {
   await expect(page.getByRole("button", { name: "Stop" })).toBeHidden();
 }
 
+/**
+ * Hides the Choices, a Setting for every story, so the player types each move with the tools by the box, as a spec of those
+ * needs. They show again after the test, as every spec shares the one server's Settings.
+ */
+export async function hideChoices(page: Page) {
+  expect((await page.request.patch("/settings", { data: { showChoices: false } })).ok()).toBe(true);
+}
+export const showChoicesAgain = ({ request }: { request: APIRequestContext }) => request.patch("/settings", { data: { showChoices: true } });
+
 /** Makes a story through the New Story wizard with the fake Narrator's picks, and leaves the page on its Opening. */
-export async function newStory(page: Page, playMode?: "Choices") {
+export async function newStory(page: Page) {
   await page.goto("/");
   await page.getByRole("link", { name: "New Story" }).click();
   await page.getByRole("button", { name: "Pick for me" }).click();
@@ -22,7 +31,6 @@ export async function newStory(page: Page, playMode?: "Choices") {
   await expect(page.getByLabel("What is your story called?")).not.toHaveValue("");
   await page.getByRole("button", { name: "Next" }).click();
   await page.getByRole("button", { name: "Generate the world" }).click();
-  if (playMode) await page.getByText(playMode, { exact: true }).click();
   await page.getByRole("button", { name: "Begin" }).click();
   await expect(page).toHaveURL(/#\/play\//);
   await expect(page.getByTestId("message-narrator")).toHaveCount(1);

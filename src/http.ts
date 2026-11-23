@@ -33,6 +33,8 @@ export type ServerOptions = {
   reviewProvider?: TextProvider;
   /** Whether the world moves on at natural pauses (`moveWorldOn`): on in the app and the bench, off in tests, whose scripted Narrator would answer it. */
   moveWorld?: boolean;
+  /** Whether each Turn writes Choices: on in the app and the bench, off in tests, whose scripted Narrator would answer them. */
+  offerChoices?: boolean;
   /**
    * One adapter for every online provider, as tests and --fake use, or one per provider. A list must name them all, so a provider
    * added later can't fall back to another's adapter and send it that provider's key.

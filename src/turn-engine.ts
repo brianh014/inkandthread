@@ -23,7 +23,7 @@ import {
   SET_SCENE_NOTE,
   worldSigns,
 } from "./prompt-assembler";
-import { type Message, type PlayMode, type Reply, type SaveStore, StaleTurn } from "./save-store";
+import { type Message, type Reply, type SaveStore, StaleTurn } from "./save-store";
 import { modelName, type SettingsStore } from "./settings-store";
 import type { NarratorTurn, UsageStore } from "./usage-store";
 import {
@@ -476,6 +476,8 @@ type Narrated = {
   before: State;
   /** Left out when there's no reviewer to keep the state, as in a test's script. */
   upkeep?: Upkeep;
+  /** Whether the Choices are written, which every Turn does in the app. */
+  offerChoices?: boolean;
   /** The Narrator's last reply before this one. */
   previous?: string;
   /** All the player has read so far, the Starting Hook and the Messages, so a Choice is never built on what the PC hasn't. Built only when asked, as a long story's is large. */
@@ -499,7 +501,6 @@ type Narrated = {
   recentMoves?: string[];
   /** Left out when no new roll is allowed, which makes a Check request an invalid reply. */
   rollCheck?: (request: z.infer<typeof CheckRequest>) => Check;
-  playMode: PlayMode;
   commit: (narration: string, check: Check | undefined, advance: (state: State) => State, choices: string[] | undefined) => Reply[];
   /** Runs once the Turn is committed, so image work is never part of its transaction. */
   committed: (messageId: number, scene: Scene) => void;
@@ -570,7 +571,6 @@ function turnPrompt(
     };
   });
   return {
-    playMode: save.playMode,
     prompt,
     memory: nextMemory(textProvider, messages, state.sceneMemories, memoryStart, current.textRecentMessages, signal),
     replies: narratorReplies(messages),
@@ -622,7 +622,14 @@ function followedUp(id: string, kind: string, images: ImagePipeline, times: Foll
 }
 
 /** What a World Change needs: the Narrator, the reviewer and the pictures a change can restyle. */
-type WorldContext = { textProvider: TextProvider; settings: SettingsStore; images: ImagePipeline; reviewProvider?: TextProvider };
+type WorldContext = {
+  textProvider: TextProvider;
+  settings: SettingsStore;
+  images: ImagePipeline;
+  reviewProvider?: TextProvider;
+  /** Whether each Turn writes Choices: on in the app and the bench, off in tests, whose scripted Narrator would answer them. */
+  offerChoices?: boolean;
+};
 
 /**
  * Brings the hidden world in line with the player's Journal edits in a call of its own, as a Turn busy writing the
@@ -653,6 +660,7 @@ export async function playTurn(
     usage,
     reviewProvider,
     moveWorld,
+    offerChoices,
   }: {
     textProvider: TextProvider;
     dice: Dice;
@@ -663,6 +671,7 @@ export async function playTurn(
     reviewProvider?: TextProvider;
     /** Whether the world moves on at natural pauses. See `moveWorldOn`. */
     moveWorld?: boolean;
+    offerChoices?: boolean;
   },
   id: string,
   input: string,
@@ -675,7 +684,7 @@ export async function playTurn(
   const basedOn = saves.latestMessageId(id);
   const state = saves.latestState(id);
   const messages = saves.messages(id);
-  const { prompt, memory, playMode, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, memory, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -696,6 +705,7 @@ export async function playTurn(
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     before: state,
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
+    offerChoices,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     mustMeet:
@@ -708,7 +718,6 @@ export async function playTurn(
     recentMoves,
     // The PC attempts nothing in a Continue, so there is nothing to roll for.
     rollCheck: mayCheck && !isContinueInput(input) ? (request) => resolveCheck(request, dice, nearMissMargin) : undefined,
-    playMode,
     commit: (narration, check, advance, choices) => saves.commitTurn(id, basedOn, input, narration, check, advance, choices),
     committed: (messageId, scene) => images.sceneChanged(id, messageId, scene),
     // Only what the player did counts, so not the opening or a Continue, which have nothing to check.
@@ -747,7 +756,7 @@ export function playOpening(saves: SaveStore, engine: Parameters<typeof playTurn
  */
 export async function replaceResponse(
   saves: SaveStore,
-  { textProvider, settings, images, reviewProvider, dice, nearMissMargin }: WorldContext & { dice: Dice; nearMissMargin: number },
+  { textProvider, settings, images, reviewProvider, offerChoices, dice, nearMissMargin }: WorldContext & { dice: Dice; nearMissMargin: number },
   id: string,
   messageId: number,
   feedback: string | undefined,
@@ -759,7 +768,7 @@ export async function replaceResponse(
   const { input, narration, check, state, messages, sceneImage, journalEdits, movesDropped } = saves.turnToReplace(id, messageId, true);
   // The old picture goes with its response, so the new one always gets its own, whatever the Narrator decides.
   const hadPicture = !!sceneImage || images.sceneDrawing(id, messageId);
-  const { prompt, memory, playMode, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, memory, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -781,6 +790,7 @@ export async function replaceResponse(
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     before: state,
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
+    offerChoices,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     memory,
@@ -788,7 +798,6 @@ export async function replaceResponse(
     clockBack,
     recentMoves,
     rollCheck: mayRate ? (request) => resolveCheck(request, dice, nearMissMargin) : undefined,
-    playMode,
     commit: (text, rolled, advance, choices) => {
       if (mayRate)
         log.info("turn", "Replacement re-rated", {
@@ -822,7 +831,7 @@ export async function replaceResponse(
 /** An Edit: the player's words replace the latest response's, and the Narrator brings the state in line with them. The picture and any Check stay. */
 export async function editResponse(
   saves: SaveStore,
-  { textProvider, settings, images, reviewProvider }: WorldContext,
+  { textProvider, settings, images, reviewProvider, offerChoices }: WorldContext,
   id: string,
   messageId: number,
   text: string,
@@ -840,7 +849,7 @@ export async function editResponse(
   const added = (replaced && text.includes(replaced) ? text.split(replaced).join("\n").trim() : undefined) || undefined;
   const state = added === undefined ? turn.state : saves.latestState(id);
   if (added !== undefined) log.info("turn", "Edit adds to the response", { save: id, message: messageId });
-  const { prompt, memory, playMode, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, memory, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -858,6 +867,7 @@ export async function editResponse(
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     before: state,
     upkeep: reviewProvider && { provider: reviewProvider, settings, input },
+    offerChoices,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     narration: text,
@@ -866,7 +876,6 @@ export async function editResponse(
     clockBack,
     recentMoves,
     ...(added !== undefined && { upkeepReads: { narration: added, previous: replaced } }),
-    playMode,
     commit: (narration, _check, advance, choices) => saves.editTurn(id, messageId, narration, advance, choices, added !== undefined),
     // Only portraits for anyone new, as the Scene Image stays.
     committed: (edited, scene) => images.sceneChanged(id, edited, { ...scene, changed: false }),
@@ -890,6 +899,7 @@ async function narrate(
     pcTraits,
     before,
     upkeep,
+    offerChoices,
     previous = "",
     seen,
     mustMeet = [],
@@ -900,7 +910,6 @@ async function narrate(
     recentMoves,
     upkeepReads,
     rollCheck,
-    playMode,
     commit,
     committed,
     counted,
@@ -1144,7 +1153,8 @@ async function narrate(
         // Always asked for alone, in a call that sees no secret, as the Narrator's own named its secrets in everyday words.
         followUp(
           "choices",
-          playMode === "choices"
+          // Every Turn, whether or not the player shows them, so turning Choices on never leaves a reply without them.
+          offerChoices
             ? refilled([]).then((kept) => {
                 log.info("turn", "Choices written apart from the reply", { kept: kept.length });
                 return kept;

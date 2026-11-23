@@ -53,7 +53,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 16;
+const BENCH_ITERATION = 17;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 45;
@@ -443,12 +443,13 @@ async function play(
     dice: () => Math.floor(roll() * 20) + 1,
     nearMissMargin: 3,
     moveWorld: true,
+    offerChoices: true,
     port: 0,
   });
   setLogLevel("verbose");
   if (fromSaves) cpSync(fromSaves, savesDir, { recursive: true });
   const saves = saveStore(savesDir);
-  const id = fromSaves ? saves.list()[0]!.id : saves.create({ ...world.save, playMode: moves ? "free" : "choices", opening: world.opening as Partial<State> });
+  const id = fromSaves ? saves.list()[0]!.id : saves.create({ ...world.save, opening: world.opening as Partial<State> });
   const replayed = replayAt === undefined ? undefined : replayMove(saves, id, replayAt);
   // The rounds a kept Save already holds, so the timeline's rounds follow on from them.
   const first = saves.messages(id).filter(({ role }) => role === "player").length;

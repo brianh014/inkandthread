@@ -15,7 +15,6 @@ import {
   getSettings,
   type Message,
   type MessageCheck,
-  type PlayMode,
   playOpening,
   playTurn,
   type Chapter,
@@ -24,7 +23,7 @@ import {
   replaceResponse,
   editResponse,
   revert,
-  savePlayMode,
+  saveSettings,
   setupProblem,
 } from "./api";
 import {
@@ -217,7 +216,8 @@ export function Play({ id }: { id: string }) {
   const [reverting, setReverting] = useState<Message>();
   const [duplicatingFrom, setDuplicatingFrom] = useState<Message>();
   const [regenerating, setRegenerating] = useState(false);
-  const [playMode, setPlayMode] = useState<PlayMode>("free");
+  // A Setting, for every story: the Choices are written every Turn, so this only shows or hides them.
+  const [choosing, setChoosing] = useState(true);
   // Offers to write the latest response again, as one without Choices leaves nothing to pick.
   const [offeringChoices, setOfferingChoices] = useState(false);
   /** With a Revert to the Message before one of the player's: their words, to edit and send again from there. */
@@ -290,10 +290,10 @@ export function Play({ id }: { id: string }) {
           setImagesReady(settings.imagesReady);
           setOpenNewImages(settings.openNewImages);
           setShowChecks(settings.showChecks);
+          setChoosing(settings.showChoices);
           setTipsSeen(settings.tipsSeen);
         }
         setSave(save);
-        setPlayMode(save.playMode);
         setMessages(messages);
         const failure = missed ?? (failed && { ...failed, error: failureMessage(failed) });
         if (failure) {
@@ -350,18 +350,18 @@ export function Play({ id }: { id: string }) {
     playInput(choice, messages);
   }
 
-  function switchPlayMode() {
+  function switchChoices() {
     if (turn) return;
-    if (playMode === "choices") return changePlayMode("free");
+    if (choosing) return showChoices(false);
     const latest = messages.at(-1);
     if (latest?.role === "narrator" && !latest.choices) return setOfferingChoices(true);
-    changePlayMode("choices");
+    showChoices(true);
   }
 
-  async function changePlayMode(next: PlayMode) {
+  async function showChoices(next: boolean) {
     try {
-      await savePlayMode(id, next);
-      setPlayMode(next);
+      await saveSettings({ showChoices: next });
+      setChoosing(next);
       return true;
     } catch (failure) {
       setError((failure as Error).message);
@@ -548,7 +548,6 @@ export function Play({ id }: { id: string }) {
   const portraitOf = (name?: string | null) => portraits.find(({ npc }) => npc === name);
   const latest = messages.at(-1);
   const replaceable = !turn && latest?.role === "narrator" ? latest : undefined;
-  const choosing = playMode === "choices";
   const scene = images.images.at(-1);
   const told = readable(turn?.replaces ? messages.slice(0, -1) : messages);
   const staged = chatStyle === "stage" && (told.length > 0 || !!turn);
@@ -863,7 +862,7 @@ export function Play({ id }: { id: string }) {
             aria-label="Choices"
             aria-pressed={choosing}
             aria-disabled={!!turn}
-            onClick={switchPlayMode}
+            onClick={switchChoices}
           >
             {ChoicesIcon}
           </button>
@@ -950,7 +949,7 @@ export function Play({ id }: { id: string }) {
           title="Write this response with Choices?"
           confirm="Regenerate"
           onConfirm={async () => {
-            if (await changePlayMode("choices")) replace("");
+            if (await showChoices(true)) replace("");
           }}
           onClose={() => setOfferingChoices(false)}
         >
@@ -983,7 +982,7 @@ export function Play({ id }: { id: string }) {
                 (latest) => {
                   setMessages(latest);
                   const last = latest.at(-1);
-                  if (playMode === "choices" && last?.role === "narrator" && !last.choices) setOfferingChoices(true);
+                  if (choosing && last?.role === "narrator" && !last.choices) setOfferingChoices(true);
                 },
                 () => {},
               );

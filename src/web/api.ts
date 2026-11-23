@@ -4,13 +4,13 @@ import type { ImageKind } from "../image-pipeline";
 import type { FailedTurn, LiveTurn } from "../live-turns";
 import type { LogLevel } from "../logger";
 // A Message as the story screen has it: the latest response carries its Choices, if it has any.
-import type { ImageTarget, PlayMode, Reply as Message, Save, SaveStore } from "../save-store";
+import type { ImageTarget, Reply as Message, Save, SaveStore } from "../save-store";
 import type { ImageProfile, SettingsChange, TextProfile } from "../settings-store";
 import type { State, VisibleEdit } from "../state-applier";
 import type { Character, EnhanceField, PcDraft, WorldChoices, WorldField, WorldPc } from "../world-creation";
 import type { NarratorRow, UsagePeriod, UsageStore } from "../usage-store";
 
-export type { Character, EnhanceField, ImageKind, Message, PcDraft, PlayMode, Save, WorldChoices, WorldField };
+export type { Character, EnhanceField, ImageKind, Message, PcDraft, Save, WorldChoices, WorldField };
 export type ListedSave = ReturnType<SaveStore["list"]>[number];
 export type OpenSave = ReturnType<SaveStore["read"]>;
 export type Status = State["status"];
@@ -104,8 +104,6 @@ export type SaveSetup = Pick<OpenSave, "worldBrief" | "title" | "theme" | "start
 export const saveSetup = (id: string) => request<SaveSetup>(`/saves/${id}/setup`);
 
 export const saveArtStyle = (id: string, artStyle: string) => request<{ artStyle: string }>(`/saves/${id}`, { ...jsonBody({ artStyle }), method: "PATCH" });
-
-export const savePlayMode = (id: string, playMode: PlayMode) => request<object>(`/saves/${id}`, { ...jsonBody({ playMode }), method: "PATCH" });
 
 export async function deleteSave(id: string) {
   const response = await fetch(`/saves/${id}`, { method: "DELETE" });
@@ -321,8 +319,8 @@ export const generateWorld = (world: WorldChoices & WorldPc & { id?: string }, s
   request<{ id: string; overview: string }>("/worlds", { ...jsonBody(world), signal });
 
 /** Makes the Save from the world held under `id`, with its images. */
-export const beginStory = (id: string, artStyle: string, playMode: PlayMode, signal?: AbortSignal) =>
-  request<{ id: string }>(`/worlds/${id}/begin`, { ...jsonBody({ artStyle, playMode }), signal });
+export const beginStory = (id: string, artStyle: string, signal?: AbortSignal) =>
+  request<{ id: string }>(`/worlds/${id}/begin`, { ...jsonBody({ artStyle }), signal });
 
 export const regenerateWorld = (id: string, choices: WorldChoices, signal?: AbortSignal) =>
   request<{ overview: string }>(`/worlds/${id}/regenerate`, { ...jsonBody(choices), signal });

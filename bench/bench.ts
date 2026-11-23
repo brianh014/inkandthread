@@ -53,7 +53,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 15;
+const BENCH_ITERATION = 16;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 45;
@@ -596,7 +596,8 @@ async function play(
     for (const op of turn.operations as string[]) add(`ops.${op}`);
     for (const op of (turn.upkeep as string[] | undefined) ?? []) {
       add(`upkeep.${op}`);
-      add("upkeep.total");
+      // Not the time, which Upkeep gives every Turn the Narrator moved none, so the total still shows what it corrected.
+      if (op !== "set_story_time") add("upkeep.total");
     }
     add("upkeep.refused", (turn.upkeepRefused as number | undefined) ?? 0);
     if (turn.chapterEnds) add("chapterSuggested");

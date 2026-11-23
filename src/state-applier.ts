@@ -142,6 +142,14 @@ export const StateSections = {
 const nonEmpty = z.string().min(1);
 const statusKind = z.enum(["injuries", "conditions"]);
 
+/** How a reply moves Story Time on: set_story_time without its op, which State Upkeep gives as a field of its own. */
+export const StoryTimeMove = z.object({
+  days_passed: z.number().int().min(0),
+  // Missing reads as unknown, so a reply from before it still moves the clock by its words.
+  hours_passed: z.preprocess((hours) => hours ?? null, z.number().min(0).nullable()),
+  date: nonEmpty.nullable(),
+  time_of_day: nonEmpty,
+});
 export const StateOperation = z.discriminatedUnion("op", [
   z.object({ op: z.literal("add_item"), slot: z.enum(["wearing", "carrying"]), item: nonEmpty }),
   z.object({ op: z.literal("remove_item"), item: nonEmpty }),
@@ -188,14 +196,7 @@ export const StateOperation = z.discriminatedUnion("op", [
   z.object({ op: z.literal("resolve_plot_thread"), thread: nonEmpty }),
   z.object({ op: z.literal("set_pc_appearance"), appearance: nonEmpty }),
   z.object({ op: z.literal("set_era"), era: nonEmpty }),
-  z.object({
-    op: z.literal("set_story_time"),
-    days_passed: z.number().int().min(0),
-    // Missing reads as unknown, so a reply from before it still moves the clock by its words.
-    hours_passed: z.preprocess((hours) => hours ?? null, z.number().min(0).nullable()),
-    date: nonEmpty.nullable(),
-    time_of_day: nonEmpty,
-  }),
+  z.object({ op: z.literal("set_story_time"), ...StoryTimeMove.shape }),
 ]);
 export type StateOperation = z.infer<typeof StateOperation>;
 

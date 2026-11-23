@@ -1092,7 +1092,8 @@ async function narrate(
           .finally(() => {
             times[name] = Date.now() - shown;
           });
-      const timed = state_operations.some(({ op }) => op === "set_story_time");
+      // Moved, not only asked, as a set_story_time the state refuses as earlier than now moved no time, and Upkeep wasn't asked.
+      const timed = JSON.stringify(narrated.next.storyTime) !== JSON.stringify(introducedBefore.state.storyTime);
       const alone = () =>
         writeChoices(textProvider, narration, signal, previous, plainMessage({ role: "player", text: upkeep?.input ?? input }).text, {
           facts: narrated.next.pcKnown.facts,
@@ -1179,6 +1180,12 @@ async function narrate(
           upkeepDropped = [...kept.refused, ...kept.ignored];
           upkeepRefused = upkeepDropped.length;
           const next = kept.next;
+          // A plan this Turn timed counts from the reply's end, so it moves on with the time Upkeep gave the reply.
+          const added = (next.storyTime?.hours ?? 0) - (told.storyTime?.hours ?? 0);
+          if (added > 0 && told.storyTime?.hours !== undefined)
+            next.threadsDue = Object.fromEntries(
+              Object.entries(next.threadsDue).map(([truth, due]) => [truth, state.threadsDue[truth] === due ? due : due + added]),
+            );
           // Through this Turn's amended truths, so an ask follows its thread to its new words, as the next move matches them exactly.
           rewrites = [...state_operations, ...(upkept ?? [])].flatMap((operation) =>
             operation.op === "update_plot_thread" && operation.truth

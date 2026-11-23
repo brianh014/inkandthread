@@ -596,7 +596,8 @@ async function play(
     for (const op of turn.operations as string[]) add(`ops.${op}`);
     for (const op of (turn.upkeep as string[] | undefined) ?? []) {
       add(`upkeep.${op}`);
-      add("upkeep.total");
+      // Not the time, which Upkeep gives every Turn the Narrator moved none, so the total still shows what it corrected.
+      if (op !== "set_story_time") add("upkeep.total");
     }
     add("upkeep.refused", (turn.upkeepRefused as number | undefined) ?? 0);
     if (turn.chapterEnds) add("chapterSuggested");

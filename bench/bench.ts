@@ -1,8 +1,8 @@
-// The Narrator bench: plays bench/worlds/adventure.json in Choices mode on the real models from a Settings file, through the real server,
+// The Narrator bench: plays bench/worlds/adventure.json picking seeded Choices on the real models from a Settings file, through the real server,
 // (each play in a process of its own, all at once unless the Narrator is a local model) and records what every Narrator feature did, how long each step took, what it cost, and a judge's scores. It costs real money,
 // so it asks before it starts. The real AI writes every Image Prompt, to be judged, but a stand-in draws it, unless --draw.
 //   bun bench run --rounds N --runs M [--settings bench/settings.json] [--judge self|narrator] [--label name] [--seed 1] [--yes]
-//   bun bench run --moves moves.txt --runs M [...]   plays in Free Text instead, one move per line (# starts a comment), to
+//   bun bench run --moves moves.txt --runs M [...]   types its own moves instead, one per line (# starts a comment), to
 //                                                    steer the story a chosen way; the rounds are the moves
 //   bun bench run --world <file> [...]   plays another world shaped like bench/worlds/adventure.json, such as one kept out of git
 //   bun bench run --draw [...]   draws the pictures on the Settings file's local ComfyUI, never a paid API, into each play's
@@ -178,7 +178,7 @@ type Result = {
   /** The OpenRouter provider the Narrator's calls were pinned to (--host or the Settings copy's own), with no fallback when `hostFallback` is false. Absent when unpinned. */
   host?: string;
   hostFallback?: boolean;
-  /** Seeded Choices, or Free Text from a moves file, which runs compare only within. */
+  /** Seeded Choices, or typed moves from a moves file, which runs compare only within. */
   mode?: string;
   /** Plays that failed and were left out, when any did; `runs` then counts only those kept. */
   failedPlays?: number[];

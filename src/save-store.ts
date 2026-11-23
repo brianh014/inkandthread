@@ -324,8 +324,8 @@ const toVersion23 = (db: Database) => {
 };
 
 /**
- * The Play Mode, a column like the Art Style, as a Revert must not undo a choice about how the player goes on, and each
- * Narrator Message's Choices, NULL for one written in Free Text.
+ * The Play Mode, a column like the Art Style, no longer read since showing Choices became a Setting, and each Narrator
+ * Message's Choices, NULL for one written without any.
  */
 const toVersion24 = (db: Database) => {
   if (!hasColumn(db, "save", "play_mode")) db.run("ALTER TABLE save ADD COLUMN play_mode TEXT NOT NULL DEFAULT 'free'");
@@ -575,7 +575,7 @@ function copyRows(from: Database, to: Database) {
 export type SaveStore = ReturnType<typeof saveStore>;
 export type Message = { id: number; role: "player" | "narrator"; text: string };
 export const Choices = z.array(z.string()).length(3);
-/** A Message as a Turn returns it, with the Choices a response offers in Choices mode. */
+/** A Message as a Turn returns it, with the Choices a response offers. */
 export type Reply = Message & { choices?: string[] };
 type ChoicesRow = Message & { choices: string | null };
 const withChoices = ({ choices, ...message }: ChoicesRow): Reply => ({ ...message, ...(choices !== null && { choices: JSON.parse(choices) as string[] }) });

@@ -99,8 +99,6 @@ const DrawRequest = z.discriminatedUnion("kind", [
 
 const PcBoxes = z.record(z.enum(PC_FIELDS), longText);
 
-// The Play Mode is picked on the last step, so the world holds none.
-
 const PickRequest = z.object({
   theme: z.string().trim().min(1),
   title: z.string().trim().max(80),

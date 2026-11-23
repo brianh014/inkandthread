@@ -165,13 +165,9 @@ _Avoid_: World Change (that is Tell the Narrator, and changes the world)
 A standing out-of-character instruction to the Narrator for one Save, such as correcting a fact without Reverting.
 _Avoid_: Author's Note, edit
 
-**Play Mode**:
-How the player gives the PC's next move in one Story: Free Text, typing it, or Choices, picking one of the Choices every Narrator response offers, or typing in the box under them. Free Text is the default, and the player can switch at any time.
-_Avoid_: Chat style (that is how Messages look)
-
 **Choice**:
-One of three things the Narrator offers the PC to say or do next, in a response written in Choices mode. Picking it sends it at once as the player's input. The latest response's Choices stay ready until the next Turn, even while the player switches to Free Text and back.
-_Avoid_: Option, suggestion
+One of three things the Narrator offers the PC to say or do next, written with every Narrator response. Picking it sends it at once as the player's input, and the player can type their own move in the box under them instead. Whether they show is one Setting for every Story, Show Choices, on by default, which the Choices button by the text box also turns on and off. The latest response's Choices stay ready until the next Turn, shown or not.
+_Avoid_: Option, suggestion, Play Mode, Free Text (Choices hidden is just Show Choices off)
 
 **Chat style**:
 How the Story shows Messages: Script, Prose or Bubbles. A fourth, the Stage box, is no longer offered; its code is kept, and a stored pick of it reads as Prose. It never changes how Chapters read in the Journal.

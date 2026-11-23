@@ -1,9 +1,11 @@
 import { expect, type Page, test } from "@playwright/test";
-import { newStory } from "./support";
+import { newStory, showChoicesAgain } from "./support";
 
 const PC_INPUT = /say or do\?$/;
 const choiceButtons = (page: Page) => page.getByRole("group", { name: "Choices" }).getByRole("button");
 const modeButton = (page: Page) => page.getByRole("button", { name: "Choices", exact: true });
+
+test.afterEach(showChoicesAgain);
 
 test("a new story opens with three Choices, and picking one sends it as the PC's words", async ({ page }) => {
   await newStory(page);

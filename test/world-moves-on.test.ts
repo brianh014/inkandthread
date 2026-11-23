@@ -1350,3 +1350,55 @@ test("a move with no usable change is written again, saying why", async () => {
 
   expect(told.prompts.some((prompt) => prompt.at(-1)!.content.includes("a change misquotes a thread"))).toBe(true);
 });
+
+test("what a deed left at a place goes into that place's Lore Entry, as seen only by whoever has come there since", async () => {
+  const told = play(
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
+    moved({
+      ...change(THIEF, "The thief has robbed the library and hides the books on a barge."),
+      mark: { lore: "The thief", text: "Since dawn the library's back window hangs broken." },
+    }),
+    narration("Ash watches the barges."),
+  );
+  const id = createSave();
+
+  const log = await logOf(async () => {
+    expect((await turn(id, "I walk to the dock.")).ok).toBe(true);
+    expect((await turn(id, "I watch the barges.")).ok).toBe(true);
+  }, "info");
+
+  // Only a place the move was given can be marked.
+  expect(told.prompts[1]![0]!.content).toContain('"enum":["The thief"]');
+  expect(
+    store()
+      .latestState(id)
+      .worldBible.find(({ title }) => title === "The thief")!.content,
+  ).toBe("The thief is the librarian's own son. Since dawn the library's back window hangs broken, which only whoever has come there since has seen.");
+  expect(log).toContain('"marks":1');
+});
+
+test("a mark naming someone is dropped, as it would say who did the deed", async () => {
+  play(
+    narration(
+      "Ash walks to the dock.",
+      { op: "add_npc", name: "Ferryman", appearance: "a stooped man in oilskins" },
+      { op: "set_scene", location: "The dock", visible_cast: [] },
+      nextDay(),
+    ),
+    moved({ ...change(THIEF, "The thief has robbed the library."), mark: { lore: "The thief", text: "The Ferryman's knife lies by the broken window." } }),
+    narration("Ash watches the barges."),
+  );
+  const id = createSave();
+
+  const log = await logOf(async () => {
+    expect((await turn(id, "I walk to the dock.")).ok).toBe(true);
+    expect((await turn(id, "I watch the barges.")).ok).toBe(true);
+  }, "info");
+
+  expect(
+    store()
+      .latestState(id)
+      .worldBible.find(({ title }) => title === "The thief")!.content,
+  ).toBe("The thief is the librarian's own son.");
+  expect(log).toContain('"marksDropped":1');
+});

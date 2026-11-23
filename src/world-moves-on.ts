@@ -500,7 +500,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
         kept.flatMap(({ thread, truth, now, question }) => (thread === null && now !== null && question ? [[truth!, question] as const] : [])),
       ),
     };
-    // On the clock, so the next move knows which plans are due; a Save from before it has none.
+    // On the clock, so the next move knows which plans are due, a time with no clock yet counting from its words (clockOf).
     const due = Object.fromEntries(
       kept.flatMap(({ thread, truth, now, plan, plan_in_hours }) =>
         now === null || !plan || plan_in_hours === null || clock === undefined ? [] : [[thread ?? truth!, clock + plan_in_hours] as const],

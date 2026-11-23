@@ -743,7 +743,7 @@ export const clockOf = (time: StoryTime | null | undefined) => (time ? (time.hou
  */
 function clockHours(was: StoryTime | null, day: number, timeOfDay: string, passed: number | null) {
   // A first Story Time starts at its own hour of day 1.
-  const start = was ? clockOf(was)! : (hourOf(timeOfDay) ?? 12);
+  const start = clockOf(was) ?? hourOf(timeOfDay) ?? 12;
   const [from, to] = [hourOf(was?.timeOfDay ?? ""), hourOf(timeOfDay)];
   // Forward within the day, or on through the night into the small hours, as words going back from evening to the next morning
   // are a story starting over, not a night passing, but "11 pm" to "1 am" is two hours.

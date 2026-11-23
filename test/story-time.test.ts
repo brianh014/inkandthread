@@ -172,6 +172,8 @@ test("the clock adds each reply's hours_passed, or the hours its words moved on,
   expect(clock(at(DUSK), set(0, null, "night"))).toBe(70);
   expect(clock(at({ ...DUSK, hours: 66 }), set(1, "4th of Lowtide", "the third bell"))).toBe(72);
   expect(clock(at({ ...DUSK, hours: 66 }), set(0, null, "the third bell", 0.5))).toBe(66.5);
+  // Hours that reach the new day keep their hour, as words for late night after midnight read as 10 pm put it a day on.
+  expect(clock(at({ ...DUSK, hours: 66 }), set(1, "4th of Lowtide", "deep in the night", 8))).toBe(74);
   // A first Story Time is its own hour, whatever hours_passed says.
   expect(clock(at(null), set(0, "1st of Lowtide", "9 am", 8))).toBe(9);
   // Hours over-counted on talk never put an afternoon on the next day.

@@ -743,7 +743,8 @@ function clockHours(was: StoryTime | null, day: number, timeOfDay: string, passe
   // A first Story Time is its own hour, as hours_passed then counts from nothing the clock had.
   const hours = start + (!was ? 0 : fits ? passed : day === was.day ? byWords : 0);
   // A new day the hours didn't reach, as days_passed is the surer of the two, at the hour its words give.
-  return Math.max(hours, (day - 1) * 24 + (day > (was?.day ?? 1) ? (hourOf(timeOfDay) ?? 0) : 0));
+  const dayStart = (day - 1) * 24;
+  return hours >= dayStart ? hours : dayStart + (day > (was?.day ?? 1) ? (hourOf(timeOfDay) ?? 0) : 0);
 }
 
 // Checked in order, as "afternoon" holds "noon" and "midnight" holds "night".

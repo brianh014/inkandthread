@@ -210,20 +210,57 @@ const SPARKS = {
     "a place that isn't empty",
   ],
 };
+// For a World Brief written from nothing: plain goods, as a model bends an abstract Spark into its own favourite premise. A
+// livelihood, not what holds the world up, as "the thing everything rests on is failing" is that favourite. Two, so the premise must join them.
+const GOODS = [
+  "salt",
+  "bells",
+  "glass",
+  "wool",
+  "ink",
+  "maps",
+  "horses",
+  "bees",
+  "masks",
+  "clocks",
+  "bridges",
+  "rope",
+  "paper",
+  "dyes",
+  "spices",
+  "copper",
+  "bread",
+  "wine",
+  "ice",
+  "silk",
+  "furs",
+  "pearls",
+  "timber",
+  "stone",
+  "oil",
+  "medicine",
+  "fish",
+  "cattle",
+  "letters",
+  "tea",
+  "bones",
+  "music",
+];
 // Not Q, X or Z, which models reach for when told to be unusual.
 const NAME_LETTERS = "ABCDEFGHIJKLMNOPRSTVWY";
 
 const pick = <T>(items: ArrayLike<T>) => items[Math.floor(Math.random() * items.length)]!;
+const distinct = <T>(items: ArrayLike<T>, count: number) => {
+  const drawn = new Set<T>();
+  while (drawn.size < count) drawn.add(pick(items));
+  return [...drawn];
+};
 
-type SparkKind = keyof typeof SPARKS | "nameLetters";
+type SparkKind = keyof typeof SPARKS | "goods" | "nameLetters";
 export type Sparks = Partial<Record<SparkKind, string>>;
 
-const drawOne = (kind: SparkKind) => {
-  if (kind !== "nameLetters") return pick(SPARKS[kind]);
-  const letters = new Set<string>();
-  while (letters.size < 5) letters.add(pick(NAME_LETTERS));
-  return [...letters].join(", ");
-};
+const drawOne = (kind: SparkKind) =>
+  kind === "goods" ? distinct(GOODS, 2).join(" and ") : kind === "nameLetters" ? distinct(NAME_LETTERS, 5).join(", ") : pick(SPARKS[kind]);
 
 /** A Spark of each kind asked for, logged with `about`, such as the world's id, so a world can be traced to what it was built from. */
 export function drawSparks(about: Record<string, string>, kinds: SparkKind[] = ["pressure", "constraint", "secret", "nameLetters"]): Sparks {
@@ -236,14 +273,19 @@ const SPARK_WORDS: Record<SparkKind, string> = {
   pressure: "a pressure on the world now:",
   constraint: "a constraint it lives under:",
   secret: "a secret for a plot thread:",
-  nameLetters: "invented first names and surnames starting with",
+  goods: "what people here make, trade or fight over:",
+  nameLetters: "invented names of people and places starting with",
 };
 
-// Bent rather than dropped, as "ignore what doesn't fit" is the easy way back to the average.
+// Bent rather than dropped, as "ignore what doesn't fit" is the easy way back to the average. With no World Brief, they are what it's built from.
 const sparksLine = (sparks: Sparks) =>
   `Sparks, drawn at random so it isn't the most familiar pick: ${Object.entries(sparks)
     .map(([kind, spark]) => `${SPARK_WORDS[kind as SparkKind]} ${spark}`)
-    .join("; ")}. Bend each to fit where the player's choices leave room, leaving one out only where it contradicts them.`;
+    .join("; ")}. ${
+    sparks.goods
+      ? "Build the world from them, each fitting the theme and what the player wrote."
+      : "Bend each to fit where the player's choices leave room, leaving one out only where it contradicts them."
+  }`;
 
 /** The player's choices a world is built from, as the Narrator is sent them. */
 const worldChoicesData = ({ title, theme, worldBrief, startingHook, characters = [] }: WorldChoices, { pc, inventory }: WorldPc) => ({
@@ -313,8 +355,9 @@ export async function pickForMe(
   );
   // Only the kinds its empty boxes can hold, and never the secret, as these boxes are the player's to read.
   const kinds: SparkKind[] = [
+    ...(world.worldBrief === "" ? (["goods"] as const) : []),
     ...(world.worldBrief === "" || world.startingHook === "" ? (["pressure", "constraint"] as const) : []),
-    ...(pc?.name === "" ? (["nameLetters"] as const) : []),
+    ...(pc?.name === "" || world.worldBrief === "" ? (["nameLetters"] as const) : []),
   ];
   const sparks = kinds.length ? drawSparks({ call: "pickForMe" }, kinds) : {};
   const prompt: Prompt = [

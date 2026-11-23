@@ -715,6 +715,21 @@ test("a plan whose hour is ahead gives way when the move shows its deed done ear
   expect(state.threadsDue[THIEF]).toBe(15);
 });
 
+test("a move reads a plan whose people are with the PC as their intent, and keeps it while they stay and it isn't done", async () => {
+  const plan = "Kit will rob the library stacks for the ledger.";
+  const told = play(
+    narration("Kit comes down the dock to Ash.", { op: "set_scene", location: "The dock", visible_cast: ["Kit"] }, hoursOn(4, "noon")),
+    moved({ ...change(THIEF, "Kit idles at the dock beside Ash."), knows: [{ name: "Kit", knows: "A thief is coming." }] }),
+    narration("Kit shrugs."),
+  );
+  const id = planned(30, plan);
+
+  for (const input of ["I wave.", "I ask him what he wants."]) expect((await turn(id, input)).ok).toBe(true);
+
+  expect(JSON.parse(told.prompts[1]!.at(-1)!.content).plot_threads[0]).toMatchObject({ intent: plan });
+  expect(store().latestState(id)).toMatchObject({ threadsPlan: { [THIEF]: plan }, threadsDue: {} });
+});
+
 test("a plan whose people come on the page loses its hour, and the Narrator reads it as an intent to play out in the scene", async () => {
   const plan = "Kit will rob the library stacks for the ledger.";
   const told = play(narration("Kit comes down the dock to Ash.", { op: "set_scene", location: "The dock", visible_cast: ["Kit"] }), narration("Kit shrugs."));

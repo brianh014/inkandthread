@@ -288,11 +288,23 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   };
   // Not a plan the page played out with the PC, as a true now of a search shown on the page was faulted and the stale one kept.
   const tellsDone = (plan: string, was: string, now: string) => shownDone(plan, was, now) && !shownDone(plan, was, played);
+  /**
+   * Whether a thread keeps the plan it has, whatever the move gave: one whose hour is still ahead, as moves re-timed one again
+   * and again before it came, or swapped it for the same goal in other words; or an intent while its people are still with the
+   * PC. Either gives way once the move's own now shows its deed done, as one kept fell due again for a ledger already burned.
+   * shortcut: done by words, so a now that only readies the deed frees it; compare by meaning if moves slip through that way.
+   */
+  const keepsPlan = ({ thread, now }: ThreadMove) => {
+    if (thread === null || now === null || !threadsPlan[thread]) return false;
+    const plan = threadsPlan[thread]!;
+    const standing = ahead.has(thread) || (threadsDue[thread] === undefined && withPc(plan));
+    return standing && !shownDone(plan, threadsNow[thread] ?? "", now);
+  };
   /** Why a now or plan can't stand: it waits on the PC, puts someone with the PC somewhere else, hands its people a secret, or tells as done a plan whose people were with the PC. */
   const nowFaults = (kept: ThreadMove[]) =>
     kept.flatMap((change) => {
       if (change.now === null) return [];
-      const both = `${change.now}\n${ahead.has(change.thread ?? "") ? "" : (change.plan ?? "")}`;
+      const both = `${change.now}\n${keepsPlan(change) ? "" : (change.plan ?? "")}`;
       const named = people(both);
       const faults: string[] = [];
       if (waits.test(both)) faults.push("a now waits on what the PC might do");
@@ -397,7 +409,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
       ...(threadsQuestion[truth] && { question: threadsQuestion[truth] }),
       now,
       // A deed whose time has come, not a plan to edit, as moves re-timed one again and again while its people were with the PC.
-      ...(fell.has(truth) ? { due_deed: plan } : ahead.has(truth) ? { plan } : plan && withPc(plan) && { intent: plan }),
+      ...(fell.has(truth) ? { due_deed: plan } : ahead.has(truth) || clock === undefined ? plan && { plan } : plan && withPc(plan) && { intent: plan }),
       ...(without.length > 0 && { without_part: without }),
       ...(withPcNow.length > 0 && { with_pc: withPcNow }),
       ...(seenLately.length > 0 && { seen_lately: seenLately }),
@@ -503,16 +515,14 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
     // A deed whose time came, given again as the plan, is dropped with its hour, as a deed put off once was put off again.
     // A plan whose hour is still ahead stands, with its hour, as moves re-timed one again and again before it came, or swapped it
     // for the same goal in other words.
-    // Unless the move's own now shows its deed done early, as one kept then fell due again for a ledger already burned.
-    const locked = ({ thread, now }: ThreadMove) =>
-      thread !== null && now !== null && ahead.has(thread) && !shownDone(threadsPlan[thread]!, threadsNow[thread] ?? "", now);
-    const notTaken = kept.filter((change) => locked(change) && change.plan && change.plan !== threadsPlan[change.thread!]).length;
+    const locked = new Set(kept.filter(keepsPlan));
+    const notTaken = [...locked].filter((change) => change.plan && change.plan !== threadsPlan[change.thread!]).length;
     const putOff = new Set(kept.filter(({ thread, plan }) => thread !== null && !!plan && fell.has(thread) && sameDeed(threadsPlan[thread] ?? "", plan)));
     const plan = Object.fromEntries(
       kept.flatMap((change) =>
         change.now === null
           ? []
-          : locked(change)
+          : locked.has(change)
             ? [[change.thread!, threadsPlan[change.thread!]!] as const]
             : !change.plan || putOff.has(change)
               ? []
@@ -540,8 +550,11 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       kept.flatMap((change) =>
         change.now === null
           ? []
-          : locked(change)
-            ? [[change.thread!, threadsDue[change.thread!]!] as const]
+          : locked.has(change)
+            ? // An intent kept has no hour.
+              threadsDue[change.thread!] === undefined
+              ? []
+              : [[change.thread!, threadsDue[change.thread!]!] as const]
             : !change.plan || change.plan_in_hours === null || clock === undefined || putOff.has(change)
               ? []
               : [[change.thread ?? change.truth!, clock + Math.min(change.plan_in_hours, MAX_PLAN_HOURS)] as const],

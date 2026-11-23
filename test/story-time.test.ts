@@ -250,3 +250,11 @@ test("a time of day in words reads as its clock hour, as a clock reading only di
     expect(hourOf(words)).toBe(hour);
   }
 });
+
+test("a night passed is a new day though the clock already ran past midnight with its words still before it", () => {
+  const before = { ...openingState, storyTime: { day: 1, date: "Monday, 15th", timeOfDay: "a few minutes to midnight", hours: 24.05 } };
+  const { next } = applyOperations(before, [
+    { op: "set_story_time", days_passed: 1, hours_passed: 6.4, date: "Tuesday, 16th", time_of_day: "twenty past six in the morning" },
+  ]);
+  expect(next.storyTime).toMatchObject({ day: 2, date: "Tuesday, 16th", timeOfDay: "twenty past six in the morning" });
+});

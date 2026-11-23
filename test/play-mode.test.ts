@@ -14,15 +14,15 @@ const chosen = (choices: unknown = CHOICES) => JSON.stringify({ choices });
 
 const play = (...replies: (string | Error)[]) => {
   const script = scriptedTextProvider(...replies);
-  app = startApp(savesDir, script.textProvider);
+  // With Choices written, as the app writes them every Turn.
+  app = startApp(savesDir, script.textProvider, undefined, undefined, undefined, undefined, undefined, undefined, true);
   return { app, ...script };
 };
 
-/** A Save in Choices mode with one Turn played. */
+/** A Save with one Turn played. */
 async function choosing(...replies: string[]) {
   const script = play(narration("The tide rises."), chosen(), ...replies);
   const id = await script.app.createSave();
-  await script.app.patch(`/saves/${id}`, { playMode: "choices" });
   const turn = await script.app.post(`/saves/${id}/turns`, { input: "I wade forward." }).then((r) => r.json());
   return { ...script, id, turn };
 }
@@ -40,24 +40,24 @@ afterEach(async () => {
   folder.remove();
 });
 
-test("a Save starts in Free Text, whose Narrator is asked for no Choices and whose responses store none", async () => {
-  const { app, schemas, prompts } = play(narration("The tide rises."));
+test("every Turn writes Choices, whether or not the player shows them, and the Narrator is asked for none", async () => {
+  const { app, schemas, prompts } = play(narration("The tide rises."), chosen());
   const id = await app.createSave();
+  await app.patch("/settings", { showChoices: false });
 
-  expect(await app.get(`/saves/${id}`).then((r) => r.json())).toMatchObject({ playMode: "free" });
   await app.post(`/saves/${id}/turns`, { input: "I wade forward." });
 
   expect(schemaKeys(schemas[0])).not.toContain("choices");
-  expect(JSON.stringify(prompts[0])).not.toContain("choices");
-  expect(prompts).toHaveLength(1);
-  expect(await latestChoices(id)).toBeUndefined();
+  expect(prompts).toHaveLength(2);
+  // Kept with the reply, so turning them on shows them at once.
+  expect(await latestChoices(id)).toEqual(CHOICES);
+  expect(await app.get(`/saves/${id}`).then((r) => r.json())).not.toHaveProperty("playMode");
 });
 
-test("in Choices mode the Narrator writes no Choices: they are written apart, by a call sent no secret, and kept with the Messages", async () => {
+test("the Narrator writes no Choices: they are written apart, by a call sent no secret, and kept with the Messages", async () => {
   const secret = "The harbourmaster hides the stolen bell in the lighthouse.";
   const script = play(narration("The tide rises."), chosen());
   const id = saveStore(savesDir).create({ worldBrief: "A drowned city", pc: { name: "Ash" }, opening: { plotThreads: [secret] } });
-  await script.app.patch(`/saves/${id}`, { playMode: "choices" });
 
   const log = await logOf(async () => {
     const turn = (await script.app.post(`/saves/${id}/turns`, { input: "I wade forward." }).then((r) => r.json())) as { messages: object[] };
@@ -72,7 +72,6 @@ test("in Choices mode the Narrator writes no Choices: they are written apart, by
   expect(await latestChoices(id)).toEqual(CHOICES);
   expect(log).toContain('Choices written apart from the reply {"route":"/saves/:id/turns","save":"');
   expect(log).toContain('"kept":3}');
-  expect(await app!.get(`/saves/${id}`).then((r) => r.json())).toMatchObject({ playMode: "choices" });
 });
 
 test("the Choices call is sent who the PC is, what they wear and carry, where they are and who they know is there, and no one else", async () => {
@@ -90,7 +89,6 @@ test("the Choices call is sent who the PC is, what they wear and carry, where th
       pcKnown: { facts: [], npcs: ["Wren"] },
     },
   });
-  await script.app.patch(`/saves/${id}`, { playMode: "choices" });
   await script.app.post(`/saves/${id}/turns`, { input: "I wade forward." });
 
   // Without these, Choices took a letter for the PC's own and offered again a deed already done.
@@ -106,7 +104,6 @@ test("the Choices call is sent who the PC is, what they wear and carry, where th
 test("a Choice that names the PC, written as someone else, is dropped and the others kept", async () => {
   const script = play(narration("The tide rises."), chosen(["I wade on.", "I crouch beside Ash and tell him to keep still.", "I climb the wall."]));
   const id = await script.app.createSave();
-  await script.app.patch(`/saves/${id}`, { playMode: "choices" });
 
   const log = await logOf(() => script.app.post(`/saves/${id}/turns`, { input: "I wade forward." }), "info");
 
@@ -118,24 +115,18 @@ test("a Choice where the PC gives their own name is kept", async () => {
   const own = ["I'll answer that I'm Ash and ask his name.", "I shout, “Call me Ash!”", "I tell her my name is Ash."];
   const script = play(narration("A voice calls."), chosen(own));
   const id = await script.app.createSave();
-  await script.app.patch(`/saves/${id}`, { playMode: "choices" });
 
   await script.app.post(`/saves/${id}/turns`, { input: "I listen." });
 
   expect(await latestChoices(id)).toEqual(own);
 });
 
-test("switching to Free Text and back keeps the latest Choices, and the next Turn ends them", async () => {
-  const { id } = await choosing(narration("The wall holds."));
+test("the latest Choices stay with their reply, and the next Turn replaces them", async () => {
+  const { id } = await choosing(narration("The wall holds."), chosen(["I climb.", "I wait.", "I shout."]));
 
-  await app!.patch(`/saves/${id}`, { playMode: "free" });
   expect(await latestChoices(id)).toEqual(CHOICES);
-  await app!.patch(`/saves/${id}`, { playMode: "choices" });
-  expect(await latestChoices(id)).toEqual(CHOICES);
-
-  await app!.patch(`/saves/${id}`, { playMode: "free" });
   await app!.post(`/saves/${id}/turns`, { input: "I climb." });
-  expect(await latestChoices(id)).toBeUndefined();
+  expect(await latestChoices(id)).toEqual(["I climb.", "I wait.", "I shout."]);
 });
 
 test("Choices that aren't three different ones are asked for again, and the reply keeps its story", async () => {
@@ -159,9 +150,8 @@ test("when fewer than three Choices are left once those built on the unknown are
     chosen(["I ride for Qasr.", "I climb the wall.", "I wade on."]),
     chosen(["I ride to Qasr at dawn.", "I call for help.", "I wade on."]),
   );
-  app = startApp(savesDir, script.textProvider, undefined, undefined, undefined, undefined, undefined, reviewer);
+  app = startApp(savesDir, script.textProvider, undefined, undefined, undefined, undefined, undefined, reviewer, true);
   const id = await app.createSave();
-  await app.patch(`/saves/${id}`, { playMode: "choices" });
 
   const log = await logOf(() => app!.post(`/saves/${id}/turns`, { input: "I wade forward." }), "info");
 
@@ -179,9 +169,8 @@ test("a Choice asked for again that takes the same approach as a kept one, in ot
     chosen(["I ride for Qasr.", kept, "I wade on."]),
     chosen(["I'll pull back the sheet and examine the man's body closely, writing every mark.", "I call for help.", "I wade on."]),
   );
-  app = startApp(savesDir, script.textProvider, undefined, undefined, undefined, undefined, undefined, reviewer);
+  app = startApp(savesDir, script.textProvider, undefined, undefined, undefined, undefined, undefined, reviewer, true);
   const id = await app.createSave();
-  await app.patch(`/saves/${id}`, { playMode: "choices" });
   await app.post(`/saves/${id}/turns`, { input: "I wade forward." });
 
   expect(await latestChoices(id)).toEqual([kept, "I wade on.", "I call for help."]);
@@ -216,14 +205,6 @@ test("Choices go with a Save through export and import", async () => {
   const copy = saves.import(new Uint8Array(saves.export(id)));
 
   expect(saves.latestChoices(copy)).toEqual(CHOICES);
-  expect(saves.read(copy).playMode).toBe("choices");
-});
-
-test("a Play Mode that isn't Free Text or Choices is refused", async () => {
-  const { app } = play();
-  const id = await app.createSave();
-
-  expect((await app.patch(`/saves/${id}`, { playMode: "auto" })).status).toBe(400);
 });
 
 test("the log names which Choice was picked by number, and only Story in log shows the Choices' words", async () => {

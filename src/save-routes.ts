@@ -2,7 +2,7 @@ import { z } from "zod";
 import { knownPortraits } from "./gallery-routes";
 import { ArtStyleRequest, imageResponse, NoFields, parseBody, routes, type ServerContext, someWords } from "./http";
 import { log } from "./logger";
-import { NoteNotFound, PlayMode, StaleTurn } from "./save-store";
+import { NoteNotFound, StaleTurn } from "./save-store";
 import { VisibleEdit } from "./state-applier";
 import { askForChapterTitle, TurnFailed, worldMoved } from "./turn-engine";
 import { readable } from "./web/chat-style";
@@ -41,7 +41,7 @@ function spliceNote(notes: string[], index: string, ...replacement: string[]) {
   return notes.toSpliced(position, 1, ...replacement);
 }
 
-const SaveChange = z.object({ artStyle: ArtStyleRequest.shape.artStyle.optional(), playMode: PlayMode.optional() });
+const SaveChange = z.object({ artStyle: ArtStyleRequest.shape.artStyle.optional() });
 
 const WorldChangeRequest = z.object({ change: someWords });
 
@@ -88,15 +88,14 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
     "/saves/:id": {
       GET: (req) => {
         // An allowlist, so a secret added to the Save can never reach the player by default.
-        const { title, worldBrief, pc, artStyle, startingHook, hasCover, coverRedraws, playMode } = saves.read(req.params.id);
+        const { title, worldBrief, pc, artStyle, startingHook, hasCover, coverRedraws } = saves.read(req.params.id);
         log.info("saves", "Save opened");
-        return Response.json({ title, worldBrief, pc: { name: pc.name }, artStyle, startingHook, hasCover, coverRedraws, playMode });
+        return Response.json({ title, worldBrief, pc: { name: pc.name }, artStyle, startingHook, hasCover, coverRedraws });
       },
       PATCH: async (req) => {
-        const { artStyle, playMode } = await parseBody(req, SaveChange);
+        const { artStyle } = await parseBody(req, SaveChange);
         if (artStyle !== undefined) saves.setArtStyle(req.params.id, artStyle);
-        if (playMode) saves.setPlayMode(req.params.id, playMode);
-        return Response.json({ artStyle, playMode });
+        return Response.json({ artStyle });
       },
       DELETE: (req) => {
         // A running Turn would go on paying the model for a story that is gone.

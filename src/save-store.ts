@@ -324,8 +324,8 @@ const toVersion23 = (db: Database) => {
 };
 
 /**
- * The Play Mode, a column like the Art Style, as a Revert must not undo a choice about how the player goes on, and each
- * Narrator Message's Choices, NULL for one written in Free Text.
+ * The Play Mode, a column like the Art Style, no longer read since showing Choices became a Setting, and each Narrator
+ * Message's Choices, NULL for one written without any.
  */
 const toVersion24 = (db: Database) => {
   if (!hasColumn(db, "save", "play_mode")) db.run("ALTER TABLE save ADD COLUMN play_mode TEXT NOT NULL DEFAULT 'free'");
@@ -488,7 +488,8 @@ function assertValidSave(db: Database) {
     memory_start: rowId,
     important_characters: jsonText(z.array(z.object({ name: z.string(), description: z.string(), onCover: z.boolean() })).max(10)).nullable(),
     pc_on_cover: z.union([z.literal(0), z.literal(1)]),
-    play_mode: PlayMode,
+    // No longer read, as whether Choices show is a Setting now; kept, as a Save's columns are checked.
+    play_mode: z.string(),
   });
   const messages = rowsOf(db, "messages", {
     id: rowId.positive(),
@@ -573,10 +574,8 @@ function copyRows(from: Database, to: Database) {
 
 export type SaveStore = ReturnType<typeof saveStore>;
 export type Message = { id: number; role: "player" | "narrator"; text: string };
-export const PlayMode = z.enum(["free", "choices"]);
-export type PlayMode = z.infer<typeof PlayMode>;
 export const Choices = z.array(z.string()).length(3);
-/** A Message as a Turn returns it, with the Choices a response offers in Choices mode. */
+/** A Message as a Turn returns it, with the Choices a response offers. */
 export type Reply = Message & { choices?: string[] };
 type ChoicesRow = Message & { choices: string | null };
 const withChoices = ({ choices, ...message }: ChoicesRow): Reply => ({ ...message, ...(choices !== null && { choices: JSON.parse(choices) as string[] }) });
@@ -650,7 +649,6 @@ export function saveStore(savesDir: string) {
       theme = "",
       importantCharacters,
       pcOnCover = true,
-      playMode = "free",
       opening,
     }: Save & {
       artStyle?: string;
@@ -659,7 +657,6 @@ export function saveStore(savesDir: string) {
       theme?: string;
       importantCharacters?: ImportantCharacter[];
       pcOnCover?: boolean;
-      playMode?: PlayMode;
       opening?: Partial<State>;
     }) {
       const id = crypto.randomUUID();
@@ -668,7 +665,7 @@ export function saveStore(savesDir: string) {
         using db = connect(unfinishedPath);
         const { name, ...details } = pc;
         db.run(
-          "INSERT INTO save (id, world_brief, pc_name, art_style, starting_hook, pc_details, title, theme, important_characters, pc_on_cover, play_mode) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO save (id, world_brief, pc_name, art_style, starting_hook, pc_details, title, theme, important_characters, pc_on_cover) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             worldBrief,
             name,
@@ -679,7 +676,6 @@ export function saveStore(savesDir: string) {
             theme,
             importantCharacters ? JSON.stringify(importantCharacters) : null,
             pcOnCover ? 1 : 0,
-            playMode,
           ],
         );
         // No Message has this Snapshot yet, and the file isn't a Save until the rename below.
@@ -728,7 +724,6 @@ export function saveStore(savesDir: string) {
       coverRedraws: number;
       importantCharacters?: ImportantCharacter[];
       pcOnCover: boolean;
-      playMode: PlayMode;
     } {
       using db = open(id);
       const save = db
@@ -742,10 +737,9 @@ export function saveStore(savesDir: string) {
             theme: string;
             important_characters: string | null;
             pc_on_cover: number;
-            play_mode: PlayMode;
           },
           []
-        >("SELECT pc_name, art_style, starting_hook, pc_details, title, theme, important_characters, pc_on_cover, play_mode FROM save")
+        >("SELECT pc_name, art_style, starting_hook, pc_details, title, theme, important_characters, pc_on_cover FROM save")
         .get()!;
       return {
         worldBrief: currentState(db).worldBrief,
@@ -756,7 +750,6 @@ export function saveStore(savesDir: string) {
         theme: save.theme,
         ...(save.important_characters !== null && { importantCharacters: JSON.parse(save.important_characters) as ImportantCharacter[] }),
         pcOnCover: save.pc_on_cover === 1,
-        playMode: save.play_mode,
         hasCover: db.query("SELECT 1 FROM cover").get() !== null,
         coverRedraws: db.query<{ redraws: number }, []>("SELECT redraws FROM cover").get()?.redraws ?? 0,
       };
@@ -811,11 +804,6 @@ export function saveStore(savesDir: string) {
     setArtStyle(id: string, artStyle: string) {
       using db = open(id);
       db.run("UPDATE save SET art_style = ?", [artStyle]);
-    },
-
-    setPlayMode(id: string, playMode: PlayMode) {
-      using db = open(id);
-      db.run("UPDATE save SET play_mode = ?", [playMode]);
     },
 
     /** The latest Message's Choices, if it is a response that has some. */

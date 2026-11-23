@@ -151,7 +151,7 @@ export function withoutUnread<Operation extends StateOperation>(operations: Oper
 
 /**
  * Three Choices for a reply that came without usable ones, asked of the Narrator alone, so the Turn's story isn't lost for them.
- * Undefined on any failure, which leaves the Turn without Choices: the player picks again from a Regenerate, or switches to Free Text.
+ * Undefined on any failure, which leaves the Turn without Choices: the player writes their own move, or Regenerates for some.
  * Sent the previous reply and the player's move too, and asked a level below the player's Thinking, as from the reply alone it
  * timed out 5 times in a 30-round DeepSeek play and wrote the weakest Choices when it didn't.
  * Sent the PC's Journal too, as without it a Choice was written on a note no one wrote.

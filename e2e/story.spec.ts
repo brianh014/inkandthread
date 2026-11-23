@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { join } from "node:path";
-import { growStory, newStory, sendTurn, STORY_WINDOW } from "./support";
+import { growStory, hideChoices, newStory, sendTurn, STORY_WINDOW, showChoicesAgain } from "./support";
 
 const PC_INPUT = /say or do\?$/;
 const IMPORTANT = "Nell Brack";
@@ -66,8 +66,11 @@ async function journal(page: Page) {
   return counts;
 }
 
+test.afterEach(showChoicesAgain);
+
 test("a story makes and shows everything: pictures, characters, Turns, a Question, a Chapter and the Journal", async ({ page }) => {
   test.setTimeout(90_000);
+  await hideChoices(page);
 
   // The wizard, with an Important Character of the player's own.
   await page.goto("/#/new");

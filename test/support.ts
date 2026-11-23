@@ -135,10 +135,12 @@ export function startApp(
   reviewPicture: PictureReviewer = async (description) => description,
   // Off unless given, so a scripted Narrator isn't also asked for State Upkeep.
   reviewProvider?: TextProvider,
+  // Off unless asked, so a scripted Narrator isn't also asked for each Turn's Choices.
+  offerChoices = false,
 ) {
   const settings = settingsStore(join(dirname(savesDir), "settings.json"));
   const start = () =>
-    startServer({ savesDir, settings, textProvider, imageAdapter, dice, nearMissMargin, port: 0, writePicture, reviewPicture, reviewProvider });
+    startServer({ savesDir, settings, textProvider, imageAdapter, dice, nearMissMargin, port: 0, writePicture, reviewPicture, reviewProvider, offerChoices });
   let server = start();
   const post = (path: string, body: unknown) => postJson(new URL(path, server.url), body);
   return {

@@ -18,9 +18,7 @@ import {
   NANOGPT_URL,
   getTextModels,
   OPENROUTER_URL,
-  type PlayMode,
   saveArtStyle,
-  savePlayMode,
   saveSettings,
   type Settings,
   type TextHost,
@@ -29,7 +27,6 @@ import {
 import { ChoicesIcon } from "./icons";
 import { BookTabs, MenuRibbon, Sheet } from "./menu";
 import { UpdatesSection } from "./new-version";
-import { PlayModePicker } from "./play-choices";
 import { ReadingSamples } from "./reading-samples";
 import { NarratorTable, UsageSection } from "./usage";
 
@@ -124,36 +121,6 @@ function ArtStyle({ id }: { id: string }) {
       {feedback}
       <button type="submit" className="action" aria-disabled={busy}>
         Save Art Style
-      </button>
-    </form>
-  );
-}
-
-function PlayModeSetting({ id }: { id: string }) {
-  const [playMode, setPlayMode] = useState<PlayMode>();
-  const { busy, submit, feedback } = useSubmit(async () => {
-    await savePlayMode(id, playMode!);
-    return "Play Mode saved.";
-  });
-
-  useEffect(() => {
-    // ArtStyle shows a failure to load, which this shares.
-    getSave(id).then(
-      (save) => setPlayMode(save.playMode),
-      () => {},
-    );
-  }, [id]);
-
-  if (playMode === undefined) return null;
-  return (
-    <form className="fields" onSubmit={submit}>
-      <PlayModePicker value={playMode} onChange={setPlayMode} />
-      <p className="muted">
-        This Save only. A response written in Free Text has no Choices: Regenerate it, or switch with the button by the story's text box, which offers to.
-      </p>
-      {feedback}
-      <button type="submit" className="action" aria-disabled={busy}>
-        Save Play Mode
       </button>
     </form>
   );
@@ -1480,6 +1447,14 @@ function InstallSettings({
         <p className="muted">
           A line under a reply where the Narrator rolled to decide how something went, with how hard it was, the roll and the result. Off, the dice stay hidden.
         </p>
+        <label className="toggle">
+          <input type="checkbox" checked={draft.showChoices} onChange={(e) => set({ showChoices: e.target.checked })} />
+          Show Choices
+        </label>
+        <p className="muted">
+          Three things your PC might do, over the text box after each reply, with the box under them for your own words. Off, you type every move. The Choices
+          button by the text box turns them on and off too.
+        </p>
       </div>
 
       <div data-section="Advanced" className="fields usage" hidden={section !== "Advanced"}>
@@ -1561,7 +1536,6 @@ export function SettingsScreen({ id }: { id?: string }) {
       {/* Stays mounted, so an unsaved edit survives a look at another section. */}
       {id && (
         <div hidden={section !== THIS_STORY}>
-          <PlayModeSetting key={`${id}-play`} id={id} />
           <ArtStyle key={id} id={id} />
         </div>
       )}

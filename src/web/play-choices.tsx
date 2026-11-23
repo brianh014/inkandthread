@@ -1,22 +1,5 @@
 import { type ReactNode, useSyncExternalStore } from "react";
-import type { PlayMode } from "./api";
-import { Choices } from "./art-style-picker";
 import { RegenerateIcon } from "./icons";
-
-const LABELS: Record<PlayMode, string> = { free: "Free Text", choices: "Choices" };
-
-/** The Play Mode as chips, for the New Story wizard and Settings. */
-export function PlayModePicker(props: { value: PlayMode; intro?: ReactNode; onChange: (playMode: PlayMode) => void }) {
-  return (
-    <Choices
-      legend="How you play"
-      intro={props.intro}
-      options={Object.values(LABELS)}
-      value={LABELS[props.value]}
-      onChange={(label) => props.onChange(label === LABELS.choices ? "choices" : "free")}
-    />
-  );
-}
 
 /** Whether the screen is phone-width, where the Choices go in the story, as the bottom bar leaves the story little room. */
 const NARROW = "(max-width: 760px)";

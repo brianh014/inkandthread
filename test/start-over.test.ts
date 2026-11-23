@@ -31,7 +31,6 @@ test("Start Over fills only the first step, with no world or pictures", () => {
     startingHook: "",
     pc: { name: "Ash", background: "A diver.", physicalTraits: "Tall.", inventory: "" },
     artStyle: blank.artStyle,
-    playMode: blank.playMode,
     pcOnCover: blank.pcOnCover,
     id: undefined,
     world: undefined,

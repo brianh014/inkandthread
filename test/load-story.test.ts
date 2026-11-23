@@ -150,7 +150,6 @@ test("an exported Save imports as a new Save with the same story", async () => {
     startingHook: "",
     hasCover: false,
     coverRedraws: 0,
-    playMode: "free",
   });
 });
 

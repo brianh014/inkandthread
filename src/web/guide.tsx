@@ -265,11 +265,10 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           Each <b>Turn</b> is your move and the Narrator's reply, which appears as it's written. Write as your PC: what they do, what they say, or both. The
           Narrator plays everyone and everything else.
         </p>
-        <h3>Free Text and Choices</h3>
+        <h3>Choices</h3>
         <p>
-          The {tool(ChoicesIcon, "Choices")} button switches how you play. In <b>Free Text</b> you type your move. In <b>Choices</b>, every reply ends with
-          three things your PC might do; pick one to send it, or type your own in the box under them. Switch whenever you like. Decide for me and Enhance are
-          only in Free Text.
+          Every reply comes with three things your PC might do; pick one to send it, or type your own in the box under them. The {tool(ChoicesIcon, "Choices")}{" "}
+          button hides them, so you type every move, and shows them again, in every story. Decide for me and Enhance are there while the Choices are hidden.
         </p>
         <h3>The tools by the box</h3>
         <ul>
@@ -543,6 +542,9 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           <li>
             <b>Show Checks</b>: a line under each reply where a roll decided how something went. Off by default, so the story reads without them.
           </li>
+          <li>
+            <b>Show Choices</b>: the three Choices after each reply, the same as the {tool(ChoicesIcon, "Choices")} button. On by default.
+          </li>
         </ul>
         <h3>Usage</h3>
         <p>
@@ -552,7 +554,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           kept.
         </p>
         <h3>This Story</h3>
-        <p>How you play this story, Free Text or Choices, and its Art Style.</p> <h3>Updates</h3>
+        <p>This story's Art Style.</p> <h3>Updates</h3>
         <p>
           The version you have, <b>Check now</b> to look for a new one, and <b>Install</b> when there is one. See {link("updates", "Updates")}.
         </p>

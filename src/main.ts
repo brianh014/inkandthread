@@ -76,6 +76,7 @@ const server = startServer({
   textProvider: fake ? fakeTextProvider : textProvider(settings),
   reviewProvider: fake ? fakeTextProvider : textProvider(reviewerSettings(settings)),
   moveWorld: true,
+  offerChoices: true,
   imageAdapter: fake
     ? fakeImages
     : {

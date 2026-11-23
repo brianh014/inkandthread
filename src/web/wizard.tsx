@@ -1,7 +1,6 @@
 import { Fragment, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArtStylePicker, artStyleText, OWN_ART_STYLE } from "./art-style-picker";
 import { roman } from "./chat-style";
-import { PlayModePicker } from "./play-choices";
 import {
   beginStory,
   type Character,
@@ -385,7 +384,7 @@ export function NewStory({ step }: { step?: string }) {
       });
     const begin = () =>
       run("Opening the book…", async (signal) => {
-        const { id } = await beginStory(worldId!, artStyle, draft.playMode, signal);
+        const { id } = await beginStory(worldId!, artStyle, signal);
         sessionStorage.removeItem(STORAGE_KEY);
         location.hash = `/play/${id}`;
       });
@@ -444,13 +443,6 @@ export function NewStory({ step }: { step?: string }) {
             {pcPicture}
             {characterPictures}
           </div>
-        </section>
-        <section className="fields wizard">
-          <PlayModePicker
-            value={draft.playMode}
-            intro={<p className="muted">Type what your character does, or pick one of three Choices after each response. You can switch during the story.</p>}
-            onChange={(playMode) => set({ playMode })}
-          />
         </section>
       </div>,
       <button type="button" className="quiet leave" aria-haspopup="dialog" onClick={() => setLeaving("/new/art")}>

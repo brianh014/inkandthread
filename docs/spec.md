@@ -319,7 +319,7 @@ A story is always called by its Title, with its PC's name as a second line under
 
 Every Turn saves automatically, so there is no manual save. Players branch a story by duplicating a Save, either from this menu or with “Duplicate from here” on any Message.
 
-Start Over begins a new story from a Save: the New Story form opens with its first step filled in as that story began, with the World Brief from before any Journal edit, its Title, Theme, Starting Hook, PC and Important Characters, all for the player to change. The PC's inventory box starts empty, as the Save keeps only the items it became. The later steps start fresh, so no world, Art Style, Play Mode or picture carries over, and it replaces any story the form was holding. A Save from before Important Characters were kept starts with none.
+Start Over begins a new story from a Save: the New Story form opens with its first step filled in as that story began, with the World Brief from before any Journal edit, its Title, Theme, Starting Hook, PC and Important Characters, all for the player to change. The PC's inventory box starts empty, as the Save keeps only the items it became. The later steps start fresh, so no world, Art Style or picture carries over, and it replaces any story the form was holding. A Save from before Important Characters were kept starts with none.
 
 # Tech
 

@@ -86,7 +86,7 @@ test("a generated world reaches the player only as its World Overview, and its S
   ]);
   expect(worldRules).toEqual(["Magic does not exist."]);
   expect(plotThreads).toEqual(["The mayor is a drowned ghost."]);
-  expect(saves.latestState(id).storyTime).toEqual({ day: 1, date: "3rd of Lowtide", timeOfDay: "dusk", hours: 18 });
+  expect(saves.latestState(id).storyTime).toEqual({ day: 1, date: "3rd of Lowtide", timeOfDay: "dusk" });
   // The day count is the Narrator's alone.
   expect(await app.get(`/saves/${id}/journal`).then((r) => r.json())).toMatchObject({ storyTime: { date: "3rd of Lowtide", timeOfDay: "dusk" } });
 });

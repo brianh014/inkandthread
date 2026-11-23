@@ -4,7 +4,7 @@ import { basename, join } from "node:path";
 import { z } from "zod";
 import { type Check, StoredCheck } from "./check-resolver";
 import { errorFields, log } from "./logger";
-import { applyEdit, hourOf, openingState, type State, StateSections, WorldEdit } from "./state-applier";
+import { applyEdit, openingState, type State, StateSections, WorldEdit } from "./state-applier";
 
 /**
  * The PC as the player wrote them, apart from the name. Each field is optional, as Saves from before these fields have
@@ -682,12 +682,8 @@ export function saveStore(savesDir: string) {
             playMode,
           ],
         );
-        // The clock starts at the opening's hour, as plans timed before the first set_story_time had no clock and never fell due.
-        const time = opening?.storyTime;
-        const hour = time && time.hours === undefined ? hourOf(time.timeOfDay) : undefined;
-        const clocked = hour === undefined ? opening : { ...opening, storyTime: { ...time!, hours: (time!.day - 1) * 24 + hour } };
         // No Message has this Snapshot yet, and the file isn't a Save until the rename below.
-        for (const [name, value] of Object.entries({ ...clocked, worldBrief })) {
+        for (const [name, value] of Object.entries({ ...opening, worldBrief })) {
           db.run(
             `UPDATE sections SET content = ? WHERE id =
              (SELECT section_id FROM snapshot_sections WHERE message_id = ${OPENING_SNAPSHOT} AND name = ?)`,

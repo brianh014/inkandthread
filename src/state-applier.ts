@@ -732,12 +732,18 @@ function datesApart(from: string | undefined, to: string | null) {
 }
 
 /**
+ * The story hours since the Opening: the clock's, or for a time with none yet, such as an opening before its first set_story_time,
+ * the hour its day and words give, which that first set_story_time counts on from, so plans timed before it fall due on time.
+ */
+export const clockOf = (time: StoryTime | null | undefined) => (time ? (time.hours ?? ((time.day ?? 1) - 1) * 24 + (hourOf(time.timeOfDay) ?? 12)) : undefined);
+
+/**
  * The story hours since the Opening after a set_story_time: the old count plus the reply's hours_passed, or the hours its words
  * moved on when it gives none, never short of the days passed. A Save from before it starts from its day and time of day.
  */
 function clockHours(was: StoryTime | null, day: number, timeOfDay: string, passed: number | null) {
   // A first Story Time starts at its own hour of day 1.
-  const start = was?.hours ?? (was ? (was.day - 1) * 24 + (hourOf(was.timeOfDay) ?? 12) : (hourOf(timeOfDay) ?? 12));
+  const start = was ? clockOf(was)! : (hourOf(timeOfDay) ?? 12);
   const [from, to] = [hourOf(was?.timeOfDay ?? ""), hourOf(timeOfDay)];
   // Forward within the day, or on through the night into the small hours, as words going back from evening to the next morning
   // are a story starting over, not a night passing, but "11 pm" to "1 am" is two hours.
@@ -825,7 +831,7 @@ export function applyOperations(state: State, operations: StateOperation[]) {
     return reason ? [{ op: operation.op, reason }] : [];
   });
   // From the reply's own clock, whatever order its operations came in, as hours counted before its set_story_time fell due at once.
-  const clock = next.storyTime?.hours;
+  const clock = clockOf(next.storyTime);
   for (const [truth, hours] of threads.timed!)
     if (clock !== undefined && next.threadsPlan[truth]) next.threadsDue = { ...next.threadsDue, [truth]: clock + hours };
   return { next, refused: refusals.filter((refusal) => !isHarmless(refusal)), ignored: refusals.filter(isHarmless), repeats };

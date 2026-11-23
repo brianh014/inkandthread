@@ -24,6 +24,7 @@ const WORLD = JSON.stringify({
   calendar: "Days run in weeks of seven.",
   start_date: "3rd of Lowtide",
   start_time_of_day: "dusk",
+  naming: "Names are short and plain.",
   lore_entries: [{ title: "The Tide Court", keywords: ["Tide Court", "the court", "magistrates"], content: "Its judges drown the guilty." }],
   world_rules: ["Magic does not exist."],
   plot_threads: ["The mayor is a drowned ghost."],

@@ -112,7 +112,7 @@ The optional opening situation chosen during story creation.
 _Avoid_: Hook (alone)
 
 **Sparks**:
-Starting points drawn at random in code each time a world is built, Regenerated or written by Pick for me: a pressure on the world, a constraint it lives under, a secret (never for Pick for me, whose boxes the player reads) and the first letters of invented names of people and places; and for a World Brief Pick for me writes from nothing, something people there make or sell, something they fight over, and, for a theme that doesn't say, when it is set. The Narrator builds them in where the player's choices leave room, so the same idea doesn't build the same world. Unseen, with no setting.
+Starting points drawn at random in code each time a world is built, Regenerated or written by Pick for me: a pressure on the world, a constraint it lives under, a secret (never for Pick for me, whose boxes the player reads) and the first letters of invented names of people and places; and for a World Brief Pick for me writes from nothing, a real region whose land, livelihoods and sound of names it takes after, the kind of place the story centres on, and, for a theme that doesn't say, when it is set. The Narrator builds them in where the player's choices leave room, so the same idea doesn't build the same world. Unseen, with no setting.
 _Avoid_: Seeds (the image seed and the bench's Seeded Choices)
 
 **Important Characters**:

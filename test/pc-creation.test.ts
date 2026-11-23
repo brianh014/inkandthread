@@ -31,6 +31,7 @@ const generated = (mark = "") =>
     calendar: "Days run in weeks of seven under the Tide Reckoning.",
     start_date: "3rd of Lowtide",
     start_time_of_day: "dusk",
+    naming: "Names are short and plain.",
     lore_entries: [
       { title: "Magic", keywords: ["magic", "spell", "sorcery"], content: `${mark}Magic is a myth.` },
       { title: "The Tide Court", keywords: ["Tide Court", "court", "judges"], content: `${mark}Its judges drown the guilty.` },

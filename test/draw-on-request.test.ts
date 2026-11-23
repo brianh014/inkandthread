@@ -174,6 +174,7 @@ test("the text call gets the recent story and the Scene's people with their look
     calendar: "Days run in weeks of seven under the Tide Reckoning.",
     start_date: "3rd of Lowtide",
     start_time_of_day: "dusk",
+    naming: "Names are short and plain.",
     lore_entries: [{ title: "SECRET-TITLE", keywords: ["tide", "sea", "flood"], content: "SECRET-LORE" }],
     world_rules: ["SECRET-RULE"],
     plot_threads: ["SECRET-THREAD"],

@@ -27,8 +27,9 @@ const WORLD = {
   calendar: "Days by tides.",
   start_date: "First Tide",
   start_time_of_day: "dusk",
+  naming: "Names are short and plain.",
 };
-const NO_EDITS = { world_overview: null, lore_entries: [], world_rules: [], plot_threads: [], calendar: null, start: null };
+const NO_EDITS = { world_overview: null, lore_entries: [], world_rules: [], plot_threads: [], calendar: null, naming: null, start: null };
 const CHOICES = { title: "Salt", theme: "Fantasy", worldBrief: "A drowned city", startingHook: "" };
 const PC = { pc: { name: "Ash" }, inventory: "" };
 const SPARKS = { pressure: "a truce about to break", constraint: "a curfew everyone keeps", secret: "a record quietly changed", nameLetters: "B, M, T" };
@@ -56,7 +57,7 @@ test("the World review's edits are made, each with its fault counted in the log,
   let result: Awaited<typeof made> | undefined;
   const log = await logOf(async () => (result = await made));
   expect(result!.world.plotThreads).toEqual(["The mayor's bees spy for the drowned queen.", "The tide is rising."]);
-  expect(result!.world.worldBible.map(({ title }) => title)).toEqual(["The Mayor", "The Tide", "The Queen", "Calendar"]);
+  expect(result!.world.worldBible.map(({ title }) => title)).toEqual(["The Mayor", "The Tide", "The Queen", "Calendar", "Naming"]);
   expect(log).toContain("World reviewed");
   expect(log).toContain('"thin_story":1');
   expect(log).not.toContain("drowned queen");
@@ -88,7 +89,7 @@ test("a plot thread rewritten well past a sentence or two is asked again, as the
   expect(reviewer.prompts).toHaveLength(2);
   expect(world.plotThreads[0]!.split(" ")).toHaveLength(120);
   expect(reviewer.prompts[0]![0]!.content).toContain("Keep each world rule and plot thread to a sentence or two");
-  expect(reviewer.prompts[0]![0]!.content).toContain("A name you add, first or surname, starts with one of B, M, T");
+  expect(reviewer.prompts[0]![0]!.content).toContain("A name you add, first or surname, follows naming and starts with one of B, M, T");
 });
 
 test("a rewrite of a long thread may run as long as it, with the same leeway", async () => {

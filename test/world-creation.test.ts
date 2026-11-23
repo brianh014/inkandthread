@@ -34,6 +34,7 @@ const generated = (mark = "", changes = {}) =>
     calendar: "Days run in weeks of seven under the Tide Reckoning.",
     start_date: "3rd of Lowtide",
     start_time_of_day: "dusk",
+    naming: "Names are short and plain.",
     lore_entries: [{ title: `${mark}The Tide Court`, keywords: ["Tide Court", "the court", "magistrates"], content: `${mark}Its judges drown the guilty.` }],
     world_rules: [`${mark}Magic does not exist.`],
     plot_threads: [`${mark}The mayor is a drowned ghost.`],
@@ -82,6 +83,7 @@ test("a generated world reaches the player only as its World Overview, and its S
       alwaysOn: false,
     },
     { title: "Calendar", keywords: ["calendar", "date", "day"], content: "Days run in weeks of seven under the Tide Reckoning.", alwaysOn: true },
+    { title: "Naming", keywords: ["name", "names", "naming"], content: "Names are short and plain.", alwaysOn: true },
   ]);
   expect(worldRules).toEqual(["Magic does not exist."]);
   expect(plotThreads).toEqual(["The mayor is a drowned ghost."]);
@@ -268,7 +270,7 @@ test("Pick for me is sent only the Sparks its empty boxes can hold, never a secr
 
   const [world, name, title] = prompts.map((prompt) => prompt[0]!.content);
   expect(world).toMatch(
-    /Sparks.*something people here make or sell: \w+; something they fight over: \w+; a pressure on the world now: .+; a constraint it lives under: .+; invented names of people and places starting with [A-Z](, [A-Z]){4}\. Build the world from them/,
+    /Sparks.*a real region whose .+?: [^;]+; the kind of place the story centres on: [^;]+; a pressure on the world now: .+; a constraint it lives under: [^;]+\. Build the world from them/,
   );
   expect(name).toMatch(/Sparks.*: invented names of people and places starting with [A-Z](, [A-Z]){4}\./);
   expect(name).not.toContain("a pressure");
@@ -278,14 +280,17 @@ test("Pick for me is sent only the Sparks its empty boxes can hold, never a secr
   expect(world).not.toContain("when it is set");
 });
 
-test("Pick for me draws when a World Brief is set only for a theme that leaves it open", async () => {
-  play(JSON.stringify({ worldBrief: "A haunted town." }), JSON.stringify({ worldBrief: "A haunted town." }));
+test("Pick for me draws when a World Brief is set only for a built-in theme that leaves it open, and the theme comes first", async () => {
+  play(...Array(3).fill(JSON.stringify({ worldBrief: "A haunted town." })));
 
   await app.post("/worlds/pick", { theme: "Horror: Ordinary lives unravel.", title: "Dread", worldBrief: "" });
-  await app.post("/worlds/pick", { theme: "A story of my own", title: "Dread", worldBrief: "" });
+  await app.post("/worlds/pick", { theme: "Western: The American frontier.", title: "Dread", worldBrief: "" });
+  await app.post("/worlds/pick", { theme: "A Victorian ghost story", title: "Dread", worldBrief: "" });
 
-  for (const prompt of prompts)
-    expect(prompt[0]!.content).toMatch(/Sparks, drawn at random so it isn't the most familiar pick: when it is set: [^;]+; something people/);
+  const [open, fixed, own] = prompts.map((prompt) => prompt[0]!.content);
+  expect(open).toMatch(/Sparks, drawn at random so it isn't the most familiar pick: when it is set: [^;]+; a real region/);
+  for (const prompt of [fixed, own]) expect(prompt).toMatch(/Sparks, drawn at random so it isn't the most familiar pick: a real region/);
+  expect(own).toContain("the theme and what the player wrote come first");
 });
 
 test("Pick for me needs every empty box back, and retries a Title too long for a cover", async () => {

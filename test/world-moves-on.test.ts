@@ -1351,54 +1351,65 @@ test("a move with no usable change is written again, saying why", async () => {
   expect(told.prompts.some((prompt) => prompt.at(-1)!.content.includes("a change misquotes a thread"))).toBe(true);
 });
 
-test("what a deed left at a place goes into that place's Lore Entry, as seen only by whoever has come there since", async () => {
-  const told = play(
-    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
-    moved({
-      ...change(THIEF, "The thief has robbed the library and hides the books on a barge."),
-      mark: { lore: "The thief", text: "Since dawn the library's back window hangs broken." },
-    }),
+/** A Save whose library has a Lore Entry of its own, as a mark goes on a place. */
+const LIBRARY = "A great domed reading room with a back window over the canal.";
+const withLibrary = () =>
+  store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The dock", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [THIEF],
+      worldBible: [{ title: "The library", keywords: ["library", "reading room", "stacks"], content: LIBRARY, alwaysOn: false }],
+    },
+  });
+const marking = (text: string, now = "The thief has robbed the library and hides the books on a barge.") =>
+  moved({ ...change(THIEF, now), mark: { lore: "The library", text } });
+const library = (id: string) =>
+  store()
+    .latestState(id)
+    .worldBible.find(({ title }) => title === "The library")!.content;
+
+test("what a deed left at a place goes into that place's Lore Entry, with when, as seen only by whoever has come there since", async () => {
+  play(
+    narration("Ash walks to the dock.", nextDay()),
+    // In the entry's own words, which still marks it, as only an earlier mark's deed counts as held.
+    marking("The back window over the canal hangs broken"),
     narration("Ash watches the barges."),
   );
-  const id = createSave();
+  const id = withLibrary();
 
   const log = await logOf(async () => {
     expect((await turn(id, "I walk to the dock.")).ok).toBe(true);
     expect((await turn(id, "I watch the barges.")).ok).toBe(true);
   }, "info");
 
-  // Only a place the move was given can be marked.
-  expect(told.prompts[1]![0]!.content).toContain('"enum":["The thief"]');
-  expect(
-    store()
-      .latestState(id)
-      .worldBible.find(({ title }) => title === "The thief")!.content,
-  ).toBe("The thief is the librarian's own son. Since dawn the library's back window hangs broken, which only whoever has come there since has seen.");
+  expect(library(id)).toBe(`${LIBRARY} By 2nd of Thaw, dawn: The back window over the canal hangs broken. Only whoever has come there since has seen it.`);
   expect(log).toContain('"marks":1');
 });
 
-test("a mark naming someone is dropped, as it would say who did the deed", async () => {
+test("a mark naming someone, one an earlier mark holds, or one on no place given is dropped, and a mark that won't parse costs the move nothing", async () => {
   play(
-    narration(
-      "Ash walks to the dock.",
-      { op: "add_npc", name: "Ferryman", appearance: "a stooped man in oilskins" },
-      { op: "set_scene", location: "The dock", visible_cast: [] },
-      nextDay(),
-    ),
-    moved({ ...change(THIEF, "The thief has robbed the library."), mark: { lore: "The thief", text: "The Ferryman's knife lies by the broken window." } }),
-    narration("Ash watches the barges."),
+    narration("Ash walks to the dock.", { op: "add_npc", name: "Ferryman", appearance: "a stooped man in oilskins" }, nextDay()),
+    marking("The Ferryman's knife lies by the broken window."),
+    narration("Ash watches the barges.", nextDay("3rd of Thaw")),
+    marking("The back window hangs broken"),
+    narration("Ash waits.", nextDay("4th of Thaw")),
+    marking("The canal window hangs broken still, glass on the floor"),
+    narration("Ash waits on.", nextDay("5th of Thaw")),
+    moved({ ...change(THIEF, "The thief sleeps on the barge."), mark: "the window is broken" }),
+    narration("Ash leaves."),
   );
-  const id = createSave();
+  const id = withLibrary();
 
   const log = await logOf(async () => {
-    expect((await turn(id, "I walk to the dock.")).ok).toBe(true);
-    expect((await turn(id, "I watch the barges.")).ok).toBe(true);
+    for (const move of ["I walk to the dock.", "I watch the barges.", "I wait.", "I wait on.", "I leave."]) expect((await turn(id, move)).ok).toBe(true);
   }, "info");
 
-  expect(
-    store()
-      .latestState(id)
-      .worldBible.find(({ title }) => title === "The thief")!.content,
-  ).toBe("The thief is the librarian's own son.");
-  expect(log).toContain('"marksDropped":1');
+  expect(library(id)).toBe(`${LIBRARY} By 3rd of Thaw, dawn: The back window hangs broken. Only whoever has come there since has seen it.`);
+  expect(log.match(/"marksDropped":1/g)?.length).toBe(2);
+  expect(store().latestState(id).threadsNow[THIEF]).toBe("The thief sleeps on the barge.");
 });

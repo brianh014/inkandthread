@@ -204,7 +204,6 @@ export const StateOperation = z.discriminatedUnion("op", [
     keywords: z.array(nonEmpty).min(1),
     content: nonEmpty,
   }),
-  z.object({ op: z.literal("remove_lore_entry"), title: nonEmpty }),
   z.object({
     op: z.literal("update_plot_thread"),
     thread: nonEmpty,
@@ -588,9 +587,6 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       else state.worldBible.push({ title, keywords, content, alwaysOn: false });
       return;
     }
-    case "remove_lore_entry":
-      state.worldBible = state.worldBible.filter(({ title, alwaysOn }) => alwaysOn || title !== operation.title);
-      return;
     case "update_plot_thread": {
       const { thread, resolved } = namedThread(state, operation.thread, threads);
       // Closed earlier in this reply, so a rewrite mustn't open it again.

@@ -179,6 +179,19 @@ test("Choices asked for alone are sent the PC's Journal, so they build on what t
   expect(prompts[0]![0]!.content.match(/one that failed may be tried a different way/g)).toHaveLength(2);
 });
 
+test("Choices asked for alone are sent the story so far, its summary by the Journal and the recent one by the replies", async () => {
+  const { textProvider, prompts } = scriptedTextProvider(JSON.stringify({ choices: ["Ask Jory.", "Ride on now.", "Wait here."] }));
+  await writeChoices(textProvider, "Jory looks away.", new AbortController().signal, "", "", {
+    facts: [],
+    looseEnds: [],
+    summary: "The ledger was taken.",
+    recentSummary: "Jory lied.",
+  });
+  const sent = JSON.parse(prompts[0]!.at(-1)!.content);
+  expect(sent).toMatchObject({ summary: "The ledger was taken.", recent_summary: "Jory lied." });
+  expect(Object.keys(sent)).toEqual(["journal", "summary", "recent_summary", "previous_reply", "player_move", "reply"]);
+});
+
 test("a Choice built on what the PC hasn't learned is dropped, not reworded, and the others are kept", () => {
   // A rewording kept the secret in other words, so no one is asked to write it again.
   const choices = ["Ask Tamsin about the old hut.", "Ask Jory what scares him.", "Ride on."];

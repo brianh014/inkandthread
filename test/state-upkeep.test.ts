@@ -276,6 +276,32 @@ test("State Upkeep doesn't move time in a Turn where the Narrator did, as it mov
   expect(log).toContain('"operations":["set_scene"],"dropped":1');
 });
 
+test("State Upkeep keeps the Journal the Narrator left, only from the reply, never twice, and no more than it may", async () => {
+  play(
+    [narration("Kit shows Ash four round bruises on the drowned man's neck and says the sexton locked the crypt.")],
+    [
+      upkept(
+        { op: "add_known_fact", fact: "The drowned man has four round bruises on his neck." },
+        // Upkeep reads what people know in secret, which a note must never carry.
+        { op: "add_known_fact", fact: "The vicar ordered smuggling through the harbour." },
+        { op: "add_known_fact", fact: "Four round bruises mark the neck of the drowned man." },
+        { op: "add_known_fact", fact: "The sexton locked the crypt." },
+        { op: "add_known_fact", fact: "Kit shows the bruises." },
+        { op: "add_loose_end", loose_end: "Why the sexton locked the crypt." },
+        { op: "add_loose_end", loose_end: "Who left the bruises on the drowned man." },
+      ),
+    ],
+  );
+  const id = createSave();
+
+  const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
+
+  expect(store().latestState(id).pcKnown.facts).toEqual(["The drowned man has four round bruises on his neck.", "The sexton locked the crypt."]);
+  expect(store().latestState(id).looseEnds).toEqual(["Why the sexton locked the crypt."]);
+  expect(log).toContain("Upkeep's Journal entries dropped {");
+  expect(log).toContain('"ungrounded":1,"repeated":1,"overMost":2');
+});
+
 test("State Upkeep is sent the Loose Ends and resolves one the reply settled, as long stories kept a dozen stale", async () => {
   const { upkeep } = play(
     [narration("Ash finds the key under the mat.", { op: "add_loose_end", loose_end: "Find the key to the boathouse" })],

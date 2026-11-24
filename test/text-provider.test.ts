@@ -1614,10 +1614,12 @@ test("placeholder operations, a known fact that is only a name, and a reply's re
   ];
   const junk = [
     { op: "resolve_plot_thread", thread: "x" },
-    { op: "remove_lore_entry", title: "__none__" },
-    { op: "remove_lore_entry", title: "nonexistent" },
-    { op: "remove_lore_entry", title: "unused" },
-    { op: "remove_lore_entry", title: " " },
+    { op: "resolve_loose_end", loose_end: "__none__" },
+    { op: "resolve_loose_end", loose_end: "nonexistent" },
+    { op: "resolve_loose_end", loose_end: "unused" },
+    { op: "resolve_loose_end", loose_end: " " },
+    // A real entry's too, as a lone remove deleted a live one; the reply isn't lost for it.
+    { op: "remove_lore_entry", title: "The mill" },
     { op: "add_item", slot: "carrying", item: "x" },
     { op: "add_known_fact", fact: "Silas Grout" },
   ];
@@ -1628,13 +1630,6 @@ test("placeholder operations, a known fact that is only a name, and a reply's re
   ];
   expect(usableOperations([...kept, ...two])).toEqual(kept);
   expect(usableOperations([...kept, two[0]])).toEqual([...kept, two[0]]);
-  // Lore Entries likewise, as a reply wiped nine of ten; one entry named twice is one remove, left to the loop check.
-  const lore = [
-    { op: "remove_lore_entry", title: "The mill" },
-    { op: "remove_lore_entry", title: "The chapel" },
-  ];
-  expect(usableOperations([...kept, ...lore])).toEqual(kept);
-  expect(usableOperations([...kept, lore[0], lore[0]])).toEqual([...kept, lore[0], lore[0]]);
 });
 
 test("a reply changes a record once, so a chain of rewrites keeps only its first link", () => {

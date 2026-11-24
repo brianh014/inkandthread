@@ -48,7 +48,7 @@ import { applyWorldChange } from "./world-creation";
 import { foldKnows } from "./knowledge-folds";
 import { closeLooseEnds } from "./loose-ends-check";
 import { growLore } from "./lore-growth";
-import { askToClose, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, turnThreadChanges } from "./world-moves-on";
+import { askToClose, deedWords, echoes, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, turnThreadChanges } from "./world-moves-on";
 import { threadPeople } from "./thread-people";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
@@ -153,7 +153,9 @@ export class TurnFailed extends Error {
 // set_summary was offered once, and a model that still sends it, such as one with no schema mode, only repeats the summary field.
 // A Turn no longer adds a Plot Thread, which is World Moves On's: Turns added threads that restated what the PC knew or were
 // the PC's own goals. A model that still sends one has it dropped, not the reply.
-const RETIRED = ["set_summary", "add_plot_thread"];
+// Nor removes a Lore Entry, as the removes were filler in run-on lists, and deleted live entries in two plays and nine of a
+// world's ten in a third; update_lore_entry corrects one, and a World Change can still remove one.
+const RETIRED = ["set_summary", "add_plot_thread", "remove_lore_entry"];
 // DeepSeek filled its operations with placeholders, such as resolving a thread named "x", "none" or "", which failed whole Turns,
 // and saved an item named "x" and a known fact that was only a name, such as "Silas Grout", to the Journal.
 const PLACEHOLDER = /^[\s_]*(?:none|nonexistent|unused|placeholder|n\/a|null|\p{L})?[\s_]*$/iu;
@@ -163,22 +165,17 @@ export const isJunk = (operation: Record<string, unknown>) =>
 /**
  * The operations without retired ones and placeholders. A reply's resolves go too when it resolves more than one thread, as
  * DeepSeek wiped every open thread at once, early and again later, with nothing ended; World Moves On removes what play has ended.
- * Its removes of Lore Entries likewise, as one reply wiped nine of the world's ten. Removing other records two at a time is
- * common in play, such as two items handed over, so only these two are held to one.
+ * Removing other records two at a time is common in play, such as two items handed over, so only resolves are held to one.
  */
 export const usableOperations = (operations: unknown) => {
   if (!Array.isArray(operations)) return operations;
   const usable = operations.filter((operation) => !RETIRED.includes(operation?.op ?? "") && !(operation && typeof operation === "object" && isJunk(operation)));
-  // How many of `op` the reply sent, or 0 when they name one record only.
-  const many = (op: string, field: string) => {
-    const removes = usable.filter((operation) => operation.op === op);
-    return new Set(removes.map((operation) => operation[field])).size > 1 ? removes.length : 0;
-  };
-  const resolves = many("resolve_plot_thread", "thread");
-  const loreRemoves = many("remove_lore_entry", "title");
-  const kept = usable.filter(({ op }) => !(resolves && op === "resolve_plot_thread") && !(loreRemoves && op === "remove_lore_entry"));
+  const asked = usable.filter(({ op }) => op === "resolve_plot_thread");
+  // 0 when they name one thread only.
+  const resolves = new Set(asked.map(({ thread }) => thread)).size > 1 ? asked.length : 0;
+  const kept = usable.filter(({ op }) => !(resolves && op === "resolve_plot_thread"));
   const dropped = operations.length - kept.length;
-  if (dropped > 0) log.info("turn", "Operations dropped", { placeholders: operations.length - usable.length, resolves, loreRemoves });
+  if (dropped > 0) log.info("turn", "Operations dropped", { placeholders: operations.length - usable.length, resolves });
   return kept;
 };
 const TurnOperation = z.discriminatedUnion(
@@ -1034,20 +1031,6 @@ async function narrate(
       const operationLimit = MAX_OPERATIONS * (kind === "opening" ? 2 : 1);
       let state_operations = withoutLoop(response.state_operations, operationLimit);
       const looping = state_operations.length < response.state_operations.length;
-      // The opening starts from a world just written, which one opening's removes wiped before the story had used any of it. Never
-      // the Lore Entry of someone in the story, as it holds who they are and how they look, and a lone remove lost one mid-story.
-      const person = (title: string) =>
-        before.worldBible.some(
-          (entry) => entry.title === title && before.npcs.some(({ name }) => [entry.title, ...entry.keywords].some((word) => nameForms(name).includes(word))),
-        );
-      const kept = state_operations.filter((operation) => operation.op !== "remove_lore_entry" || (kind !== "opening" && !person(operation.title)));
-      if (kept.length < state_operations.length)
-        log.info("turn", "Operations dropped", {
-          attempt,
-          generation,
-          [kind === "opening" ? "openingLoreRemoves" : "personLoreRemoves"]: state_operations.length - kept.length,
-        });
-      state_operations = kept;
       // Only asked of World Moves On, which weighs it at its next move, as lone resolves ended threads whose secrets were unplayed.
       const asks = state_operations.flatMap((operation) => (operation.op === "resolve_plot_thread" ? [operation.thread] : []));
       state_operations = state_operations.filter(({ op }) => op !== "resolve_plot_thread");
@@ -1139,6 +1122,9 @@ async function narrate(
         writeChoices(textProvider, narration, signal, previous, plainMessage({ role: "player", text: upkeep?.input ?? input }).text, {
           facts: narrated.next.pcKnown.facts,
           looseEnds: narrated.next.looseEnds,
+          // This reply's own where it wrote them, as the state takes them only once the Turn is saved.
+          summary: summary.trim() || narrated.next.summary,
+          recentSummary: recent_summary?.trim() || narrated.next.recentSummary,
           storyTime: narrated.next.storyTime,
           moves: recentMoves,
           still: clockBack !== undefined && (narrated.next.storyTime?.hours ?? clockBack) - clockBack < STILL_HOURS,
@@ -1179,7 +1165,11 @@ async function narrate(
                 upkeepReads?.narration ?? narration,
                 signal,
                 timed,
-              ).then((ops) => ops && withoutRelearned(seen ? journalRead(ops, narrated.next, read) : ops, state_operations, narrated.next.npcs))
+              ).then((ops) => {
+                if (!ops) return ops;
+                const told = groundedNotes(ops, narrated.next, `${move}\n${upkeepReads?.narration ?? narration}`);
+                return withoutRelearned(seen ? journalRead(told, narrated.next, read) : told, state_operations, narrated.next.npcs);
+              })
             : undefined,
         ),
         // Always asked for alone, in a call that sees no secret, as the Narrator's own named its secrets in everyday words.
@@ -1202,6 +1192,7 @@ async function narrate(
       let moved = false;
       let location = "";
       let npcs: Scene["npcs"] = [];
+      let inView: string[] = [];
       let wearing: Scene["wearing"] = [];
       let portraits: Scene["portraits"] = [];
       let restyled: Scene["restyled"] = [];
@@ -1266,6 +1257,7 @@ async function narrate(
           moved = movedScene(state, next);
           location = next.scene.location;
           npcs = next.npcs;
+          inView = next.scene.visibleCast;
           wearing = next.inventory.wearing;
           portraits = portraitsDue(
             state,
@@ -1287,6 +1279,7 @@ async function narrate(
           description: dropped ? "" : description,
           location,
           npcs,
+          inView,
           wearing,
           portraits,
           restyled,
@@ -1353,6 +1346,36 @@ function journalRead<Operation extends StateOperation>(operations: Operation[], 
   const ends = (list: Operation[]) => list.filter(({ op }) => op === "add_loose_end").length;
   const dropped = ends(operations) - ends(kept);
   if (dropped > 0) log.info("turn", "Loose Ends with unknown words dropped", { dropped, kept: ends(kept) });
+  return kept;
+}
+
+/** The most facts and Loose Ends State Upkeep may add to one reply's Journal. */
+const MOST_NOTES = { add_known_fact: 2, add_loose_end: 1 } as const;
+/**
+ * State Upkeep's operations with only the Journal entries its reply bears out, by two of the entry's own words, as Upkeep also
+ * reads what people know in secret, and none that says again what the Journal holds.
+ * shortcut: by whole words, so a true note in other words is lost; compare by meaning if the Journal still misses much.
+ */
+export function groundedNotes<Operation extends StateOperation>(upkept: Operation[], { pcKnown, looseEnds }: State, told: string) {
+  const held = { add_known_fact: [...pcKnown.facts], add_loose_end: [...looseEnds] };
+  const dropped = { ungrounded: 0, repeated: 0, overMost: 0 };
+  const kept = upkept.filter((operation) => {
+    if (operation.op !== "add_known_fact" && operation.op !== "add_loose_end") return true;
+    const note = operation.op === "add_known_fact" ? operation.fact : operation.loose_end;
+    const words = deedWords(note);
+    const before = held[operation.op];
+    const most = MOST_NOTES[operation.op];
+    const had = operation.op === "add_known_fact" ? pcKnown.facts.length : looseEnds.length;
+    if (echoes(words, told) < Math.max(1, Math.min(2, words.length))) dropped.ungrounded++;
+    else if (before.some((other) => sameApproach(note, other))) dropped.repeated++;
+    else if (before.length - had >= most) dropped.overMost++;
+    else {
+      before.push(note);
+      return true;
+    }
+    return false;
+  });
+  if (kept.length < upkept.length) log.info("turn", "Upkeep's Journal entries dropped", dropped);
   return kept;
 }
 

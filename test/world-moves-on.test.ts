@@ -6,7 +6,7 @@ import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
 import { applyEdit, applyOperations, MAX_NPC_KNOWS, openingState, type WorldEdit } from "../src/state-applier";
 import { journalChange } from "../src/prompt-assembler";
-import { MOVE_EVERY, moveDue, sameDeed, turnThreadChanges } from "../src/world-moves-on";
+import { hoursPerReply, MOVE_EVERY, MOVE_LIMIT, moveDue, sameDeed, turnThreadChanges } from "../src/world-moves-on";
 import { threadPeople } from "../src/thread-people";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
 
@@ -420,16 +420,18 @@ test("a move is due after hours of story time, on a new day or every few replies
   expect(moveDue("d", before, { ...before, storyTime: at("dawn", "2nd of Thaw") }, 1)).toBe(true);
   expect(moveDue("a", before, before, MOVE_EVERY)).toBe(true);
   expect(moveDue("e", before, { ...before, plotThreads: [] }, MOVE_EVERY)).toBe(true);
-  // A plan falling due within the hour moves the world, once, so the plan comes about on time rather than at the next pause.
+  // A plan falling due within the hour moves the world, so the plan comes about on time rather than at the next pause.
   const clocked = { ...before, threadsDue: { "A thread.": 14 }, storyTime: { ...at("early afternoon"), hours: 13.5 } };
-  expect(moveDue("f", clocked, { ...clocked, storyTime: { ...clocked.storyTime, hours: 14.25 } }, 1)).toBe(true);
-  expect(
-    moveDue("g", { ...clocked, storyTime: { ...clocked.storyTime, hours: 14.25 } }, { ...clocked, storyTime: { ...clocked.storyTime, hours: 15 } }, 1),
-  ).toBe(false);
+  expect(moveDue("f", clocked, { ...clocked, storyTime: { ...clocked.storyTime, hours: 14.25 } }, 3)).toBe(true);
+  // Never within a few replies of the last move, and then for any plan still due, as one passed over waits rather than is lost.
+  const past = { ...clocked, storyTime: { ...clocked.storyTime, hours: 14.25 } };
+  expect(moveDue("g", clocked, past, 2)).toBe(false);
+  expect(moveDue("g", past, { ...past, storyTime: { ...past.storyTime, hours: 15 } }, 3)).toBe(true);
+  expect(moveDue("g", past, { ...past, storyTime: { ...past.storyTime, hours: 15 } }, 4)).toBe(false);
   // Not for an hour this Turn wrote, but for one set exactly at the clock once time moves.
   const later = { ...clocked, storyTime: { ...clocked.storyTime, hours: 14.25 } };
-  expect(moveDue("h", { ...clocked, threadsDue: {} }, later, 1)).toBe(false);
-  expect(moveDue("i", { ...clocked, threadsDue: { "A thread.": 13.5 } }, { ...later, threadsDue: { "A thread.": 13.5 } }, 1)).toBe(true);
+  expect(moveDue("h", { ...clocked, threadsDue: {} }, later, 3)).toBe(false);
+  expect(moveDue("i", { ...clocked, threadsDue: { "A thread.": 13.5 } }, { ...later, threadsDue: { "A thread.": 13.5 } }, 3)).toBe(true);
 });
 
 test("a story with no clock yet counts from its opening's hour, so a plan timed before the first set_story_time falls due", () => {
@@ -444,7 +446,7 @@ test("a story with no clock yet counts from its opening's hour, so a plan timed 
   const passing = { op: "set_story_time", days_passed: 0, hours_passed: 1.5, time_of_day: "small hours", date: null } as const;
   const later = applyOperations(timed, [passing]).next;
   expect(later.storyTime?.hours).toBe(27.5);
-  expect(moveDue("clockless", timed, later, 1)).toBe(true);
+  expect(moveDue("clockless", timed, later, 3)).toBe(true);
 });
 
 test("the fallback move counts replies since the last move, so a move due on time is never followed by one a reply later", () => {
@@ -583,6 +585,7 @@ test("a thread whose question play has answered is removed in place of its rewri
       summary: "",
       worldRules: [],
       plotThreads: [PELL, TIDE, GULLS],
+      threadsQuestion: { [PELL]: "Whether Pell is caught." },
       worldBible: [{ title: "The miller", keywords: ["Mr Pell"], content: "", alwaysOn: false }],
     },
   });
@@ -593,6 +596,108 @@ test("a thread whose question play has answered is removed in place of its rewri
 
   expect(store().latestState(id).plotThreads).toEqual([TIDE, GULLS, "The mill burns anyway."]);
   expect(log).toContain('"rewritten":0,"added":1,"removed":1');
+});
+
+test("an answer for a thread with no question yet closes nothing, as a greeting once closed one", async () => {
+  const PELL = "Mr Pell means to burn the mill.";
+  const [TIDE, GULLS, BELLS] = ["The tide is wrong.", "The gulls are omens.", "The bells ring wrong."];
+  play(
+    narration("Ash greets Mr Pell.", nextDay()),
+    JSON.stringify({ left: [{ thread: PELL, answer: "He greeted Ash.", question: "Whether the mill burns." }], plot_threads: [] }),
+    narration("Ash goes home."),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: { scene: { location: "The quay", visibleCast: [] }, summary: "", plotThreads: [PELL, TIDE, GULLS, BELLS] },
+  });
+
+  for (const input of ["I greet him.", "I go home."]) expect((await turn(id, input)).ok).toBe(true);
+
+  expect(store().latestState(id).plotThreads).toContain(PELL);
+  expect(store().latestState(id).threadsQuestion[PELL]).toBe("Whether the mill burns.");
+});
+
+test("a move after a failed one reads the replies the failed one never read, as they had overtaken a plan", async () => {
+  const told = play(
+    narration("Ash walks to the dock.", nextDay()),
+    new Error("The provider is down."),
+    narration("Ash watches the barges.", nextDay("3rd of Thaw")),
+    moved(change(THIEF, "The thief waits.")),
+    narration("Ash goes home."),
+  );
+  const id = createSave();
+
+  for (const input of ["I walk.", "I watch.", "I go home."]) expect((await turn(id, input)).ok).toBe(true);
+
+  expect(JSON.parse(told.prompts[3]!.at(-1)!.content).latest_replies).toEqual(["Ash walks to the dock.", "Ash watches the barges."]);
+});
+
+test("a move is told how fast story time passes, by the middle reply, as plans were set hours out in a story of minutes a reply", () => {
+  expect(hoursPerReply([10, 10.1, 10.2, 18.2, 18.3])).toBe(0.1);
+  // Too few to tell by, a clock that stands still, and replies from before it.
+  expect(hoursPerReply([10, 10.5])).toBeUndefined();
+  expect(hoursPerReply([10, 10, 10, 10])).toBeUndefined();
+  expect(hoursPerReply([undefined, undefined, 9, 9.25, 9.5, 10])).toBe(0.25);
+});
+
+test("a now with only a fault that mostly misfires is not asked again, as the next Turn waits for the re-ask", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  const part = { name: "Silas Grout", knows: "He held the harbourmaster under for the vicar." };
+  const elsewhere = "Grout is at the cottage, pulling at the stones.";
+  const told = play(
+    narration(
+      "Ash meets the sexton in the crypt.",
+      { op: "add_npc", name: "Silas Grout", appearance: "a huge man" },
+      { op: "set_scene", location: "The crypt", visible_cast: ["Silas Grout"] },
+      nextDay(),
+    ),
+    moved({ ...change(drowned, elsewhere), knows: [part] }),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: { scene: { location: "The quay", visibleCast: [] }, summary: "", plotThreads: [drowned], worldBible: [] },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I meet him.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(told.prompts).toHaveLength(3);
+  expect(log).toContain('"misfires":true');
+});
+
+test("a missing part is not asked again past half the move's time, as two such re-asks were cut off at its end", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  const told = play(
+    narration("Ash meets the sexton.", { op: "add_npc", name: "Silas Grout", appearance: "a huge man" }, nextDay()),
+    moved(change(drowned, "Grout digs a grave.")),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: { scene: { location: "The quay", visibleCast: [] }, summary: "", plotThreads: [drowned], worldBible: [] },
+  });
+  const limit = MOVE_LIMIT.ms;
+  const now = Date.now;
+  // Each look at the clock is a second on, so the reply comes past half the limit without a wait.
+  let ticks = 0;
+  Date.now = () => now() + ticks++ * 1000;
+  MOVE_LIMIT.ms = 1500;
+  try {
+    const log = await logOf(async () => {
+      for (const input of ["I meet him.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+    }, "info");
+    expect(log).toContain("Parts not asked again, too late");
+  } finally {
+    Date.now = now;
+    MOVE_LIMIT.ms = limit;
+  }
+  expect(told.prompts).toHaveLength(3);
+  expect(store().latestState(id).threadsNow[drowned]).toBe("Grout digs a grave.");
 });
 
 test("an answer that says play hasn't answered it yet leaves the thread open", async () => {

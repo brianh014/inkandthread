@@ -43,25 +43,13 @@ test("a Lore Entry can be rewritten, by the Narrator, and stays keyword-activate
   expect(next.worldBible).toEqual([{ title: "Ellis", keywords: ["Ellis", "Crane"], content: "Ellis died in April.", alwaysOn: false }]);
 });
 
-test("rewriting a Lore Entry that isn't there adds it, and removing one that isn't there changes nothing, so neither costs the Turn", () => {
+test("rewriting a Lore Entry that isn't there adds it, and an always-on one is never rewritten", () => {
   const rewrite: StateOperation = { op: "update_lore_entry", title: "New", keywords: ["new"], content: "Fresh." };
 
   expect(run(withState({}), rewrite).worldBible).toEqual([{ title: "New", keywords: ["new"], content: "Fresh.", alwaysOn: false }]);
-  expect(run(withState({}), { op: "remove_lore_entry", title: "Gone" }).worldBible).toEqual([]);
-});
-
-test("the Narrator can remove a Lore Entry, but neither rewrite nor remove an always-on one", () => {
   const pinned = entry("Canon", ["canon"], { alwaysOn: true });
-  const state = withState({ worldBible: [pinned, entry("Stale", ["stale"])] });
-
-  const next = run(
-    state,
-    { op: "remove_lore_entry", title: "Stale" },
-    { op: "update_lore_entry", title: "Canon", keywords: ["other"], content: "Changed." },
-    { op: "remove_lore_entry", title: "Canon" },
-  );
-
-  expect(next.worldBible).toEqual([pinned]);
+  const changed: StateOperation = { op: "update_lore_entry", title: "Canon", keywords: ["other"], content: "Changed." };
+  expect(run(withState({ worldBible: [pinned] }), changed).worldBible).toEqual([pinned]);
 });
 
 for (const [name, list, operation] of [
@@ -410,8 +398,8 @@ test("the Narrator is told to keep its records true to play", () => {
   const prompt = promptFor();
 
   expect(prompt).toContain("what has happened in play beats any Lore Entry or Plot Thread");
-  for (const op of ["update_lore_entry", "remove_lore_entry", "update_plot_thread", "update_known_fact", "remove_known_fact", "merge_npc"])
-    expect(prompt).toContain(op);
+  expect(prompt).not.toContain("remove_lore_entry");
+  for (const op of ["update_lore_entry", "update_plot_thread", "update_known_fact", "remove_known_fact", "merge_npc"]) expect(prompt).toContain(op);
 });
 
 test("the Narrator tells what the PC says in narration, never as a line under someone else's name", () => {

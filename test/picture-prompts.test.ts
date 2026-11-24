@@ -97,6 +97,24 @@ test("a review may take out someone who shouldn't be in the picture, and is told
   expect(script.prompts[0]![0]!.content).toContain("Never add anyone's name or the name of a place, nor any writing");
 });
 
+test("a review may mark someone in view the prompt left unmarked, and no one else", async () => {
+  const bare = "A tall woman in a duster kneels by the fire. {The people from the images are the same people.}";
+  const marked = "[Mara Vukas: A tall woman in a duster] kneels by the fire. {The people from the images are the same people.}";
+  const script = scriptedTextProvider(checked(marked.replace("Mara Vukas", "Nobody")), checked(marked));
+  const settings = settingsStore(join(folder.path, "settings.json"));
+  const cast = [{ name: "Mara Vukas", looks: "a tall woman of forty" }];
+
+  const log = await logOf(async () => {
+    const reviewed = await reviewScenePrompt({ textProvider: script.textProvider, settings }, bare, "prose", new AbortController().signal, cast);
+    expect(reviewed).toBe(marked);
+  }, "info");
+
+  expect(script.prompts).toHaveLength(2);
+  expect(script.prompts[0]![0]!.content).toContain("Never add anyone's name outside a mark");
+  expect(JSON.parse(script.prompts[0]![1]!.content)).toEqual({ prompt: bare, cast });
+  expect(log).toContain('"unmarked":1,"marked":1');
+});
+
 test("a failed review draws the prompt as written", async () => {
   const { reviewed } = review("keywords", new TextProviderFailed("down"), new TextProviderFailed("down"), new TextProviderFailed("down"));
 

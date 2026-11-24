@@ -160,8 +160,11 @@ export function NewStory({ step }: { step?: string }) {
     }));
     const { inventory, ...pc } = draft.pc;
     return run("The Narrator is building the world. Missing pictures are drawn as well. This can take a few minutes.", async (signal) => {
-      const { id, overview } = await generateWorld({ ...worldChoices, characters, artStyle, id: draft.id, pc, inventory }, signal);
-      setDraft((current) => ({ ...current, id, world: { overview }, drawn: redrew(current.drawn, ...allPictures) }));
+      // Kept before the build, so the page can ask for it again by its id.
+      const id = draft.id ?? newRef(24);
+      setDraft((current) => ({ ...current, id }));
+      const { overview } = await generateWorld({ ...worldChoices, characters, artStyle, id, pc, inventory }, signal);
+      setDraft((current) => ({ ...current, world: { overview }, drawn: redrew(current.drawn, ...allPictures) }));
       location.hash = "/new/overview";
     });
   }

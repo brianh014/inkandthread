@@ -363,7 +363,8 @@ test("the wizard's calls carry a world from Pick for me to a Save", async () => 
   const { worldBrief, title, background } = await pickForMe("Steampunk", { title: "", worldBrief: "", pc });
   const choices = { title: title!, theme: "Steampunk", worldBrief: worldBrief!, startingHook: "" };
   const enhanced = await enhance("worldBrief", worldBrief!, choices);
-  const { id: world, overview } = await generateWorld({ ...choices, pc: { name: "Ash" }, inventory: "a coat" });
+  const world = "form-1";
+  const { overview } = await generateWorld({ ...choices, id: world, pc: { name: "Ash" }, inventory: "a coat" });
   const regenerated = await regenerateWorld(world, choices);
   const { id } = await beginStory(world, "Ink");
 
@@ -378,9 +379,9 @@ test("the wizard's calls carry a world from Pick for me to a Save", async () => 
 test("a failed generation reaches the wizard as an error it can show", async () => {
   start(unreachable("offline"));
 
-  await expect(generateWorld({ title: "Dust", theme: "Western", worldBrief: "Dust", startingHook: "", pc: { name: "Ash" }, inventory: "" })).rejects.toThrow(
-    "The Text Provider request failed",
-  );
+  await expect(
+    generateWorld({ title: "Dust", theme: "Western", worldBrief: "Dust", startingHook: "", id: "form-2", pc: { name: "Ash" }, inventory: "" }),
+  ).rejects.toThrow("The Text Provider request failed");
 });
 
 const slowly =

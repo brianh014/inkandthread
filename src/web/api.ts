@@ -315,15 +315,60 @@ export const portraitUrl = (id: string, { id: portraitId, redraws }: Pick<Portra
 export const statusWords = ({ health, injuries, conditions }: Status) => [health, ...injuries, ...conditions].join(", ");
 
 /** `id` is the one this form's images are held under, if it has one yet. */
-export const generateWorld = (world: WorldChoices & WorldPc & { id?: string }, signal?: AbortSignal) =>
-  request<{ id: string; overview: string }>("/worlds", { ...jsonBody(world), signal });
+/** Resolves once the page is in view. */
+const shown = () =>
+  new Promise<void>((resolve) => {
+    if (globalThis.document?.visibilityState !== "hidden") return resolve();
+    const onShow = () => {
+      if (document.visibilityState === "hidden") return;
+      document.removeEventListener("visibilitychange", onShow);
+      resolve();
+    };
+    document.addEventListener("visibilitychange", onShow);
+  });
+
+/**
+ * A world build the page waits for. The build goes on if a hidden tab loses the request, so a page coming back asks for
+ * that same build, never a new one, as that would be paid for again. A cancel stops it on the server too.
+ */
+async function awaitBuild(id: string, started: Promise<{ overview: string }>, signal?: AbortSignal) {
+  const stop = () => void fetch(`/worlds/${id}/build`, { method: "DELETE" }).catch(() => {});
+  let hidden = false;
+  const onHide = () => {
+    if (document.visibilityState === "hidden") hidden = true;
+  };
+  signal?.addEventListener("abort", stop, { once: true });
+  globalThis.document?.addEventListener("visibilitychange", onHide);
+  try {
+    let waiting = started;
+    for (;;) {
+      try {
+        return await waiting;
+      } catch (failure) {
+        // Only a connection lost while out of view is waited out: an answer from the server is the build's own.
+        if (signal?.aborted || !(failure instanceof TypeError) || !(hidden || globalThis.document?.visibilityState === "hidden")) throw failure;
+        hidden = false;
+        await shown();
+        reportEvent("world-build-picked-up");
+        waiting = request<{ overview: string }>(`/worlds/${id}/overview`, { signal });
+      }
+    }
+  } finally {
+    signal?.removeEventListener("abort", stop);
+    globalThis.document?.removeEventListener("visibilitychange", onHide);
+  }
+}
+
+/** `id` is the form's, made before the build so the page can ask for it again. */
+export const generateWorld = (world: WorldChoices & WorldPc & { id: string }, signal?: AbortSignal) =>
+  awaitBuild(world.id, request<{ overview: string }>("/worlds", { ...jsonBody(world), signal }), signal);
 
 /** Makes the Save from the world held under `id`, with its images. */
 export const beginStory = (id: string, artStyle: string, signal?: AbortSignal) =>
   request<{ id: string }>(`/worlds/${id}/begin`, { ...jsonBody({ artStyle }), signal });
 
 export const regenerateWorld = (id: string, choices: WorldChoices, signal?: AbortSignal) =>
-  request<{ overview: string }>(`/worlds/${id}/regenerate`, { ...jsonBody(choices), signal });
+  awaitBuild(id, request<{ overview: string }>(`/worlds/${id}/regenerate`, { ...jsonBody(choices), signal }), signal);
 
 /** Writes the empty boxes of the form. Leave out a box that shouldn't be written. */
 export const pickForMe = (theme: string, form: Partial<Record<WorldField, string>> & { pc: PcDraft }, signal?: AbortSignal) =>

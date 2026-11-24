@@ -10,7 +10,7 @@ let savesDir: string;
 let app: ReturnType<typeof startApp>;
 let prompts: ReturnType<typeof scriptedTextProvider>["prompts"];
 
-const play = (...replies: (string | Error)[]) => {
+const play = (...replies: (string | Error | Promise<string>)[]) => {
   const script = scriptedTextProvider(...replies);
   app = startApp(savesDir, script.textProvider);
   prompts = script.prompts;
@@ -235,6 +235,57 @@ test("a failed Regenerate keeps the world it would have replaced", async () => {
 
   const id = await saveWorld(body.id);
   expect(saveStore(savesDir).latestState(id).worldRules).toEqual(["Magic does not exist."]);
+});
+
+/** A world reply held back until `finish`, as a slow model's is. */
+const slowWorld = () => {
+  let finish = (_reply: string) => {};
+  const reply = new Promise<string>((resolve) => (finish = resolve));
+  return { reply, finish };
+};
+
+/** Until the build has asked for the world, after the PC's sheet. */
+const worldAsked = async () => {
+  while (prompts.length < 2) await Bun.sleep(1);
+};
+
+test("a build whose page lost the request goes on, and the page picks up that same build by its id", async () => {
+  const world = slowWorld();
+  play(sheet, world.reply);
+  const leaving = new AbortController();
+  const sent = fetch(app.url("/worlds"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...choices, id: "form-1" }),
+    signal: leaving.signal,
+  }).catch(() => undefined);
+  await worldAsked();
+  leaving.abort();
+  await sent;
+
+  const picked = fetch(app.url("/worlds/form-1/overview"));
+  world.finish(generated());
+  expect(await (await picked).json()).toEqual({ overview: "Rain never stops in Saltmere." });
+  expect(prompts).toHaveLength(2);
+  expect((await app.post("/worlds/form-1/begin", { artStyle: "Ink" })).status).toBe(201);
+});
+
+test("a cancelled build stores no world, even once its reply comes in", async () => {
+  const world = slowWorld();
+  play(sheet, world.reply);
+  const sent = app.post("/worlds", { ...choices, id: "form-1" });
+  await worldAsked();
+
+  expect((await fetch(app.url("/worlds/form-1/build"), { method: "DELETE" })).status).toBe(200);
+  world.finish(generated());
+
+  expect((await sent).status).not.toBe(201);
+  expect((await app.post("/worlds/form-1/begin", { artStyle: "Ink" })).status).toBe(404);
+});
+
+test("a world never built has no build to pick up", async () => {
+  play();
+  expect((await fetch(app.url("/worlds/nothing/overview"))).status).toBe(404);
 });
 
 test("a world that is not held can't be regenerated", async () => {

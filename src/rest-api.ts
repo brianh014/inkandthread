@@ -22,6 +22,7 @@ const PAGE_EVENTS = {
   "stream-lost": "info",
   "polling-fallback": "verbose",
   "turn-resumed": "info",
+  "world-build-picked-up": "info",
   "polling-gave-up": "warning",
   "narration-restarted": "info",
   "page-error": "error",

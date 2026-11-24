@@ -319,15 +319,33 @@ export function worldRoutes({ options, saves, images }: ServerContext) {
     return Response.json({ prompt, hasImage: bytes !== undefined, failure, canRedraw: images.ready() });
   };
 
+  // A build goes on without its request, as a hidden tab can lose that while the build is paid for: the page asks for it
+  // again, and only Cancel or a newer build of the same world stops it. Kept until Begin, like `worlds`.
+  const builds = new Map<string, { done: Promise<string>; stop: AbortController }>();
+  /** `work` answers with the overview, and must check its signal before it changes anything held. */
+  function build(id: string, work: (signal: AbortSignal) => Promise<string>) {
+    builds.get(id)?.stop.abort();
+    const stop = new AbortController();
+    const done = work(stop.signal);
+    builds.set(id, { done, stop });
+    // Here too, as a page that lost the request may never hear of it.
+    done.catch((error) => log.info("world", "World build ended", { world: id, outcome: stop.signal.aborted ? "stopped" : "failed", ...errorType(error) }));
+    return done;
+  }
+
   return routes({
     "/worlds": {
       POST: async (req) => {
         const { id = crypto.randomUUID(), pc, inventory, ...choices } = await parseBody(req, NewWorldRequest);
-        // First, as it's the small call, and a failure here then costs no world.
-        const sheet = await pcSheet(options, pc, inventory, req.signal);
-        const { overview, world } = await generateWorld(options, choices, { pc, inventory }, drawSparks({ world: id }), req.signal);
-        worlds.set(id, { ...world, ...choices, pc, inventory, sheet });
-        drawWorldImages(id, overview, choices);
+        const overview = await build(id, async (signal) => {
+          // First, as it's the small call, and a failure here then costs no world.
+          const sheet = await pcSheet(options, pc, inventory, signal);
+          const { overview, world } = await generateWorld(options, choices, { pc, inventory }, drawSparks({ world: id }), signal);
+          signal.throwIfAborted();
+          worlds.set(id, { ...world, ...choices, pc, inventory, sheet });
+          drawWorldImages(id, overview, choices);
+          return overview;
+        });
         return Response.json({ id, overview }, { status: 201 });
       },
     },
@@ -375,6 +393,7 @@ export function worldRoutes({ options, saves, images }: ServerContext) {
         const importantCharacters = characters.map(({ name, description, onCover = true }) => ({ name, description, onCover }));
         const id = saves.create({ title, theme, worldBrief, startingHook, pc, artStyle, importantCharacters, pcOnCover, opening });
         worlds.delete(req.params.id);
+        builds.delete(req.params.id);
         const taken = (image: string) => heldOf(req.params.id, image)?.drawn;
         images.saveCreated(id, taken("portrait"));
         // Often still drawing. The Save may be gone by the time each lands, and a story without one loses nothing.
@@ -430,10 +449,30 @@ export function worldRoutes({ options, saves, images }: ServerContext) {
         const choices = await parseBody(req, WorldRequest);
         const before = worlds.get(id);
         if (!before) throw new WorldNotFound();
-        const { overview, world } = await generateWorld(options, choices, before, drawSparks({ world: id }), req.signal);
-        worlds.set(id, { ...before, ...world, ...choices });
-        drawWorldImages(id, overview, choices);
+        const overview = await build(id, async (signal) => {
+          const { overview, world } = await generateWorld(options, choices, before, drawSparks({ world: id }), signal);
+          signal.throwIfAborted();
+          worlds.set(id, { ...before, ...world, ...choices });
+          drawWorldImages(id, overview, choices);
+          return overview;
+        });
         return Response.json({ overview });
+      },
+    },
+    "/worlds/:id/overview": {
+      // Answers once the build is done, for a page that lost the request that started it.
+      GET: async (req) => {
+        const running = builds.get(req.params.id);
+        if (!running) throw new WorldNotFound();
+        return Response.json({ overview: await running.done });
+      },
+    },
+    "/worlds/:id/build": {
+      DELETE: (req) => {
+        const running = builds.get(req.params.id);
+        running?.stop.abort();
+        log.info("world", "World build cancelled", { world: req.params.id, running: !!running });
+        return Response.json({});
       },
     },
   });

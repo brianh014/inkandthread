@@ -839,6 +839,7 @@ test("a failed Check's result call has only the failure's words, and no ceiling"
 
   const result = contents(prompts[1]).join();
   expect(result).toContain("The PC fails, and the stakes come true");
+  expect(result).toContain("so the same attempt can't simply be made again");
   expect(result).not.toContain("The PC succeeds");
   expect(result).not.toContain("She names the ship.");
 });

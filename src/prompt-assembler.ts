@@ -492,14 +492,19 @@ export const SET_SCENE_NOTE: Prompt[number] = {
 
 // Without the action, as a rating that named an act the move never made had it narrated as the PC's.
 // Only the rolled degree's own words, as one paragraph of every outcome buried the ceiling, and a success granted all the move asked.
+// A failure that leaves things as they were invites the same try again, which then plays out the same.
+const FAILED = " Where the failure shows now, it leaves things changed, so the same attempt can't simply be made again.";
 const RESULTS: Record<Check["degree"], string> = {
   strong:
     "The PC succeeds, better than they hoped, with some gain they weren't aiming for, or, when it rests on someone, with that person warmer toward the PC than they hoped, though never giving more of a secret than that pressure would draw out, and the stakes don't come true.",
   clean: "The PC succeeds, and the stakes don't come true: when it rests on how someone takes it, they welcome it.",
   mixed: "The PC succeeds at a cost, the stakes coming true in part: when it rests on how someone takes it, they welcome it with some hurt or doubt.",
   plain:
-    "The PC fails, and the stakes come true: when it rests on how someone takes it, they resist, refuse or stop it, as that person would; otherwise it goes wrong, now or, where it can only show later, through a flaw this narration hints at.",
-  bad: "The PC fails badly, and the stakes come true in full: when it rests on how someone takes it, they resist, refuse or stop it, as that person would; otherwise it goes wrong badly.",
+    "The PC fails, and the stakes come true: when it rests on how someone takes it, they resist, refuse or stop it, as that person would; otherwise it goes wrong, now or, where it can only show later, through a flaw this narration hints at." +
+    FAILED,
+  bad:
+    "The PC fails badly, and the stakes come true in full: when it rests on how someone takes it, they resist, refuse or stop it, as that person would; otherwise it goes wrong badly." +
+    FAILED,
 };
 
 export function resultInstruction({ stakes, at_most, outcome, degree }: Check): Prompt[number] {

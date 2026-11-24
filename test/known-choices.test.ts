@@ -164,7 +164,10 @@ test("Choices asked for alone are sent the PC's Journal, so they build on what t
   expect(Object.keys(JSON.parse(prompts[0]!.at(-1)!.content))).toEqual(["journal", "story_time", "previous_reply", "player_move", "reply"]);
   expect(prompts[0]![0]!.content).toContain("the story time now");
   // A refused ask isn't offered again until something new gives reason, as Choices pressed the same ask round after round.
-  expect(prompts[0]![0]!.content.match(/nor an ask someone refused, stopped or put off unless something new gives reason to ask again/g)).toHaveLength(2);
+  expect(prompts[0]![0]!.content).toContain("nor an ask someone refused, stopped or put off unless something new gives reason to ask again");
+  expect(prompts[0]![0]!.content).toContain("nor an ask someone refused, stopped or put off, unless something new gives reason to try again");
+  // A failed move comes back only a different way, as a failed Check offered the same attempt again.
+  expect(prompts[0]![0]!.content.match(/one that failed may be tried a different way/g)).toHaveLength(2);
 });
 
 test("a Choice built on what the PC hasn't learned is dropped, not reworded, and the others are kept", () => {

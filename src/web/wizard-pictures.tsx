@@ -16,10 +16,18 @@ function HeldArt(props: { id: string; picture: HeldPicture; naming: Naming; vers
   const [image, setImage] = useState<HeldImage>();
   const [redrawing, setRedrawing] = useState(false);
   const [failure, setFailure] = useState("");
+  const [returns, setReturns] = useState(0);
+
+  // A hidden tab can lose the long wait without hearing it fail, as a Turn's stream can, so a page coming back asks again.
+  useEffect(() => {
+    if (image) return;
+    const onReturn = () => document.visibilityState === "visible" && setReturns((count) => count + 1);
+    document.addEventListener("visibilitychange", onReturn);
+    return () => document.removeEventListener("visibilitychange", onReturn);
+  }, [image]);
 
   useEffect(() => {
     let leaving = false;
-    setImage(undefined);
     getHeldImage(id, picture).then(
       (details) => {
         if (leaving) return;
@@ -27,12 +35,13 @@ function HeldArt(props: { id: string; picture: HeldPicture; naming: Naming; vers
         setFailure(details.failure);
         if (!details.hasImage && !details.failure) onLost();
       },
-      () => !leaving && onLost(),
+      // A wait cut off in a hidden tab isn't a lost picture: it's asked again on return.
+      () => !leaving && document.visibilityState === "visible" && onLost(),
     );
     return () => {
       leaving = true;
     };
-  }, [id, picture, version]);
+  }, [id, picture, version, returns]);
 
   if (!image)
     return (
@@ -102,7 +111,8 @@ export function PictureSection(props: {
     <div>
       <fieldset>
         <legend>{legend}</legend>
-        {held && <HeldArt id={id} picture={picture} naming={naming} version={version} onRedrawn={props.onRedrawn} onLost={props.onLost} />}
+        {/* Keyed by version, so a Redo starts waiting afresh rather than showing the new address before it's drawn. */}
+        {held && <HeldArt key={version} id={id} picture={picture} naming={naming} version={version} onRedrawn={props.onRedrawn} onLost={props.onLost} />}
         {imagesReady === false ? (
           <p className="muted">Images are turned off or not set up in Settings, but you can upload your own.</p>
         ) : (

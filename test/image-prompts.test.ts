@@ -191,13 +191,13 @@ test("someone's looks keep what lasts, not what they hold or where they are, and
   const coat = "a broad man in his fifties with a grey moustache, in a dark blue coat";
   const before = { ...openingState, npcs: [{ name: "Price", appearance: coat }] };
   const passing = `${coat}, hat in hand, gone out into the rain, kneeling at the hearth, a lamp held high`;
-  const { next } = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: passing }]);
+  const { next } = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: passing, portrait: null }]);
   expect(next.npcs[0]!.appearance).toBe(coat);
   // Soot on his wrists is below a portrait's frame, so it draws nothing new.
-  const sooty = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: `${coat}, soot to the wrists` }]).next;
+  const sooty = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: `${coat}, soot to the wrists`, portrait: null }]).next;
   expect(sooty.npcs[0]!.appearance).toBe(`${coat}, soot to the wrists`);
   expect(restyledBy(before, sooty)).toEqual([]);
-  const scarred = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: `${coat}, a fresh scar on his cheek` }]).next;
+  const scarred = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: `${coat}, a fresh scar on his cheek`, portrait: null }]).next;
   expect(restyledBy(before, scarred)).toEqual([scarred.npcs[0]!]);
 });
 
@@ -205,7 +205,7 @@ test("someone's looks keep no weather, dust or thing carried, which pass with th
   const coat = "a broad man in his fifties with a grey moustache, in a dark blue coat";
   const before = { ...openingState, npcs: [{ name: "Price", appearance: coat }] };
   const passing = `${coat}, rain-dark shoulders, boots grey with road dust, a ledger carried hard against his ribs, soaked through, hair dripping, barefoot`;
-  const { next } = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: passing }]);
+  const { next } = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: passing, portrait: null }]);
   expect(next.npcs[0]!.appearance).toBe(coat);
 });
 
@@ -213,13 +213,13 @@ test("someone's looks keep no caked dirt, passing pallor, bonds or garment taken
   const coat = "a broad man in his fifties with a grey moustache, in a dark blue coat";
   const before = { ...openingState, npcs: [{ name: "Price", appearance: coat }] };
   const passing = `${coat}, heavy boots caked at the treads with pale sand, drained grey now, his wrists bound before him with rope, coat off and folded over a barrel, his hat left below on a chair`;
-  const { next } = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: passing }]);
+  const { next } = applyOperations(before, [{ op: "update_npc", name: "Price", appearance: passing, portrait: null }]);
   expect(next.npcs[0]!.appearance).toBe(coat);
   // Nor what they carry on an arm, as "another man's coat under his arm" stayed in a constable's looks.
   const carried = `${coat}, and a stranger's black coat under his arm, a bundle tucked close, a shawl over one arm`;
-  expect(applyOperations(before, [{ op: "update_npc", name: "Price", appearance: carried }]).next.npcs[0]!.appearance).toBe(coat);
+  expect(applyOperations(before, [{ op: "update_npc", name: "Price", appearance: carried, portrait: null }]).next.npcs[0]!.appearance).toBe(coat);
   const lasting = `${coat}, hair tied back, a scar left on his cheek, an anchor inked on his arm`;
-  expect(applyOperations(before, [{ op: "update_npc", name: "Price", appearance: lasting }]).next.npcs[0]!.appearance).toBe(lasting);
+  expect(applyOperations(before, [{ op: "update_npc", name: "Price", appearance: lasting, portrait: null }]).next.npcs[0]!.appearance).toBe(lasting);
 });
 
 test("the era is set once, and a later set_era is ignored rather than failing the Turn, so pictures never drift", () => {

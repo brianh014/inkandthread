@@ -1241,7 +1241,9 @@ async function narrate(
             next,
             [...narration.matchAll(/^\[([^[\]]+)\]:/gm)].map(([, speaker]) => speaker!.trim()),
           );
-          restyled = restyledBy(state, next);
+          restyled = restyledBy(state, next, [...state_operations, ...(upkept ?? [])]);
+          const passing = [...state_operations, ...(upkept ?? [])].filter((operation) => operation.op === "update_npc" && operation.portrait === false);
+          if (passing.length > 0) log.info("images", "Portraits left for a passing change", { count: passing.length });
           return next;
         },
         forThePc(offered, pcName),

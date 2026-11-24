@@ -165,7 +165,19 @@ export const StateOperation = z.discriminatedUnion("op", [
   z.object({ op: z.literal("add_status"), kind: statusKind, text: nonEmpty }),
   z.object({ op: z.literal("remove_status"), kind: statusKind, text: nonEmpty }),
   z.object({ op: z.literal("add_npc"), name: nonEmpty, appearance: nonEmpty }),
-  z.object({ op: z.literal("update_npc"), name: nonEmpty, appearance: nonEmpty }),
+  z.object({
+    op: z.literal("update_npc"),
+    name: nonEmpty,
+    appearance: nonEmpty,
+    // A redraw costs a picture, and the looks change for wet hair or a mark the scene picture needs but the portrait doesn't.
+    portrait: z
+      .boolean()
+      .nullable()
+      .default(null)
+      .describe(
+        "true only for a change their portrait should show: clothes put on, taken off or changed, a haircut or new hair colour, a scar, a lasting wound or a change of build; false for what passes with the scene, such as wet or messy hair, a mark that fades, dirt or a flush",
+      ),
+  }),
   z.object({ op: z.literal("merge_npc"), name: nonEmpty, into: nonEmpty }),
   z.object({
     op: z.literal("npc_learns"),

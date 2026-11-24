@@ -190,9 +190,7 @@ test("the pace of a reply, then what's true right now, are the last things the N
 
   await playTurn(id);
 
-  expect(lastSystem()).toMatch(
-    /a detail the reader must work out\.\nRight now, from the current state: \{"inventory":.*"scene":.*"looks_in_view":.*"storyTime":.*\}$/,
-  );
+  expect(lastSystem()).toMatch(/stays the player's\.\nRight now, from the current state: \{"inventory":.*"scene":.*"looks_in_view":.*"storyTime":.*\}$/);
   expect(lastSystem()).not.toMatch(/Current state[^\n]*"inventory"/);
   expect(lastSystem()).toContain("never over 350");
   expect(prompts.at(-1)!.at(-1)!.role).toBe("user");
@@ -214,7 +212,9 @@ test("the looks of everyone in view come last, beside the line to show what the 
   await playTurn(id);
 
   expect(lastSystem()).toContain('"looks_in_view":{"Hesper":"a woman in her forties wearing only boots and a sit-cloth"}');
-  expect(lastSystem()).toContain("looks or acts in a way the PC would find striking or strange by what they know, say it plainly as the PC takes it in");
+  expect(lastSystem()).toContain("looks or acts in a way the PC would find striking or strange by what they know, say it plainly through the PC's eyes");
+  // As a near-naked advisor was told as plainly as a coat, though to the PC, from another world, it was a shock.
+  expect(lastSystem()).toContain("give it the weight it has for them, though it may be ordinary to everyone who lives there");
 });
 
 test("a reply is held to one thing for the PC to answer, in numbers the Narrator can count", async () => {

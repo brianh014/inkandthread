@@ -505,6 +505,26 @@ test("the first Turn is sent the player's own words on each Important Character 
   expect(promptWith([{ role: "narrator", text: "The road is long." }])).not.toContain("blue V-neck");
 });
 
+test("the Starting Hook goes on being sent while it plays out, as the opening stops before all of it has happened", () => {
+  const promptAfter = (replies: number) =>
+    textOfPrompt(
+      assemblePrompt({
+        save: { worldBrief: "", pc: { name: "Ash" }, startingHook: "The bell rings and the sea comes in." } as never,
+        state: withState({}),
+        messages: Array.from({ length: replies }, (_, index) => ({ id: index + 1, role: "narrator", text: "The road is long." })) as never,
+        modelInstructions: "",
+        input: "I ring the bell.",
+        responseSchema: "{}",
+        promptStyle: null,
+      }),
+    );
+
+  expect(promptAfter(0)).toContain("Open the story from this Starting Hook");
+  expect(promptAfter(1)).toContain("The story opened from this Starting Hook");
+  expect(promptAfter(9)).toContain("The bell rings and the sea comes in.");
+  expect(promptAfter(10)).not.toContain("The bell rings");
+});
+
 test("a long story's World Bible fits the budget, with its Plot Threads and world_rules", () => {
   // The size of a story with 140 replies behind it: 20 entries of about 225 tokens, with 750 tokens of threads and rules.
   const worldBible = Array.from({ length: 20 }, (_, index) => entry(`Entry ${index}`, ["city"], { content: "x".repeat(900) }));

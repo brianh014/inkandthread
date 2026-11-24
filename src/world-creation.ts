@@ -628,7 +628,7 @@ pc and inventory are the player's PC and what they start with. ${PC_IS_CANON} Th
 Reply only with JSON matching this schema, with its keys in the same order: ${JSON.stringify(jsonSchemaOf(WorldReply))}
 naming says in a sentence or two how people here name people and places and how those names sound. Give every name in the world by it, and in play new names will follow it too.
 lore_entries is the World Bible, which is secret. Write at least twelve entries covering places, factions, people, history and how the world works. Each must make sense on its own, because in play you only see the entries a recent Message activates. Give each at least three keywords, including names, nicknames and everyday paraphrases, so that a player's wording still activates it.
-world_rules are strict statements of what is and is not possible in this world. Start with its theme and tone${choices.tone ? ", taking the tone from tone, and build a world it fits" : ""}, because you will see these on every Turn and nothing else carries them. If the player's choices bring anyone from elsewhere, one rule says who, as the starting_hook is not seen again after the story opens.
+world_rules are strict statements of what is and is not possible in this world. Start with its theme and tone${choices.tone ? ", taking the tone from tone, and build a world it fits" : ""}, because you will see these on every Turn and nothing else carries them. If the player's choices bring anyone from elsewhere, one rule says who, as the starting_hook is not seen again once the story is under way.
 plot_threads are secret storylines for play to reveal. Write three to six.
 ${STORY_CRAFT}
 ${sparksLine(sparks)}

@@ -191,11 +191,30 @@ test("the pace of a reply, then what's true right now, are the last things the N
   await playTurn(id);
 
   expect(lastSystem()).toMatch(
-    /never carry it through to its end in one reply\.\nRight now, from the current state: \{"inventory":.*"scene":.*"storyTime":.*\}$/,
+    /by their looks_in_view below\.\nRight now, from the current state: \{"inventory":.*"scene":.*"looks_in_view":.*"storyTime":.*\}$/,
   );
   expect(lastSystem()).not.toMatch(/Current state[^\n]*"inventory"/);
   expect(lastSystem()).toContain("never over 350");
   expect(prompts.at(-1)!.at(-1)!.role).toBe("user");
+});
+
+// As looks read far back with everyone's went unshown: a colleague in only shoes and a sit-cloth was never mentioned.
+test("the looks of everyone in view come last, beside the line to show what the PC would find striking", async () => {
+  play(
+    summed(
+      "Ash met Hesper.",
+      { op: "add_npc", name: "Hesper", appearance: "a woman in her forties wearing only boots and a sit-cloth" },
+      { op: "set_scene", location: "The docks", visible_cast: ["Hesper"] },
+    ),
+    summed("Ash waited."),
+  );
+  const id = await app.createSave();
+  await playTurn(id);
+
+  await playTurn(id);
+
+  expect(lastSystem()).toContain('"looks_in_view":{"Hesper":"a woman in her forties wearing only boots and a sit-cloth"}');
+  expect(lastSystem()).toContain("looks or acts in a way the PC would find striking or strange by what they know, show it as the PC takes it in");
 });
 
 test("a reply is held to one thing for the PC to answer, in numbers the Narrator can count", async () => {

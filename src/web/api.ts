@@ -458,7 +458,7 @@ export async function stopTurn(id: string) {
 export const getTurn = (id: string) => request<TurnStatus>(`/saves/${id}/turn`);
 
 /** `remaking` while a Revert makes World Changes again, and `unmade` how many it couldn't, told once. */
-export const getRemakes = (id: string) => request<{ remaking?: boolean; unmade?: number }>(`/saves/${id}/remakes`);
+export const getRemakes = (id: string, signal: AbortSignal) => request<{ remaking?: boolean; unmade?: number }>(`/saves/${id}/remakes`, { signal });
 
 // About as long as a phone takes to find its network again after being woken. An object so that tests can shorten it.
 export const turnPolling = { everyMs: 1000, tries: 30 };

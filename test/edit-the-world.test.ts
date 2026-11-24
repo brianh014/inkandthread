@@ -465,6 +465,27 @@ test("a World Change given twice is made again once, and a Turn sent at once aft
   expect(JSON.stringify(prompts.at(-1))).toContain(SECRET);
 });
 
+test("a World Change made, undone and made again is made again last, as the player left it", async () => {
+  play(
+    narration("One."),
+    update({ lore_entries: [SMUGGLER] }),
+    update({ lore_entries: [SMUGGLER] }),
+    update({ lore_entries: [SMUGGLER] }),
+    narration("Two."),
+    update({ lore_entries: [SMUGGLER] }),
+    update({ lore_entries: [SMUGGLER] }),
+  );
+  const id = createSave();
+  await turn(id);
+  for (const words of ["the mayor is alive", "the mayor is dead", "the mayor is alive"]) await app.post(`/saves/${id}/world-change`, { change: words });
+  await turn(id);
+
+  expect(await json(app.post(`/saves/${id}/messages/2/revert`, {}))).toMatchObject({ remaking: 2 });
+  while ((await json(app.get(`/saves/${id}/remakes`))).remaking) await Bun.sleep(1);
+
+  expect(prompts.slice(-2).map((prompt) => JSON.stringify(prompt).match(/the mayor is (alive|dead)/)?.[1])).toEqual(["dead", "alive"]);
+});
+
 // As a second Revert while the first's World Changes were made left them to fail after their call was paid for.
 test("a Revert is refused while the last Revert's World Changes are still being made", async () => {
   const replies = [narration("One."), update({ lore_entries: [SMUGGLER] }), narration("Two.")];
@@ -480,6 +501,9 @@ test("a Revert is refused while the last Revert's World Changes are still being 
   const second = await app.post(`/saves/${id}/messages/2/revert`, {});
 
   expect(second.status).toBe(409);
+  // Nor a Journal edit or rename, which the change being made would undo.
+  expect((await app.post(`/saves/${id}/edits`, { edit: "summary", text: "Mine." })).status).toBe(409);
+  expect((await app.post(`/saves/${id}/rename`, { name: "Mora", newName: "Vane" })).status).toBe(409);
   finish(update({ lore_entries: [SMUGGLER] }));
   while ((await json(app.get(`/saves/${id}/remakes`))).remaking) await Bun.sleep(1);
 });

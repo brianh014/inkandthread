@@ -20,6 +20,7 @@ import {
   type Chapter,
   portraitUrl,
   getRemakes,
+  turnPolling,
   previewRevert,
   replaceResponse,
   editResponse,
@@ -225,14 +226,23 @@ export function Play({ id }: { id: string }) {
   function watchRemakes() {
     setRemaking(true);
     clearTimeout(remakeTimer.current);
+    let misses = 0;
+    const { signal } = leaving.current;
+    // Nothing once the page is left, as what it read would be told to no one.
     const look = () =>
-      getRemakes(id).then(
+      getRemakes(id, signal).then(
         ({ remaking: still, unmade }) => {
+          if (signal.aborted) return;
+          misses = 0;
           if (unmade) setUnmadeChanges((count) => count + unmade);
           if (still) remakeTimer.current = setTimeout(look, REMAKE_POLL_MS);
           else setRemaking(false);
         },
-        () => setRemaking(false),
+        () => {
+          if (signal.aborted) return;
+          if (++misses < turnPolling.tries) remakeTimer.current = setTimeout(look, REMAKE_POLL_MS);
+          else setRemaking(false);
+        },
       );
     remakeTimer.current = setTimeout(look, REMAKE_POLL_MS);
   }
@@ -317,8 +327,11 @@ export function Play({ id }: { id: string }) {
         }
         setSave(save);
         setMessages(messages);
-        getRemakes(id).then(
+        const { signal } = leaving.current;
+        if (signal.aborted) return;
+        getRemakes(id, signal).then(
           ({ remaking: remakingNow, unmade }) => {
+            if (signal.aborted) return;
             if (unmade) setUnmadeChanges(unmade);
             if (remakingNow) watchRemakes();
           },

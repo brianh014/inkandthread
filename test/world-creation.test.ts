@@ -297,6 +297,18 @@ test("a cancelled build stores no world, even once its reply comes in, and its l
   expect((await app.post("/worlds/form-1/begin", { artStyle: "Ink" })).status).toBe(201);
 });
 
+test("a rebuild cancelled once done, before its page heard, puts back the world the page still shows", async () => {
+  play(sheet, generated(), generated("New "));
+  await app.post("/worlds", { ...choices, id: "form-1" });
+  await app.post("/worlds/form-1/regenerate", { ...choices, build: "build-2" });
+  while ((await (await buildOf("build-2")).json()).running) await Bun.sleep(1);
+
+  await cancel("build-2");
+
+  const id = await saveWorld("form-1");
+  expect(saveStore(savesDir).latestState(id).plotThreads).toEqual(["The mayor is a drowned ghost."]);
+});
+
 test("a cancel that overtakes its build keeps it from being built", async () => {
   play();
   await cancel("build-1");

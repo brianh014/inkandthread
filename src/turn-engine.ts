@@ -619,6 +619,8 @@ export function stopMoves(id: string) {
   mover.abort();
   // Not waited for even while it stops, as it can write nothing: what it was made from is gone.
   moving.delete(id);
+  // Taken as made when it began, so the next Turn makes it instead.
+  moveSoon(id);
   log.info("world", "World Moves On stopped", { save: id, reason: "reverted" });
 }
 

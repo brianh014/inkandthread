@@ -324,15 +324,15 @@ storyTime is null, so set it now: use set_story_time with days_passed 0 and the 
 
 const ARTICLES = new Set(["the", "a", "an"]);
 
+/** How each person in view looks, last in the prompt, as looks read far back with everyone's went unshown, an almost-naked colleague among them. */
+const looksInView = ({ scene, npcs }: Pick<State, "scene" | "npcs">) =>
+  Object.fromEntries(scene.visibleCast.flatMap((name) => npcs.filter((npc) => npc.name === name).map(({ appearance }) => [name, appearance])));
+
 /**
  * npcKnows of only those in the scene or named in `said`, as everyone's would crowd a prompt. The full name in any case, or
  * a capitalised part of it as written, so "Nadia" finds Nadia Petrova, "Al" isn't in "Alright" and "will" isn't Will.
  * Articles never count, as they start sentences.
  */
-/** How each person in view looks, last in the prompt, as looks read far back with everyone's went unshown, an almost-naked colleague among them. */
-const looksInView = ({ scene, npcs }: Pick<State, "scene" | "npcs">) =>
-  Object.fromEntries(scene.visibleCast.flatMap((name) => npcs.filter((npc) => npc.name === name).map(({ appearance }) => [name, appearance])));
-
 export function knowsOfPresent({ scene, npcs, npcKnows }: Pick<State, "scene" | "npcs" | "npcKnows">, said: string) {
   const parts = (name: string) => name.split(" ").filter((part) => /^\p{Lu}/u.test(part) && !ARTICLES.has(part.toLowerCase()));
   const mentioned = (name: string) => wholeWord(name).test(said) || parts(name).some((part) => wholeWord(part, "u").test(said));

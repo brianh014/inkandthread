@@ -324,7 +324,9 @@ export function worldRoutes({ options, saves, images, builds }: ServerContext) {
   // A page names its build, so it's answered at once and asks for the build by that name until it's done: a lost request or
   // a reload then loses nothing. Asked for with no name, it answers once the build is done.
   async function build(world: string, named: string | undefined, status: number, work: (signal: AbortSignal) => Promise<string>) {
-    const { done } = builds.start(world, named ?? crypto.randomUUID(), work);
+    const before = worlds.get(world);
+    const undo = () => (before ? worlds.set(world, before) : worlds.delete(world));
+    const { done } = builds.start(world, named ?? crypto.randomUUID(), work, undo);
     if (named) return Response.json({ id: world }, { status: 202 });
     return Response.json({ ...(status === 201 && { id: world }), overview: await done }, { status });
   }

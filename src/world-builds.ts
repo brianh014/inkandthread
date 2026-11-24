@@ -1,6 +1,6 @@
 import { errorType, log } from "./logger";
 
-type Build = { id: string; done: Promise<string>; stop: AbortController; finished: boolean };
+type Build = { id: string; done: Promise<string>; stop: AbortController; finished: boolean; undo: () => void };
 
 /**
  * The worlds being built, one per New Story form, which outlive the requests that started them, so a page that loses its
@@ -21,8 +21,11 @@ export function worldBuilds() {
   return {
     find,
 
-    /** The same build asked for again is the one already there. Another build of the same world stops it. `work` answers with the overview, and must check its signal before it changes anything held. */
-    start(world: string, id: string, work: (signal: AbortSignal) => Promise<string>) {
+    /**
+     * The same build asked for again is the one already there. Another build of the same world stops it. `work` answers with
+     * the overview, and must check its signal before it changes anything held. `undo` puts back what it changed.
+     */
+    start(world: string, id: string, work: (signal: AbortSignal) => Promise<string>, undo: () => void = () => {}) {
       const same = find(world, id);
       if (same) return same;
       builds.get(world)?.stop.abort();
@@ -32,7 +35,7 @@ export function worldBuilds() {
         stop.signal.throwIfAborted();
         return await work(stop.signal);
       })();
-      const build: Build = { id, done, stop, finished: false };
+      const build: Build = { id, done, stop, finished: false, undo };
       builds.set(world, build);
       const ended = (outcome: string, fields = {}) => {
         build.finished = true;
@@ -48,8 +51,10 @@ export function worldBuilds() {
 
     cancel(world: string, id: string) {
       const build = find(world, id);
-      if (build) build.stop.abort();
-      else cancelled.add(id);
+      if (!build) cancelled.add(id);
+      // Done before the page heard, which still shows the world from before it.
+      else if (build.finished) build.undo();
+      else build.stop.abort();
       log.info("world", "World build cancelled", { world, build: id, running: !!build && !build.finished });
     },
 

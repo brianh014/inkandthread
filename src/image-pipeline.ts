@@ -79,13 +79,13 @@ export function portraitsDue(before: State, after: State, speakers: string[] = [
   return [...new Set(due)].filter((name) => !dead(name)).flatMap((name) => after.npcs.filter((npc) => npc.name === name));
 }
 
-/** Everyone whose looks a Turn changed: an NPC given new looks, and the PC, as null, when what they wear or how they look changed. */
 /** Who of `operations`' looks updates said their portrait needn't change, every update of theirs saying so. */
 export function passingLooks(operations: StateOperation[]) {
   const updates = operations.flatMap((operation) => (operation.op === "update_npc" ? [operation] : []));
   return new Set(updates.filter(({ name }) => updates.every((update) => update.name !== name || update.portrait === false)).map(({ name }) => name));
 }
 
+/** Everyone whose looks a Turn changed: an NPC given new looks, and the PC, as null, when what they wear or how they look changed. */
 export function restyledBy(before: State, after: State, operations: StateOperation[] = []): (Npc | null)[] {
   // Not one whose every update said its portrait needn't change, as wet hair, a mark or a pose redrew one every Turn.
   const passing = passingLooks(operations);

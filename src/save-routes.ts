@@ -217,6 +217,8 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         const edit = await parseBody(req, VisibleEdit);
         const { id } = req.params;
         turns.assertIdle(id);
+        // As a change made again after a Revert is written from the state before the edit, and would undo it.
+        if (turns.isRemaking(id)) throw new WorldChanging();
         const before = edit.edit === "tone" ? saves.read(id).tone : "";
         saves.addEdit(id, edit);
         if (edit.edit === "tone") log.info("saves", "Tone changed", { save: id, from: toneName(before), to: toneName(edit.text) });
@@ -228,6 +230,7 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         const { name, newName } = await parseBody(req, RenameRequest);
         const { id } = req.params;
         turns.assertIdle(id);
+        if (turns.isRemaking(id)) throw new WorldChanging();
         saves.rename(id, name, newName);
         return Response.json({});
       },
@@ -316,8 +319,9 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         if (deleted.messages > 0) stopMoves(id);
         images.forget(id, messageId, "revert");
         options.usage?.reverted(id);
-        // Once each, as the same words given twice made one change twice, at a minute's wait.
-        const changes = [...new Set(asked)];
+        // Once each, as the same words given twice made one change twice, at a minute's wait. The last time they were given, as
+        // a change made, undone and made again must end up made.
+        const changes = asked.filter((change, at) => asked.lastIndexOf(change) === at);
         if (changes.length > 0) {
           // After any move of the world, which rewrites the threads a change must see, and before the next Turn, which waits
           // on them, so the Revert answers at once and the player's words go out again: a wait of a minute was refreshed away.

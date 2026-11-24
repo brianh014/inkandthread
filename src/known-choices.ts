@@ -92,12 +92,13 @@ function forms(word: string) {
   if (/ing$/.test(lower)) all.push(lower.slice(0, -3), `${lower.slice(0, -3)}e`);
   if (/(?:er|ly)$/.test(lower)) all.push(lower.slice(0, -2));
   // Its last letter doubled, as "running" and "stopped" are.
-  if (/([bdgklmnprtvz])\1(?:ed|ing|er)$/.test(lower)) all.push(lower.replace(/.(?:ed|ing|er)$/, ""));
+  if (/([bdgklmnprtvz])\1(?:ed|ing)$/.test(lower)) all.push(lower.replace(/.(?:ed|ing)$/, ""));
   return all.filter((form) => form.length >= 3);
 }
 
 const everyday = (word: string) => forms(word).some((form) => EVERYDAY.has(form));
-const common = (word: string) => forms(word).some((form) => EVERYDAY.has(form) || COMMON.has(form));
+// Not by its stem without -er, as a folder isn't a fold.
+const common = (word: string) => everyday(word) || (/er$/i.test(word) ? [word.toLowerCase()] : forms(word)).some((form) => COMMON.has(form));
 
 /** Every run of four words in the text, in lower case and without punctuation. */
 function runs(text: string) {
@@ -124,41 +125,39 @@ export const EVERYDAY = new Set(
 
 // The commonest long words of plain English, which no secret turns on, as "office", "changes" and "exactly" cost replies their
 // Choices or a second ask for them. Apart from EVERYDAY, which also tells a plan's deeds and a copied run of words apart. Never a thing someone could
-// hide, such as a ledger or letter.
+// hide or a place to hide it, such as a ledger or cellar.
 // shortcut: regular forms and the irregular ones listed, add to it if Story in log shows other ordinary words dropped.
 const COMMON = new Set(
   `able about above accept account across action active actual actually add address afternoon afterward again agree ahead allow alone along aloud
-  already also apart appear area arrange arrive ask attempt attention available awake aware away back barely basement bathroom become bedroom
-  before began begin beginning begun being believe belong below better big bother bottom break breath breathe bright broke broken build building
-  built busy bypass call careful catch caught cause certain certainly chair chance change check choose chose chosen city class clean clear
-  clearly close closed coincidence cold come comfort common compare complete completely connect control corner correct count couple course cover
-  cross current cut daily damage danger dark date decision deep desk different difficult direct direction distance door doubt down downstairs
-  drink drive drove during each early easily easy eat edge effect effort else empty end entire entirely entrance even ever every exact exactly
-  example except excuse exist expect experience extra face fact fair fall familiar family far fast favor favour feel fell felt few figure fill
-  final finally fine finger finish first fix floor focus fold food force forward found free fresh friend front full gave general gentle get give
-  given goes going gone good got grab great ground group grow guard guess half hallway hand handle happen hard hardly head hear heard heavy held
-  help high himself history hold home hope hour house huge hurry idea ignore image imagine immediate important impossible include increase
-  indeed inform information inner install instant interest into join just keep kept kind kitchen knew know language large last late later laugh
-  lead learn least leave left less let level lift light likely line list listen live local lock log lone long look loose lose lost loud low main
-  major make manage many mark match maybe mean meant measure meet mention message method middle might mind mine miss moment money month more
-  most mostly mouth move much must name narrow natural nature near nearby nearly need never news next nice night noise none normal normally
-  number obvious occasion off offer office often okay once only onto open operate opinion opposite option order ordinary other otherwise outer
-  over own pace page pair part particular party pass past pause pay perfect perfectly perhaps personal piece place plain plan play please plenty
-  point polite position possible power practice prepare present press pretty prevent previous private probably problem proceed process produce
-  program project proper protect proud prove provide public pull purpose push put quality quarter quick quiet quite raise reach read ready real
+  already also apart appear area arrange arrive ask attempt attention available awake aware away back barely become before began begin beginning
+  begun being believe belong below better big bother bottom break breath breathe bright broke broken build built busy bypass call careful catch
+  caught cause certain certainly chance change check choose chose chosen clean clear clearly close closed coincidence cold come comfort common
+  compare complete completely connect control corner correct count couple course cover cross current cut daily damage danger dark date decision
+  deep different difficult direct direction distance doubt down downstairs drink drive drove during each early easily easy eat edge effect
+  effort else empty end entire entirely even ever every exact exactly example except excuse exist expect experience extra face fact fair fall
+  familiar far fast favor favour feel fell felt few figure fill final finally fine finger finish first fix focus fold food force forward found
+  free fresh front full gave general gentle get give given goes going gone good got grab great ground grow guard guess half hand handle happen
+  hard hardly head hear heard heavy held help high himself history hold hope hour huge hurry idea ignore imagine immediate important impossible
+  include increase indeed inform information inner install instant interest into join just keep kept kind knew know language large last late
+  later laugh lead learn least leave left less let level lift light likely line list listen live local lock log lone long look loose lose lost
+  loud low main major make manage many mark match maybe mean meant measure meet mention message method middle might mind mine miss moment money
+  month more most mostly mouth move much must name narrow natural nature near nearby nearly need never news next nice night noise none normal
+  normally number obvious occasion off offer office often okay once only onto open operate opinion opposite option order ordinary other
+  otherwise outer over own pace page pair part particular pass past pause pay perfect perfectly perhaps personal piece place plain plan play
+  please plenty point polite position possible power practice prepare present press pretty prevent previous private probably problem proceed
+  process produce proper protect proud prove provide public pull purpose push put quality quarter quick quiet quite raise reach read ready real
   realise reality realize really rebuild rebuilt recent recheck recognise recognize record reduce regard regular relax remain remind remove
   reopen repair repeat replace replay reply request require respect respond rest restart result rethink rewrite rid right ring rise room rough
-  round routine rule run rush safe said same sat save saw say scared school screen search seat second see seem seen sense sent separate serious
-  seriously serve set settle several shape share sharp short shoulder shout show shown shut side sign signal similar simple since single sit
-  situation size skip sleep slept slide slight slip slow small smell smile smooth soft solid solution solve somehow sometimes soon sort sound
-  space speak special speed spend spent spoke spoken spot spread stage stair stairs standard start state station stay steady step stick still
-  stood stop straight strange street stretch strong student study stuff such sudden suddenly suggest support suppose sure surface surprise
-  system table take taken taste taught teach tell tend terrible test thick thin thing think third though thought threw through throw tight time
-  tired today together told tomorrow tone tonight took top total touch toward track trade trail train treat trick tried trip true trust truth
-  try turn twice type uncertain under understand understood undo unless until unusual upon upper upset upstairs use usual usually various very
-  view visit voice wait wake walk wall want warm wash waste watch water way weak wear weather week weekend weight well went wet whole wide wild
-  will win window wipe wish within without woke wonder word wore work world worry worse worst worth write written wrong wrote year yesterday yet
-  young yourself`.split(/\s+/),
+  round routine rule run rush safe said same sat save saw say scared search second see seem seen sense sent separate serious seriously serve set
+  settle several shape share sharp short shoulder shout show shown shut side sign similar simple since single sit situation size skip sleep
+  slept slide slight slip slow small smell smile smooth soft solid solution solve somehow sometimes soon sort sound space speak special speed
+  spend spent spoke spoken spot spread standard start state stay steady step stick still stood stop straight strange stretch strong study stuff
+  such sudden suddenly suggest support suppose sure surprise take taken taste taught teach tell tend terrible test thick thin thing think third
+  though thought threw through throw tight time tired today together told tomorrow tone tonight took top total touch toward track trade train
+  treat trick tried trip true trust truth try turn twice type uncertain under understand understood undo unless until unusual upon upper upset
+  upstairs use usual usually various very view visit voice wait wake walk want warm wash waste watch way weak wear weather week weekend weight
+  well went wet whole wide wild will win wipe wish within without woke wonder word wore work world worry worse worst worth write written wrong
+  wrote year yesterday yet young yourself`.split(/\s+/),
 );
 
 // What the player reads in the Journal as the PC's own knowledge.

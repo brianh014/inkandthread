@@ -19,6 +19,7 @@ import {
   playTurn,
   type Chapter,
   portraitUrl,
+  getRemakes,
   previewRevert,
   replaceResponse,
   editResponse,
@@ -217,19 +218,23 @@ export function Play({ id }: { id: string }) {
   // World Changes a Revert couldn't make again, apart from a Turn's error, which the words it sends again would clear.
   const [unmadeChanges, setUnmadeChanges] = useState(0);
   const [remaking, setRemaking] = useState(false);
-  // Asks after a Revert's World Changes until they're made, then tells of any that couldn't be.
+  // Asks after a Revert's World Changes until they're made, then tells of any that couldn't be. Its own read, as the Turn's
+  // status is read elsewhere too, which would take a failure meant for this.
+  const remakeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(remakeTimer.current), []);
   function watchRemakes() {
     setRemaking(true);
+    clearTimeout(remakeTimer.current);
     const look = () =>
-      getTurn(id).then(
+      getRemakes(id).then(
         ({ remaking: still, unmade }) => {
           if (unmade) setUnmadeChanges((count) => count + unmade);
-          if (still) setTimeout(look, REMAKE_POLL_MS);
+          if (still) remakeTimer.current = setTimeout(look, REMAKE_POLL_MS);
           else setRemaking(false);
         },
         () => setRemaking(false),
       );
-    setTimeout(look, REMAKE_POLL_MS);
+    remakeTimer.current = setTimeout(look, REMAKE_POLL_MS);
   }
   const [duplicatingFrom, setDuplicatingFrom] = useState<Message>();
   const [regenerating, setRegenerating] = useState(false);
@@ -300,7 +305,7 @@ export function Play({ id }: { id: string }) {
     const reading = getSettings().catch(() => undefined);
     const live: Promise<TurnStatus> = inProgress ? Promise.resolve({}) : getTurn(id).catch(() => ({}));
     Promise.all([getSave(id), getMessages(id), reading, live]).then(
-      ([save, messages, settings, { running, failed, remaking: remakingNow, unmade }]) => {
+      ([save, messages, settings, { running, failed }]) => {
         if (settings) {
           setSetupNotice(setupProblem(settings));
           setChatStyle(settings.chatStyle);
@@ -312,8 +317,13 @@ export function Play({ id }: { id: string }) {
         }
         setSave(save);
         setMessages(messages);
-        if (unmade) setUnmadeChanges(unmade);
-        if (remakingNow) watchRemakes();
+        getRemakes(id).then(
+          ({ remaking: remakingNow, unmade }) => {
+            if (unmade) setUnmadeChanges(unmade);
+            if (remakingNow) watchRemakes();
+          },
+          () => {},
+        );
         const failure = missed ?? (failed && { ...failed, error: failureMessage(failed) });
         if (failure) {
           setError(failure.error);

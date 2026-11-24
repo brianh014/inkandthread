@@ -2,6 +2,7 @@ import { z } from "zod";
 import { knownPortraits } from "./gallery-routes";
 import { ArtStyleRequest, imageResponse, NoFields, parseBody, routes, type ServerContext, someWords } from "./http";
 import { errorType, log } from "./logger";
+import { WorldChanging } from "./live-turns";
 import { NoteNotFound, StaleTurn } from "./save-store";
 import { VisibleEdit } from "./state-applier";
 import { toneName } from "./tones";
@@ -298,13 +299,18 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
       },
     },
 
+    "/saves/:id/remakes": {
+      GET: (req) => Response.json(turns.remakes(req.params.id)),
+    },
     "/saves/:id/messages/:messageId/revert": {
       GET: (req) => Response.json(saves.revertPreview(req.params.id, Number(req.params.messageId))),
       POST: async (req) => {
         await parseBody(req, NoFields);
         const { id } = req.params;
         const messageId = Number(req.params.messageId);
-        // Refused before anything is deleted while a Turn or change runs, as the World Changes it would make again would be lost.
+        // Refused before anything is deleted while a Turn or change runs, as the World Changes it would make again would be lost,
+        // and while the last Revert's are made, as this one would leave them to fail after their call was paid for.
+        if (turns.isRemaking(id)) throw new WorldChanging();
         if (saves.revertPreview(id, messageId).worldChanges > 0) turns.assertIdle(id);
         const { asked, ...deleted } = saves.revert(id, messageId);
         images.forget(id, messageId, "revert");

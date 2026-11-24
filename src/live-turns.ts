@@ -94,14 +94,24 @@ export function liveTurns() {
 
     /** Reading a failure takes it, so it's told once. */
     status(id: string) {
-      const left = unmade.get(id);
-      unmade.delete(id);
-      const remakes = { ...(remaking.has(id) && { remaking: true }), ...(left && { unmade: left }) };
       const turn = running.get(id);
-      if (turn) return { running: turn, ...remakes };
+      if (turn) return { running: turn };
       const failure = failed.get(id);
       failed.delete(id);
-      return failure ? { failed: failure, ...remakes } : remakes;
+      return failure ? { failed: failure } : {};
+    },
+
+    /** Whether a Revert's World Changes are being made again, so a second Revert waits rather than costing them their call. */
+    isRemaking: (id: string) => remaking.has(id),
+
+    /**
+     * Its own read, apart from `status`, which a Turn's page reads and throws the rest away, losing a failure to tell.
+     * Reading what couldn't be made takes it, so it's told once.
+     */
+    remakes(id: string) {
+      const left = unmade.get(id);
+      unmade.delete(id);
+      return { ...(remaking.has(id) && { remaking: true }), ...(left && { unmade: left }) };
     },
   };
 }

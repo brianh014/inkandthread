@@ -173,8 +173,8 @@ test("the rules every story needs are built in, near the reply, so Model Instruc
     "rather than participle phrases",
     "Vary the length and structure of your sentences",
     "Never use em-dashes",
-    "carry what is only a step on the way",
-    "in the narration and in anyone's speech: never set it against something it isn't",
+    "carry a routine step of what the player said",
+    "in narration and speech alike: never deny what nobody in the scene supposed",
   ]) {
     expect(lastSystem()).toContain(rule);
     expect(prompts.at(-1)![0]!.content).not.toContain(rule);
@@ -212,9 +212,11 @@ test("the looks of everyone in view come last, beside the line to show what the 
   await playTurn(id);
 
   expect(lastSystem()).toContain('"looks_in_view":{"Hesper":"a woman in her forties wearing only boots and a sit-cloth"}');
-  expect(lastSystem()).toContain("looks or acts in a way the PC would find striking or strange by what they know, say it plainly through the PC's eyes");
+  expect(lastSystem()).toContain(
+    "When the PC first sees someone, or something about them that would strike the PC by what they know, say it plainly once as the PC sees it",
+  );
   // As a near-naked advisor was told as plainly as a coat, though to the PC, from another world, it was a shock.
-  expect(lastSystem()).toContain("give it the weight it has for them, though it may be ordinary to everyone who lives there");
+  expect(lastSystem()).toContain("with the weight it has for the PC even where it's ordinary there");
 });
 
 test("a reply is held to one thing for the PC to answer, in numbers the Narrator can count", async () => {

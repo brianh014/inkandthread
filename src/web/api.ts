@@ -65,8 +65,7 @@ export type GalleryImage = ImageTarget & { label: string; prompt: string | null;
 export type Gallery = { images: GalleryImage[]; pending: boolean; canRedraw: boolean };
 export type HeldImage = { prompt: string; hasImage: boolean; failure: string; canRedraw: boolean };
 export type TurnResult = { messages: Message[] } | { error: string; input: string };
-/** `remaking` while a Revert makes World Changes again, and `unmade` how many it couldn't, told once. */
-export type TurnStatus = { running?: LiveTurn; failed?: FailedTurn; remaking?: boolean; unmade?: number };
+export type TurnStatus = { running?: LiveTurn; failed?: FailedTurn };
 /** Hears the text so far, and why it started over if it did. */
 export type Show = (narration: string, retry?: string) => void;
 
@@ -402,6 +401,9 @@ export async function stopTurn(id: string) {
 
 /** The state of a Turn on the server, which goes on without this page. Reading a failure takes it. */
 export const getTurn = (id: string) => request<TurnStatus>(`/saves/${id}/turn`);
+
+/** `remaking` while a Revert makes World Changes again, and `unmade` how many it couldn't, told once. */
+export const getRemakes = (id: string) => request<{ remaking?: boolean; unmade?: number }>(`/saves/${id}/remakes`);
 
 // About as long as a phone takes to find its network again after being woken. An object so that tests can shorten it.
 export const turnPolling = { everyMs: 1000, tries: 30 };

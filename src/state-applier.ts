@@ -175,7 +175,7 @@ export const StateOperation = z.discriminatedUnion("op", [
       .nullable()
       .default(null)
       .describe(
-        "true only for a change their portrait should show: clothes put on, taken off or changed, a haircut or new hair colour, a scar, a lasting wound or a change of build; false for what passes with the scene, such as wet or messy hair, a mark that fades, dirt or a flush",
+        "true only for a change their portrait should show: clothes put on, taken off or changed, a haircut or new hair colour, a scar, a lasting wound or a change of build; false for what passes with the scene, such as wet hair, a mark that fades or dirt",
       ),
   }),
   z.object({ op: z.literal("merge_npc"), name: nonEmpty, into: nonEmpty }),

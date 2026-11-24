@@ -429,7 +429,7 @@ test("a Revert past a World Change makes it again from the player's words on the
   const reverted = await json(app.post(`/saves/${id}/messages/2/revert`, {}));
   // It answers at once and makes the change while the page asks after it, as a minute's wait was refreshed away.
   expect(reverted).toMatchObject({ remaking: 1 });
-  while ((await json(app.get(`/saves/${id}/turn`))).remaking) await Bun.sleep(1);
+  while ((await json(app.get(`/saves/${id}/remakes`))).remaking) await Bun.sleep(1);
 
   expect(prompts).toHaveLength(asked + 1);
   expect(JSON.stringify(prompts.at(-1))).toContain("the mayor is secretly a smuggler");
@@ -463,6 +463,25 @@ test("a World Change given twice is made again once, and a Turn sent at once aft
 
   expect(prompts).toHaveLength(asked + 2);
   expect(JSON.stringify(prompts.at(-1))).toContain(SECRET);
+});
+
+// As a second Revert while the first's World Changes were made left them to fail after their call was paid for.
+test("a Revert is refused while the last Revert's World Changes are still being made", async () => {
+  const replies = [narration("One."), update({ lore_entries: [SMUGGLER] }), narration("Two.")];
+  let finish = (_: string) => {};
+  app = startApp(savesDir, () => (replies.length > 0 ? Promise.resolve(replies.shift()!) : new Promise((resolve) => (finish = resolve))));
+  const id = createSave();
+  await turn(id);
+  await change(id);
+  await turn(id);
+  expect(await json(app.post(`/saves/${id}/messages/2/revert`, {}))).toMatchObject({ remaking: 1 });
+  while (!(await json(app.get(`/saves/${id}/remakes`))).remaking) await Bun.sleep(1);
+
+  const second = await app.post(`/saves/${id}/messages/2/revert`, {});
+
+  expect(second.status).toBe(409);
+  finish(update({ lore_entries: [SMUGGLER] }));
+  while ((await json(app.get(`/saves/${id}/remakes`))).remaking) await Bun.sleep(1);
 });
 
 // As one deleted first and then found the Save busy, losing the World Changes it would have made again.

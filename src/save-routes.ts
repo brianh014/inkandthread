@@ -314,6 +314,7 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
               } catch (error) {
                 if (!(error instanceof TurnFailed)) throw error;
                 failed += 1;
+                log.warning("world", "A World Change failed again after a Revert", { failure: error.failure, message: error.message });
               }
             }
           } finally {

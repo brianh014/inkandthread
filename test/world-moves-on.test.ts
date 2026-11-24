@@ -936,10 +936,15 @@ test("a plan whose hour comes while its doer is with the PC was overtaken by pla
   expect(store().latestState(id)).toMatchObject({ threadsPlan: {}, threadsDue: {} });
 });
 
-test("a plan whose hour comes in the very reply its doer comes into view waits a little, but one long past its hour goes", async () => {
+test("a plan whose hour comes in the very reply its doer comes into view waits a little, but one past, skipped over or played out goes", async () => {
   const plan = "Kit will rob the library stacks for the ledger.";
   const arrives = narration("Kit comes down the dock to Ash.", { op: "set_scene", location: "The dock", visible_cast: ["Kit"] }, hoursOn(1, "nine"));
-  play(arrives, arrives);
+  const robbed = narration(
+    "Kit slips out of the library stacks with the ledger under an arm.",
+    { op: "set_scene", location: "The dock", visible_cast: ["Kit"] },
+    hoursOn(1, "nine"),
+  );
+  play(arrives, arrives, arrives, robbed);
   const id = planned(8.5, plan);
 
   const log = await logOf(async () => expect((await turn(id, "I wave.")).ok).toBe(true), "info");
@@ -947,9 +952,15 @@ test("a plan whose hour comes in the very reply its doer comes into view waits a
   expect(log).toContain('"plansPutOff":1');
   expect(store().latestState(id)).toMatchObject({ threadsPlan: { [THIEF]: plan }, threadsDue: { [THIEF]: 9.5 } });
 
-  const past = planned(7, plan);
-  expect((await turn(past, "I wave.")).ok).toBe(true);
-  expect(store().latestState(past).threadsPlan).toEqual({});
+  // Its hour came before this reply, a skip passed it long ago, or the reply played it out.
+  const gone = async (due: number) => {
+    const past = planned(due, plan);
+    expect((await turn(past, "I wave.")).ok).toBe(true);
+    expect(store().latestState(past).threadsPlan).toEqual({});
+  };
+  await gone(7);
+  await gone(8.25);
+  await gone(8.5);
 });
 
 test("a move that thinks too long is written again with no thinking, and stands", async () => {

@@ -89,7 +89,8 @@ export function moveDue(id: string, before: State, after: State, replies: number
     end !== undefined &&
     end > start! &&
     (since < 0 || since >= PLAN_REPLIES) &&
-    Object.values(before.threadsDue).some((at) => lastClock <= at && at <= end);
+    // Not one this Turn put off, which the move could do nothing for.
+    Object.entries(before.threadsDue).some(([truth, at]) => lastClock <= at && at <= end && (after.threadsDue[truth] ?? at) <= end);
   const due = hoursOn || newDate || planFalls || since >= MOVE_EVERY;
   if (due) {
     log.info("world", "World move due", { save: id, hoursOn, newDate, planFalls, replies: since });
@@ -184,10 +185,11 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   // someone the page showed and sent off between them, and went on placing them where the move before had. Never those the last
   // move read, as one the clock brought a reply later would put people back where an older reply showed them.
   const latestReplies = replies.slice(-Math.max(1, repliesSince.get(id) ?? MOVE_EVERY));
+  let overthought = false;
   const failed = (error: unknown) => {
     // Not one a Revert stopped, as its replies are gone.
     if ((signal.reason as Error | undefined)?.name !== "AbortError") unread.set(id, Math.min(MOVE_EVERY, latestReplies.length));
-    log.warning("world", "World didn't move on", { save: id, ...errorType(error) });
+    log.warning("world", "World didn't move on", { save: id, ...(overthought && { overthought }), ...errorType(error) });
   };
   // Those the summary doesn't cover yet, as it is written only every few replies.
   // shortcut: at most two rounds' worth, so a Save from before summaryReplies doesn't send its whole story; raise it if summaries go missing for longer.
@@ -514,7 +516,6 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
   ];
   const started = Date.now();
   let again: ReturnType<typeof sorted> | undefined;
-  let overthought = false;
   let againQuestions: Record<string, string> = {};
   try {
     // No thinking budget, as one cut 16 of 19 moves on a provider that takes none. One that thinks past the limit is asked again
@@ -683,7 +684,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       // Plans the move gave for threads whose plan stood, so were not taken.
       ...(notTaken > 0 && { planKept: notTaken }),
       ...(withoutParts > 0 && { withoutPart: withoutParts }),
-      // Written with no thinking, so its faults can be told from the others'.
+      // A try thought past the limit, after which the next was asked to think not at all.
       ...(overthought && { overthought }),
       ...(kept.some(({ thread, truth }) => thread !== null && truth !== null) && {
         truthsIgnored: kept.filter(({ thread, truth }) => thread !== null && truth !== null).length,

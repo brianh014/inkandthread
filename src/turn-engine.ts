@@ -28,6 +28,7 @@ import { modelName, type SettingsStore } from "./settings-store";
 import type { NarratorTurn, UsageStore } from "./usage-store";
 import {
   applyOperations,
+  clockOf,
   closestThread,
   findPerson,
   givenName,
@@ -48,7 +49,7 @@ import { applyWorldChange } from "./world-creation";
 import { foldKnows } from "./knowledge-folds";
 import { closeLooseEnds } from "./loose-ends-check";
 import { growLore } from "./lore-growth";
-import { askToClose, deedWords, forgetUnread, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, turnThreadChanges } from "./world-moves-on";
+import { askToClose, deedWords, forgetUnread, MOVE_LIMIT, moveDue, moveSoon, sameDeed, moveWorldOn, turnThreadChanges } from "./world-moves-on";
 import { threadPeople } from "./thread-people";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
@@ -586,9 +587,9 @@ function turnPrompt(
 // Replies and story hours below which the story time stands still, so the Choices offer one that moves on, as a 160-round play
 // passed three hours, a minute a reply, its seeded picks never offered a way to let time pass.
 const STILL_REPLIES = 6;
-// Story hours a plan waits when its hour comes as its doer comes into view.
-const PUT_OFF_HOURS = 0.5;
 const STILL_HOURS = 1;
+// Story hours a plan waits when its hour comes as its doer comes into view, and the most that may have passed since it came.
+const PUT_OFF_HOURS = 0.5;
 const RECENT_MOVES = 4;
 /** The clock's hours a few replies back, undefined in a short story or one from before the clock. */
 function clockBack(saves: SaveStore, id: string, messages: Message[]) {
@@ -1230,10 +1231,19 @@ async function narrate(
               doerIn(next.threadsPlan[truth]!, next.scene.visibleCast),
           );
           // One whose hour came in this very reply, its doer only now in view, waits a little instead, as one was lost in the reply
-          // that had its doer speak of it. Its hour moved, as left at it the move this Turn brings could only drop it too.
-          const putOff = come.filter(
-            (truth) => (next.threadsDue[truth] ?? 0) > (state.storyTime?.hours ?? Infinity) && !doerIn(next.threadsPlan[truth]!, state.scene.visibleCast),
+          // that had its doer speak of it. Its hour moved, as left at it the move this Turn brings could only drop it too. Never
+          // one the reply played out, by two of its own words, nor one a skip of hours passed.
+          // shortcut: a plan's words keep its old hour, which the Narrator then reads as come; reword them if it plays it too soon.
+          const intos = new Map(
+            [...state_operations, ...(upkept ?? [])].flatMap((operation) => (operation.op === "merge_npc" ? [[operation.name, operation.into] as const] : [])),
           );
+          const castBefore = state.scene.visibleCast.flatMap((name) => [name, intos.get(name) ?? name]);
+          const started = clockOf(state.storyTime) ?? Number.POSITIVE_INFINITY;
+          const putOff = come.filter((truth) => {
+            const due = next.threadsDue[truth];
+            const plan = next.threadsPlan[truth]!;
+            return due !== undefined && due > started && clock! - due <= PUT_OFF_HOURS && !doerIn(plan, castBefore) && !sameDeed(plan, narration);
+          });
           const overtaken = come.filter((truth) => !putOff.includes(truth));
           for (const truth of putOff) next.threadsDue[truth] = clock! + PUT_OFF_HOURS;
           plansPutOff = putOff.length;
@@ -1721,11 +1731,12 @@ export async function askForJson<T>(
       retryIfInvalid(cause, attempt, "", { id, generation }, reviewer ? "reviewer" : "Narrator");
       const reason = whyInvalid(cause as InvalidResponse);
       // The same level would most likely think past the limit again.
-      if (reason === OVERTHOUGHT && onOverthought) {
-        thinkingOff = true;
-        onOverthought();
-      } else if (reason === OVERTHOUGHT) lessThinking++;
-      else asked = [...prompt, couldNotUse([reason, ...toldModel(cause)].join("; "))];
+      if (reason === OVERTHOUGHT) {
+        lessThinking++;
+        // A level lower too, for a model that must think, and as thinking left to the model is turned off only once lowered.
+        thinkingOff ||= !!onOverthought;
+        onOverthought?.();
+      } else asked = [...prompt, couldNotUse([reason, ...toldModel(cause)].join("; "))];
       // Sent without thinking, as hurried tries sent at Low thought past the budget again (11 State Upkeeps in one bench play).
       if (reason === OVER_BUDGET) thinkingOff = true;
     }

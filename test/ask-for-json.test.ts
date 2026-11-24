@@ -89,6 +89,6 @@ test("a call told of a try that thought past the limit has its next try think no
   expect(heard).toBe(1);
   expect(tries.map(({ lessThinking, thinkingOff }) => [lessThinking, thinkingOff])).toEqual([
     [0, false],
-    [0, true],
+    [1, true],
   ]);
 });

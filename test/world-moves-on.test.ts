@@ -669,6 +669,29 @@ test("a now with only a fault that mostly misfires is not asked again, as the ne
   expect(log).toContain('"misfires":true');
 });
 
+test("a re-ask for a missing part that fails leaves the move as it first came", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  play(
+    narration("Ash meets the sexton.", { op: "add_npc", name: "Silas Grout", appearance: "a huge man" }, nextDay()),
+    moved(change(drowned, "Grout digs a grave.")),
+    new Error("The re-ask timed out."),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: { scene: { location: "The quay", visibleCast: [] }, summary: "", plotThreads: [drowned], worldBible: [] },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I meet him.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(store().latestState(id).threadsNow[drowned]).toBe("Grout digs a grave.");
+  expect(log).toContain("Parts not asked again");
+  expect(log).not.toContain("World didn't move on");
+});
+
 test("a missing part is not asked again past half the move's time, as two such re-asks were cut off at its end", async () => {
   const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
   const told = play(

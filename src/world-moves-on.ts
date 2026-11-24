@@ -247,6 +247,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   };
   // Asked again once only, so a reply that still leaves someone out keeps its move.
   let partsAsked = false;
+  let partless: { sorted: ReturnType<typeof sorted>; questions: Record<string, string> } | undefined;
   // A now that waits on the PC, as nows said "deal with her if she presses" for 45 rounds and no thread ever moved to its end.
   const pcNames = nameForms(saves.read(id).pc.name ?? "")
     .filter(Boolean)
@@ -400,7 +401,11 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     if (!partsAsked && partsMissing(kept) > 0) {
       partsAsked = true;
       if (late) log.info("world", "Parts not asked again, too late", { save: id });
-      else context.addIssue({ code: "custom", message: "someone in a thread's without_part got no part in its knows" });
+      else {
+        // Stands if the re-ask fails, as a move with nothing else wrong was lost with it.
+        partless = { sorted: sorted(plot_threads), questions: questionsOf(reply) };
+        context.addIssue({ code: "custom", message: "someone in a thread's without_part got no part in its knows" });
+      }
     }
     const unfit = nowsAsked ? [] : nowFaults(kept);
     if (unfit.length > 0) {
@@ -501,11 +506,15 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
     againQuestions = questionsOf(reply);
   } catch (error) {
     // A re-ask that fails settles from the first reply, as discarding the whole move left every now twelve rounds stale.
-    if (!first) {
+    if (first) log.warning("world", "Nows not asked again", { save: id, ...errorType(error) });
+    else if (partless) {
+      log.warning("world", "Parts not asked again", { save: id, ...errorType(error) });
+      again = partless.sorted;
+      againQuestions = partless.questions;
+    } else {
       failed(error);
       return;
     }
-    log.warning("world", "Nows not asked again", { save: id, ...errorType(error) });
   }
   try {
     const { faults, overflow } = first ?? again!;

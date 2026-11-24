@@ -610,6 +610,19 @@ export async function worldMoved(id: string, signal: AbortSignal) {
   signal.throwIfAborted();
 }
 
+/**
+ * Runs `work` after the Save's moves of the world, and holds the next Turn until it's done, as World Moves On does. Never
+ * throws, as nothing awaits it but that Turn.
+ */
+export function afterMoves(id: string, work: () => Promise<void>) {
+  const move: Promise<void> = (moving.get(id) ?? Promise.resolve())
+    .then(work)
+    .catch(() => undefined)
+    .finally(() => moving.get(id) === move && moving.delete(id));
+  moving.set(id, move);
+  return move;
+}
+
 /** Logs once a committed reply's pictures and any World Moves On are done, with each follow-up's time. Never throws, as the Turn is saved. */
 function followedUp(id: string, kind: string, images: ImagePipeline, times: FollowUpTimes) {
   const from = Date.now();
@@ -738,7 +751,8 @@ export async function playTurn(
       reviewProvider && closeLooseEnds(reviewProvider, saves, id, limit),
     ])
       .then(() => undefined)
-      .finally(() => moving.delete(id));
+      // Only its own, as work queued after it, such as World Changes made again after a Revert, must still be waited for.
+      .finally(() => moving.get(id) === move && moving.delete(id));
     moving.set(id, move);
   }
   followedUp(id, kind, images, times);

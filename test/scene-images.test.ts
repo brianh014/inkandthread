@@ -435,7 +435,7 @@ test("Revert counts and deletes the images after its Message, and keeps those be
     images: 1,
     portraits: 0,
     worldChanges: 0,
-    failed: 0,
+    remaking: 0,
   });
 
   expect((await imagesOf(id)).images).toEqual([{ messageId: 2, caption: "One", redraws: 0 }]);

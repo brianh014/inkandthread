@@ -421,7 +421,7 @@ test("Revert reports what it would delete, then restores that Message's Snapshot
   const response = await app.post(`/saves/${id}/messages/2/revert`, {});
 
   expect(response.status).toBe(200);
-  expect(await response.json()).toEqual({ messages: 2, images: 0, portraits: 0, worldChanges: 0, failed: 0 });
+  expect(await response.json()).toEqual({ messages: 2, images: 0, portraits: 0, worldChanges: 0, remaking: 0 });
   expect(prompts).toHaveLength(2);
   expect(await messageTexts(app, id)).toEqual(["I search.", "A lantern."]);
   expect((await app.get(`/saves/${id}/messages/4/snapshot`)).status).toBe(404);
@@ -439,7 +439,7 @@ test("Reverting to the latest Message deletes nothing", async () => {
 
   const response = await app.post(`/saves/${id}/messages/2/revert`, {});
 
-  expect(await response.json()).toEqual({ messages: 0, images: 0, portraits: 0, worldChanges: 0, failed: 0 });
+  expect(await response.json()).toEqual({ messages: 0, images: 0, portraits: 0, worldChanges: 0, remaking: 0 });
   expect(await messageTexts(app, id)).toHaveLength(2);
 });
 

@@ -65,7 +65,8 @@ export type GalleryImage = ImageTarget & { label: string; prompt: string | null;
 export type Gallery = { images: GalleryImage[]; pending: boolean; canRedraw: boolean };
 export type HeldImage = { prompt: string; hasImage: boolean; failure: string; canRedraw: boolean };
 export type TurnResult = { messages: Message[] } | { error: string; input: string };
-export type TurnStatus = { running?: LiveTurn; failed?: FailedTurn };
+/** `remaking` while a Revert makes World Changes again, and `unmade` how many it couldn't, told once. */
+export type TurnStatus = { running?: LiveTurn; failed?: FailedTurn; remaking?: boolean; unmade?: number };
 /** Hears the text so far, and why it started over if it did. */
 export type Show = (narration: string, retry?: string) => void;
 
@@ -352,8 +353,8 @@ export const tellNarrator = (id: string, change: string) => request<object>(`/sa
 export const previewRevert = (id: string, messageId: number) =>
   request<{ messages: number; images: number; portraits: number; worldChanges: number }>(`/saves/${id}/messages/${messageId}/revert`);
 
-/** `failed` counts the World Changes after it that couldn't be made again. */
-export const revert = (id: string, messageId: number) => request<{ failed: number }>(`/saves/${id}/messages/${messageId}/revert`, jsonBody({}));
+/** `remaking` counts the World Changes after it being made again, which the next Turn waits for. */
+export const revert = (id: string, messageId: number) => request<{ remaking: number }>(`/saves/${id}/messages/${messageId}/revert`, jsonBody({}));
 
 export const duplicateSave = (id: string) => request<{ id: string }>(`/saves/${id}/duplicate`, jsonBody({}));
 

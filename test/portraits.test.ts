@@ -360,7 +360,7 @@ test("Revert counts and deletes a portrait from a Reverted first appearance, and
     images: 1,
     portraits: 1,
     worldChanges: 0,
-    failed: 0,
+    remaking: 0,
   });
 
   // The PC's stays: no Message drew it.

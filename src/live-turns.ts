@@ -28,6 +28,9 @@ export function liveTurns() {
   const stoppers = new Map<string, AbortController>();
   const failed = new Map<string, FailedTurn>();
   const changing = new Set<string>();
+  // World Changes a Revert is making again, and how many of them couldn't be, which the page shows once.
+  const remaking = new Set<string>();
+  const unmade = new Map<string, number>();
 
   function assertIdle(id: string) {
     if (running.has(id)) throw new TurnRunning();
@@ -74,8 +77,14 @@ export function liveTurns() {
       };
     },
 
+    /** Marks the Save while `work`, which settles to how many it couldn't make, makes a Revert's World Changes again. */
+    remake(id: string, work: Promise<number>) {
+      remaking.add(id);
+      void work.then((failed) => failed > 0 && unmade.set(id, (unmade.get(id) ?? 0) + failed)).finally(() => remaking.delete(id));
+    },
+
     /** Whether any Save has a Turn or a world change under way. */
-    busy: () => running.size > 0 || changing.size > 0,
+    busy: () => running.size > 0 || changing.size > 0 || remaking.size > 0,
 
     /** Whether there was a Turn to stop. It ends as a failure, so its page gets the player's words back. */
     stop(id: string) {
@@ -85,11 +94,14 @@ export function liveTurns() {
 
     /** Reading a failure takes it, so it's told once. */
     status(id: string) {
+      const left = unmade.get(id);
+      unmade.delete(id);
+      const remakes = { ...(remaking.has(id) && { remaking: true }), ...(left && { unmade: left }) };
       const turn = running.get(id);
-      if (turn) return { running: turn };
+      if (turn) return { running: turn, ...remakes };
       const failure = failed.get(id);
       failed.delete(id);
-      return failure ? { failed: failure } : {};
+      return failure ? { failed: failure, ...remakes } : remakes;
     },
   };
 }

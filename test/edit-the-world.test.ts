@@ -427,8 +427,10 @@ test("a Revert past a World Change makes it again from the player's words on the
   expect(await json(app.get(`/saves/${id}/messages/2/revert`))).toMatchObject({ worldChanges: 1 });
 
   const reverted = await json(app.post(`/saves/${id}/messages/2/revert`, {}));
+  // It answers at once and makes the change while the page asks after it, as a minute's wait was refreshed away.
+  expect(reverted).toMatchObject({ remaking: 1 });
+  while ((await json(app.get(`/saves/${id}/turn`))).remaking) await Bun.sleep(1);
 
-  expect(reverted).toMatchObject({ failed: 0 });
   expect(prompts).toHaveLength(asked + 1);
   expect(JSON.stringify(prompts.at(-1))).toContain("the mayor is secretly a smuggler");
   expect(hidden(id).worldBible[0]).toMatchObject({ title: SMUGGLER.title });
@@ -437,6 +439,30 @@ test("a Revert past a World Change makes it again from the player's words on the
       .messages(id)
       .map(({ id: message }) => message),
   ).toEqual([1, 2]);
+});
+
+// As the same words given twice were made twice, and the words sent again after a Revert were lost to a refresh while it waited.
+test("a World Change given twice is made again once, and a Turn sent at once after the Revert waits for it", async () => {
+  play(
+    narration("One."),
+    update({ lore_entries: [SMUGGLER] }),
+    update({ lore_entries: [SMUGGLER] }),
+    narration("Two."),
+    update({ lore_entries: [SMUGGLER] }),
+    narration("Again."),
+  );
+  const id = createSave();
+  await turn(id);
+  await change(id);
+  await change(id);
+  await turn(id);
+  const asked = prompts.length;
+
+  expect(await json(app.post(`/saves/${id}/messages/2/revert`, {}))).toMatchObject({ remaking: 1 });
+  expect((await turn(id, "I look again.")).status).toBe(201);
+
+  expect(prompts).toHaveLength(asked + 2);
+  expect(JSON.stringify(prompts.at(-1))).toContain(SECRET);
 });
 
 // As one deleted first and then found the Save busy, losing the World Changes it would have made again.

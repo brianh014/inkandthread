@@ -216,6 +216,21 @@ export function Play({ id }: { id: string }) {
   const [reverting, setReverting] = useState<Message>();
   // World Changes a Revert couldn't make again, apart from a Turn's error, which the words it sends again would clear.
   const [unmadeChanges, setUnmadeChanges] = useState(0);
+  const [remaking, setRemaking] = useState(false);
+  // Asks after a Revert's World Changes until they're made, then tells of any that couldn't be.
+  function watchRemakes() {
+    setRemaking(true);
+    const look = () =>
+      getTurn(id).then(
+        ({ remaking: still, unmade }) => {
+          if (unmade) setUnmadeChanges((count) => count + unmade);
+          if (still) setTimeout(look, REMAKE_POLL_MS);
+          else setRemaking(false);
+        },
+        () => setRemaking(false),
+      );
+    setTimeout(look, REMAKE_POLL_MS);
+  }
   const [duplicatingFrom, setDuplicatingFrom] = useState<Message>();
   const [regenerating, setRegenerating] = useState(false);
   // A Setting, for every story: the Choices are written every Turn, so this only shows or hides them.
@@ -285,7 +300,7 @@ export function Play({ id }: { id: string }) {
     const reading = getSettings().catch(() => undefined);
     const live: Promise<TurnStatus> = inProgress ? Promise.resolve({}) : getTurn(id).catch(() => ({}));
     Promise.all([getSave(id), getMessages(id), reading, live]).then(
-      ([save, messages, settings, { running, failed }]) => {
+      ([save, messages, settings, { running, failed, remaking: remakingNow, unmade }]) => {
         if (settings) {
           setSetupNotice(setupProblem(settings));
           setChatStyle(settings.chatStyle);
@@ -297,6 +312,8 @@ export function Play({ id }: { id: string }) {
         }
         setSave(save);
         setMessages(messages);
+        if (unmade) setUnmadeChanges(unmade);
+        if (remakingNow) watchRemakes();
         const failure = missed ?? (failed && { ...failed, error: failureMessage(failed) });
         if (failure) {
           setError(failure.error);
@@ -772,6 +789,11 @@ export function Play({ id }: { id: string }) {
           </button>
         </div>
       )}
+      {remaking && (
+        <p role="status" className="waiting">
+          Making what you told the Narrator to change again…
+        </p>
+      )}
       {unmadeChanges > 0 && (
         <div role="alert" className="error dismissable">
           <p>
@@ -979,8 +1001,8 @@ export function Play({ id }: { id: string }) {
             setReverting(undefined);
             setReplaying(undefined);
           }}
-          onReverted={(to, input, unmade) => {
-            setUnmadeChanges(unmade);
+          onReverted={(to, input, remakes) => {
+            if (remakes > 0) watchRemakes();
             const kept = messages.filter((message) => message.id <= to);
             setMessages(kept);
             setChosenBeat(undefined);
@@ -1077,6 +1099,9 @@ const DRAWING: Record<string, string> = {
   "cover redraw": "the Cover again",
 };
 
+// How often the page asks whether a Revert's World Changes are made yet.
+const REMAKE_POLL_MS = 3000;
+
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`;
 
 /**
@@ -1089,7 +1114,7 @@ function RevertDialog(props: {
   before?: Message;
   replay?: string;
   onClose: () => void;
-  onReverted: (to: number, input: string | undefined, unmade: number) => void;
+  onReverted: (to: number, input: string | undefined, remaking: number) => void;
 }) {
   const { id, message, replay } = props;
   const resend = replay === undefined && message.role === "player" ? props.before : undefined;
@@ -1118,11 +1143,11 @@ function RevertDialog(props: {
   const confirmRevert = () =>
     attempt(async () => {
       const to = (resend ?? message).id;
-      const { failed } = await revert(id, to);
+      const { remaking } = await revert(id, to);
       // Gone if the player pressed Escape while this was in flight, and the Revert happened all the same.
       dialog.current?.close();
-      // At once, words to send again included, as a notice that waited on the dialog lost them to a refresh.
-      props.onReverted(to, replay === undefined ? resend && message.text : input.trim(), failed);
+      // At once, words to send again included, as the World Changes it makes again run on while the next Turn waits for them.
+      props.onReverted(to, replay === undefined ? resend && message.text : input.trim(), remaking);
     });
 
   const duplicate = () =>
@@ -1161,7 +1186,7 @@ function RevertDialog(props: {
       {preview && preview.worldChanges > 0 && (
         <p>
           {preview.worldChanges === 1 ? "The World Change" : `The ${preview.worldChanges} World Changes`} you made after it{" "}
-          {preview.worldChanges === 1 ? "is" : "are"} made again on the story as it then stands, which takes a little longer.
+          {preview.worldChanges === 1 ? "is" : "are"} made again on the story as it then stands, while the story goes on.
         </p>
       )}
       {replay === undefined && <p className="muted">“Duplicate from here” keeps this story and carries on in a new Save instead.</p>}

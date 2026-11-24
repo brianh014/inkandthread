@@ -5,7 +5,7 @@ import { errorType, log } from "./logger";
 import { NoteNotFound, StaleTurn } from "./save-store";
 import { VisibleEdit } from "./state-applier";
 import { toneName } from "./tones";
-import { askForChapterTitle, TurnFailed, worldMoved } from "./turn-engine";
+import { afterMoves, askForChapterTitle, TurnFailed, worldMoved } from "./turn-engine";
 import { readable } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 import { NamedPc } from "./world-routes";
@@ -304,33 +304,38 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         await parseBody(req, NoFields);
         const { id } = req.params;
         const messageId = Number(req.params.messageId);
-        // Held before anything is deleted, so a busy Save refuses the Revert rather than losing the World Changes it would make again.
-        const release = saves.revertPreview(id, messageId).worldChanges > 0 ? turns.hold(id) : undefined;
-        try {
-          const { asked, ...deleted } = saves.revert(id, messageId);
-          images.forget(id, messageId, "revert");
-          options.usage?.reverted(id);
-          if (asked.length === 0) return Response.json({ ...deleted, failed: 0 });
-          // As a move already on its way rewrites the threads, which the change then wouldn't see, as the World Change route waits too.
-          await worldMoved(id, AbortSignal.timeout(REMAKE_MS));
-          // Made again from the player's words, in order, as the world they changed is the one the Revert went back to. Not on the
-          // request's signal, as a closed tab would leave the rest unmade and nothing keeps them, and each failure is that change's alone.
+        // Refused before anything is deleted while a Turn or change runs, as the World Changes it would make again would be lost.
+        if (saves.revertPreview(id, messageId).worldChanges > 0) turns.assertIdle(id);
+        const { asked, ...deleted } = saves.revert(id, messageId);
+        images.forget(id, messageId, "revert");
+        options.usage?.reverted(id);
+        // Once each, as the same words given twice made one change twice, at a minute's wait.
+        const changes = [...new Set(asked)];
+        if (changes.length > 0) {
+          // After any move of the world, which rewrites the threads a change must see, and before the next Turn, which waits
+          // on them, so the Revert answers at once and the player's words go out again: a wait of a minute was refreshed away.
+          // Made again from the player's words, in order, on the world the Revert went back to, each failure its own, and on
+          // their own signal, as nothing else would keep them if the tab closed.
           let failed = 0;
-          for (const change of asked) {
-            try {
-              await applyWorldChange(options, saves, images, id, change, AbortSignal.timeout(REMAKE_MS));
-            } catch (error) {
-              failed += 1;
-              log.warning("world", "A World Change failed again after a Revert", {
-                ...(error instanceof TurnFailed ? { failure: error.failure, message: error.message } : errorType(error)),
-              });
+          const made = afterMoves(id, async () => {
+            for (const change of changes) {
+              try {
+                await applyWorldChange(options, saves, images, id, change, AbortSignal.timeout(REMAKE_MS));
+              } catch (error) {
+                failed += 1;
+                log.warning("world", "A World Change failed again after a Revert", {
+                  ...(error instanceof TurnFailed ? { failure: error.failure, message: error.message } : errorType(error)),
+                });
+              }
             }
-          }
-          log.info("world", "World Changes made again after a Revert", { made: asked.length - failed, failed });
-          return Response.json({ ...deleted, failed });
-        } finally {
-          release?.();
+            log.info("world", "World Changes made again after a Revert", { made: changes.length - failed, failed });
+          });
+          turns.remake(
+            id,
+            made.then(() => failed),
+          );
         }
+        return Response.json({ ...deleted, remaking: changes.length });
       },
     },
   });

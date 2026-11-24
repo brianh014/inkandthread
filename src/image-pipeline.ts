@@ -216,7 +216,9 @@ const NOT_A_NAME = new Set([
  * sentence is left alone, and so is a possessive, as "Ash's boat" doesn't put Ash in the picture.
  */
 export function markNames(text: string, npcs: Npc[], pcName: string) {
-  const names = [pcName, ...npcs.map(({ name }) => name)].filter(Boolean);
+  // Never an NPC whose name is only a lowercase description, such as "boatman", as marking that word alone broke the phrase it stood in.
+  const description = (name: string) => /^\p{Ll}/u.test(name) && !/\p{Lu}/u.test(name);
+  const names = [pcName, ...npcs.map(({ name }) => name).filter((name) => !description(name))].filter(Boolean);
   // A first or last name alone, as Narrators shorten names: the last only when no lowercase word, such as "of", joins it to a place.
   // shortcut: titles and articles are listed, so a capitalised word starting a sentence isn't taken for a person; add any that misfire.
   const parts = names
@@ -225,8 +227,7 @@ export function markNames(text: string, npcs: Npc[], pcName: string) {
       return words.some((word) => /^\p{Ll}/u.test(word)) ? words.slice(0, 1) : [words[0]!, words.at(-1)!];
     })
     .filter((part) => /^\p{Lu}/u.test(part) && !NOT_A_NAME.has(part) && names.filter((name) => named(name, part)).length === 1);
-  // Never a name that is only a lowercase description, such as "boatman", as marking that word alone broke the phrase it stood in.
-  const candidates = [...new Set([...names, ...parts])].filter((name) => /\p{Lu}/u.test(name)).toSorted((a, b) => b.length - a.length);
+  const candidates = [...new Set([...names, ...parts])].toSorted((a, b) => b.length - a.length);
   if (candidates.length === 0) return text;
   const pattern = new RegExp(`(?<![\\p{L}'’])(?:${candidates.map((name) => RegExp.escape(name)).join("|")})(?![\\p{L}'’])`, "gu");
   return text
@@ -438,11 +439,14 @@ export function imagePipeline(
     // Only those with a portrait to send, as a mark does nothing else, and only prose has marks.
     const cast =
       style === "prose"
-        ? referenced(id, unmarked).map((person) =>
-            person === null
-              ? { name: pcName, looks: pcLooks(pcNow(pc, saves.latestState(id)), wearing) }
-              : { name: person, looks: npcs.find(({ name }) => name === person)!.appearance },
-          )
+        ? // Beside those already marked, whose portraits take the model's places first.
+          referenced(id, [...shown, ...unmarked])
+            .filter((person) => unmarked.includes(person))
+            .map((person) =>
+              person === null
+                ? { name: pcName, looks: pcLooks(pcNow(pc, saves.latestState(id)), wearing) }
+                : { name: person, looks: npcs.find(({ name }) => name === person)!.appearance },
+            )
         : [];
     const description = await reviewPicture(marked, style, signal, cast);
     // Twice, as who is pictured decides which portraits go in, and those decide how each mark is written.

@@ -41,6 +41,8 @@ export const askToClose = (id: string, threads: string[], rewrites: (readonly [s
 const MOVE_HOURS = 3;
 /** Replies since the last move before a plan falling due calls for another. */
 const PLAN_REPLIES = 3;
+/** The clock at each Save's last move, so a plan it left due calls for no more moves. shortcut: in memory like movedAt; keep it with movedAt if stored. */
+const movedClock = new Map<string, number>();
 /** The most of the PC's known facts a thread is sent, newest, about its people. */
 const PC_KNOWS = 6;
 /**
@@ -56,6 +58,9 @@ const movedAt = new Map<string, number>();
 const repliesSince = new Map<string, number>();
 /** How many replies each Save's last move would have read, when it failed, so the next reads those too. */
 const unread = new Map<string, number>();
+
+/** A Revert or a replaced response drops what a failed move left unread, which may be gone or read since. */
+export const forgetUnread = (id: string) => unread.delete(id);
 
 /** The next Turn moves the world, as the move a replaced response read was dropped. */
 export const moveSoon = (id: string) => movedAt.set(id, Number.NEGATIVE_INFINITY);
@@ -77,13 +82,19 @@ export function moveDue(id: string, before: State, after: State, replies: number
   // hours set before this Turn, so a plan the Turn just wrote isn't carried out while the PC is still in the scene that set it up.
   const [start, end] = [clockOf(before.storyTime), clockOf(after.storyTime)];
   // Only a few replies after the last move, as short plans falling due one after another each held the next Turn for a move. One
-  // passed over waits until then, so any still due counts, not only one whose hour this Turn reached.
+  // passed over waits until then, so any hour since that move counts, not only one this Turn reached. Below 0 after a Revert.
+  const lastClock = start === undefined ? undefined : Math.min(start, movedClock.get(id) ?? Number.NEGATIVE_INFINITY);
   const planFalls =
-    start !== undefined && end !== undefined && end > start && since >= PLAN_REPLIES && Object.values(before.threadsDue).some((at) => at <= end);
+    lastClock !== undefined &&
+    end !== undefined &&
+    end > start! &&
+    (since < 0 || since >= PLAN_REPLIES) &&
+    Object.values(before.threadsDue).some((at) => lastClock <= at && at <= end);
   const due = hoursOn || newDate || planFalls || since >= MOVE_EVERY;
   if (due) {
     log.info("world", "World move due", { save: id, hoursOn, newDate, planFalls, replies: since });
     movedAt.set(id, replies);
+    if (end !== undefined) movedClock.set(id, end);
     // Those a failed move never read too, as the next took a plan for done that they had overtaken.
     repliesSince.set(id, Math.min(MOVE_EVERY, since) + (unread.get(id) ?? 0));
     unread.delete(id);
@@ -101,14 +112,14 @@ export function hoursPerReply(clock: (number | undefined)[]) {
     .filter((hours) => hours >= 0)
     .toSorted((a, b) => a - b);
   const median = steps.length < 3 ? 0 : steps[Math.floor(steps.length / 2)]!;
-  return median > 0 ? Math.round(median * 100) / 100 : undefined;
+  return Math.round(median * 100) / 100 || undefined;
 }
 
 /** A plan's own words for its deed: long words in lower case and not everyday ones, so names count for nothing. */
 export const deedWords = (plan: string) => [...new Set(plan.match(/(?<!\p{L})\p{Ll}\p{L}{4,}/gu) ?? [])].filter((word) => !EVERYDAY.has(word));
 
 /** How many of these words a text has. */
-export const echoes = (words: string[], text: string) => words.filter((word) => wholeWord(word, "iu").test(text)).length;
+const echoes = (words: string[], text: string) => words.filter((word) => wholeWord(word, "iu").test(text)).length;
 
 /**
  * Whether a plan is an old one's deed again, by two of the old one's deed words, as "search the chimney at seven" came back as
@@ -174,7 +185,8 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   // move read, as one the clock brought a reply later would put people back where an older reply showed them.
   const latestReplies = replies.slice(-Math.max(1, repliesSince.get(id) ?? MOVE_EVERY));
   const failed = (error: unknown) => {
-    unread.set(id, Math.min(MOVE_EVERY, latestReplies.length));
+    // Not one a Revert stopped, as its replies are gone.
+    if ((signal.reason as Error | undefined)?.name !== "AbortError") unread.set(id, Math.min(MOVE_EVERY, latestReplies.length));
     log.warning("world", "World didn't move on", { save: id, ...errorType(error) });
   };
   // Those the summary doesn't cover yet, as it is written only every few replies.
@@ -339,6 +351,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
       return faults;
     });
   let nowsAsked = false;
+  let nowsSent = false;
   // The reply whose nows were asked again, sorted, so its changes that weren't faulted stand and only the faulted ones are
   // taken from the re-ask, as using the re-ask's whole reply threw away most of each move's work on the bench.
   let first: ReturnType<typeof sorted> | undefined;
@@ -398,6 +411,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     const { kept, faults } = sorted(plot_threads);
     // Past half the limit a re-ask won't fit, as two finished at 117 and 119 seconds of 120, and two more at 85 and 101 were cut off.
     const late = Date.now() - started > MOVE_LIMIT.ms / 2;
+    const forParts = !partsAsked && !late && partsMissing(kept) > 0;
     if (!partsAsked && partsMissing(kept) > 0) {
       partsAsked = true;
       if (late) log.info("world", "Parts not asked again, too late", { save: id });
@@ -408,16 +422,18 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
       }
     }
     const unfit = nowsAsked ? [] : nowFaults(kept);
-    if (unfit.length > 0) {
+    // Faults that mostly misfire aren't worth a re-ask of their own, as the next Turn waits for it and most came back with them still.
+    const misfires = unfit.every((why) => MISFIRES.includes(why));
+    // Left for the re-ask for a part, where one is made, as settling on this reply would throw away the part it gives.
+    if (unfit.length > 0 && !(misfires && forParts)) {
       nowsAsked = true;
       first = sorted(plot_threads);
       firstQuestions = questionsOf(reply);
-      // Nor for faults that mostly misfire, as the next Turn waits for a re-ask and most came back with them still.
-      const misfires = unfit.every((why) => MISFIRES.includes(why));
       if (late || misfires) {
         log.info("world", "Faulted nows not asked again", { save: id, ...(late ? { late } : { misfires }), ...countOf(unfit) });
         return;
       }
+      nowsSent = true;
       log.info("world", "Nows asked again", { save: id, ...countOf(unfit) });
       // Named by where the thread is, never by its words, as the reason goes to the log too.
       for (const message of new Set(kept.flatMap((change) => nowFaults([change]).map((why) => `${whereIs(change, kept)}: ${why}`))))
@@ -545,7 +561,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       log.info("world", "Faulted nows settled", {
         save: id,
         kept: first.kept.length - asked.length,
-        reAsked: asked.length,
+        ...(nowsSent ? { reAsked: asked.length } : { notAsked: asked.length }),
         replaced: sent.filter((change) => !first!.kept.includes(change)).length,
         reverted: reverted.length,
         ...(stillFaulted.length > reverted.length && { newerKept: stillFaulted.length - reverted.length }),

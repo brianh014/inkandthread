@@ -40,7 +40,7 @@ import {
   StateOperation,
 } from "./state-applier";
 import { countWords, withinLimit } from "./limits";
-import { knownChoices, withoutUnread, writeChoices } from "./known-choices";
+import { knownChoices, secretWords, unreadIn, withoutUnread, writeChoices } from "./known-choices";
 import { estimateTokens, wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { readable, withoutStrayMarks } from "./web/chat-style";
@@ -48,7 +48,7 @@ import { applyWorldChange } from "./world-creation";
 import { foldKnows } from "./knowledge-folds";
 import { closeLooseEnds } from "./loose-ends-check";
 import { growLore } from "./lore-growth";
-import { askToClose, deedWords, echoes, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, turnThreadChanges } from "./world-moves-on";
+import { askToClose, deedWords, forgetUnread, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, turnThreadChanges } from "./world-moves-on";
 import { threadPeople } from "./thread-people";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
@@ -611,6 +611,7 @@ export async function worldMoved(id: string, signal: AbortSignal) {
 
 /** Stops the Save's move of the world still running, as it could only fail once its reply is reverted, and the next Turn would wait for it. */
 export function stopMoves(id: string) {
+  forgetUnread(id);
   const mover = movers.get(id);
   if (!mover) return;
   mover.abort();
@@ -1123,7 +1124,7 @@ async function narrate(
           facts: narrated.next.pcKnown.facts,
           looseEnds: narrated.next.looseEnds,
           // This reply's own where it wrote them, as the state takes them only once the Turn is saved.
-          summary: summary.trim() || narrated.next.summary,
+          summary: cutShort(summary.trim(), narrated.next.summary) ? narrated.next.summary : summary.trim() || narrated.next.summary,
           recentSummary: recent_summary?.trim() || narrated.next.recentSummary,
           storyTime: narrated.next.storyTime,
           moves: recentMoves,
@@ -1167,7 +1168,7 @@ async function narrate(
                 timed,
               ).then((ops) => {
                 if (!ops) return ops;
-                const told = groundedNotes(ops, narrated.next, `${move}\n${upkeepReads?.narration ?? narration}`);
+                const told = groundedNotes(ops, narrated.next, `${move}\n${upkeepReads?.narration ?? narration}`, read);
                 return withoutRelearned(seen ? journalRead(told, narrated.next, read) : told, state_operations, narrated.next.npcs);
               })
             : undefined,
@@ -1241,12 +1242,9 @@ async function narrate(
           });
           repeated = repeats;
           ignored = harmless;
-          // Kept when cut below two-fifths of the last, as replies that started the story again cut it to 36-39% (bench logs),
-          // while sound ones, shortening one past its 500 words, kept half.
           const written = summary.trim();
-          const words = { was: countWords(next.summary), now: countWords(written) };
           // Empty on a Turn the summary isn't due. One written anyway is taken too, and moves on when the next is due.
-          if (written && words.now * 5 < words.was * 2) log.warning("turn", "Summary kept", words);
+          if (cutShort(written, next.summary)) log.warning("turn", "Summary kept", { was: countWords(next.summary), now: countWords(written) });
           else if (written) {
             next.summary = written;
             next.summaryReplies = replies + 1;
@@ -1349,28 +1347,56 @@ function journalRead<Operation extends StateOperation>(operations: Operation[], 
   return kept;
 }
 
+/**
+ * Whether a summary is cut below two-fifths of the last, as replies that started the story again cut it to 36-39% (bench logs),
+ * while sound ones, shortening one past its 500 words, kept half. Such a one is never taken.
+ */
+const cutShort = (written: string, last: string) => written !== "" && countWords(written) * 5 < countWords(last) * 2;
+
 /** The most facts and Loose Ends State Upkeep may add to one reply's Journal. */
 const MOST_NOTES = { add_known_fact: 2, add_loose_end: 1 } as const;
+/** A Journal entry's own words, by which its reply bears it out: its long plain ones, or for a short entry any of three letters. */
+const noteWords = (note: string) => {
+  const long = deedWords(note);
+  return long.length > 0 ? long : [...new Set(note.match(/\p{L}{3,}/gu) ?? [])];
+};
 /**
- * State Upkeep's operations with only the Journal entries its reply bears out, by two of the entry's own words, as Upkeep also
- * reads what people know in secret, and none that says again what the Journal holds.
- * shortcut: by whole words, so a true note in other words is lost; compare by meaning if the Journal still misses much.
+ * State Upkeep's operations with only the Journal entries its reply bears out, by two of the entry's own words, and holding
+ * nothing the player has read nowhere that someone knows, as Upkeep also reads what people know in secret, and none that says
+ * again what the Journal holds once these operations are done. One in a script without capitals has no words to tell by and is kept.
+ * shortcut: by words, so a true note in other words is lost; compare by meaning if the Journal still misses much.
  */
-export function groundedNotes<Operation extends StateOperation>(upkept: Operation[], { pcKnown, looseEnds }: State, told: string) {
-  const held = { add_known_fact: [...pcKnown.facts], add_loose_end: [...looseEnds] };
-  const dropped = { ungrounded: 0, repeated: 0, overMost: 0 };
+export function groundedNotes<Operation extends StateOperation>(upkept: Operation[], { pcKnown, looseEnds, npcKnows }: State, told: string, read = told) {
+  const given: StateOperation[] = upkept;
+  const gone = new Set(
+    given.flatMap((each) =>
+      each.op === "remove_known_fact" || each.op === "update_known_fact" ? [each.fact] : each.op === "resolve_loose_end" ? [each.loose_end] : [],
+    ),
+  );
+  const held = {
+    add_known_fact: [
+      ...pcKnown.facts.filter((fact) => !gone.has(fact)),
+      ...given.flatMap((each) => (each.op === "update_known_fact" ? [each.replacement] : [])),
+    ],
+    add_loose_end: looseEnds.filter((end) => !gone.has(end)),
+  };
+  const added = { add_known_fact: 0, add_loose_end: 0 };
+  const dropped = { ungrounded: 0, secret: 0, repeated: 0, overMost: 0 };
+  const [untold, unread] = [unreadIn(told), unreadIn(read)];
+  const known = Object.values(npcKnows).flat().join("\n");
   const kept = upkept.filter((operation) => {
     if (operation.op !== "add_known_fact" && operation.op !== "add_loose_end") return true;
+    const { op } = operation;
     const note = operation.op === "add_known_fact" ? operation.fact : operation.loose_end;
-    const words = deedWords(note);
-    const before = held[operation.op];
-    const most = MOST_NOTES[operation.op];
-    const had = operation.op === "add_known_fact" ? pcKnown.facts.length : looseEnds.length;
-    if (echoes(words, told) < Math.max(1, Math.min(2, words.length))) dropped.ungrounded++;
-    else if (before.some((other) => sameApproach(note, other))) dropped.repeated++;
-    else if (before.length - had >= most) dropped.overMost++;
+    const words = noteWords(note);
+    const borne = words.filter((word) => !untold(word)).length;
+    if (/[\p{Lu}\p{Ll}]/u.test(note) && borne < Math.max(1, Math.min(2, words.length))) dropped.ungrounded++;
+    else if (secretWords(note, known, read, unread).length > 0) dropped.secret++;
+    else if (held[op].some((other) => sameApproach(note, other))) dropped.repeated++;
+    else if (added[op] >= MOST_NOTES[op]) dropped.overMost++;
     else {
-      before.push(note);
+      held[op].push(note);
+      added[op]++;
       return true;
     }
     return false;

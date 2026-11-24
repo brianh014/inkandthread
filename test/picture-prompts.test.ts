@@ -100,7 +100,8 @@ test("a review may take out someone who shouldn't be in the picture, and is told
 test("a review may mark someone in view the prompt left unmarked, and no one else", async () => {
   const bare = "A tall woman in a duster kneels by the fire. {The people from the images are the same people.}";
   const marked = "[Mara Vukas: A tall woman in a duster] kneels by the fire. {The people from the images are the same people.}";
-  const script = scriptedTextProvider(checked(marked.replace("Mara Vukas", "Nobody")), checked(marked));
+  // A name not in cast, then someone described anew, are refused.
+  const script = scriptedTextProvider(checked(marked.replace("Mara Vukas", "Nobody")), checked(marked.replace("tall", "fat")), checked(marked));
   const settings = settingsStore(join(folder.path, "settings.json"));
   const cast = [{ name: "Mara Vukas", looks: "a tall woman of forty" }];
 
@@ -109,7 +110,7 @@ test("a review may mark someone in view the prompt left unmarked, and no one els
     expect(reviewed).toBe(marked);
   }, "info");
 
-  expect(script.prompts).toHaveLength(2);
+  expect(script.prompts).toHaveLength(3);
   expect(script.prompts[0]![0]!.content).toContain("Never add anyone's name outside a mark");
   expect(JSON.parse(script.prompts[0]![1]!.content)).toEqual({ prompt: bare, cast });
   expect(log).toContain('"unmarked":1,"marked":1');

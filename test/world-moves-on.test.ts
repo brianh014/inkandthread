@@ -428,6 +428,10 @@ test("a move is due after hours of story time, on a new day or every few replies
   expect(moveDue("g", clocked, past, 2)).toBe(false);
   expect(moveDue("g", past, { ...past, storyTime: { ...past.storyTime, hours: 15 } }, 3)).toBe(true);
   expect(moveDue("g", past, { ...past, storyTime: { ...past.storyTime, hours: 15 } }, 4)).toBe(false);
+  // Nor again for one the move left due, however long it stays; but after a Revert to before that move, as soon as one falls.
+  const on = { ...past, storyTime: { ...past.storyTime, hours: 15 } };
+  expect(moveDue("g", on, { ...on, storyTime: { ...on.storyTime, hours: 15.5 } }, 6)).toBe(false);
+  expect(moveDue("g", clocked, past, 1)).toBe(true);
   // Not for an hour this Turn wrote, but for one set exactly at the clock once time moves.
   const later = { ...clocked, storyTime: { ...clocked.storyTime, hours: 14.25 } };
   expect(moveDue("h", { ...clocked, threadsDue: {} }, later, 3)).toBe(false);
@@ -638,6 +642,7 @@ test("a move is told how fast story time passes, by the middle reply, as plans w
   // Too few to tell by, a clock that stands still, and replies from before it.
   expect(hoursPerReply([10, 10.5])).toBeUndefined();
   expect(hoursPerReply([10, 10, 10, 10])).toBeUndefined();
+  expect(hoursPerReply([10, 10.004, 10.008, 10.012])).toBeUndefined();
   expect(hoursPerReply([undefined, undefined, 9, 9.25, 9.5, 10])).toBe(0.25);
 });
 
@@ -690,6 +695,35 @@ test("a re-ask for a missing part that fails leaves the move as it first came", 
   expect(store().latestState(id).threadsNow[drowned]).toBe("Grout digs a grave.");
   expect(log).toContain("Parts not asked again");
   expect(log).not.toContain("World didn't move on");
+});
+
+test("a re-ask for a missing part keeps the part it gives, though another now has a fault that mostly misfires", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  const tide = "The tide is wrong.";
+  const part = { name: "Silas Grout", knows: "He held the harbourmaster under for the vicar." };
+  const elsewhere = change(tide, "Ferryman is at the cottage, pulling at the stones.");
+  const told = play(
+    narration(
+      "Ash meets the ferryman in the crypt.",
+      { op: "add_npc", name: "Silas Grout", appearance: "a huge man" },
+      { op: "add_npc", name: "Ferryman", appearance: "a stooped man" },
+      { op: "set_scene", location: "The crypt", visible_cast: ["Ferryman"] },
+      nextDay(),
+    ),
+    moved(change(drowned, "Grout digs a grave."), elsewhere),
+    moved({ ...change(drowned, "Grout digs a grave."), knows: [part] }, elsewhere),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: { scene: { location: "The quay", visibleCast: [] }, summary: "", plotThreads: [drowned, tide], worldBible: [] },
+  });
+
+  for (const input of ["I meet him.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+
+  expect(told.prompts).toHaveLength(4);
+  expect(store().latestState(id).npcKnows["Silas Grout"]).toEqual([part.knows]);
 });
 
 test("a missing part is not asked again past half the move's time, as two such re-asks were cut off at its end", async () => {

@@ -65,7 +65,7 @@ export function unknownWords(choices: string[], state: State, seen: string, jour
 }
 
 /** Whether a word is unread in the known text, as neither it nor another form of it, as "holding" and "searched" dropped Choices when only other forms were read. */
-function unreadIn(known: string) {
+export function unreadIn(known: string) {
   const knownForms = new Set((known.match(/\p{L}+/gu) ?? []).flatMap(forms));
   return (word: string) => !wholeWord(word, "iu").test(known) && !forms(word).some((form) => knownForms.has(form));
 }

@@ -299,10 +299,29 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
       GET: (req) => Response.json(saves.revertPreview(req.params.id, Number(req.params.messageId))),
       POST: async (req) => {
         await parseBody(req, NoFields);
-        const deleted = saves.revert(req.params.id, Number(req.params.messageId));
-        images.forget(req.params.id, Number(req.params.messageId), "revert");
-        options.usage?.reverted(req.params.id);
-        return Response.json(deleted);
+        const { id } = req.params;
+        const { asked, ...deleted } = saves.revert(id, Number(req.params.messageId));
+        images.forget(id, Number(req.params.messageId), "revert");
+        options.usage?.reverted(id);
+        // Made again from the player's words, in order, as the world they changed is the one the Revert went back to.
+        let failed = 0;
+        if (asked.length > 0) {
+          const release = turns.hold(id);
+          try {
+            for (const change of asked) {
+              try {
+                await applyWorldChange(options, saves, images, id, change, req.signal);
+              } catch (error) {
+                if (!(error instanceof TurnFailed)) throw error;
+                failed += 1;
+              }
+            }
+          } finally {
+            release();
+          }
+          log.info("world", "World Changes made again after a Revert", { made: asked.length - failed, failed });
+        }
+        return Response.json({ ...deleted, failed });
       },
     },
   });

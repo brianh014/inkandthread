@@ -507,7 +507,7 @@ test("a Revert past its Message removes it and counts it, one to its Message kee
   await request(id, "stopped");
   await Bun.sleep(5);
 
-  expect(await app.get(`/saves/${id}/messages/2/revert`).then((r) => r.json())).toEqual({ messages: 2, images: 1, portraits: 0 });
+  expect(await app.get(`/saves/${id}/messages/2/revert`).then((r) => r.json())).toEqual({ messages: 2, images: 1, portraits: 0, worldChanges: 0 });
   await app.post(`/saves/${id}/messages/2/revert`, {});
   const gallery = await settled(id);
 

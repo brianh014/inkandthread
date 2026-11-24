@@ -416,6 +416,29 @@ test("one Narrator call applies a hidden change, and the player hears only that 
   expect(await journal(id)).toEqual(before);
 });
 
+// As a Revert to before a World Change threw it away, and one remade from its stored result could carry the reverted Turns.
+test("a Revert past a World Change makes it again from the player's words on the story the Revert went back to", async () => {
+  play(narration("One."), update({ lore_entries: [SMUGGLER] }), narration("Two."), update({ lore_entries: [SMUGGLER] }));
+  const id = createSave();
+  await turn(id);
+  await change(id);
+  await turn(id);
+  const asked = prompts.length;
+  expect(await json(app.get(`/saves/${id}/messages/2/revert`))).toMatchObject({ worldChanges: 1 });
+
+  const reverted = await json(app.post(`/saves/${id}/messages/2/revert`, {}));
+
+  expect(reverted).toMatchObject({ failed: 0 });
+  expect(prompts).toHaveLength(asked + 1);
+  expect(JSON.stringify(prompts.at(-1))).toContain("the mayor is secretly a smuggler");
+  expect(hidden(id).worldBible[0]).toMatchObject({ title: SMUGGLER.title });
+  expect(
+    store()
+      .messages(id)
+      .map(({ id: message }) => message),
+  ).toEqual([1, 2]);
+});
+
 test("a World Change whose reply changes one fact twice is kept whole, with its hidden change", async () => {
   play(
     update({

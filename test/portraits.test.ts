@@ -354,8 +354,14 @@ test("Revert counts and deletes a portrait from a Reverted first appearance, and
   await playSettled(id);
   const before = (await journalOf(id)).portraits;
 
-  expect(await app.get(`/saves/${id}/messages/2/revert`).then((r) => r.json())).toEqual({ messages: 2, images: 1, portraits: 1 });
-  expect(await app.post(`/saves/${id}/messages/2/revert`, {}).then((r) => r.json())).toEqual({ messages: 2, images: 1, portraits: 1 });
+  expect(await app.get(`/saves/${id}/messages/2/revert`).then((r) => r.json())).toEqual({ messages: 2, images: 1, portraits: 1, worldChanges: 0 });
+  expect(await app.post(`/saves/${id}/messages/2/revert`, {}).then((r) => r.json())).toEqual({
+    messages: 2,
+    images: 1,
+    portraits: 1,
+    worldChanges: 0,
+    failed: 0,
+  });
 
   // The PC's stays: no Message drew it.
   expect((await journalOf(id)).portraits).toEqual([{ id: before[0]!.id, npc: null, redraws: 0, messageId: expect.any(Number) }]);
@@ -399,7 +405,7 @@ test("a Revert cancels a portrait in flight and drops a waiting one, and neither
   expect(await settled(id)).toMatchObject({ session: 0 });
   expect(images.aborted).toEqual([1]);
   expect(images.payloads).toHaveLength(1);
-  expect(await app.get(`/saves/${id}/messages/1/revert`).then((r) => r.json())).toEqual({ messages: 0, images: 0, portraits: 0 });
+  expect(await app.get(`/saves/${id}/messages/1/revert`).then((r) => r.json())).toEqual({ messages: 0, images: 0, portraits: 0, worldChanges: 0 });
 });
 
 test("a portrait that finishes after its response was replaced writes nothing, even if it ignores the cancel", async () => {

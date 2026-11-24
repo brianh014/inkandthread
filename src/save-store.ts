@@ -149,7 +149,15 @@ function countAfter(db: Database, messageId: number) {
     )
     .get(messageId)!;
   const { portraits } = db.query<{ portraits: number }, [number]>("SELECT count(*) AS portraits FROM portraits WHERE message_id > ?").get(messageId)!;
-  return { messages, images, portraits };
+  return { messages, images, portraits, worldChanges: changesAfter(db, messageId).length };
+}
+
+/** The player's own words for each World Change after `messageId`, in order, which a Revert makes again. */
+function changesAfter(db: Database, messageId: number) {
+  const stored = db.query<{ edits: string | null }, [number]>("SELECT edits FROM messages WHERE id > ? ORDER BY id").all(messageId);
+  return [...stored.flatMap(({ edits }) => parseEdits(edits)), ...pendingEdits(db)].flatMap((edit) =>
+    edit.edit === "world" && edit.asked && !edit.moved ? [edit.asked] : [],
+  );
 }
 
 // Sweeping by what is still linked keeps every section a remaining Message shares.
@@ -1109,9 +1117,10 @@ export function saveStore(savesDir: string) {
       using db = open(id);
       return db.transaction(() => {
         const deleted = countAfter(db, messageId);
+        const asked = changesAfter(db, messageId);
         deleteAfter(db, messageId);
         log.info("saves", "Reverted", { save: id, message: messageId, ...deleted });
-        return deleted;
+        return { ...deleted, asked };
       })();
     },
 

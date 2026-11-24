@@ -934,6 +934,9 @@ export const WorldEdit = z.discriminatedUnion("edit", [
     moved: z.boolean().optional(),
     // A player's World Change: the first sign of it the PC meets, which the next Turn brings on, as a now alone never reached the page.
     sign: z.string().optional(),
+    // A player's World Change: their own words, so a Revert past it makes it again on the story as it then stands, as one
+    // replayed from its result could carry what the reverted Turns did. A Save from before it lacks them, and loses the change.
+    asked: z.string().optional(),
     // World Moves On's: by name, each person's own part of the threads it wrote, kept as what they know.
     knows: z.record(z.string(), z.array(z.string())).optional(),
     // By truth, who those parts went to.

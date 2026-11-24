@@ -1405,7 +1405,10 @@ export async function applyWorldChange(
         : [],
     ),
   );
-  saves.addWorldChange(id, basedOn, [...made, { edit: "world", update, now: by("now"), plan: by("plan"), due, made: made.length, ...(sign && { sign }) }]);
+  saves.addWorldChange(id, basedOn, [
+    ...made,
+    { edit: "world", update, now: by("now"), plan: by("plan"), due, made: made.length, ...(sign && { sign }), ...(!settles && { asked: change }) },
+  ]);
   const after = stateOf();
   images.restyled(id, restyledBy(before, after), after.inventory.wearing);
   log.info("world", "World Change applied", () => ({

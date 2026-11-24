@@ -1081,7 +1081,10 @@ function RevertDialog(props: {
   const resend = replay === undefined && message.role === "player" ? props.before : undefined;
   const [input, setInput] = useState(replay ?? "");
   const dialog = useRef<HTMLDialogElement>(null);
-  const [preview, setPreview] = useState<{ messages: number; images: number; portraits: number }>();
+  const reverted = useRef<() => void>(undefined);
+  const [preview, setPreview] = useState<{ messages: number; images: number; portraits: number; worldChanges: number }>();
+  // World Changes the Revert couldn't make again, shown before the dialog closes, as the player would otherwise never know.
+  const [unmade, setUnmade] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -1104,10 +1107,17 @@ function RevertDialog(props: {
   const confirmRevert = () =>
     attempt(async () => {
       const to = (resend ?? message).id;
-      await revert(id, to);
+      const { failed } = await revert(id, to);
+      const done = () => props.onReverted(to, replay === undefined ? resend && message.text : input.trim());
+      if (failed > 0) {
+        setUnmade(failed);
+        setBusy(false);
+        reverted.current = done;
+        return;
+      }
       // Gone if the player pressed Escape while this was in flight, and the Revert happened all the same.
       dialog.current?.close();
-      props.onReverted(to, replay === undefined ? resend && message.text : input.trim());
+      done();
     });
 
   const duplicate = () =>
@@ -1116,53 +1126,85 @@ function RevertDialog(props: {
     });
 
   return (
-    <dialog ref={dialog} onClose={props.onClose} aria-labelledby="revert-title">
-      {replay === undefined ? (
+    <dialog
+      ref={dialog}
+      onClose={() => {
+        const done = reverted.current;
+        reverted.current = undefined;
+        done?.();
+        props.onClose();
+      }}
+      aria-labelledby="revert-title"
+    >
+      {unmade > 0 ? (
         <>
-          <h2 id="revert-title">Revert to this Message?</h2>
-          <blockquote>{isContinue(message) ? "Continue" : message.text}</blockquote>
+          <h2 id="revert-title">Reverted</h2>
+          <p role="alert" className="error">
+            {unmade === 1 ? "A World Change" : `${unmade} World Changes`} you made after it couldn't be made again on the story as it now stands. Tell the
+            Narrator again from the Journal.
+          </p>
+          <div className="row">
+            <button type="button" className="action" onClick={() => dialog.current!.close()}>
+              Close
+            </button>
+          </div>
         </>
       ) : (
         <>
-          <h2 id="revert-title">Edit and replay from here?</h2>
-          <textarea aria-label="Your words" rows={4} value={input} onChange={(event) => setInput(event.target.value)} />
+          {replay === undefined ? (
+            <>
+              <h2 id="revert-title">Revert to this Message?</h2>
+              <blockquote>{isContinue(message) ? "Continue" : message.text}</blockquote>
+            </>
+          ) : (
+            <>
+              <h2 id="revert-title">Edit and replay from here?</h2>
+              <textarea aria-label="Your words" rows={4} value={input} onChange={(event) => setInput(event.target.value)} />
+            </>
+          )}
+          {preview && replay !== undefined && (
+            <p>
+              Sending permanently deletes {preview.messages === 1 ? "this Message" : `this Message and the ${plural(preview.messages - 1, "Message")} after it`}
+              {preview.images > 0 && ` and ${plural(preview.images, "image")}`}
+              {preview.portraits > 0 && ` and ${plural(preview.portraits, "portrait")}`}, then the Narrator answers your new words.
+            </p>
+          )}
+          {preview && replay === undefined && (
+            <p>
+              This permanently deletes the {plural(preview.messages, "Message")} after it
+              {preview.images > 0 && ` and ${plural(preview.images, "image")}`}
+              {preview.portraits > 0 && ` and ${plural(preview.portraits, "portrait")}`}
+              {resend ? ", then the Narrator answers it again." : "."}
+            </p>
+          )}
+          {preview && preview.worldChanges > 0 && (
+            <p>
+              {preview.worldChanges === 1 ? "The World Change" : `The ${preview.worldChanges} World Changes`} you made after it{" "}
+              {preview.worldChanges === 1 ? "is" : "are"} made again on the story as it then stands, which takes a little longer.
+            </p>
+          )}
+          {replay === undefined && <p className="muted">“Duplicate from here” keeps this story and carries on in a new Save instead.</p>}
+          {error && (
+            <p role="alert" className="error">
+              {error}
+            </p>
+          )}
+          {/* Cancel comes first because a modal focuses its first control, and that must not be the deleting one. */}
+          <div className="row">
+            <button type="button" className="quiet" onClick={() => dialog.current!.close()}>
+              Cancel
+            </button>
+            {replay === undefined && (
+              <button type="button" className="quiet" disabled={busy || !preview} onClick={duplicate}>
+                Duplicate from here
+              </button>
+            )}
+            <button type="button" className="action" disabled={busy || !preview || (replay !== undefined && !input.trim())} onClick={confirmRevert}>
+              {replay === undefined ? "Revert" : "Send"}
+            </button>
+          </div>
         </>
       )}
-      {preview && replay !== undefined && (
-        <p>
-          Sending permanently deletes {preview.messages === 1 ? "this Message" : `this Message and the ${plural(preview.messages - 1, "Message")} after it`}
-          {preview.images > 0 && ` and ${plural(preview.images, "image")}`}
-          {preview.portraits > 0 && ` and ${plural(preview.portraits, "portrait")}`}, then the Narrator answers your new words.
-        </p>
-      )}
-      {preview && replay === undefined && (
-        <p>
-          This permanently deletes the {plural(preview.messages, "Message")} after it
-          {preview.images > 0 && ` and ${plural(preview.images, "image")}`}
-          {preview.portraits > 0 && ` and ${plural(preview.portraits, "portrait")}`}
-          {resend ? ", then the Narrator answers it again." : "."}
-        </p>
-      )}
-      {replay === undefined && <p className="muted">“Duplicate from here” keeps this story and carries on in a new Save instead.</p>}
-      {error && (
-        <p role="alert" className="error">
-          {error}
-        </p>
-      )}
-      {/* Cancel comes first because a modal focuses its first control, and that must not be the deleting one. */}
-      <div className="row">
-        <button type="button" className="quiet" onClick={() => dialog.current!.close()}>
-          Cancel
-        </button>
-        {replay === undefined && (
-          <button type="button" className="quiet" disabled={busy || !preview} onClick={duplicate}>
-            Duplicate from here
-          </button>
-        )}
-        <button type="button" className="action" disabled={busy || !preview || (replay !== undefined && !input.trim())} onClick={confirmRevert}>
-          {replay === undefined ? "Revert" : "Send"}
-        </button>
-      </div>
     </dialog>
   );
 }

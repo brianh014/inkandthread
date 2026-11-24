@@ -350,9 +350,10 @@ export const closeChapter = (id: string) => request<object>(`/saves/${id}/chapte
 export const tellNarrator = (id: string, change: string) => request<object>(`/saves/${id}/world-change`, jsonBody({ change }));
 
 export const previewRevert = (id: string, messageId: number) =>
-  request<{ messages: number; images: number; portraits: number }>(`/saves/${id}/messages/${messageId}/revert`);
+  request<{ messages: number; images: number; portraits: number; worldChanges: number }>(`/saves/${id}/messages/${messageId}/revert`);
 
-export const revert = (id: string, messageId: number) => request<object>(`/saves/${id}/messages/${messageId}/revert`, jsonBody({}));
+/** `failed` counts the World Changes after it that couldn't be made again. */
+export const revert = (id: string, messageId: number) => request<{ failed: number }>(`/saves/${id}/messages/${messageId}/revert`, jsonBody({}));
 
 export const duplicateSave = (id: string) => request<{ id: string }>(`/saves/${id}/duplicate`, jsonBody({}));
 

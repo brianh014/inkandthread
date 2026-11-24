@@ -336,7 +336,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <ul>
           <li>
             {tool(RevertIcon, "Revert to here")}: go back to that Message and delete everything after it, for good. Revert to your own words and the AI answers
-            them again.
+            them again. What you told the Narrator to change after that Message is kept: it's made again on the story as it then stands.
           </li>
           <li>
             {tool(EditIcon, "Edit and replay from here")} (on your own Messages): change what you wrote and play the story again from there. Everything after it

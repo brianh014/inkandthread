@@ -324,7 +324,7 @@ storyTime is null, so set it now: use set_story_time with days_passed 0 and the 
 
 const ARTICLES = new Set(["the", "a", "an"]);
 
-/** How each person in view looks, last in the prompt, as looks read far back with everyone's went unshown, an almost-naked colleague among them. */
+/** How each person in view looks, last in the prompt, as looks read far back with everyone's went unshown. */
 const looksInView = ({ scene, npcs }: Pick<State, "scene" | "npcs">) =>
   Object.fromEntries(scene.visibleCast.flatMap((name) => npcs.filter((npc) => npc.name === name).map(({ appearance }) => [name, appearance])));
 

@@ -195,12 +195,12 @@ test("the pace of a reply, then what's true right now, are the last things the N
   expect(prompts.at(-1)!.at(-1)!.role).toBe("user");
 });
 
-// As looks read far back with everyone's went unshown: a colleague in only shoes and a sit-cloth was never mentioned.
+// As looks read far back with everyone's went unshown: someone strikingly dressed was never mentioned.
 test("the looks of everyone in view come last, beside the line to show how someone first seen looks", async () => {
   play(
     summed(
       "Ash met Hesper.",
-      { op: "add_npc", name: "Hesper", appearance: "a woman in her forties wearing only boots and a sit-cloth" },
+      { op: "add_npc", name: "Hesper", appearance: "a woman in her forties wearing a coat of gull feathers" },
       { op: "set_scene", location: "The docks", visible_cast: ["Hesper"] },
     ),
     summed("Ash waited."),
@@ -210,7 +210,7 @@ test("the looks of everyone in view come last, beside the line to show how someo
 
   await playTurn(id);
 
-  expect(lastSystem()).toContain('"looks_in_view":{"Hesper":"a woman in her forties wearing only boots and a sit-cloth"}');
+  expect(lastSystem()).toContain('"looks_in_view":{"Hesper":"a woman in her forties wearing a coat of gull feathers"}');
   expect(lastSystem()).toContain("When the PC first sees someone, show how they look, from looks_in_view below.");
 });
 

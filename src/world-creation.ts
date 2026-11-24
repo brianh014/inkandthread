@@ -1066,7 +1066,7 @@ ${edit ? EDIT_RULE : pictureRules(kind, style, words)}${face && !edit ? FACE_ONL
 Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))}
 ${imageInstructions(context)}`,
     },
-    // No world in an edit, as looks says what they wear now, and a world whose people wear little undressed someone looks had dressed.
+    // No world in an edit, as looks says what they wear now, and the world's customs overrode the clothes it gave.
     playerChoices(edit ? { ...details, world: undefined } : details),
   ];
   try {

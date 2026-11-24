@@ -265,7 +265,9 @@ test("an Update's portrait prompt is a short edit of the old portrait: the same 
   expect(system).toContain("a last sentence placing them in front of a plain neutral background");
   expect(system).not.toContain("Open the prompt with the picture's art style");
   expect(system).not.toContain("never what isn't");
-  expect(JSON.parse(prompts[0]![1]!.content)).toMatchObject({ was: "A tall woman in a green shirt.", looks: portrait.looks });
+  expect(JSON.parse(prompts[0]![1]!.content)).toMatchObject({ was: "A tall woman in a green shirt.", looks: portrait.looks, theme: portrait.theme });
+  // As the looks say what she wears, and a world whose people wear little had her drawn undressed.
+  expect(JSON.parse(prompts[0]![1]!.content)).not.toHaveProperty("world");
   const whole = write(portrait, "prose", text("A tall woman."));
   await whole.written;
   expect(whole.prompts[0]![0]!.content).not.toContain("edits it");

@@ -1066,7 +1066,8 @@ ${edit ? EDIT_RULE : pictureRules(kind, style, words)}${face && !edit ? FACE_ONL
 Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))}
 ${imageInstructions(context)}`,
     },
-    playerChoices(details),
+    // No world in an edit, as looks says what they wear now, and a world whose people wear little undressed someone looks had dressed.
+    playerChoices(edit ? { ...details, world: undefined } : details),
   ];
   try {
     const call = `${ask.kind}Prompt`;

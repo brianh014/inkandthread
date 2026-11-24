@@ -478,6 +478,33 @@ test("the first Turn is sent the Lore Entries its Starting Hook names, so the op
   expect(promptWith([{ role: "narrator", text: "The road is long." }])).not.toContain("A tall woman with a shaved head.");
 });
 
+test("the first Turn is sent the player's own words on each Important Character its Starting Hook names, and no later Turn is", () => {
+  const promptWith = (messages: unknown[]) =>
+    textOfPrompt(
+      assemblePrompt({
+        save: {
+          worldBrief: "",
+          pc: { name: "Ash" },
+          startingHook: "Ash rides out with Mora.",
+          importantCharacters: [
+            { name: "Mora Vane", description: "She wears a blue V-neck shirt." },
+            { name: "Tamsin", description: "A ferry pilot." },
+          ],
+        } as never,
+        state: withState({}),
+        messages: messages as never,
+        modelInstructions: "",
+        input: "Begin the story.",
+        responseSchema: "{}",
+        promptStyle: null,
+      }),
+    );
+
+  expect(promptWith([])).toContain('"people":[{"name":"Mora Vane","description":"She wears a blue V-neck shirt."}]');
+  expect(promptWith([])).not.toContain("A ferry pilot.");
+  expect(promptWith([{ role: "narrator", text: "The road is long." }])).not.toContain("blue V-neck");
+});
+
 test("a long story's World Bible fits the budget, with its Plot Threads and world_rules", () => {
   // The size of a story with 140 replies behind it: 20 entries of about 225 tokens, with 750 tokens of threads and rules.
   const worldBible = Array.from({ length: 20 }, (_, index) => entry(`Entry ${index}`, ["city"], { content: "x".repeat(900) }));

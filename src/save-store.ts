@@ -149,7 +149,7 @@ function countAfter(db: Database, messageId: number) {
     )
     .get(messageId)!;
   const { portraits } = db.query<{ portraits: number }, [number]>("SELECT count(*) AS portraits FROM portraits WHERE message_id > ?").get(messageId)!;
-  return { messages, images, portraits, worldChanges: changesAfter(db, messageId).length };
+  return { messages, images, portraits };
 }
 
 /** The player's own words for each World Change after `messageId`, in order, which a Revert makes again. */
@@ -1110,14 +1110,14 @@ export function saveStore(savesDir: string) {
 
     revertPreview(id: string, messageId: number) {
       using db = open(id);
-      return countAfter(db, messageId);
+      return { ...countAfter(db, messageId), worldChanges: changesAfter(db, messageId).length };
     },
 
     revert(id: string, messageId: number) {
       using db = open(id);
       return db.transaction(() => {
-        const deleted = countAfter(db, messageId);
         const asked = changesAfter(db, messageId);
+        const deleted = { ...countAfter(db, messageId), worldChanges: asked.length };
         deleteAfter(db, messageId);
         log.info("saves", "Reverted", { save: id, message: messageId, ...deleted });
         return { ...deleted, asked };

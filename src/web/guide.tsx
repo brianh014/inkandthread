@@ -340,7 +340,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           </li>
           <li>
             {tool(EditIcon, "Edit and replay from here")} (on your own Messages): change what you wrote and play the story again from there. Everything after it
-            goes.
+            goes, apart from what you told the Narrator to change, which is made again as Revert does.
           </li>
           <li>
             {tool(DuplicateIcon, "Duplicate from here")}: keep this story as it is, and carry on from that Message in a new Save. This is how you try another

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { knownPortraits } from "./gallery-routes";
 import { ArtStyleRequest, imageResponse, NoFields, parseBody, routes, type ServerContext, someWords } from "./http";
-import { log } from "./logger";
+import { errorType, log } from "./logger";
 import { NoteNotFound, StaleTurn } from "./save-store";
 import { VisibleEdit } from "./state-applier";
 import { toneName } from "./tones";
@@ -9,6 +9,9 @@ import { askForChapterTitle, TurnFailed, worldMoved } from "./turn-engine";
 import { readable } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 import { NamedPc } from "./world-routes";
+
+// How long a World Change made again after a Revert may take, as it runs on with the tab closed and must still end.
+const REMAKE_MS = 5 * 60_000;
 
 const NewSaveRequest = z.object({
   worldBrief: z.string().min(1),
@@ -300,29 +303,34 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
       POST: async (req) => {
         await parseBody(req, NoFields);
         const { id } = req.params;
-        const { asked, ...deleted } = saves.revert(id, Number(req.params.messageId));
-        images.forget(id, Number(req.params.messageId), "revert");
-        options.usage?.reverted(id);
-        // Made again from the player's words, in order, as the world they changed is the one the Revert went back to.
-        let failed = 0;
-        if (asked.length > 0) {
-          const release = turns.hold(id);
-          try {
-            for (const change of asked) {
-              try {
-                await applyWorldChange(options, saves, images, id, change, req.signal);
-              } catch (error) {
-                if (!(error instanceof TurnFailed)) throw error;
-                failed += 1;
-                log.warning("world", "A World Change failed again after a Revert", { failure: error.failure, message: error.message });
-              }
+        const messageId = Number(req.params.messageId);
+        // Held before anything is deleted, so a busy Save refuses the Revert rather than losing the World Changes it would make again.
+        const release = saves.revertPreview(id, messageId).worldChanges > 0 ? turns.hold(id) : undefined;
+        try {
+          const { asked, ...deleted } = saves.revert(id, messageId);
+          images.forget(id, messageId, "revert");
+          options.usage?.reverted(id);
+          if (asked.length === 0) return Response.json({ ...deleted, failed: 0 });
+          // As a move already on its way rewrites the threads, which the change then wouldn't see, as the World Change route waits too.
+          await worldMoved(id, AbortSignal.timeout(REMAKE_MS));
+          // Made again from the player's words, in order, as the world they changed is the one the Revert went back to. Not on the
+          // request's signal, as a closed tab would leave the rest unmade and nothing keeps them, and each failure is that change's alone.
+          let failed = 0;
+          for (const change of asked) {
+            try {
+              await applyWorldChange(options, saves, images, id, change, AbortSignal.timeout(REMAKE_MS));
+            } catch (error) {
+              failed += 1;
+              log.warning("world", "A World Change failed again after a Revert", {
+                ...(error instanceof TurnFailed ? { failure: error.failure, message: error.message } : errorType(error)),
+              });
             }
-          } finally {
-            release();
           }
           log.info("world", "World Changes made again after a Revert", { made: asked.length - failed, failed });
+          return Response.json({ ...deleted, failed });
+        } finally {
+          release?.();
         }
-        return Response.json({ ...deleted, failed });
       },
     },
   });

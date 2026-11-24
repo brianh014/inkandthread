@@ -80,15 +80,18 @@ export function portraitsDue(before: State, after: State, speakers: string[] = [
 }
 
 /** Everyone whose looks a Turn changed: an NPC given new looks, and the PC, as null, when what they wear or how they look changed. */
+/** Who of `operations`' looks updates said their portrait needn't change, every update of theirs saying so. */
+export function passingLooks(operations: StateOperation[]) {
+  const updates = operations.flatMap((operation) => (operation.op === "update_npc" ? [operation] : []));
+  return new Set(updates.filter(({ name }) => updates.every((update) => update.name !== name || update.portrait === false)).map(({ name }) => name));
+}
+
 export function restyledBy(before: State, after: State, operations: StateOperation[] = []): (Npc | null)[] {
   // Not one whose every update said its portrait needn't change, as wet hair, a mark or a pose redrew one every Turn.
-  const passing = (name: string) => {
-    const updates = operations.filter((operation) => operation.op === "update_npc" && operation.name === name);
-    return updates.length > 0 && updates.every((operation) => operation.op === "update_npc" && operation.portrait === false);
-  };
+  const passing = passingLooks(operations);
   // Only a change a head and shoulders frame shows, as soot to the wrists redrew a portrait that then drew it on the neck.
   const npcs = after.npcs.filter(
-    ({ name, appearance }) => !passing(name) && before.npcs.some((npc) => npc.name === name && chestUp(npc.appearance) !== chestUp(appearance)),
+    ({ name, appearance }) => !passing.has(name) && before.npcs.some((npc) => npc.name === name && chestUp(npc.appearance) !== chestUp(appearance)),
   );
   const pc = JSON.stringify(before.inventory.wearing) !== JSON.stringify(after.inventory.wearing) || before.pcAppearance !== after.pcAppearance;
   return [...(pc ? [null] : []), ...npcs];

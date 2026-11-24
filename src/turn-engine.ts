@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { type Check, CheckRequest, type Dice, resolveCheck } from "./check-resolver";
-import { type ImagePipeline, movedScene, portraitsDue, restyledBy, type Scene } from "./image-pipeline";
+import { type ImagePipeline, movedScene, passingLooks, portraitsDue, restyledBy, type Scene } from "./image-pipeline";
 import { promptStyle } from "./graph-builder";
 import { withArtStyleFor } from "./web/art-styles";
 import { errorFields, errorType, log } from "./logger";
@@ -1242,8 +1242,8 @@ async function narrate(
             [...narration.matchAll(/^\[([^[\]]+)\]:/gm)].map(([, speaker]) => speaker!.trim()),
           );
           restyled = restyledBy(state, next, [...state_operations, ...(upkept ?? [])]);
-          const passing = [...state_operations, ...(upkept ?? [])].filter((operation) => operation.op === "update_npc" && operation.portrait === false);
-          if (passing.length > 0) log.info("images", "Portraits left for a passing change", { count: passing.length });
+          const passing = passingLooks([...state_operations, ...(upkept ?? [])]).size;
+          if (passing > 0) log.info("images", "Portraits left for a passing change", { count: passing });
           return next;
         },
         forThePc(offered, pcName),

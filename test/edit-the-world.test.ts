@@ -439,6 +439,26 @@ test("a Revert past a World Change makes it again from the player's words on the
   ).toEqual([1, 2]);
 });
 
+// As one deleted first and then found the Save busy, losing the World Changes it would have made again.
+test("a Revert that would make a World Change again is refused while a Turn is running, and deletes nothing", async () => {
+  const replies = [narration("One."), update({ lore_entries: [SMUGGLER] }), narration("Two.")];
+  let finish = (_: string) => {};
+  app = startApp(savesDir, () => (replies.length > 0 ? Promise.resolve(replies.shift()!) : new Promise((resolve) => (finish = resolve))));
+  const id = createSave();
+  await turn(id);
+  await change(id);
+  await turn(id);
+  const running = turn(id);
+  while ((await json(app.get(`/saves/${id}/turn`))).running === undefined) await Bun.sleep(1);
+
+  const refused = await app.post(`/saves/${id}/messages/2/revert`, {});
+
+  expect(refused.status).toBe(409);
+  expect(store().messages(id)).toHaveLength(4);
+  finish(narration("Three."));
+  await running;
+});
+
 test("a World Change whose reply changes one fact twice is kept whole, with its hidden change", async () => {
   play(
     update({

@@ -601,7 +601,10 @@ test("Image Instructions reach a Scene Image's and a request's prompt, and Model
   expect(narrator).toContain(
     "Image Instructions, which are the player's guidance for the picture, to follow wherever they don't break the rules above: image-words",
   );
-  expect(narrator).toContain("The Model Instructions below guide the story only, never visual_description.");
+  // Not anyone's looks, as Image Instructions to draw unmentioned clothes as nude put "wearing nothing but" into stored looks.
+  expect(narrator).toContain(
+    "The Model Instructions below guide the story only, never visual_description, and the Image Instructions guide visual_description only, never anyone's looks in the state.",
+  );
   expect(narrator).toContain("model-words");
 
   await asked(id, "the woman");

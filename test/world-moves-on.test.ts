@@ -8,6 +8,7 @@ import { applyEdit, applyOperations, MAX_NPC_KNOWS, openingState, type WorldEdit
 import { journalChange } from "../src/prompt-assembler";
 import { hoursPerReply, MOVE_EVERY, MOVE_LIMIT, moveDue, sameDeed, turnThreadChanges } from "../src/world-moves-on";
 import { threadPeople } from "../src/thread-people";
+import { ThoughtTooLong } from "../src/turn-engine";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -920,13 +921,52 @@ test("a plan is its doer's, the person it names first, so one aimed at someone w
 });
 
 test("a plan whose hour comes while its doer is with the PC was overtaken by play, and goes", async () => {
-  play(narration("Kit comes down the dock to Ash.", { op: "set_scene", location: "The dock", visible_cast: ["Kit"] }, hoursOn(1, "nine")));
-  const id = planned(8.5, "Kit will rob the library stacks for the ledger.");
+  const plan = "Kit will rob the library stacks for the ledger.";
+  play(
+    narration("Kit comes down the dock to Ash.", { op: "set_scene", location: "The dock", visible_cast: ["Kit"] }, hoursOn(0.25, "past eight")),
+    narration("Kit talks on.", hoursOn(1, "nine")),
+  );
+  const id = planned(8.5, plan);
 
-  const log = await logOf(async () => expect((await turn(id, "I wave.")).ok).toBe(true), "info");
+  expect((await turn(id, "I wave.")).ok).toBe(true);
+  expect(store().latestState(id).threadsPlan).toEqual({ [THIEF]: plan });
+  const log = await logOf(async () => expect((await turn(id, "I listen.")).ok).toBe(true), "info");
 
   expect(log).toContain('"plansOvertaken":1');
   expect(store().latestState(id)).toMatchObject({ threadsPlan: {}, threadsDue: {} });
+});
+
+test("a plan whose hour comes in the very reply its doer comes into view waits a little, but one long past its hour goes", async () => {
+  const plan = "Kit will rob the library stacks for the ledger.";
+  const arrives = narration("Kit comes down the dock to Ash.", { op: "set_scene", location: "The dock", visible_cast: ["Kit"] }, hoursOn(1, "nine"));
+  play(arrives, arrives);
+  const id = planned(8.5, plan);
+
+  const log = await logOf(async () => expect((await turn(id, "I wave.")).ok).toBe(true), "info");
+
+  expect(log).toContain('"plansPutOff":1');
+  expect(store().latestState(id)).toMatchObject({ threadsPlan: { [THIEF]: plan }, threadsDue: { [THIEF]: 9.5 } });
+
+  const past = planned(7, plan);
+  expect((await turn(past, "I wave.")).ok).toBe(true);
+  expect(store().latestState(past).threadsPlan).toEqual({});
+});
+
+test("a move that thinks too long is written again with no thinking, and stands", async () => {
+  play(
+    narration("Ash walks to the dock.", nextDay()),
+    new ThoughtTooLong("thought too long"),
+    moved(change(THIEF, "The thief waits.")),
+    narration("Ash waits."),
+  );
+  const id = createSave();
+
+  const log = await logOf(async () => {
+    for (const input of ["I walk.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(store().latestState(id).threadsNow).toEqual({ [THIEF]: "The thief waits." });
+  expect(log).toContain('"overthought":true');
 });
 
 test("a deed counts as put off by its own words, never by the names and places another deed shares", () => {

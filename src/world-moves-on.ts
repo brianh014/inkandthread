@@ -514,10 +514,15 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
   ];
   const started = Date.now();
   let again: ReturnType<typeof sorted> | undefined;
+  let overthought = false;
   let againQuestions: Record<string, string> = {};
   try {
-    // No thinking budget, as one cut 16 of 19 moves on a provider that takes none, and the re-asks then had no thinking at all.
-    const reply = await askForJson(textProvider, prompt, Reply, "The Narrator refused to move the world on.", signal, { call: "moveWorld" });
+    // No thinking budget, as one cut 16 of 19 moves on a provider that takes none. One that thinks past the limit is asked again
+    // with no thinking, as a level lower still thought through all the time left, and the move was lost, 7 moves of 19.
+    const reply = await askForJson(textProvider, prompt, Reply, "The Narrator refused to move the world on.", signal, {
+      call: "moveWorld",
+      onOverthought: () => (overthought = true),
+    });
     again = sorted(movesOf(reply));
     againQuestions = questionsOf(reply);
   } catch (error) {
@@ -678,6 +683,8 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       // Plans the move gave for threads whose plan stood, so were not taken.
       ...(notTaken > 0 && { planKept: notTaken }),
       ...(withoutParts > 0 && { withoutPart: withoutParts }),
+      // Written with no thinking, so its faults can be told from the others'.
+      ...(overthought && { overthought }),
       ...(kept.some(({ thread, truth }) => thread !== null && truth !== null) && {
         truthsIgnored: kept.filter(({ thread, truth }) => thread !== null && truth !== null).length,
       }),

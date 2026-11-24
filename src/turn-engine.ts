@@ -586,6 +586,8 @@ function turnPrompt(
 // Replies and story hours below which the story time stands still, so the Choices offer one that moves on, as a 160-round play
 // passed three hours, a minute a reply, its seeded picks never offered a way to let time pass.
 const STILL_REPLIES = 6;
+// Story hours a plan waits when its hour comes as its doer comes into view.
+const PUT_OFF_HOURS = 0.5;
 const STILL_HOURS = 1;
 const RECENT_MOVES = 4;
 /** The clock's hours a few replies back, undefined in a short story or one from before the clock. */
@@ -1200,6 +1202,7 @@ async function narrate(
       let repeated = 0;
       let ignored: Refusal[] = [];
       let overtakenPlans = 0;
+      let plansPutOff = 0;
       const messages = commit(
         narration,
         check,
@@ -1220,12 +1223,20 @@ async function narrate(
           const { doerIn } = threadPeople(next);
           const clock = next.storyTime?.hours;
           // A plan with no hour counts as come, as moves read it as due.
-          const overtaken = Object.keys(next.threadsPlan).filter(
+          const come = Object.keys(next.threadsPlan).filter(
             (truth) =>
               clock !== undefined &&
               (next.threadsDue[truth] === undefined || next.threadsDue[truth]! <= clock) &&
               doerIn(next.threadsPlan[truth]!, next.scene.visibleCast),
           );
+          // One whose hour came in this very reply, its doer only now in view, waits a little instead, as one was lost in the reply
+          // that had its doer speak of it. Its hour moved, as left at it the move this Turn brings could only drop it too.
+          const putOff = come.filter(
+            (truth) => (next.threadsDue[truth] ?? 0) > (state.storyTime?.hours ?? Infinity) && !doerIn(next.threadsPlan[truth]!, state.scene.visibleCast),
+          );
+          const overtaken = come.filter((truth) => !putOff.includes(truth));
+          for (const truth of putOff) next.threadsDue[truth] = clock! + PUT_OFF_HOURS;
+          plansPutOff = putOff.length;
           next.threadsPlan = Object.fromEntries(Object.entries(next.threadsPlan).filter(([truth]) => !overtaken.includes(truth)));
           next.threadsDue = Object.fromEntries(Object.entries(next.threadsDue).filter(([truth]) => !overtaken.includes(truth)));
           overtakenPlans = overtaken.length;
@@ -1316,6 +1327,7 @@ async function narrate(
         chapterEnds: !!chapter_ends,
         // Plans dropped as overtaken, their hour come while their doer was with the PC.
         ...(overtakenPlans > 0 && { plansOvertaken: overtakenPlans }),
+        ...(plansPutOff > 0 && { plansPutOff }),
         // The asks that matched an open thread, as the Narrator's own count logged asks of threads that never existed.
         ...(asks.length > 0 && { closeAsked: asked.length }),
       }));
@@ -1660,17 +1672,28 @@ export async function askForJson<T>(
   /**
    * `lessThinking` asks for that many levels below the player's Thinking from the first attempt. `reviewer` names the call's
    * model in the log. `hurried: false` fails a reply stopped at its thinking budget rather than ask for it with little thinking.
-   * `call` names what the call is for in the log, as each call's token use is counted by it.
+   * `call` names what the call is for in the log, as each call's token use is counted by it. `onOverthought` hears of a try that
+   * thought past the limit, and has the next one think not at all, rather than a level less.
    */
   {
     call,
     picture = false,
+    onOverthought,
     lessThinking: fewer = 0,
     thinkingBudget,
     thinkingMs,
     reviewer = false,
     hurried = true,
-  }: { call: string; picture?: boolean; lessThinking?: number; thinkingBudget?: number; thinkingMs?: number; reviewer?: boolean; hurried?: boolean },
+  }: {
+    call: string;
+    picture?: boolean;
+    onOverthought?: () => void;
+    lessThinking?: number;
+    thinkingBudget?: number;
+    thinkingMs?: number;
+    reviewer?: boolean;
+    hurried?: boolean;
+  },
 ) {
   let generation: string | undefined;
   let id: string | undefined;
@@ -1698,7 +1721,10 @@ export async function askForJson<T>(
       retryIfInvalid(cause, attempt, "", { id, generation }, reviewer ? "reviewer" : "Narrator");
       const reason = whyInvalid(cause as InvalidResponse);
       // The same level would most likely think past the limit again.
-      if (reason === OVERTHOUGHT) lessThinking++;
+      if (reason === OVERTHOUGHT && onOverthought) {
+        thinkingOff = true;
+        onOverthought();
+      } else if (reason === OVERTHOUGHT) lessThinking++;
       else asked = [...prompt, couldNotUse([reason, ...toldModel(cause)].join("; "))];
       // Sent without thinking, as hurried tries sent at Low thought past the budget again (11 State Upkeeps in one bench play).
       if (reason === OVER_BUDGET) thinkingOff = true;

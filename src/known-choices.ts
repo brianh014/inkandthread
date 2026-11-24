@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { errorType, log } from "./logger";
 import { wholeWord } from "./lore-activation";
-import type { Prompt } from "./prompt-assembler";
+import { type Prompt, withClock } from "./prompt-assembler";
 import { nameForms, type State, type StateOperation } from "./state-applier";
 import { UPKEEP_LIMIT } from "./state-upkeep";
 import { askForJson, CHOICES_RULE, jsonSchemaOf, type TextProvider, usableChoices } from "./turn-engine";
@@ -238,7 +238,8 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
         ...(journal.pc && { pc: journal.pc }),
         // As facts never retire, and Choices offered to wait for an inquest the story had already held.
         ...(journal.storyTime && {
-          story_time: { ...journal.storyTime, hours: undefined, dateDue: undefined, ...(journal.storyTime.dateDue && { date: undefined }) },
+          // With the clock, as the words lag it, and Choices offered what was to be done before six at a quarter to seven.
+          story_time: { ...withClock(journal.storyTime), dateDue: undefined, ...(journal.storyTime.dateDue && { date: undefined }) },
         }),
         ...(journal.still && { time_still: true }),
         ...(journal.recentSummary && { recent_summary: journal.recentSummary }),

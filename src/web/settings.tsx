@@ -1372,8 +1372,8 @@ function InstallSettings({
           Update portraits as the story goes
         </label>
         <p className="muted">
-          When the story changes how someone looks, or what your character wears, their portrait is drawn again once the scene moves on, keeping their face.
-          Each one is a new picture, which may cost money, and it replaces a portrait you uploaded.
+          When the story changes how someone looks, or what your character wears, their portrait is drawn again, keeping their face. Each one is a new picture,
+          which may cost money, and it replaces a portrait you uploaded.
         </p>
         <label>
           Extra Image Instructions

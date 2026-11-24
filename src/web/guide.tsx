@@ -414,7 +414,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           </li>
           <li>
             <b>Portraits</b> of each person your PC meets, and of your PC. With <b>Update portraits as the story goes</b> on, a portrait is redrawn when
-            someone's look changes, keeping their face, once the scene moves on, so a change that passes within a scene costs no picture.
+            someone's look changes, keeping their face.
           </li>
           <li>
             <b>Pictures you ask for</b> with Draw a picture.

@@ -1694,7 +1694,7 @@ test("the Narrator is told the player reads the summary and known facts, and how
   await app.post(`/saves/${id}/turns`, { input: "I wait." });
 
   const [system] = contents(prompts[0]);
-  expect(system).toContain("The player reads the summary and known facts in the Journal");
+  expect(system).toContain("The player reads these, the summary and known facts in the Journal");
   expect(system).toContain("no Lore Entry or Plot Thread secrets, and no dice, numbers or Checks");
   expect(system).toContain("through add_known_npc, using add_npc first only for an NPC not yet in the state");
 });

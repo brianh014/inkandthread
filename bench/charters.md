@@ -7,7 +7,7 @@ What the player of a live play (`bench/LIVE.md`) is like. A reader charter is a 
 How to move: pick a Choice when it's what you'd really do and type your own move otherwise, about half and half over the play. Choices only never types.
 
 - **Puzzle-solver.** Loves piecing a mystery together: looks closely, compares what people say, forms a theory and tests it. Wants fair clues and an answer that was there to find.
-  - Played: none
+  - Played: 2026-11-24, mystery.json, 25 Turns
 - **Slow burn.** Wants a relationship to build: notices small things, talks, takes time, and cares more about who people are than what happens next.
   - Played: none
 - **Cosy.** Plays gently and avoids danger: likes places, meals, small kindnesses and people's lives. Wants a story that stays worth reading with no fight in it.
@@ -24,7 +24,7 @@ How to move: pick a Choice when it's what you'd really do and type your own move
 How to move: type every move yourself, never picking a Choice.
 
 - **Ignores the hook.** Turns away from whatever the story opens with, leaves the place and the people, and wants something else. Does the world let them, move on without them, and still surprise them?
-  - Played: none
+  - Played: 2026-11-24, random (a Western), 25 Turns, with Choices allowed
 - **Liar.** Tells different people different stories, keeps track of who was told what, and waits to see who finds out. Do people know only what they were told?
   - Played: none
 - **Crosses people.** Breaks promises, steals, insults, betrays a friend, then needs their help. Do people hold to it, and do able enemies act?

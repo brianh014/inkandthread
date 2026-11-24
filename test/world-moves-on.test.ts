@@ -185,6 +185,30 @@ test("a World Change sent while the world is moving on waits for the move, so it
   expect(told.prompts[2]!.map(({ content }) => content).join("\n")).toContain("hides the books on a barge");
 });
 
+test("a Revert past the reply the world is moving on from stops the move, so the next Turn doesn't wait for it", async () => {
+  const told = play(
+    narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
+    new Promise<string>(() => {}),
+    narration("Ash stays in."),
+  );
+  const id = createSave();
+  await (await turn(id, "I walk to the dock.")).text();
+  while (told.prompts.length < 2) await Bun.sleep(1);
+
+  const log = await logOf(async () => {
+    const reverted = await fetch(new URL(`/saves/${id}/messages/1/revert`, server.url), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    expect(reverted.ok).toBe(true);
+    expect((await turn(id, "I stay in.")).ok).toBe(true);
+  }, "info");
+
+  expect(log).toContain("World Moves On stopped");
+  expect(store().latestState(id).threadsNow).toEqual({});
+});
+
 test("a move reads the Lore Entries the story names too, not only its threads', so a thread it adds keeps to the world", async () => {
   const told = play(
     narration(

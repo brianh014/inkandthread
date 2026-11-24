@@ -6,7 +6,7 @@ import { WorldChanging } from "./live-turns";
 import { NoteNotFound, StaleTurn } from "./save-store";
 import { VisibleEdit } from "./state-applier";
 import { toneName } from "./tones";
-import { afterMoves, askForChapterTitle, TurnFailed, worldMoved } from "./turn-engine";
+import { afterMoves, askForChapterTitle, stopMoves, TurnFailed, worldMoved } from "./turn-engine";
 import { readable } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 import { NamedPc } from "./world-routes";
@@ -313,6 +313,7 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         if (turns.isRemaking(id)) throw new WorldChanging();
         if (saves.revertPreview(id, messageId).worldChanges > 0) turns.assertIdle(id);
         const { asked, ...deleted } = saves.revert(id, messageId);
+        if (deleted.messages > 0) stopMoves(id);
         images.forget(id, messageId, "revert");
         options.usage?.reverted(id);
         // Once each, as the same words given twice made one change twice, at a minute's wait.

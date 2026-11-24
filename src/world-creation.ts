@@ -624,17 +624,17 @@ const worldPrompt = (context: Context, choices: WorldChoices, given: WorldPc, sp
     role: "system",
     content: `You are the Narrator of a story, creating its world before play begins. ${CHOICES_ARE_DATA}
 Build the world from the theme, title and world_brief. If there is a starting_hook, make sure the world can open with it. important_characters are people the player wants in the story, and they are canon: give each a lore entry of their own, and weave them into the world and plot threads.
-pc and inventory are the player's PC and what they start with. ${PC_IS_CANON} The PC belongs in this world from the start. If anything about them conflicts with the theme or world_brief, the world changes and the PC does not. Change only what the conflict needs, and keep the theme and tone. For example, a wizard who throws fireballs in a strict modern-day world means magic exists there.
+pc and inventory are the player's PC and what they start with. ${PC_IS_CANON} The PC belongs in this world from the start, unless the player's choices bring them from elsewhere. If anything about them conflicts with the theme or world_brief, the world changes and the PC does not. Change only what the conflict needs, and keep the theme and tone. For example, a wizard who throws fireballs in a strict modern-day world means magic exists there.
 Reply only with JSON matching this schema, with its keys in the same order: ${JSON.stringify(jsonSchemaOf(WorldReply))}
 naming says in a sentence or two how people here name people and places and how those names sound. Give every name in the world by it, and in play new names will follow it too.
 lore_entries is the World Bible, which is secret. Write at least twelve entries covering places, factions, people, history and how the world works. Each must make sense on its own, because in play you only see the entries a recent Message activates. Give each at least three keywords, including names, nicknames and everyday paraphrases, so that a player's wording still activates it.
-world_rules are strict statements of what is and is not possible in this world. Start with its theme and tone${choices.tone ? ", taking the tone from tone, and build a world it fits" : ""}, because you will see these on every Turn and nothing else carries them.
+world_rules are strict statements of what is and is not possible in this world. Start with its theme and tone${choices.tone ? ", taking the tone from tone, and build a world it fits" : ""}, because you will see these on every Turn and nothing else carries them. What people here know, want or take for granted is said of this world's own people, never of everyone: where the player's choices make anyone an exception, such as someone come from elsewhere, one rule names them and says what they know and take for granted instead, as the starting_hook is not seen again after the story opens.
 plot_threads are secret storylines for play to reveal. Write three to six.
 ${STORY_CRAFT}
 ${sparksLine(sparks)}
 ${SHORT_LINES}
 calendar says in two or three sentences how people in this world count days, months and years, with the names they use, so that dates stay consistent in play. start_date and start_time_of_day are when the story opens, in that calendar, as the PC would reckon them, such as "3rd of Frostmoon, 412 AR" and "late evening". Make them fit the starting_hook, if there is one.
-world_overview is the only part the player ever reads. In a few short paragraphs, cover only what the PC would plausibly know from living in this world. It must be spoiler-free: never reveal or hint at a plot thread, and leave out every secret in the lore entries.
+world_overview is the only part the player ever reads. In a few short paragraphs, cover only what the PC would plausibly know as the story opens. It must be spoiler-free: never reveal or hint at a plot thread, and leave out every secret in the lore entries.
 ${modelInstructions(context)}`,
   },
   playerChoices(worldChoicesData(choices, given)),

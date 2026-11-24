@@ -177,6 +177,7 @@ test("the rules every story needs are built in, near the reply, so Model Instruc
     expect(lastSystem()).toContain(rule);
     expect(prompts.at(-1)![0]!.content).not.toContain(rule);
   }
+  expect(prompts.at(-1)![0]!.content).toContain("Where the PC is somewhere a Plot Thread's now would show, it shows in passing");
 });
 
 test("the pace of a reply, then what's true right now, are the last things the Narrator reads before the player's words", async () => {

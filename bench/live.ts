@@ -36,6 +36,7 @@ type Request = { path: string; body: object; input?: string; mark?: string; show
 type Message = { id: number; role: string; text: string };
 
 const TURN_TOOLS = ["move", "choose", "continue"];
+const WORDS_TOOLS = [...TURN_TOOLS, "rewrite", "edit", "tell", "picture", "ask", "decide", "journal-edit", "rename", "finish"];
 // The bench's own names for these steps, as the coverage, the state checks and the transcript know them.
 const STEP_NAMES: Record<string, string> = { choose: "choice", tell: "worldChange" };
 const TOOLS = `Turns (each needs a note): move (your words on stdin), choose <1-3>, continue
@@ -256,7 +257,8 @@ export async function sendAction(folder: string | undefined, tool = "", arg = ""
   if (!folder || !existsSync(folder)) return "Give the play's folder, then a tool.";
   if (!existsSync(liveFile(folder))) return "No play is open there: it is still starting, or it has finished.";
   const { url } = JSON.parse(readFileSync(liveFile(folder), "utf8")) as { url: string };
-  const words = process.stdin.isTTY ? "" : await Bun.stdin.text();
+  // Not for a tool that takes no words, as a shell may leave stdin open and the read would never end.
+  const words = process.stdin.isTTY || !WORDS_TOOLS.includes(tool) ? "" : await Bun.stdin.text();
   // Only a Turn has a note, as a verdict or a reply's new text may hold such a line of its own.
   const [text = "", ...note] = TURN_TOOLS.includes(tool) ? words.split(/^---[ \t]*\r?$/m) : [words];
   try {

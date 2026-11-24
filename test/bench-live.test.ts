@@ -25,17 +25,20 @@ async function livePlay(...flags: string[]) {
     return (await fetch(url, { method: "POST", body: JSON.stringify({ tool, arg, text, note }) })).text();
   };
   const file = (name: string) => readFileSync(join(folder, name), "utf8");
-  return { server, run, act, file, remove: () => rmSync(temp, { recursive: true, force: true }) };
+  return { server, folder, run, act, file, remove: () => rmSync(temp, { recursive: true, force: true }) };
 }
 
 test("a live play is steered an action at a time, shows nothing hidden, stops at its Turns and is kept", async () => {
-  const { server, run, act, file, remove } = await livePlay();
+  const { server, folder, run, act, file, remove } = await livePlay();
   const seen = [await act("", "look")];
   expect(seen[0]).toMatch(/Story \(M2\)[\s\S]*Choices:[\s\S]*Turns left: 2\./);
   // A Turn with no note is never sent, as the notes are half of what a play is for.
   expect(await act('I say "wait".', "move")).toContain("Add a note");
   seen.push(await run('I say "wait".\n---\nInterested. I expect a knock.', "move"));
   expect(seen.at(-1)).toContain("Turns left: 1.");
+  // With stdin left open, as a shell may leave it.
+  const help = Bun.spawn([process.execPath, bench, "do", folder, "help"], { stdin: "pipe", stdout: "pipe" });
+  expect(await new Response(help.stdout).text()).toContain("Turns (each needs a note)");
   expect(await act("", "choose", "9", "Why not.")).toContain("no such Choice");
   seen.push(await act("Shorter.", "rewrite"));
   seen.push(await act("Who was that?", "ask"));

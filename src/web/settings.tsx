@@ -826,8 +826,8 @@ type TextChoice = keyof typeof TEXT_PROVIDERS | "local";
 export const textChoiceOf = (url: string) => (Object.entries(TEXT_PROVIDERS).find(([, at]) => at === url)?.[0] ?? "local") as TextChoice;
 export const TEXT_CHOICES = [
   { value: "openrouter", label: "OpenRouter" },
-  { value: "google", label: "Google AI Studio" },
   { value: "nanogpt", label: "NanoGPT" },
+  { value: "google", label: "Google AI Studio" },
   { value: "local", label: "Local / OpenAI server" },
 ] as const;
 

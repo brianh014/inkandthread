@@ -30,7 +30,7 @@ Log every action by default, whether the player, the app or the AI takes it: wha
 
 `README.md` → Recommended settings is the player-facing version. When advising on providers or changing defaults and Settings hints, keep to it:
 
-- Text: a hosted API is recommended (OpenRouter, or Google AI Studio's free key to try it). A long story's prompt runs past 30,000 tokens, which a 10 GB GPU can't hold. Local text (Local / OpenAI server) is supported for short stories, privacy and trying things out, not the main path.
+- Text: a hosted API is recommended: OpenRouter or NanoGPT as equal choices, never one preferred over the other (OpenRouter pins a provider; NanoGPT's subscription is a flat price), or Google AI Studio's free key to try it. A long story's prompt runs past 30,000 tokens, which a 10 GB GPU can't hold. Local text (Local / OpenAI server) is supported for short stories, privacy and trying things out, not the main path.
 - Images: local ComfyUI is preferred, as Ink & Thread draws many pictures and each costs money on a paid API. OpenRouter, NanoGPT or Wiro is for players with no GPU for ComfyUI.
 
 ### Code layout

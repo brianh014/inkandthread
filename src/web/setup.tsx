@@ -270,10 +270,11 @@ function Steps({ initial }: { initial: Settings }) {
               {
                 {
                   openrouter:
-                    "Recommended. One account and key reach every model, the drawing ones too, and you pay only for what you use. Sign up, add a few dollars of credit, then make a key and paste it below. It's shown only once, so keep a copy.",
+                    "One account and key reach every model, the drawing ones too, and you pay only for what you use, with a choice of which provider serves the model. Sign up, add a few dollars of credit, then make a key and paste it below. It's shown only once, so keep a copy.",
                   google:
                     "A free key with a Google account, to try Ink & Thread. The free tier limits how many Turns a day you get, and Google may use what you send, your story among it, to improve its products.",
-                  nanogpt: "Pay as you go for many models, with one key.",
+                  nanogpt:
+                    "One account and key reach every model, the drawing ones too. Pay as you go, or subscribe for a weekly allowance on open models such as DeepSeek that stays the same price however much you play. NanoGPT picks the provider. Sign up, add a balance or subscribe, then make a key and paste it below.",
                   local:
                     "An AI on your own computer, or any other OpenAI-compatible server. Nothing leaves your computer, but a long story outgrows a 10 GB graphics card, so it suits short stories, privacy and trying things out. Ollama is at http://localhost:11434/v1, LM Studio at http://localhost:1234/v1.",
                   command: "A program you set up, such as a provider's own command-line tool, instead of a server.",

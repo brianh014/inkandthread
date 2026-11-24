@@ -173,6 +173,7 @@ test("the rules every story needs are built in, near the reply, so Model Instruc
     "rather than participle phrases",
     "Vary the length and structure of your sentences",
     "Never use em-dashes",
+    "in the narration and in anyone's speech: never set it against something it isn't",
   ]) {
     expect(lastSystem()).toContain(rule);
     expect(prompts.at(-1)![0]!.content).not.toContain(rule);

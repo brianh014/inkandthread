@@ -26,7 +26,8 @@ const UPKEEP_OPS = new Set([
   // As the Narrator gave it once in 43 replies, and NPCs learned nothing in 35 Turns.
   "npc_learns",
 ]);
-// Story time is its own field, not one of these.
+// Story time is its own field, not one of these. Its examples set the pace, as every reply was given the one for a few lines:
+// at 0.1, six minutes, 24 replies of talk passed nearly three hours.
 const upkeepOperation = z.discriminatedUnion(
   "op",
   StateOperation.options.filter(({ shape }) => UPKEEP_OPS.has(shape.op.value)) as unknown as typeof StateOperation.options,
@@ -50,7 +51,7 @@ Give the state operations that record what the reply shows happening and the sta
 Each change needs the reply to show it happening, or both the reply and previous_reply to show the state is out of date. Where only the reply disagrees with the state, as in a passing mention, the reply is wrong, not the state: change nothing for it, and leave alone whatever the state already has right. Name things exactly as the state does. If nothing needs recording, give an empty list.${
   time
     ? `
-In story_time give how far the reply moved the story time on, as every reply does, talk included: hours_passed, such as 0.1 for a few lines or 0.25 for a talk, and more for the PC going from one place to another or the reply showing the light, a meal or the hour moved on; time_of_day as the PC would now say it, true to that clock and never earlier than the state's; days_passed, 1 when it passes midnight and usually 0, and date only then, otherwise null.`
+In story_time give how far the reply moved the story time on, as every reply does, talk included: hours_passed, 0.05 for a few lines of talk or a small deed, as a reply is minutes long, and more for the PC going from one place to another or the reply showing the light, a meal or the hour moved on; time_of_day as the PC would now say it, true to that clock and never earlier than the state's; days_passed, 1 when it passes midnight and usually 0, and date only then, otherwise null.`
     : ""
 }
 Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(time ? REPLY.withTime : REPLY.withoutTime))}`;

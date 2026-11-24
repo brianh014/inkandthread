@@ -277,6 +277,15 @@ test("State Upkeep doesn't move time in a Turn where the Narrator did, as it mov
   expect(log).toContain('"operations":["set_scene"],"dropped":1');
 });
 
+test("State Upkeep is told a few lines of talk take minutes, as six a reply made an afternoon of one conversation", async () => {
+  const { upkeep } = play([narration("Ash asks, and Kit answers.")], [upkept()]);
+
+  expect((await turn(createSave())).ok).toBe(true);
+
+  expect(upkeep.prompts[0]![0]!.content).toContain("0.05 for a few lines of talk");
+  expect(upkeep.prompts[0]![0]!.content).not.toContain("0.1 for a few lines");
+});
+
 test("State Upkeep keeps the Journal the Narrator left, only from the reply, never twice, and no more than it may", async () => {
   play(
     [narration("Kit shows Ash four round bruises on the drowned man's neck and says the sexton locked the crypt.")],

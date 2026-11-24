@@ -186,7 +186,7 @@ test("an older Save logs its upgrade only once it's done", async () => {
 test("a refused operation gives a reason, and a repeat is counted, not refused", () => {
   const { refused } = applyOperations(openingState, [
     { op: "remove_item", item: "ZQX" },
-    { op: "update_npc", name: "ZQX", appearance: "tall" },
+    { op: "update_npc", name: "ZQX", appearance: "tall", portrait: null },
   ]);
   expect(refused).toEqual([
     { op: "remove_item", reason: "not held" },

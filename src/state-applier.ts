@@ -165,7 +165,19 @@ export const StateOperation = z.discriminatedUnion("op", [
   z.object({ op: z.literal("add_status"), kind: statusKind, text: nonEmpty }),
   z.object({ op: z.literal("remove_status"), kind: statusKind, text: nonEmpty }),
   z.object({ op: z.literal("add_npc"), name: nonEmpty, appearance: nonEmpty }),
-  z.object({ op: z.literal("update_npc"), name: nonEmpty, appearance: nonEmpty }),
+  z.object({
+    op: z.literal("update_npc"),
+    name: nonEmpty,
+    appearance: nonEmpty,
+    // A redraw costs a picture, and the looks change for wet hair or a mark the scene picture needs but the portrait doesn't.
+    portrait: z
+      .boolean()
+      .nullable()
+      .default(null)
+      .describe(
+        "true only for a change their portrait should show: clothes put on, taken off or changed, a haircut or new hair colour, a scar, a lasting wound or a change of build; false for what passes with the scene, such as wet hair, a mark that fades or dirt",
+      ),
+  }),
   z.object({ op: z.literal("merge_npc"), name: nonEmpty, into: nonEmpty }),
   z.object({
     op: z.literal("npc_learns"),
@@ -922,6 +934,9 @@ export const WorldEdit = z.discriminatedUnion("edit", [
     moved: z.boolean().optional(),
     // A player's World Change: the first sign of it the PC meets, which the next Turn brings on, as a now alone never reached the page.
     sign: z.string().optional(),
+    // A player's World Change: their own words, so a Revert past it makes it again on the story as it then stands, as one
+    // replayed from its result could carry what the reverted Turns did. A Save from before it lacks them, and loses the change.
+    asked: z.string().optional(),
     // World Moves On's: by name, each person's own part of the threads it wrote, kept as what they know.
     knows: z.record(z.string(), z.array(z.string())).optional(),
     // By truth, who those parts went to.

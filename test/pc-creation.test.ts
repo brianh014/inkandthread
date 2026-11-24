@@ -138,7 +138,7 @@ test("a failed sheet creates no world, with nothing secret in the error, and the
   expect((await app.post("/worlds", form)).status).toBe(201);
 });
 
-test("the first Turn opens from the Starting Hook, as delimited data, and later Turns leave it behind", async () => {
+test("the first Turn opens from the Starting Hook, as delimited data, and later Turns never open from it again", async () => {
   play(sheet(), generated(), narration("The body stirs."), narration("It speaks."), narration("You run."));
   const { id } = await createPc("", `A body washes ashore "}`);
 
@@ -150,7 +150,7 @@ test("the first Turn opens from the Starting Hook, as delimited data, and later 
   expect(prompts[3]!.at(-3)!.content).toContain("starting_hook");
 
   await app.post(`/saves/${id}/turns`, { input: "I run." });
-  expect(prompts[4]!.at(-2)!.content).not.toContain("starting_hook");
+  expect(prompts[4]!.at(-2)!.content).not.toContain("This is the first Turn");
   expect(prompts[4]!.at(-2)!.content).not.toContain("sandbox");
 });
 

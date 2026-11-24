@@ -43,6 +43,8 @@ export const NamedPc = PcDetails.extend({ name: z.string().trim().min(1) });
 const Ref = z.string().regex(/^[\w-]{1,40}$/);
 
 const WorldRequest = z.object({
+  /** The page's own name for this build. */
+  build: z.string().regex(HELD_ID).optional(),
   title: z.string().trim().min(1).max(80),
   theme: z.string().trim().min(1),
   tone: z.string().trim().max(TONE_MAX).default(""),
@@ -153,7 +155,7 @@ function pruneHeld(dir: string, age: number) {
 type DrawnImage = EarlyImage & { failure?: string; pictured?: string[] };
 
 /** The New Story form: worlds generated and held until Begin, and the pictures drawn for them before a Save exists. */
-export function worldRoutes({ options, saves, images }: ServerContext) {
+export function worldRoutes({ options, saves, images, builds }: ServerContext) {
   // Held here until Begin because a Save holds it all at once, and so that the client never holds the secrets.
   // shortcut: an abandoned world and its images stay until the app restarts, evict them if that ever adds up.
   const worlds = new Map<string, World & Pick<State, "storyTime"> & WorldChoices & WorldPc & { sheet: Awaited<ReturnType<typeof pcSheet>> }>();
@@ -319,16 +321,29 @@ export function worldRoutes({ options, saves, images }: ServerContext) {
     return Response.json({ prompt, hasImage: bytes !== undefined, failure, canRedraw: images.ready() });
   };
 
+  // A page names its build, so it's answered at once and asks for the build by that name until it's done: a lost request or
+  // a reload then loses nothing. Asked for with no name, it answers once the build is done.
+  async function build(world: string, named: string | undefined, status: number, work: (signal: AbortSignal) => Promise<string>) {
+    const before = worlds.get(world);
+    const undo = () => (before ? worlds.set(world, before) : worlds.delete(world));
+    const { done } = builds.start(world, named ?? crypto.randomUUID(), work, undo);
+    if (named) return Response.json({ id: world }, { status: 202 });
+    return Response.json({ ...(status === 201 && { id: world }), overview: await done }, { status });
+  }
+
   return routes({
     "/worlds": {
       POST: async (req) => {
-        const { id = crypto.randomUUID(), pc, inventory, ...choices } = await parseBody(req, NewWorldRequest);
-        // First, as it's the small call, and a failure here then costs no world.
-        const sheet = await pcSheet(options, pc, inventory, req.signal);
-        const { overview, world } = await generateWorld(options, choices, { pc, inventory }, drawSparks({ world: id }), req.signal);
-        worlds.set(id, { ...world, ...choices, pc, inventory, sheet });
-        drawWorldImages(id, overview, choices);
-        return Response.json({ id, overview }, { status: 201 });
+        const { id = crypto.randomUUID(), build: named, pc, inventory, ...choices } = await parseBody(req, NewWorldRequest);
+        return build(id, named, 201, async (signal) => {
+          // First, as it's the small call, and a failure here then costs no world.
+          const sheet = await pcSheet(options, pc, inventory, signal);
+          const { overview, world } = await generateWorld(options, choices, { pc, inventory }, drawSparks({ world: id }), signal);
+          signal.throwIfAborted();
+          worlds.set(id, { ...world, ...choices, pc, inventory, sheet });
+          drawWorldImages(id, overview, choices);
+          return overview;
+        });
       },
     },
     "/worlds/draw": {
@@ -375,6 +390,8 @@ export function worldRoutes({ options, saves, images }: ServerContext) {
         const importantCharacters = characters.map(({ name, description, onCover = true }) => ({ name, description, onCover }));
         const id = saves.create({ title, theme, worldBrief, startingHook, pc, artStyle, importantCharacters, pcOnCover, opening });
         worlds.delete(req.params.id);
+        // Any rebuild still going is of a world the player has left behind.
+        builds.drop(req.params.id);
         const taken = (image: string) => heldOf(req.params.id, image)?.drawn;
         images.saveCreated(id, taken("portrait"));
         // Often still drawing. The Save may be gone by the time each lands, and a story without one loses nothing.
@@ -427,13 +444,28 @@ export function worldRoutes({ options, saves, images }: ServerContext) {
     "/worlds/:id/regenerate": {
       POST: async (req) => {
         const { id } = req.params;
-        const choices = await parseBody(req, WorldRequest);
+        const { build: named, ...choices } = await parseBody(req, WorldRequest);
         const before = worlds.get(id);
         if (!before) throw new WorldNotFound();
-        const { overview, world } = await generateWorld(options, choices, before, drawSparks({ world: id }), req.signal);
-        worlds.set(id, { ...before, ...world, ...choices });
-        drawWorldImages(id, overview, choices);
-        return Response.json({ overview });
+        return build(id, named, 200, async (signal) => {
+          const { overview, world } = await generateWorld(options, choices, before, drawSparks({ world: id }), signal);
+          signal.throwIfAborted();
+          worlds.set(id, { ...before, ...world, ...choices });
+          drawWorldImages(id, overview, choices);
+          return overview;
+        });
+      },
+    },
+    "/worlds/:id/builds/:build": {
+      GET: async (req) => {
+        const running = builds.find(req.params.id, req.params.build);
+        if (!running) throw new WorldNotFound();
+        return Response.json(running.finished ? { overview: await running.done } : { running: true });
+      },
+      DELETE: (req) => {
+        if (!HELD_ID.test(req.params.build)) throw new WorldNotFound();
+        builds.cancel(req.params.id, req.params.build);
+        return Response.json({});
       },
     },
   });

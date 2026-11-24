@@ -19,6 +19,8 @@ import {
   playTurn,
   type Chapter,
   portraitUrl,
+  getRemakes,
+  turnPolling,
   previewRevert,
   replaceResponse,
   editResponse,
@@ -214,6 +216,36 @@ export function Play({ id }: { id: string }) {
   const [error, setError] = useState("");
   const [loadError, setLoadError] = useState("");
   const [reverting, setReverting] = useState<Message>();
+  // World Changes a Revert couldn't make again, apart from a Turn's error, which the words it sends again would clear.
+  const [unmadeChanges, setUnmadeChanges] = useState(0);
+  const [remaking, setRemaking] = useState(false);
+  // Asks after a Revert's World Changes until they're made, then tells of any that couldn't be. Its own read, as the Turn's
+  // status is read elsewhere too, which would take a failure meant for this.
+  const remakeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(remakeTimer.current), []);
+  function watchRemakes() {
+    setRemaking(true);
+    clearTimeout(remakeTimer.current);
+    let misses = 0;
+    const { signal } = leaving.current;
+    // Nothing once the page is left, as what it read would be told to no one.
+    const look = () =>
+      getRemakes(id, signal).then(
+        ({ remaking: still, unmade }) => {
+          if (signal.aborted) return;
+          misses = 0;
+          if (unmade) setUnmadeChanges((count) => count + unmade);
+          if (still) remakeTimer.current = setTimeout(look, REMAKE_POLL_MS);
+          else setRemaking(false);
+        },
+        () => {
+          if (signal.aborted) return;
+          if (++misses < turnPolling.tries) remakeTimer.current = setTimeout(look, REMAKE_POLL_MS);
+          else setRemaking(false);
+        },
+      );
+    remakeTimer.current = setTimeout(look, REMAKE_POLL_MS);
+  }
   const [duplicatingFrom, setDuplicatingFrom] = useState<Message>();
   const [regenerating, setRegenerating] = useState(false);
   // A Setting, for every story: the Choices are written every Turn, so this only shows or hides them.
@@ -295,6 +327,16 @@ export function Play({ id }: { id: string }) {
         }
         setSave(save);
         setMessages(messages);
+        const { signal } = leaving.current;
+        if (signal.aborted) return;
+        getRemakes(id, signal).then(
+          ({ remaking: remakingNow, unmade }) => {
+            if (signal.aborted) return;
+            if (unmade) setUnmadeChanges(unmade);
+            if (remakingNow) watchRemakes();
+          },
+          () => {},
+        );
         const failure = missed ?? (failed && { ...failed, error: failureMessage(failed) });
         if (failure) {
           setError(failure.error);
@@ -770,6 +812,22 @@ export function Play({ id }: { id: string }) {
           </button>
         </div>
       )}
+      {remaking && (
+        <p role="status" className="waiting">
+          Making what you told the Narrator to change again…
+        </p>
+      )}
+      {unmadeChanges > 0 && (
+        <div role="alert" className="error dismissable">
+          <p>
+            {unmadeChanges === 1 ? "A change you told the Narrator" : `${unmadeChanges} changes you told the Narrator`} after that Message couldn't be made
+            again on the story as it now stands. Tell the Narrator again from the Journal.
+          </p>
+          <button type="button" className="quiet" aria-label="Dismiss this notice" onClick={() => setUnmadeChanges(0)}>
+            ×
+          </button>
+        </div>
+      )}
       <ChapterEnd
         id={id}
         asked={endingChapter}
@@ -966,7 +1024,8 @@ export function Play({ id }: { id: string }) {
             setReverting(undefined);
             setReplaying(undefined);
           }}
-          onReverted={(to, input) => {
+          onReverted={(to, input, remakes) => {
+            if (remakes > 0) watchRemakes();
             const kept = messages.filter((message) => message.id <= to);
             setMessages(kept);
             setChosenBeat(undefined);
@@ -1063,6 +1122,9 @@ const DRAWING: Record<string, string> = {
   "cover redraw": "the Cover again",
 };
 
+// How often the page asks whether a Revert's World Changes are made yet.
+const REMAKE_POLL_MS = 3000;
+
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`;
 
 /**
@@ -1075,13 +1137,13 @@ function RevertDialog(props: {
   before?: Message;
   replay?: string;
   onClose: () => void;
-  onReverted: (to: number, input?: string) => void;
+  onReverted: (to: number, input: string | undefined, remaking: number) => void;
 }) {
   const { id, message, replay } = props;
   const resend = replay === undefined && message.role === "player" ? props.before : undefined;
   const [input, setInput] = useState(replay ?? "");
   const dialog = useRef<HTMLDialogElement>(null);
-  const [preview, setPreview] = useState<{ messages: number; images: number; portraits: number }>();
+  const [preview, setPreview] = useState<{ messages: number; images: number; portraits: number; worldChanges: number }>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -1104,10 +1166,11 @@ function RevertDialog(props: {
   const confirmRevert = () =>
     attempt(async () => {
       const to = (resend ?? message).id;
-      await revert(id, to);
+      const { remaking } = await revert(id, to);
       // Gone if the player pressed Escape while this was in flight, and the Revert happened all the same.
       dialog.current?.close();
-      props.onReverted(to, replay === undefined ? resend && message.text : input.trim());
+      // At once, words to send again included, as the World Changes it makes again run on while the next Turn waits for them.
+      props.onReverted(to, replay === undefined ? resend && message.text : input.trim(), remaking);
     });
 
   const duplicate = () =>
@@ -1141,6 +1204,12 @@ function RevertDialog(props: {
           {preview.images > 0 && ` and ${plural(preview.images, "image")}`}
           {preview.portraits > 0 && ` and ${plural(preview.portraits, "portrait")}`}
           {resend ? ", then the Narrator answers it again." : "."}
+        </p>
+      )}
+      {preview && preview.worldChanges > 0 && (
+        <p>
+          {preview.worldChanges === 1 ? "The World Change" : `The ${preview.worldChanges} World Changes`} you made after it{" "}
+          {preview.worldChanges === 1 ? "is" : "are"} made again on the story as it then stands, while the story goes on.
         </p>
       )}
       {replay === undefined && <p className="muted">“Duplicate from here” keeps this story and carries on in a new Save instead.</p>}

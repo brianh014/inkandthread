@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { saveStore } from "../src/save-store";
 import { ContentRefused } from "../src/turn-engine";
+import { worldBuilds } from "../src/world-builds";
 import { logOf, narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -10,7 +11,7 @@ let savesDir: string;
 let app: ReturnType<typeof startApp>;
 let prompts: ReturnType<typeof scriptedTextProvider>["prompts"];
 
-const play = (...replies: (string | Error)[]) => {
+const play = (...replies: (string | Error | Promise<string>)[]) => {
   const script = scriptedTextProvider(...replies);
   app = startApp(savesDir, script.textProvider);
   prompts = script.prompts;
@@ -235,6 +236,114 @@ test("a failed Regenerate keeps the world it would have replaced", async () => {
 
   const id = await saveWorld(body.id);
   expect(saveStore(savesDir).latestState(id).worldRules).toEqual(["Magic does not exist."]);
+});
+
+/** A world reply held back until `finish`, as a slow model's is. */
+const slowWorld = () => {
+  let finish = (_reply: string) => {};
+  const reply = new Promise<string>((resolve) => (finish = resolve));
+  return { reply, finish };
+};
+
+/** Until the build has asked for the world, after the PC's sheet. */
+const worldAsked = async () => {
+  while (prompts.length < 2) await Bun.sleep(1);
+};
+
+const buildOf = (build: string) => fetch(app.url(`/worlds/form-1/builds/${build}`));
+const cancel = (build: string) => fetch(app.url(`/worlds/form-1/builds/${build}`), { method: "DELETE" });
+
+test("a named build is answered at once, and the same one asked for again is never built twice", async () => {
+  const world = slowWorld();
+  play(sheet, world.reply);
+  const body = { ...choices, id: "form-1", build: "build-1" };
+  expect((await app.post("/worlds", body)).status).toBe(202);
+  await worldAsked();
+  expect((await app.post("/worlds", body)).status).toBe(202);
+  expect(await (await buildOf("build-1")).json()).toEqual({ running: true });
+  expect((await buildOf("build-2")).status).toBe(404);
+
+  world.finish(generated());
+  while ((await (await buildOf("build-1")).json()).running) await Bun.sleep(1);
+
+  expect(await (await buildOf("build-1")).json()).toEqual({ overview: "Rain never stops in Saltmere." });
+  expect(prompts).toHaveLength(2);
+  expect((await app.post("/worlds/form-1/begin", { artStyle: "Ink" })).status).toBe(201);
+});
+
+test("a build that failed answers with its failure when asked", async () => {
+  play(sheet, new ContentRefused());
+  await app.post("/worlds", { ...choices, id: "form-1", build: "build-1" });
+  await worldAsked();
+  await Bun.sleep(5);
+  expect((await buildOf("build-1")).status).toBe(422);
+});
+
+test("a cancelled build stores no world, even once its reply comes in, and its late cancel can't stop the next", async () => {
+  const world = slowWorld();
+  play(sheet, world.reply, sheet, generated());
+  const sent = app.post("/worlds", { ...choices, id: "form-1", build: "build-1" });
+  await worldAsked();
+  await sent;
+
+  expect((await cancel("build-1")).status).toBe(200);
+  world.finish(generated());
+  await Bun.sleep(5);
+  expect((await app.post("/worlds/form-1/begin", { artStyle: "Ink" })).status).toBe(404);
+
+  await app.post("/worlds", { ...choices, id: "form-1", build: "build-2" });
+  await cancel("build-1");
+  while ((await (await buildOf("build-2")).json()).running) await Bun.sleep(1);
+  expect((await app.post("/worlds/form-1/begin", { artStyle: "Ink" })).status).toBe(201);
+});
+
+test("a rebuild cancelled once done, before its page heard, puts back the world the page still shows", async () => {
+  play(sheet, generated(), generated("New "));
+  await app.post("/worlds", { ...choices, id: "form-1" });
+  await app.post("/worlds/form-1/regenerate", { ...choices, build: "build-2" });
+  while ((await (await buildOf("build-2")).json()).running) await Bun.sleep(1);
+
+  await cancel("build-2");
+
+  const id = await saveWorld("form-1");
+  expect(saveStore(savesDir).latestState(id).plotThreads).toEqual(["The mayor is a drowned ghost."]);
+});
+
+test("a cancel that overtakes its build keeps it from being built", async () => {
+  play();
+  await cancel("build-1");
+  await app.post("/worlds", { ...choices, id: "form-1", build: "build-1" });
+  await Bun.sleep(5);
+  expect(prompts).toHaveLength(0);
+});
+
+test("Begin stops a rebuild still going, so it draws nothing for a world left behind", async () => {
+  const world = slowWorld();
+  play(sheet, generated(), world.reply);
+  const { body } = await generate();
+  await app.post(`/worlds/${body.id}/regenerate`, { ...choices, build: "build-2" });
+  while (prompts.length < 3) await Bun.sleep(1);
+
+  const log = await logOf(async () => {
+    expect((await app.post(`/worlds/${body.id}/begin`, { artStyle: "Ink" })).status).toBe(201);
+    world.finish(generated("New "));
+    await Bun.sleep(20);
+  });
+
+  expect(log).toContain('"outcome":"stopped"');
+  expect((await app.post(`/worlds/${body.id}/begin`, { artStyle: "Ink" })).status).toBe(404);
+});
+
+test("builds are busy until the last one ends, so the app won't quit on one", async () => {
+  const builds = worldBuilds();
+  const world = slowWorld();
+  expect(builds.busy()).toBe(false);
+  const { done } = builds.start("form-1", "build-1", () => world.reply);
+  expect(builds.busy()).toBe(true);
+  world.finish("Overview");
+  await done;
+  await Bun.sleep(0);
+  expect(builds.busy()).toBe(false);
 });
 
 test("a world that is not held can't be regenerated", async () => {

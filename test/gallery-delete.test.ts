@@ -259,7 +259,7 @@ test("a Revert doesn't bring a deleted image back", async () => {
   await playTurn(id);
   await remove(id, find(gallery, "The ferry"));
 
-  expect(await app.get(`/saves/${id}/messages/2/revert`).then((r) => r.json())).toEqual({ messages: 2, images: 1, portraits: 0 });
+  expect(await app.get(`/saves/${id}/messages/2/revert`).then((r) => r.json())).toEqual({ messages: 2, images: 1, portraits: 0, worldChanges: 0 });
   await app.post(`/saves/${id}/messages/2/revert`, {});
 
   expect(labels(await galleryOf(id))).toEqual(["Ash"]);

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { type Check, CheckRequest, type Dice, resolveCheck } from "./check-resolver";
-import { type ImagePipeline, movedScene, portraitsDue, restyledBy, type Scene } from "./image-pipeline";
+import { type ImagePipeline, movedScene, passingLooks, portraitsDue, restyledBy, type Scene } from "./image-pipeline";
 import { promptStyle } from "./graph-builder";
 import { withArtStyleFor } from "./web/art-styles";
 import { errorFields, errorType, log } from "./logger";
@@ -53,6 +53,8 @@ import { threadPeople } from "./thread-people";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
 const moving = new Map<string, Promise<void>>();
+// What stops each one, as a Revert takes away the reply it was made from.
+const movers = new Map<string, AbortController>();
 
 /** The token counts and cost a server reports for one reply, in the OpenAI shape. OpenRouter adds `cost`. */
 export type TextUsage = {
@@ -610,6 +612,31 @@ export async function worldMoved(id: string, signal: AbortSignal) {
   signal.throwIfAborted();
 }
 
+/** Stops the Save's move of the world still running, as it could only fail once its reply is reverted, and the next Turn would wait for it. */
+export function stopMoves(id: string) {
+  const mover = movers.get(id);
+  if (!mover) return;
+  mover.abort();
+  // Not waited for even while it stops, as it can write nothing: what it was made from is gone.
+  moving.delete(id);
+  // Taken as made when it began, so the next Turn makes it instead.
+  moveSoon(id);
+  log.info("world", "World Moves On stopped", { save: id, reason: "reverted" });
+}
+
+/**
+ * Runs `work` after the Save's moves of the world, and holds the next Turn until it's done, as World Moves On does. Never
+ * throws, as nothing awaits it but that Turn.
+ */
+export function afterMoves(id: string, work: () => Promise<void>) {
+  const move: Promise<void> = (moving.get(id) ?? Promise.resolve())
+    .then(work)
+    .catch(() => undefined)
+    .finally(() => moving.get(id) === move && moving.delete(id));
+  moving.set(id, move);
+  return move;
+}
+
 /** Logs once a committed reply's pictures and any World Moves On are done, with each follow-up's time. Never throws, as the Turn is saved. */
 function followedUp(id: string, kind: string, images: ImagePipeline, times: FollowUpTimes) {
   const from = Date.now();
@@ -729,7 +756,9 @@ export async function playTurn(
   if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies + 1)) {
     // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
     // Lore and the folds beside the move, by the Scribe, as Upkeep is, so the next Turn waits on them all at most one MOVE_LIMIT, never one after the other.
-    const limit = AbortSignal.timeout(MOVE_LIMIT.ms);
+    const mover = new AbortController();
+    movers.set(id, mover);
+    const limit = AbortSignal.any([mover.signal, AbortSignal.timeout(MOVE_LIMIT.ms)]);
     // Settled both, as a move that threw let the next Turn start while the Lore was still being written, which then came too late.
     const move = Promise.allSettled([
       moveWorldOn(textProvider, settings, saves, id, limit),
@@ -738,7 +767,9 @@ export async function playTurn(
       reviewProvider && closeLooseEnds(reviewProvider, saves, id, limit),
     ])
       .then(() => undefined)
-      .finally(() => moving.delete(id));
+      .finally(() => movers.get(id) === mover && movers.delete(id))
+      // Only its own, as work queued after it, such as World Changes made again after a Revert, must still be waited for.
+      .finally(() => moving.get(id) === move && moving.delete(id));
     moving.set(id, move);
   }
   followedUp(id, kind, images, times);
@@ -1241,7 +1272,9 @@ async function narrate(
             next,
             [...narration.matchAll(/^\[([^[\]]+)\]:/gm)].map(([, speaker]) => speaker!.trim()),
           );
-          restyled = restyledBy(state, next);
+          restyled = restyledBy(state, next, [...state_operations, ...(upkept ?? [])]);
+          const passing = passingLooks([...state_operations, ...(upkept ?? [])]).size;
+          if (passing > 0) log.info("images", "Portraits left for a passing change", { count: passing });
           return next;
         },
         forThePc(offered, pcName),

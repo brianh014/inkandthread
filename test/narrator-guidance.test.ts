@@ -155,7 +155,7 @@ test("the Narrator stops when someone waits on the PC, and that rule leaves the 
   await playTurn(id);
 
   expect(lastSystem()).toContain("End the reply there");
-  expect(lastSystem()).toContain("the PC's time passes only when the player says so");
+  expect(lastSystem()).toContain("hours pass for the PC only when the player says so");
   expect(prompts.at(-1)![0]!.content).not.toContain("End the reply there");
 });
 
@@ -171,13 +171,16 @@ test("the rules every story needs are built in, near the reply, so Model Instruc
     "Their goals are their own and can conflict with the PC's",
     "Avoid melodrama, cliché and overused metaphors",
     "rather than participle phrases",
-    "Vary the length and structure of your sentences",
     "Never use em-dashes",
+    "carry a routine step of what the player said",
+    "in narration and speech alike, never against something nobody in the scene supposed",
   ]) {
     expect(lastSystem()).toContain(rule);
     expect(prompts.at(-1)![0]!.content).not.toContain(rule);
   }
   expect(prompts.at(-1)![0]!.content).toContain("Where the PC is somewhere a Plot Thread's now would show, it shows in passing");
+  // As a PC whose form listed no outfit wore nothing in the state, so undressing changed nothing and their portrait never updated.
+  expect(prompts.at(-1)![0]!.content).toContain("When the inventory lists nothing the PC wears while they have clothes on, add what they have on");
 });
 
 test("the pace of a reply, then what's true right now, are the last things the Narrator reads before the player's words", async () => {
@@ -186,12 +189,29 @@ test("the pace of a reply, then what's true right now, are the last things the N
 
   await playTurn(id);
 
-  expect(lastSystem()).toMatch(
-    /never carry it through to its end in one reply\.\nRight now, from the current state: \{"inventory":.*"scene":.*"storyTime":.*\}$/,
-  );
+  expect(lastSystem()).toMatch(/from looks_in_view below\.\nRight now, from the current state: \{"inventory":.*"scene":.*"looks_in_view":.*"storyTime":.*\}$/);
   expect(lastSystem()).not.toMatch(/Current state[^\n]*"inventory"/);
   expect(lastSystem()).toContain("never over 350");
   expect(prompts.at(-1)!.at(-1)!.role).toBe("user");
+});
+
+// As looks read far back with everyone's went unshown: a colleague in only shoes and a sit-cloth was never mentioned.
+test("the looks of everyone in view come last, beside the line to show how someone first seen looks", async () => {
+  play(
+    summed(
+      "Ash met Hesper.",
+      { op: "add_npc", name: "Hesper", appearance: "a woman in her forties wearing only boots and a sit-cloth" },
+      { op: "set_scene", location: "The docks", visible_cast: ["Hesper"] },
+    ),
+    summed("Ash waited."),
+  );
+  const id = await app.createSave();
+  await playTurn(id);
+
+  await playTurn(id);
+
+  expect(lastSystem()).toContain('"looks_in_view":{"Hesper":"a woman in her forties wearing only boots and a sit-cloth"}');
+  expect(lastSystem()).toContain("When the PC first sees someone, show how they look, from looks_in_view below.");
 });
 
 test("a reply is held to one thing for the PC to answer, in numbers the Narrator can count", async () => {
@@ -200,7 +220,7 @@ test("a reply is held to one thing for the PC to answer, in numbers the Narrator
 
   await playTurn(id);
 
-  expect(lastSystem()).toContain("Each person speaks once in a reply, and no one speaks more than three times.");
+  expect(lastSystem()).toContain("A reply holds a few spoken lines, no one's more than three.");
   expect(lastSystem()).toContain("at most one thing for the PC to answer");
 });
 
@@ -210,13 +230,11 @@ test("no one echoes the PC, re-argues a case the PC turned down, or ends most re
 
   await playTurn(id);
 
-  expect(lastSystem()).toContain("no one opens by echoing what the PC just said");
+  expect(lastSystem()).toContain("Never repeat the player's words back, in the narration, as a line for the PC or in anyone's answer");
   // Nor a line the replies above already gave, word for word, as a confession was told again to a newcomer as it was.
-  expect(lastSystem()).toContain("never have anyone say again word for word what was said in them");
-  expect(lastSystem()).toContain("that person doesn't raise it again unless something new gives them reason");
-  expect(lastSystem()).toContain("once the PC has said there's time, no one asks how long is left or counts it down");
-  expect(lastSystem()).toContain("they don't all argue for the same view");
-  expect(lastSystem()).toContain("few replies should end on a choice between two things");
+  expect(lastSystem()).toContain("Don't reuse the images, gestures, questions or lines of the replies above");
+  expect(lastSystem()).toContain("let rest what the PC has answered, refused, put off or ended, until something new in the story gives them reason");
+  expect(lastSystem()).toContain("most replies end on something other than a question or a choice between two things");
   expect(
     prompts
       .at(-1)!

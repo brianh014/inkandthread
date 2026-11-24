@@ -336,11 +336,11 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <ul>
           <li>
             {tool(RevertIcon, "Revert to here")}: go back to that Message and delete everything after it, for good. Revert to your own words and the AI answers
-            them again.
+            them again. What you told the Narrator to change after that Message is kept: it's made again on the story as it then stands.
           </li>
           <li>
             {tool(EditIcon, "Edit and replay from here")} (on your own Messages): change what you wrote and play the story again from there. Everything after it
-            goes.
+            goes, apart from what you told the Narrator to change, which is made again as Revert does.
           </li>
           <li>
             {tool(DuplicateIcon, "Duplicate from here")}: keep this story as it is, and carry on from that Message in a new Save. This is how you try another
@@ -414,7 +414,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           </li>
           <li>
             <b>Portraits</b> of each person your PC meets, and of your PC. With <b>Update portraits as the story goes</b> on, a portrait is redrawn when
-            someone's look changes, keeping their face.
+            someone's look changes in a way that lasts, such as new clothes or a haircut, keeping their face.
           </li>
           <li>
             <b>Pictures you ask for</b> with Draw a picture.

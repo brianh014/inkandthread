@@ -281,7 +281,7 @@ export const updateImage = (id: string, { kind, ref }: GalleryImage, nudge = "")
 export const deleteImage = (id: string, { kind, ref }: GalleryImage) => request<object>(`/saves/${id}/gallery/delete`, jsonBody({ kind, ref }));
 
 /** Answers only once the image is done. */
-export const getHeldImage = (id: string, picture: HeldPicture) => request<HeldImage>(`/worlds/${id}/${picture}/details`);
+export const getHeldImage = (id: string, picture: HeldPicture, signal: AbortSignal) => request<HeldImage>(`/worlds/${id}/${picture}/details`, { signal });
 
 export const redrawHeldImage = (id: string, picture: HeldPicture, prompt: string) => request<object>(`/worlds/${id}/${picture}`, jsonBody({ prompt }));
 
@@ -314,16 +314,71 @@ export const portraitUrl = (id: string, { id: portraitId, redraws }: Pick<Portra
 
 export const statusWords = ({ health, injuries, conditions }: Status) => [health, ...injuries, ...conditions].join(", ");
 
-/** `id` is the one this form's images are held under, if it has one yet. */
-export const generateWorld = (world: WorldChoices & WorldPc & { id?: string }, signal?: AbortSignal) =>
-  request<{ id: string; overview: string }>("/worlds", { ...jsonBody(world), signal });
+/** The app couldn't be reached, which says nothing of what it was doing: that may still be going. */
+export class Unreachable extends Error {}
+
+// A request this slow to answer at once has been lost without failing, as a phone's can be while it sleeps.
+const LOST_MS = 30_000;
+
+/**
+ * A world build, which goes on without this page: `begin` asks for it, and the page then asks how it went until it's done,
+ * through a lost connection. `begin` is safe to send again, as the server knows `build`, the build's own id. A cancel stops
+ * it on the server too.
+ */
+async function awaitBuild(id: string, build: string, begin: ((signal: AbortSignal) => Promise<unknown>) | undefined, cancel?: AbortSignal) {
+  const path = `/worlds/${id}/builds/${build}`;
+  const soon = () => AbortSignal.any([AbortSignal.timeout(LOST_MS), ...(cancel ? [cancel] : [])]);
+  let wake = () => {};
+  const stop = () => {
+    void fetch(path, { method: "DELETE", keepalive: true }).catch(() => {});
+    wake();
+  };
+  cancel?.addEventListener("abort", stop, { once: true });
+  let asked = !begin;
+  try {
+    for (let misses = 0; misses < turnPolling.tries; ) {
+      try {
+        if (!asked) await begin!(soon());
+        asked = true;
+        const { overview } = await request<{ overview?: string }>(path, { signal: soon() });
+        if (overview !== undefined) return { overview };
+        misses = 0;
+      } catch (failure) {
+        // An answer from the server is the build's own failure. Only a connection lost is waited out.
+        const lost = failure instanceof TypeError || (failure as Error).name === "TimeoutError";
+        if (cancel?.aborted || !lost) throw failure;
+        misses++;
+      }
+      await new Promise<void>((resolve) => {
+        wake = resolve;
+        setTimeout(resolve, turnPolling.everyMs);
+      });
+      cancel?.throwIfAborted();
+    }
+  } finally {
+    // The screen's own leaving aborts it too, and by then a finished build has nothing to stop.
+    cancel?.removeEventListener("abort", stop);
+  }
+  reportEvent("polling-gave-up", { misses: turnPolling.tries });
+  throw new Unreachable("Ink & Thread can't be reached. Make sure it's still running, then reload this page.");
+}
+
+/** `id` is the one this form's images are held under, and `build` a new one for each build. */
+export const generateWorld = (world: WorldChoices & WorldPc & { id: string }, build: string, cancel?: AbortSignal) =>
+  awaitBuild(world.id, build, (signal) => request("/worlds", { ...jsonBody({ ...world, build }), signal }), cancel);
+
+export const regenerateWorld = (id: string, choices: WorldChoices, build: string, cancel?: AbortSignal) =>
+  awaitBuild(id, build, (signal) => request(`/worlds/${id}/regenerate`, { ...jsonBody({ ...choices, build }), signal }), cancel);
+
+/** Picks up a build this page no longer holds, after a reload. */
+export function resumeBuild(id: string, build: string, cancel: AbortSignal) {
+  reportEvent("world-build-picked-up");
+  return awaitBuild(id, build, undefined, cancel);
+}
 
 /** Makes the Save from the world held under `id`, with its images. */
 export const beginStory = (id: string, artStyle: string, signal?: AbortSignal) =>
   request<{ id: string }>(`/worlds/${id}/begin`, { ...jsonBody({ artStyle }), signal });
-
-export const regenerateWorld = (id: string, choices: WorldChoices, signal?: AbortSignal) =>
-  request<{ overview: string }>(`/worlds/${id}/regenerate`, { ...jsonBody(choices), signal });
 
 /** Writes the empty boxes of the form. Leave out a box that shouldn't be written. */
 export const pickForMe = (theme: string, form: Partial<Record<WorldField, string>> & { pc: PcDraft }, signal?: AbortSignal) =>
@@ -350,9 +405,10 @@ export const closeChapter = (id: string) => request<object>(`/saves/${id}/chapte
 export const tellNarrator = (id: string, change: string) => request<object>(`/saves/${id}/world-change`, jsonBody({ change }));
 
 export const previewRevert = (id: string, messageId: number) =>
-  request<{ messages: number; images: number; portraits: number }>(`/saves/${id}/messages/${messageId}/revert`);
+  request<{ messages: number; images: number; portraits: number; worldChanges: number }>(`/saves/${id}/messages/${messageId}/revert`);
 
-export const revert = (id: string, messageId: number) => request<object>(`/saves/${id}/messages/${messageId}/revert`, jsonBody({}));
+/** `remaking` counts the World Changes after it being made again, which the next Turn waits for. */
+export const revert = (id: string, messageId: number) => request<{ remaking: number }>(`/saves/${id}/messages/${messageId}/revert`, jsonBody({}));
 
 export const duplicateSave = (id: string) => request<{ id: string }>(`/saves/${id}/duplicate`, jsonBody({}));
 
@@ -400,6 +456,9 @@ export async function stopTurn(id: string) {
 
 /** The state of a Turn on the server, which goes on without this page. Reading a failure takes it. */
 export const getTurn = (id: string) => request<TurnStatus>(`/saves/${id}/turn`);
+
+/** `remaking` while a Revert makes World Changes again, and `unmade` how many it couldn't, told once. */
+export const getRemakes = (id: string, signal: AbortSignal) => request<{ remaking?: boolean; unmade?: number }>(`/saves/${id}/remakes`, { signal });
 
 // About as long as a phone takes to find its network again after being woken. An object so that tests can shorten it.
 export const turnPolling = { everyMs: 1000, tries: 30 };

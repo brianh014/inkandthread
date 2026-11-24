@@ -429,8 +429,14 @@ test("Revert counts and deletes the images after its Message, and keeps those be
   await playTurn(id);
   await settled(id);
 
-  expect(await app.get(`/saves/${id}/messages/2/revert`).then((r) => r.json())).toEqual({ messages: 2, images: 1, portraits: 0 });
-  expect(await app.post(`/saves/${id}/messages/2/revert`, {}).then((r) => r.json())).toEqual({ messages: 2, images: 1, portraits: 0 });
+  expect(await app.get(`/saves/${id}/messages/2/revert`).then((r) => r.json())).toEqual({ messages: 2, images: 1, portraits: 0, worldChanges: 0 });
+  expect(await app.post(`/saves/${id}/messages/2/revert`, {}).then((r) => r.json())).toEqual({
+    messages: 2,
+    images: 1,
+    portraits: 0,
+    worldChanges: 0,
+    remaking: 0,
+  });
 
   expect((await imagesOf(id)).images).toEqual([{ messageId: 2, caption: "One", redraws: 0 }]);
   expect((await app.get(`/saves/${id}/messages/4/image`)).status).toBe(404);

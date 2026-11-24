@@ -1,14 +1,18 @@
 import { z } from "zod";
 import { knownPortraits } from "./gallery-routes";
 import { ArtStyleRequest, imageResponse, NoFields, parseBody, routes, type ServerContext, someWords } from "./http";
-import { log } from "./logger";
+import { errorType, log } from "./logger";
+import { WorldChanging } from "./live-turns";
 import { NoteNotFound, StaleTurn } from "./save-store";
 import { VisibleEdit } from "./state-applier";
 import { toneName } from "./tones";
-import { askForChapterTitle, TurnFailed, worldMoved } from "./turn-engine";
+import { afterMoves, askForChapterTitle, stopMoves, TurnFailed, worldMoved } from "./turn-engine";
 import { readable } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 import { NamedPc } from "./world-routes";
+
+// How long a World Change made again after a Revert may take, as it runs on with the tab closed and must still end.
+const REMAKE_MS = 5 * 60_000;
 
 const NewSaveRequest = z.object({
   worldBrief: z.string().min(1),
@@ -213,6 +217,8 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         const edit = await parseBody(req, VisibleEdit);
         const { id } = req.params;
         turns.assertIdle(id);
+        // As a change made again after a Revert is written from the state before the edit, and would undo it.
+        if (turns.isRemaking(id)) throw new WorldChanging();
         const before = edit.edit === "tone" ? saves.read(id).tone : "";
         saves.addEdit(id, edit);
         if (edit.edit === "tone") log.info("saves", "Tone changed", { save: id, from: toneName(before), to: toneName(edit.text) });
@@ -224,6 +230,7 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         const { name, newName } = await parseBody(req, RenameRequest);
         const { id } = req.params;
         turns.assertIdle(id);
+        if (turns.isRemaking(id)) throw new WorldChanging();
         saves.rename(id, name, newName);
         return Response.json({});
       },
@@ -295,14 +302,51 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
       },
     },
 
+    "/saves/:id/remakes": {
+      GET: (req) => Response.json(turns.remakes(req.params.id)),
+    },
     "/saves/:id/messages/:messageId/revert": {
       GET: (req) => Response.json(saves.revertPreview(req.params.id, Number(req.params.messageId))),
       POST: async (req) => {
         await parseBody(req, NoFields);
-        const deleted = saves.revert(req.params.id, Number(req.params.messageId));
-        images.forget(req.params.id, Number(req.params.messageId), "revert");
-        options.usage?.reverted(req.params.id);
-        return Response.json(deleted);
+        const { id } = req.params;
+        const messageId = Number(req.params.messageId);
+        // Refused before anything is deleted while a Turn or change runs, as the World Changes it would make again would be lost,
+        // and while the last Revert's are made, as this one would leave them to fail after their call was paid for.
+        if (turns.isRemaking(id)) throw new WorldChanging();
+        if (saves.revertPreview(id, messageId).worldChanges > 0) turns.assertIdle(id);
+        const { asked, ...deleted } = saves.revert(id, messageId);
+        if (deleted.messages > 0) stopMoves(id);
+        images.forget(id, messageId, "revert");
+        options.usage?.reverted(id);
+        // Once each, as the same words given twice made one change twice, at a minute's wait. The last time they were given, as
+        // a change made, undone and made again must end up made.
+        const changes = asked.filter((change, at) => asked.lastIndexOf(change) === at);
+        if (changes.length > 0) {
+          // After any move of the world, which rewrites the threads a change must see, and before the next Turn, which waits
+          // on them, so the Revert answers at once and the player's words go out again: a wait of a minute was refreshed away.
+          // Made again from the player's words, in order, on the world the Revert went back to, each failure its own, and on
+          // their own signal, as nothing else would keep them if the tab closed.
+          let failed = 0;
+          const made = afterMoves(id, async () => {
+            for (const change of changes) {
+              try {
+                await applyWorldChange(options, saves, images, id, change, AbortSignal.timeout(REMAKE_MS));
+              } catch (error) {
+                failed += 1;
+                log.warning("world", "A World Change failed again after a Revert", {
+                  ...(error instanceof TurnFailed ? { failure: error.failure, message: error.message } : errorType(error)),
+                });
+              }
+            }
+            log.info("world", "World Changes made again after a Revert", { made: changes.length - failed, failed });
+          });
+          turns.remake(
+            id,
+            made.then(() => failed),
+          );
+        }
+        return Response.json({ ...deleted, remaking: changes.length });
       },
     },
   });

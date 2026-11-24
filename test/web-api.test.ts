@@ -13,12 +13,14 @@ import {
   playTurn,
   regenerateWorld,
   replaceResponse,
+  resumeBuild,
   resumeTurn,
   getTurn,
   turnPolling,
   saveArtStyle,
   saveSettings,
   setupProblem,
+  Unreachable,
   GOOGLE_URL,
   NANOGPT_URL,
 } from "../src/web/api";
@@ -363,8 +365,9 @@ test("the wizard's calls carry a world from Pick for me to a Save", async () => 
   const { worldBrief, title, background } = await pickForMe("Steampunk", { title: "", worldBrief: "", pc });
   const choices = { title: title!, theme: "Steampunk", worldBrief: worldBrief!, startingHook: "" };
   const enhanced = await enhance("worldBrief", worldBrief!, choices);
-  const { id: world, overview } = await generateWorld({ ...choices, pc: { name: "Ash" }, inventory: "a coat" });
-  const regenerated = await regenerateWorld(world, choices);
+  const world = "form-1";
+  const { overview } = await generateWorld({ ...choices, id: world, pc: { name: "Ash" }, inventory: "a coat" }, "build-1");
+  const regenerated = await regenerateWorld(world, choices, "build-2");
   const { id } = await beginStory(world, "Ink");
 
   expect(worldBrief).toBe("A city on a whale.");
@@ -378,9 +381,84 @@ test("the wizard's calls carry a world from Pick for me to a Save", async () => 
 test("a failed generation reaches the wizard as an error it can show", async () => {
   start(unreachable("offline"));
 
-  await expect(generateWorld({ title: "Dust", theme: "Western", worldBrief: "Dust", startingHook: "", pc: { name: "Ash" }, inventory: "" })).rejects.toThrow(
-    "The Text Provider request failed",
-  );
+  await expect(
+    generateWorld({ title: "Dust", theme: "Western", worldBrief: "Dust", startingHook: "", id: "form-2", pc: { name: "Ash" }, inventory: "" }, "build-1"),
+  ).rejects.toThrow("The Text Provider request failed");
+});
+
+/** A page's build, whose requests `lose` may fail. Answers with every request it made. */
+function building(lose: (method: string, path: string) => boolean, ...replies: string[]) {
+  let calls = 0;
+  start(async () => replies[calls++] ?? worldReply("A world."));
+  const asked: string[] = [];
+  const send = (fetch as unknown as { getMockImplementation(): typeof fetch }).getMockImplementation();
+  spyOn(globalThis, "fetch").mockImplementation((async (path: string, init?: RequestInit) => {
+    const method = init?.method ?? "GET";
+    asked.push(`${method} ${path}`);
+    const lost = lose(method, path);
+    const response = await send(path, init);
+    if (lost) throw new TypeError("Failed to fetch");
+    return response;
+  }) as typeof fetch);
+  return { asked, calls: () => calls };
+}
+
+const newWorld = { title: "Dust", theme: "Western", worldBrief: "Dust", startingHook: "", id: "form-1", pc: { name: "Ash" }, inventory: "" };
+const sheetReply = JSON.stringify({ wearing: ["coat"], carrying: [], health: "unhurt", injuries: [], conditions: [] });
+
+test("a build whose requests are lost is asked for again, never built twice", async () => {
+  const realEvery = turnPolling.everyMs;
+  turnPolling.everyMs = 1;
+  try {
+    let losses = 3;
+    const { asked, calls } = building(() => losses-- > 0, sheetReply, worldReply("A world."));
+    const leaving = new AbortController();
+    expect(await generateWorld(newWorld, "build-1", leaving.signal)).toEqual({ overview: "A world." });
+    expect(calls()).toBe(2);
+    // As leaving the screen does, which must not cancel a build that's done.
+    leaving.abort();
+    expect(asked.some((request) => request.startsWith("DELETE"))).toBe(false);
+    expect(asked.filter((request) => request === "POST /worlds").length).toBeGreaterThan(1);
+  } finally {
+    turnPolling.everyMs = realEvery;
+  }
+});
+
+test("a build the app can't be asked about is told apart from one that failed", async () => {
+  const realEvery = turnPolling.everyMs;
+  turnPolling.everyMs = 1;
+  try {
+    building((_method, path) => path.includes("/builds/"), sheetReply, worldReply("A world."));
+    await expect(generateWorld(newWorld, "build-1")).rejects.toBeInstanceOf(Unreachable);
+  } finally {
+    turnPolling.everyMs = realEvery;
+  }
+});
+
+test("a reloaded page picks up its build, and cancelling it there stops it on the server", async () => {
+  const realEvery = turnPolling.everyMs;
+  turnPolling.everyMs = 1;
+  try {
+    let finish = (_reply: string) => {};
+    const world = new Promise<string>((resolve) => (finish = resolve));
+    let calls = 0;
+    start(async () => (calls++ === 0 ? sheetReply : world));
+    await app.post("/worlds", { ...newWorld, build: "build-1" });
+    const leaving = new AbortController();
+    const resumed = resumeBuild("form-1", "build-1", leaving.signal);
+    const log = await logOf(async () => {
+      await Bun.sleep(10);
+      leaving.abort();
+      await expect(resumed).rejects.toThrow();
+      await Bun.sleep(10);
+      finish(worldReply("A world."));
+      await Bun.sleep(10);
+    });
+    expect(log).toContain('World build cancelled {"route":"/worlds/:id/builds/:build","world":"form-1","build":"build-1","running":true}');
+    expect(log).toContain('"outcome":"stopped"');
+  } finally {
+    turnPolling.everyMs = realEvery;
+  }
 });
 
 const slowly =

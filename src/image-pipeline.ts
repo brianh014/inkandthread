@@ -4,7 +4,7 @@ import type { ImageAdapter, ImagePayload } from "./image-adapter";
 import { errorType, log } from "./logger";
 import { type ImageTarget, imageType, OPENING_SNAPSHOT, type Pictured, type Save, SaveNotFound, type SaveStore } from "./save-store";
 import type { SettingsStore } from "./settings-store";
-import { findPerson, isBody, named, type State } from "./state-applier";
+import { findPerson, isBody, named, type State, type StateOperation } from "./state-applier";
 import type { PictureAsk } from "./world-creation";
 
 export type ImagePipeline = ReturnType<typeof imagePipeline>;
@@ -79,10 +79,20 @@ export function portraitsDue(before: State, after: State, speakers: string[] = [
   return [...new Set(due)].filter((name) => !dead(name)).flatMap((name) => after.npcs.filter((npc) => npc.name === name));
 }
 
+/** Who of `operations`' looks updates said their portrait needn't change, every update of theirs saying so. */
+export function passingLooks(operations: StateOperation[]) {
+  const updates = operations.flatMap((operation) => (operation.op === "update_npc" ? [operation] : []));
+  return new Set(updates.filter(({ name }) => updates.every((update) => update.name !== name || update.portrait === false)).map(({ name }) => name));
+}
+
 /** Everyone whose looks a Turn changed: an NPC given new looks, and the PC, as null, when what they wear or how they look changed. */
-export function restyledBy(before: State, after: State): (Npc | null)[] {
+export function restyledBy(before: State, after: State, operations: StateOperation[] = []): (Npc | null)[] {
+  // Not one whose every update said its portrait needn't change, as wet hair, a mark or a pose redrew one every Turn.
+  const passing = passingLooks(operations);
   // Only a change a head and shoulders frame shows, as soot to the wrists redrew a portrait that then drew it on the neck.
-  const npcs = after.npcs.filter(({ name, appearance }) => before.npcs.some((npc) => npc.name === name && chestUp(npc.appearance) !== chestUp(appearance)));
+  const npcs = after.npcs.filter(
+    ({ name, appearance }) => !passing.has(name) && before.npcs.some((npc) => npc.name === name && chestUp(npc.appearance) !== chestUp(appearance)),
+  );
   const pc = JSON.stringify(before.inventory.wearing) !== JSON.stringify(after.inventory.wearing) || before.pcAppearance !== after.pcAppearance;
   return [...(pc ? [null] : []), ...npcs];
 }

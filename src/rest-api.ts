@@ -14,6 +14,7 @@ import { turnRoutes } from "./turn-routes";
 import { relaunch, updater } from "./updater";
 import { countedImages, countedText, usageStore } from "./usage-store";
 import spa from "./web/index.html";
+import { worldBuilds } from "./world-builds";
 import { reviewScenePrompt, writePicturePrompt } from "./world-creation";
 import { worldRoutes } from "./world-routes";
 
@@ -22,6 +23,7 @@ const PAGE_EVENTS = {
   "stream-lost": "info",
   "polling-fallback": "verbose",
   "turn-resumed": "info",
+  "world-build-picked-up": "info",
   "polling-gave-up": "warning",
   "narration-restarted": "info",
   "page-error": "error",
@@ -76,6 +78,7 @@ export function startServer(given: ServerOptions) {
   };
   const saves = saveStore(options.savesDir);
   const turns = liveTurns();
+  const builds = worldBuilds();
   try {
     setLogLevel(settings.read().logLevel);
   } catch (error) {
@@ -96,6 +99,9 @@ export function startServer(given: ServerOptions) {
     options.reviewPicture ?? ((description, style, signal) => reviewScenePrompt(options, description, style, signal)),
   );
 
+  // What goes on without the request that started it.
+  const working = () => turns.busy() || images.busy() || builds.busy();
+
   // Requests in flight, a Turn's save among them, finish first.
   // Once the server hands over to a new version, this process only waits on it, so it never quits by itself.
   let restarting = false;
@@ -106,7 +112,7 @@ export function startServer(given: ServerOptions) {
   };
   const updates = updater(options.latestRelease);
 
-  // Pages check in, and the app quits once none has for `idleMs`, after any Turn or picture is done.
+  // Pages check in, and the app quits once none has for `idleMs`, after any Turn, picture or world is done.
   let pageSeen = Date.now();
   if (options.quittable) {
     const { idleMs } = options.quittable;
@@ -117,13 +123,12 @@ export function startServer(given: ServerOptions) {
       // The computer slept, pages and all, so they get the time to check in again.
       if (now - ticked > every * 2) pageSeen = now;
       ticked = now;
-      // A request still running, such as a world being built, would lose its work, so it finishes first.
-      const working = turns.busy() || images.busy() || server.pendingRequests > 0;
-      if (now - pageSeen > idleMs && !working) quit("no page has been open for a while");
+      // A request still running, such as Enhance, would lose its work, so it finishes first.
+      if (now - pageSeen > idleMs && !working() && server.pendingRequests === 0) quit("no page has been open for a while");
     }, every).unref();
   }
 
-  const context: ServerContext = { options, saves, turns, images };
+  const context: ServerContext = { options, saves, turns, images, builds };
 
   const server = Bun.serve({
     hostname: options.hostname ?? "127.0.0.1",
@@ -150,13 +155,13 @@ export function startServer(given: ServerOptions) {
           GET: async (req) => Response.json(await updates.status(UpdateCheck.parse(Object.fromEntries(new URL(req.url).searchParams)).fresh === "1")),
           POST: async (req) => {
             await parseBody(req, NoFields);
-            if (turns.busy() || images.busy()) return Response.json({ error: "Wait for the story and its pictures to finish, then update." }, { status: 409 });
+            if (working()) return Response.json({ error: "Wait for the story, its pictures and any new world to finish, then update." }, { status: 409 });
             const installed = await updates.install();
             restarting = true;
             void (async () => {
-              // A Turn or picture begun during the download finishes first, as stopping the server doesn't wait for them.
+              // A Turn, picture or world begun during the download finishes first, as stopping the server doesn't wait for them.
               // shortcut: new work can still start while this waits; refuse it with a 503 if players hit that.
-              while (turns.busy() || images.busy()) await Bun.sleep(1000);
+              while (working()) await Bun.sleep(1000);
               await server.stop();
               await relaunch();
             })();

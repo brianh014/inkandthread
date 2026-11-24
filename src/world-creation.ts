@@ -624,17 +624,17 @@ const worldPrompt = (context: Context, choices: WorldChoices, given: WorldPc, sp
     role: "system",
     content: `You are the Narrator of a story, creating its world before play begins. ${CHOICES_ARE_DATA}
 Build the world from the theme, title and world_brief. If there is a starting_hook, make sure the world can open with it. important_characters are people the player wants in the story, and they are canon: give each a lore entry of their own, and weave them into the world and plot threads.
-pc and inventory are the player's PC and what they start with. ${PC_IS_CANON} The PC belongs in this world from the start. If anything about them conflicts with the theme or world_brief, the world changes and the PC does not. Change only what the conflict needs, and keep the theme and tone. For example, a wizard who throws fireballs in a strict modern-day world means magic exists there.
+pc and inventory are the player's PC and what they start with. ${PC_IS_CANON} The PC belongs in this world from the start, unless the player's choices bring them from elsewhere. If anything about them conflicts with the theme or world_brief, the world changes and the PC does not. Change only what the conflict needs, and keep the theme and tone. For example, a wizard who throws fireballs in a strict modern-day world means magic exists there.
 Reply only with JSON matching this schema, with its keys in the same order: ${JSON.stringify(jsonSchemaOf(WorldReply))}
 naming says in a sentence or two how people here name people and places and how those names sound. Give every name in the world by it, and in play new names will follow it too.
 lore_entries is the World Bible, which is secret. Write at least twelve entries covering places, factions, people, history and how the world works. Each must make sense on its own, because in play you only see the entries a recent Message activates. Give each at least three keywords, including names, nicknames and everyday paraphrases, so that a player's wording still activates it.
-world_rules are strict statements of what is and is not possible in this world. Start with its theme and tone${choices.tone ? ", taking the tone from tone, and build a world it fits" : ""}, because you will see these on every Turn and nothing else carries them.
+world_rules are strict statements of what is and is not possible in this world. Start with its theme and tone${choices.tone ? ", taking the tone from tone, and build a world it fits" : ""}, because you will see these on every Turn and nothing else carries them. If the player's choices bring anyone from elsewhere, one rule says who, as the starting_hook is not seen again once the story is under way.
 plot_threads are secret storylines for play to reveal. Write three to six.
 ${STORY_CRAFT}
 ${sparksLine(sparks)}
 ${SHORT_LINES}
 calendar says in two or three sentences how people in this world count days, months and years, with the names they use, so that dates stay consistent in play. start_date and start_time_of_day are when the story opens, in that calendar, as the PC would reckon them, such as "3rd of Frostmoon, 412 AR" and "late evening". Make them fit the starting_hook, if there is one.
-world_overview is the only part the player ever reads. In a few short paragraphs, cover only what the PC would plausibly know from living in this world. It must be spoiler-free: never reveal or hint at a plot thread, and leave out every secret in the lore entries.
+world_overview is the only part the player ever reads. In a few short paragraphs, cover only what the PC would plausibly know as the story opens. It must be spoiler-free: never reveal or hint at a plot thread, and leave out every secret in the lore entries.
 ${modelInstructions(context)}`,
   },
   playerChoices(worldChoicesData(choices, given)),
@@ -656,6 +656,10 @@ const ABOUT: Record<EnhanceField, string> = {
   inventory:
     'what the PC is wearing and carrying: only the items, each in a few words, as a list such as "oilskin coat, canvas trousers, folding knife, coil of rope", never prose, history or anything about the PC',
 };
+
+// The form shows every box side by side and the world is built from all of them, so a box restating another's people or facts is only repetition.
+const OWN_PART =
+  "Each box holds only its own part: add nothing another box already says, such as the PC or another character in a box about the world, and bring in someone from another box only where this box's part needs them.";
 
 /**
  * The empty boxes of the whole form, the only ones in the reply. A box left out, like the Starting Hook when it's off, stays unwritten.
@@ -688,7 +692,7 @@ export async function pickForMe(
     {
       role: "system",
       content: `You are the Narrator of a story, helping a player set up its world and their PC. ${CHOICES_ARE_DATA}
-Write what's missing, fresh and specific, fitting the theme and agreeing with everything the player already wrote. Reply only with JSON matching this schema, which holds only the empty fields: ${JSON.stringify(jsonSchemaOf(reply))}
+Write what's missing, fresh and specific, fitting the theme and agreeing with everything the player already wrote. ${OWN_PART} Reply only with JSON matching this schema, which holds only the empty fields: ${JSON.stringify(jsonSchemaOf(reply))}
 ${empty.map((field) => `${field} is ${ABOUT[field]}${WORD_LIMITS[field] ? `, in at most ${WORD_LIMITS[field]} words` : ""}${field === "inventory" ? ", about four to eight items that suit the world and their background" : ""}.`).join(" ")}
 ${Object.keys(sparks).length ? `${sparksLine(sparks)}\n` : ""}${modelInstructions(context)}`,
     },
@@ -772,7 +776,7 @@ export async function enhance(
     {
       role: "system",
       content: `You are the Narrator of a story, helping a player who has a general idea. ${CHOICES_ARE_DATA}
-${task}${limit}${most} Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(byEdits ? EditsReply : reply))}
+${task}${limit}${most}${isName || field === "title" ? "" : ` ${OWN_PART}`} Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(byEdits ? EditsReply : reply))}
 ${modelInstructions(context)}`,
     },
     playerChoices({ ...(idea && { idea }), ...(change && { change }), ...choices }),
@@ -1062,7 +1066,8 @@ ${edit ? EDIT_RULE : pictureRules(kind, style, words)}${face && !edit ? FACE_ONL
 Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))}
 ${imageInstructions(context)}`,
     },
-    playerChoices(details),
+    // No world in an edit, as looks says what they wear now, and a world whose people wear little undressed someone looks had dressed.
+    playerChoices(edit ? { ...details, world: undefined } : details),
   ];
   try {
     const call = `${ask.kind}Prompt`;
@@ -1196,7 +1201,7 @@ function withoutStrangers<T extends z.infer<typeof WorldChange>>(state: State, c
 /** How a World Change is written, for the Narrator that writes one and the review that corrects it. */
 const CHANGE_FORM = `List only what changes, as everything you leave out stays exactly as it is, and never repeat what stays the same.
 lore_entries holds each entry you add or rewrite. To rewrite one, use its exact title and give its whole new content and keywords. Give each at least three keywords, including names, nicknames and everyday paraphrases. removed_lore holds the exact title of each entry that no longer holds.
-Each change in world_rules, plot_threads and facts has old, copied exactly from the world (a thread's truth) or null to add a new one, and new, the text to put there or null to remove it. A thread's new is its truth alone: give a thread you add or rewrite its now and plan apart, as the world shows them, with plan_in_hours, how many story hours after story_time its plan falls due, and null otherwise. Keep at most ${MAX_PLOT_THREADS} plot_threads, so to add one when that many are there, rewrite or remove one.
+world_rules are strict and read on every Turn, so put in one only what the instruction itself says, in a sentence or two, and any detail or custom that follows from it in lore_entries. Each change in world_rules, plot_threads and facts has old, copied exactly from the world (a thread's truth) or null to add a new one, and new, the text to put there or null to remove it. A thread's new is its truth alone: give a thread you add or rewrite its now and plan apart, as the world shows them, with plan_in_hours, how many story hours after story_time its plan falls due, and null otherwise. Keep at most ${MAX_PLOT_THREADS} plot_threads, so to add one when that many are there, rewrite or remove one.
 world_brief, summary, facts and npc_summaries are the Journal, which the player reads. Change them only where they no longer hold, and give null or an empty list otherwise. Write them as the PC knows the world: a secret, and news of anything the PC hasn't seen or been told, stays out of them, even when the player's instruction names it, and goes in the hidden parts, such as a thread's now, for the story to bring to the PC. Each of npc_summaries holds a new summary with the exact name of an NPC already in the Journal.
 inventory and status are what the PC wears and carries, and their health, injuries and conditions, which the player also reads. Give the whole new inventory or status only when the instruction changes it, keeping everything it doesn't change, and null otherwise. Write status in words with no digits: health in at most five words, and at most three injuries and three conditions of at most eight words each.
 npc_looks holds new looks only for each NPC whose looks or clothing the instruction changes, with their exact name from npcs, ${LOOKS}. These are hidden, and they are what pictures of that NPC are drawn from.
@@ -1405,7 +1410,10 @@ export async function applyWorldChange(
         : [],
     ),
   );
-  saves.addWorldChange(id, basedOn, [...made, { edit: "world", update, now: by("now"), plan: by("plan"), due, made: made.length, ...(sign && { sign }) }]);
+  saves.addWorldChange(id, basedOn, [
+    ...made,
+    { edit: "world", update, now: by("now"), plan: by("plan"), due, made: made.length, ...(sign && { sign }), ...(!settles && { asked: change }) },
+  ]);
   const after = stateOf();
   images.restyled(id, restyledBy(before, after), after.inventory.wearing);
   log.info("world", "World Change applied", () => ({

@@ -41,6 +41,16 @@ test("an everyday word the secrets happen to hold isn't taken for something the 
   expect(unknownWords(choices, secret, "Tamsin rides ahead.")).toEqual([[], [], ["chimney"]]);
 });
 
+test("a common word of plain English, in any of its forms, isn't taken for a secret, but a thing someone could hide still is", () => {
+  const secret = { ...state, plotThreads: ["Ossery recorded the changes in his office, running exactly to plan, and bypassed the sexton's ledger."] };
+  const choices = ["I ask what changes were recorded.", "I go running to the office.", "I say exactly who bypassed it.", "I ask the sexton."];
+  expect(unknownWords(choices, secret, "Tamsin rides ahead.")).toEqual([[], [], [], ["sexton"]]);
+  // Its stem is no common word's, and a place can be what's hidden.
+  const hiding = { ...state, plotThreads: ["The letter lies in a folder in the basement."] };
+  const asked = ["I ask about the letter.", "I look for a folder.", "I search the basement."];
+  expect(unknownWords(asked, hiding, "Tamsin rides ahead.")).toEqual([["letter"], ["folder"], ["basement"]]);
+});
+
 test("a Choice copying four words in a row from the secrets is caught, unless the player has read them too or they are all everyday words", () => {
   const secret = { ...state, plotThreads: ["Nobody can yet tell whose side the lie falls on, as it is not so simple."] };
   const choices = ["I find out whose side the lie falls on.", "I ask Tamsin whose side she is on.", "I tell her it is not so."];

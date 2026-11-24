@@ -446,8 +446,8 @@ test("the last instruction asks for fresh prose, natural speech and none of the 
   const prompt = promptFor();
 
   expect(prompt.indexOf("Keep the prose fresh")).toBeGreaterThan(prompt.indexOf("world_rules:"));
-  expect(prompt).toContain("contractions");
-  expect(prompt).toContain("never on a background sound or passing detail");
+  expect(prompt).toContain("Give each person their own voice, speaking naturally");
+  expect(prompt).toContain("end on what a person in the scene does, says or now faces");
   expect(prompt).toContain("Never repeat the player's words back");
 });
 
@@ -476,6 +476,53 @@ test("the first Turn is sent the Lore Entries its Starting Hook names, so the op
 
   expect(promptWith([])).toContain("A tall woman with a shaved head.");
   expect(promptWith([{ role: "narrator", text: "The road is long." }])).not.toContain("A tall woman with a shaved head.");
+});
+
+test("the first Turn is sent the player's own words on each Important Character its Starting Hook names, and no later Turn is", () => {
+  const promptWith = (messages: unknown[]) =>
+    textOfPrompt(
+      assemblePrompt({
+        save: {
+          worldBrief: "",
+          pc: { name: "Ash" },
+          startingHook: "Ash rides out with Mora.",
+          importantCharacters: [
+            { name: "Mora Vane", description: "She wears a blue V-neck shirt." },
+            { name: "Tamsin", description: "A ferry pilot." },
+          ],
+        } as never,
+        state: withState({}),
+        messages: messages as never,
+        modelInstructions: "",
+        input: "Begin the story.",
+        responseSchema: "{}",
+        promptStyle: null,
+      }),
+    );
+
+  expect(promptWith([])).toContain('"people":[{"name":"Mora Vane","description":"She wears a blue V-neck shirt."}]');
+  expect(promptWith([])).not.toContain("A ferry pilot.");
+  expect(promptWith([{ role: "narrator", text: "The road is long." }])).not.toContain("blue V-neck");
+});
+
+test("the Starting Hook goes on being sent while it plays out, as the opening stops before all of it has happened", () => {
+  const promptAfter = (replies: number) =>
+    textOfPrompt(
+      assemblePrompt({
+        save: { worldBrief: "", pc: { name: "Ash" }, startingHook: "The bell rings and the sea comes in." } as never,
+        state: withState({}),
+        messages: Array.from({ length: replies }, (_, index) => ({ id: index + 1, role: "narrator", text: "The road is long." })) as never,
+        modelInstructions: "",
+        input: "I ring the bell.",
+        responseSchema: "{}",
+        promptStyle: null,
+      }),
+    );
+
+  expect(promptAfter(0)).toContain("Open the story from this Starting Hook");
+  expect(promptAfter(1)).toContain("The story opened from this Starting Hook");
+  expect(promptAfter(9)).toContain("The bell rings and the sea comes in.");
+  expect(promptAfter(10)).not.toContain("The bell rings");
 });
 
 test("a long story's World Bible fits the budget, with its Plot Threads and world_rules", () => {

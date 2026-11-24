@@ -519,6 +519,32 @@ test("with Update portraits on, a Turn that changes someone's looks draws their 
   expect(drawn.payloads.at(-1)!.reference_images.map(({ role }) => role)).toEqual(["npc"]);
 });
 
+// As wet hair, a mark or a pose redrew a portrait every Turn, while the scene picture still needs the looks as they are.
+test("new looks the Narrator says pass with the scene change the stored looks but draw no portrait", async () => {
+  const passing = JSON.stringify({
+    check: null,
+    narration: "The tide rises.",
+    state_operations: [{ op: "update_npc", name: "Hesper", appearance: "Tall, a smear of flour across one cheek", portrait: false }],
+    scene_changed: false,
+    visual_description: "",
+  });
+  await play([turn("[Hesper] on a wet street", meet("Hesper"), know("Hesper"), scene("The ferry", "Hesper")), passing], png(1), png(2), png(3));
+  await app.patch("/settings", { updatePortraits: true });
+  const id = await newSave();
+  await playTurn(id);
+  const drawnBefore = drawn.payloads.length;
+
+  const after = (await playTurn(id)).images.find(({ label }) => label === "Hesper")!;
+
+  expect(after.redraws).toBe(0);
+  expect(drawn.payloads).toHaveLength(drawnBefore);
+  expect(
+    saveStore(savesDir)
+      .latestState(id)
+      .npcs.find(({ name }) => name === "Hesper")?.appearance,
+  ).toContain("a smear of flour");
+});
+
 test("Update portraits is off by default, and so is anything drawn for new looks", async () => {
   await play([turn("[Hesper] on a wet street", meet("Hesper"), know("Hesper"), scene("The ferry", "Hesper")), looksAgain("Hesper")], png(1), png(2), png(3));
   const id = await newSave();

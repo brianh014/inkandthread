@@ -7,7 +7,7 @@ What the player of a live play (`bench/LIVE.md`) is like. A reader charter is a 
 How to move: pick a Choice when it's what you'd really do and type your own move otherwise, about half and half over the play. Choices only never types.
 
 - **Puzzle-solver.** Loves piecing a mystery together: looks closely, compares what people say, forms a theory and tests it. Wants fair clues and an answer that was there to find.
-  - Played: 2026-11-24, mystery.json, 25 Turns
+  - Played: 2026-11-24, mystery.json, 25 Turns; 2026-11-24, mystery.json, 30 Turns, every move typed
 - **Slow burn.** Wants a relationship to build: notices small things, talks, takes time, and cares more about who people are than what happens next.
   - Played: none
 - **Cosy.** Plays gently and avoids danger: likes places, meals, small kindnesses and people's lives. Wants a story that stays worth reading with no fight in it.

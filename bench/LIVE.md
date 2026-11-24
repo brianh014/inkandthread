@@ -1,6 +1,6 @@
 # Live plays
 
-How to have Claude play stories Turn by Turn and say how good they are: engaging or boring, how well they play out, how well they're written, and what breaks. A live play is steered by a player who reads each reply, so it goes where the bench's seeded Choices never do. It is never scored, kept or charted, as plays steered by hand don't compare; `bun bench run` stays how a change is judged better or worse.
+How to have Claude play stories Turn by Turn and say how good they are: engaging or boring, how well they play out, how well they're written, and what breaks. A live play is steered by a player who reads each reply, so it goes where the bench's seeded Choices never do. It is graded by the bench's rubric for the record, but never kept or charted, as plays steered by hand don't compare; `bun bench run` stays how a change is judged better or worse.
 
 A play costs money, at about the bench's rate for its Turns, and needs no per-run yes. Ask the player how many plays and the most Turns each (suggest 25, or 45 for a long-story charter, as a Scene Memory comes at about Turn 40).
 
@@ -46,17 +46,18 @@ A play costs money, at about the bench's rate for its Turns, and needs no per-ru
 
 ## Auditor brief
 
-> You are auditing one live play of Ink & Thread, an app that writes a choose-your-own visual novel with hidden Plot Threads. The player was an agent with this charter: `<charter>`. The folder is `<folder>`. Change no repo file and call no model. Your job is everything: first how good the story is, then what is wrong with it, down to the minor mistakes.
+> You are auditing one live play of Ink & Thread, an app that writes a choose-your-own visual novel with hidden Plot Threads. The player was an agent with this charter: `<charter>`. The folder is `<folder>`. Change no repo file and call no model but `bun bench grade`, which calls none. Your job is everything: first how good the story is, then what is wrong with it, down to the minor mistakes.
 >
-> 1. **Read as the player.** Read the story in `transcript.md` in order, from `## The story` to `## Portrait prompts` and nothing before it, with the pictures in `pictures` if they were drawn. A part the player reverted is only in the log. List every mistake a reader would notice, major and minor, by Message, using the kinds in `MISTAKES` and the items in `RUBRIC` in `bench/rubric.ts` as a checklist. Give no scores.
+> 1. **Read as the player.** Read the story in `transcript.md` in order, from `## The story` to `## Portrait prompts` and nothing before it, with the pictures in `pictures` if they were drawn. A part the player reverted is only in the log. List every mistake a reader would notice, major and minor, by Message, using the kinds in `MISTAKES` and the items in `RUBRIC` in `bench/rubric.ts` as a checklist. Give no scores yet.
 > 2. **Say what it was like**, before reading the player's view: story, characters, pacing, prose, Choices, surprise and stakes, each with quoted lines. Where was it engaging, where boring, did choices change things, did what was set up pay off? Name what is good enough to protect as well as what is weak. Write this and the mistakes to `<folder>/audit.md`, then stop and say you are ready for the player's notes.
 > 3. **Compare with the player**: `notes.md` and `verdict.md`. Trust what they did over what they said they felt: whether predictions came true (a run of right guesses is a predictable story), and whether there was something they waited to find out. A stretch that bored you both is the strongest finding; say where you differ. Allow for a strain charter, whose player is pressing rather than enjoying.
 > 4. **Find the causes** in the hidden timeline and the log (grep it, never read it whole), and in `src/` for the code. Confirm or reject each of the player's suspicions, and find what they couldn't see: audit each item of `FEATURES` in `bench/rubric.ts`. For a dull stretch too: threads that didn't move, plans that never surfaced, safe Choices, Checks never asked, a repeated shape of scene.
 > 5. **Say how the charter held up.**
+> 6. **Grade it last**, so no number shapes what you say: run `bun bench grade "<folder>"` in the repo, which writes `judge.md`, and score the play by it from the mistakes you found, as it says. Write its one JSON object (not an array) to `<folder>/scores.json` and run `bun bench grade "<folder>" --by <your model id> --scores "<folder>/scores.json"`. Allow for nothing: score the story as it is, whatever the charter pressed on.
 >
-> Finish `<folder>/audit.md` in this order: was it a good story and why; strengths to protect; weaknesses; mistakes with the major and minor count; charter; suspicions rejected. Each weakness and mistake has its Messages, quoted evidence, the likely cause (file and line where you found it), a general fix, and the Message to replay to see it.
+> Finish `<folder>/audit.md` in this order: was it a good story and why; strengths to protect; weaknesses; mistakes with the major and minor count; charter; suspicions rejected; the scores, with a line of reason each and the overall after caps. Each weakness and mistake has its Messages, quoted evidence, the likely cause (file and line where you found it), a general fix, and the Message to replay to see it.
 >
-> Return at most 400 words: the verdict, the counts, and the top findings with Messages and causes.
+> Return at most 400 words: the verdict, the counts, the overall score and the lowest three, and the top findings with Messages and causes.
 
 ## Report
 
@@ -66,4 +67,4 @@ Read each `audit.md` and `verdict.md`, check the cause of each top finding in th
 - **Second story:** a fault noted once before and now seen in another story, so a prompt change for it may be proposed.
 - **New:** a ticket in `.scratch`, then offer to post it on GitHub.
 
-Tell the player, for all the plays together: were they good stories and why, what to protect, the weaknesses in order of how much they cost a reader, then the faults with the major and minor count, and the cost against the estimate. Fix nothing until the player picks it. A fault is replayed with the command in its folder's `replay.txt`, reading the replies rather than scoring them, on the old code and the fix. Delete a play's folder once no finding needs it.
+Tell the player, for all the plays together: were they good stories and why, what to protect, the weaknesses in order of how much they cost a reader, then the faults with the major and minor count, the rubric scores in a table, and the cost against the estimate. Fix nothing until the player picks it. A fault is replayed with the command in its folder's `replay.txt`, reading the replies rather than scoring them, on the old code and the fix. Delete a play's folder once no finding needs it.

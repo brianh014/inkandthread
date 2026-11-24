@@ -24,8 +24,10 @@
 //                                      version, score and story, to bench/charts/bench-chart.html
 //   bun bench live --label <name> --turns N [--world <file> | --random [--theme <name>] | --from <Saves folder> --world <its world>] [--draw] [--yes]
 //                                opens one story for an agent to play Turn by Turn, steering it by what it reads (bench/LIVE.md);
-//                                kept in bench/live, never scored, and never in the table or charts
+//                                kept in bench/live, graded apart, and never in the table or charts
 //   bun bench do <folder> <tool> [arg]   plays one action of it, and prints only what a player would see
+//   bun bench grade <folder> [--by <model> --scores <scores.json>]   notes its scores by the rubric in its counts.json; with no
+//                                --scores, writes the rules to score by
 // To bench a setup without editing the Settings copy: --narrator <model>, --narrator-only (no other Scribe) and
 // --reviewer <model>, the Scribe. The copy's pinned provider stays, so a model it doesn't offer fails, never reroutes.
 //   --host <provider>   pins the OpenRouter provider (DeepInfra, say) with no fallback, on the copy only, for the Narrator and
@@ -1299,6 +1301,34 @@ function judgeRun() {
   });
 }
 
+/** A live play's scores by the bench's rubric, noted in its counts.json and never compared; with no --scores, writes the rules to judge it by. */
+function grade() {
+  const folder = args[1];
+  if (!folder || !existsSync(join(folder, "counts.json"))) fail("Give a finished live play's folder.");
+  const world = World.parse(JSON.parse(readFileSync(join(folder, "world.json"), "utf8")));
+  const scores = option("--scores");
+  if (!scores) {
+    writeFileSync(
+      join(folder, "judge.md"),
+      `# Grade this play
+
+${judgeRules(world)}
+`,
+    );
+    return console.log(`The rules are in ${join(folder, "judge.md")}.`);
+  }
+  const by = option("--by") ?? fail("Give --by <model>.");
+  const play = judgeReplyFor(world).parse(JSON.parse(readFileSync(scores, "utf8")));
+  const played = JSON.parse(readFileSync(join(folder, "counts.json"), "utf8")) as { counts: Flat };
+  const last = played.counts.messages;
+  const past = play.mistakes.filter(({ where }) => last && Number(where.match(/^M(\d+)/i)?.[1] ?? 0) > last);
+  if (past.length) fail(`Mistakes are placed past the play's last Message, M${last}: ${past.map(({ where }) => where).join(", ")}.`);
+  const scored = scorePlay(play, played.counts.turns ?? 0);
+  writeFileSync(join(folder, "counts.json"), JSON.stringify({ ...played, rubric: RUBRIC_VERSION, judge: { by, play, scored } }, null, 2));
+  for (const [key, value] of Object.entries(scored))
+    if (key.startsWith("judge.") && !key.startsWith("judge.raw.")) console.log(`${key} ${Math.round(value * 100) / 100}`);
+}
+
 function keep() {
   const folder = args[1];
   const result = readRun(folder);
@@ -1429,7 +1459,8 @@ else if (command === "play") await playOne();
 else if (command === "live") await live();
 else if (command === "do") console.log(await sendAction(args[1], args[2], args[3]));
 else if (command === "judge") judgeRun();
+else if (command === "grade") grade();
 else if (command === "keep") keep();
 else if (command === "table") table();
 else if (command === "chart") chart();
-else fail("Use: bun bench run | live | do | judge | keep | table | chart (see the top of bench/bench.ts).");
+else fail("Use: bun bench run | live | do | grade | judge | keep | table | chart (see the top of bench/bench.ts).");

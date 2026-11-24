@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { FEATURES, GENRES, RUBRIC } from "../bench/rubric";
 
 const bench = join(import.meta.dir, "..", "bench", "bench.ts");
 
@@ -60,6 +61,25 @@ test("a live play is steered an action at a time, shows nothing hidden, stops at
   expect(file("transcript.md")).toContain('Round 1, move "I say "wait"."');
   expect(JSON.parse(file("counts.json")).counts["actions.rewrite"]).toBe(1);
   expect(await run("", "look")).toContain("No play is open");
+
+  // Graded by the bench's rubric in its own counts, with the major mistake's cap.
+  const item = { score: 7, reason: "r" };
+  const scores = {
+    mistakes: [{ kind: "restart", weight: "major", where: "M2", note: "n" }],
+    audit: Object.fromEntries(Object.keys(FEATURES).map((key) => [key, "ok"])),
+    scores: Object.fromEntries(Object.keys(RUBRIC).map((key) => [key, item])),
+    happened: { npcDied: false, pcInMortalDanger: false },
+    ...Object.fromEntries(Object.keys(GENRES).map((key) => [key, item])),
+  };
+  writeFileSync(join(folder, "scores.json"), JSON.stringify(scores));
+  const grade = async (...flags: string[]) => {
+    const graded = Bun.spawn([process.execPath, bench, "grade", folder, ...flags], { stdout: "pipe" });
+    return new Response(graded.stdout).text();
+  };
+  await grade();
+  expect(file("judge.md")).toContain("score each item from 1 to 10");
+  expect(await grade("--by", "a-judge", "--scores", join(folder, "scores.json"))).toContain("judge.pacing 3");
+  expect(JSON.parse(file("counts.json"))).toMatchObject({ judge: { by: "a-judge", scored: { "judge.raw.pacing": 7 } } });
   remove();
 }, 60_000);
 

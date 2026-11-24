@@ -12,7 +12,7 @@ A play costs money, at about the bench's rate for its Turns, and needs no per-ru
    `bun bench live --label <charter> --turns N <story flags> --narrator deepseek/deepseek-v4.1-flash-1017 --reviewer openai/gpt-6-luna --review-thinking medium --yes`, with `--draw` when local ComfyUI is up (say so if it isn't). It prints the folder, in `bench/live/`, and is ready once `live.json` is there.
 4. **Player:** a Sonnet subagent per play, given the player brief with its folder, charter and Turns filled in, and how to move as its charter's heading in `bench/charters.md` says. Never tell it what a world hides, and never name an expected fault.
 5. The play finishes when its player does, or after an hour left alone, and saves `transcript.md`, `notes.md`, `verdict.md`, `inkandthread.log`, `counts.json`, `world.json`, `replay.txt`, `pictures` and `Saves` in its folder.
-6. **Auditor:** once it's saved, a Fable subagent at high effort per play, given the auditor brief. Never the player's agent, so its guesses don't steer the audit.
+6. **Auditor:** once it's saved, a Fable subagent at high effort per play, given the auditor brief. Never the player's agent, so its guesses don't steer the audit. Move `notes.md` and `verdict.md` out of the folder first, and once the auditor has stopped after its step 2, put them back and tell it to go on (SendMessage): told only to read them later, the first auditor read them first.
 7. **Report** (below), and add the play to its charter's line in `bench/charters.md`.
 
 ## Player brief
@@ -49,12 +49,12 @@ A play costs money, at about the bench's rate for its Turns, and needs no per-ru
 > You are auditing one live play of Ink & Thread, an app that writes a choose-your-own visual novel with hidden Plot Threads. The player was an agent with this charter: `<charter>`. The folder is `<folder>`. Change no repo file and call no model. Your job is everything: first how good the story is, then what is wrong with it, down to the minor mistakes.
 >
 > 1. **Read as the player.** Read the story in `transcript.md` in order, from `## The story` to `## Portrait prompts` and nothing before it, with the pictures in `pictures` if they were drawn. A part the player reverted is only in the log. List every mistake a reader would notice, major and minor, by Message, using the kinds in `MISTAKES` and the items in `RUBRIC` in `bench/rubric.ts` as a checklist. Give no scores.
-> 2. **Say what it was like**, before reading the player's view: story, characters, pacing, prose, Choices, surprise and stakes, each with quoted lines. Where was it engaging, where boring, did choices change things, did what was set up pay off? Name what is good enough to protect as well as what is weak.
+> 2. **Say what it was like**, before reading the player's view: story, characters, pacing, prose, Choices, surprise and stakes, each with quoted lines. Where was it engaging, where boring, did choices change things, did what was set up pay off? Name what is good enough to protect as well as what is weak. Write this and the mistakes to `<folder>/audit.md`, then stop and say you are ready for the player's notes.
 > 3. **Compare with the player**: `notes.md` and `verdict.md`. Trust what they did over what they said they felt: whether predictions came true (a run of right guesses is a predictable story), and whether there was something they waited to find out. A stretch that bored you both is the strongest finding; say where you differ. Allow for a strain charter, whose player is pressing rather than enjoying.
 > 4. **Find the causes** in the hidden timeline and the log (grep it, never read it whole), and in `src/` for the code. Confirm or reject each of the player's suspicions, and find what they couldn't see: audit each item of `FEATURES` in `bench/rubric.ts`. For a dull stretch too: threads that didn't move, plans that never surfaced, safe Choices, Checks never asked, a repeated shape of scene.
 > 5. **Say how the charter held up.**
 >
-> Write it to `<folder>/audit.md`, in this order: was it a good story and why; strengths to protect; weaknesses; mistakes with the major and minor count; charter; suspicions rejected. Each weakness and mistake has its Messages, quoted evidence, the likely cause (file and line where you found it), a general fix, and the Message to replay to see it.
+> Finish `<folder>/audit.md` in this order: was it a good story and why; strengths to protect; weaknesses; mistakes with the major and minor count; charter; suspicions rejected. Each weakness and mistake has its Messages, quoted evidence, the likely cause (file and line where you found it), a general fix, and the Message to replay to see it.
 >
 > Return at most 400 words: the verdict, the counts, and the top findings with Messages and causes.
 

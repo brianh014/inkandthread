@@ -180,6 +180,8 @@ test("the rules every story needs are built in, near the reply, so Model Instruc
     expect(prompts.at(-1)![0]!.content).not.toContain(rule);
   }
   expect(prompts.at(-1)![0]!.content).toContain("Where the PC is somewhere a Plot Thread's now would show, it shows in passing");
+  // As a PC whose form listed no outfit wore nothing in the state, so undressing changed nothing and their portrait never updated.
+  expect(prompts.at(-1)![0]!.content).toContain("When the inventory lists nothing the PC wears while they have clothes on, add what they have on");
 });
 
 test("the pace of a reply, then what's true right now, are the last things the Narrator reads before the player's words", async () => {

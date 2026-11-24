@@ -22,6 +22,10 @@
 //   bun bench table [--csv]            every kept and recent run, side by side
 //   bun bench chart [--rounds N]       the kept, judged, drawn Choices runs of one length (45) as charts, with a pick of bench
 //                                      version, score and story, to bench/charts/bench-chart.html
+//   bun bench live --label <name> --turns N [--world <file> | --random [--theme <name>] | --from <Saves folder> --world <its world>] [--draw] [--yes]
+//                                opens one story for an agent to play Turn by Turn, steering it by what it reads (bench/LIVE.md);
+//                                kept in bench/live, never scored, and never in the table or charts
+//   bun bench do <folder> <tool> [arg]   plays one action of it, and prints only what a player would see
 // To bench a setup without editing the Settings copy: --narrator <model>, --narrator-only (no other Scribe) and
 // --reviewer <model>, the Scribe. The copy's pinned provider stays, so a model it doesn't offer fails, never reroutes.
 //   --host <provider>   pins the OpenRouter provider (DeepInfra, say) with no fallback, on the copy only, for the Narrator and
@@ -43,9 +47,11 @@ import { localIsSetUp } from "../src/graph-builder";
 import { reviewerSettings, settingsStore } from "../src/settings-store";
 import { textProvider } from "../src/text-provider";
 import { TONES, toneText } from "../src/tones";
+import { THEMES } from "../src/web/wizard-draft";
 import { VERSION } from "../src/updater";
 import { askForJson, type TextProvider, worldMoved } from "../src/turn-engine";
 import { chartPage } from "./chart";
+import { liveFile, livePlay, randomStory, sendAction } from "./live";
 import { resultFiles } from "./result-files";
 import { capsOf, GENRES, type GenreKey, JUDGE_RULES, JudgeReply, MISTAKES, RUBRIC, RUBRIC_VERSION, scorePlay } from "./rubric";
 import { stateFaults } from "./state-checks";
@@ -71,8 +77,14 @@ const replayAt = process.argv.includes("--at") ? Number(process.argv[process.arg
 // The Tone a --from run sets on its copy before it plays, by name, or none, to test a Tone changed mid-story.
 const toneArg = process.argv.includes("--tone") ? process.argv[process.argv.indexOf("--tone") + 1]! : undefined;
 const narratorOf = (settings: ReturnType<typeof settingsStore>) => (fake ? fakeTextProvider : textProvider(settings));
+// How long a finished play waits for late usage reports and pictures, which the fakes never have.
+const SETTLE = fake ? 200 : 5000;
 const RUNS = join(BENCH, "runs");
 const RESULTS = join(BENCH, "results");
+// Apart from the runs, as every result.json there is charted and compared.
+const LIVE = join(BENCH, "live");
+// A live play left this long finishes itself, so a lost player doesn't lose the story.
+const LIVE_IDLE_MS = 60 * 60_000;
 const World = z.object({
   save: z.object({
     title: z.string(),
@@ -345,8 +357,12 @@ type Step = {
   reply?: number;
   hidden: string[];
   offered?: string[];
+  /** What the app answered, when that wasn't a Turn's stream, or the error a stream ended in. */
+  answer: string;
   /** The reply a bench action wrote, so the transcript can mark it as the bench's. */
   message?: number;
+  /** The mark itself, when a live player did it rather than the bench. */
+  mark?: string;
 };
 
 /** The hidden changes between two states, for the judge's timeline. Story text, so it stays in the run's transcript. */
@@ -414,20 +430,22 @@ function hiddenChanges(before: State, after: State) {
 
 const ACTIONS = ["rewrite", "regenerate", "continue", "edit", "worldChange"] as const;
 
-async function play(
+/**
+ * A play in its folder: the real server on a Settings copy, with every call counted and logged, `send` to make each step of it,
+ * and `finish` to record it. `begin` gives the Save it plays. What steers it is the caller's: the bench's own rounds, or a live player.
+ */
+async function openPlay(
   index: number,
   seed: number,
-  rounds: number,
-  moves: string[] | undefined,
   settingsPath: string,
-  world: z.infer<typeof World>,
   folder: string,
+  begin: (saves: ReturnType<typeof saveStore>, url: URL) => string | Promise<string>,
 ) {
   mkdirSync(folder, { recursive: true });
   const savesDir = join(dirname(settingsPath), `saves-${index}`);
   const settings = settingsStore(settingsPath);
   const calls: Call[] = [];
-  const pick = seeded(seed * 1000 + index);
+  const steps: Step[] = [];
   const roll = seeded(seed * 7919 + index);
   // The log goes to the play's folder, and only warnings and up to the terminal.
   // Never rotated, as the counts below read the whole play from it.
@@ -454,15 +472,25 @@ async function play(
   setLogLevel("verbose");
   if (fromSaves) cpSync(fromSaves, savesDir, { recursive: true });
   const saves = saveStore(savesDir);
-  const id = fromSaves ? saves.list()[0]!.id : saves.create({ ...world.save, opening: world.opening as Partial<State> });
+  const close = async () => {
+    await server.stop(true);
+    Object.assign(console, { info, debug, warn });
+  };
+  let id: string;
+  try {
+    id = fromSaves ? saves.list()[0]!.id : await begin(saves, server.url);
+  } catch (error) {
+    // A world that can't be built leaves nothing to play, and the server would hold the process open.
+    await close();
+    throw error;
+  }
   const replayed = replayAt === undefined ? undefined : replayMove(saves, id, replayAt);
   if (toneArg !== undefined) saves.addEdit(id, { edit: "tone", text: toneText(toneArg, "") });
   // The rounds a kept Save already holds, so the timeline's rounds follow on from them.
   const first = saves.messages(id).filter(({ role }) => role === "player").length;
   // Where a kept story left off, so the judge reads only the rounds played on from it.
   const resumed = fromSaves ? { message: saves.messages(id).at(-1)?.id ?? 0, round: first, state: saves.latestState(id) } : undefined;
-  const steps: Step[] = [];
-  // Each step's states, for the state checks code can make without a judge.
+  // Each step's states, for the state checks code can make without a judge. Not a Revert's, which goes back on purpose.
   const changes: { action: string; before: State; after: State }[] = [];
 
   async function send(round: number, action: string, path: string, body: object, input = "") {
@@ -472,6 +500,7 @@ async function play(
     let reply: number | undefined;
     let ok = false;
     let status = 0;
+    let answer = "";
     // A request that dies, such as a provider that never answers past fetch's own time limit, is a failed step, not the end of the play.
     try {
       const response = await fetch(new URL(path, server.url), {
@@ -496,18 +525,20 @@ async function play(
             if (event === "reply") reply = performance.now() - started;
             if (event === "error") {
               ok = false;
-              status = (JSON.parse(block.match(/^data: (.+)$/m)?.[1] ?? "{}") as { status?: number }).status ?? 0;
+              const failed = JSON.parse(block.match(/^data: (.+)$/m)?.[1] ?? "{}") as { status?: number; error?: string };
+              status = failed.status ?? 0;
+              answer = failed.error ?? "";
             }
           }
         }
-      } else await response.body?.cancel();
+      } else answer = await response.text();
     } catch {
       // Status 0 marks it, as the stream may have answered 200 before it died.
       ok = false;
       status = 0;
     }
     const after = saves.latestState(id);
-    changes.push({ action, before, after });
+    if (action !== "revert") changes.push({ action, before, after });
     const step: Step = {
       round,
       action,
@@ -518,6 +549,7 @@ async function play(
       firstText,
       reply,
       hidden: hiddenChanges(before, after),
+      answer,
     };
     steps.push(step);
     process.stdout.write(`  play ${index} round ${round} ${action}: ${ok ? "ok" : `failed (${status})`} in ${(step.ms / 1000).toFixed(1)} s\n`);
@@ -525,6 +557,167 @@ async function play(
   }
 
   const latestNarrator = () => saves.messages(id).findLast(({ role }) => role === "narrator");
+
+  /** Waits out what still runs. */
+  async function settle() {
+    // OpenRouter reports some usage a moment after the reply ends, and the last pictures may still be written, or with --draw
+    // still drawing, which the count alone can't tell as one picture takes longer than a check.
+    // The last move of the world too, as removing the Save under it lost it from the transcript. It stops itself at MOVE_LIMIT.
+    await worldMoved(id, new AbortController().signal);
+    await Bun.sleep(SETTLE);
+    const drawing = async () => ((await (await fetch(new URL(`/saves/${id}/images`, server.url))).json()) as { pending: boolean }).pending;
+    for (let waited = 0, seen = -1; waited < 600 && (saves.gallery(id).length !== seen || (await drawing())); waited += 5) {
+      seen = saves.gallery(id).length;
+      await Bun.sleep(SETTLE);
+    }
+  }
+
+  /** Once it's closed: the play's numbers, with its transcript, pictures and Saves kept in its folder. */
+  function finish(world: z.infer<typeof World>, rounds: number) {
+    const lines = readFileSync(join(folder, "inkandthread.log"), "utf8").split("\n");
+    const logged = (message: string) =>
+      lines.flatMap((line) => {
+        const at = line.indexOf(` ${message} {`);
+        return at === -1 ? [] : [JSON.parse(line.slice(at + message.length + 2)) as Record<string, unknown>];
+      });
+    // At 0 rather than missing, so a run shows what never happened.
+    const flat: Flat = { rounds, turns: 0, retries: 0, "checks.asked": 0, "upkeep.total": 0 };
+    const add = (key: string, by = 1) => (flat[key] = (flat[key] ?? 0) + by);
+    // Every operation listed, at 0 if never given, so a run shows what the Narrator never did.
+    for (const { shape } of StateOperation.options) flat[`ops.${shape.op.value}`] = 0;
+    for (const turn of logged("Turn committed")) {
+      add("turns");
+      add(`turns.${turn.kind}`);
+      add("retries", (turn.attempts as number) - 1);
+      const check = turn.check as { outcome: string; difficulty: number } | false;
+      if (check) {
+        add("checks.asked");
+        add(`checks.${check.outcome}`);
+        add("checks.difficultySum", check.difficulty);
+      }
+      for (const op of turn.operations as string[]) add(`ops.${op}`);
+      for (const op of (turn.upkeep as string[] | undefined) ?? []) {
+        add(`upkeep.${op}`);
+        // Not the time, which Upkeep gives every Turn the Narrator moved none, so the total still shows what it corrected.
+        if (op !== "set_story_time") add("upkeep.total");
+      }
+      add("upkeep.refused", (turn.upkeepRefused as number | undefined) ?? 0);
+      if (turn.chapterEnds) add("chapterSuggested");
+    }
+    flat["checks.difficultyMean"] = flat["checks.asked"] ? (flat["checks.difficultySum"] ?? 0) / flat["checks.asked"] : 0;
+    delete flat["checks.difficultySum"];
+    // World Moves On changes the threads too, between Turns.
+    Object.assign(flat, { "moves.rewritten": 0, "moves.added": 0, "moves.removed": 0 });
+    for (const move of logged("World moved on")) {
+      const [added, removed] = [move.added as number, move.removed as number];
+      add("moves.rewritten", (move.threads as number) - added - removed);
+      add("moves.added", added);
+      add("moves.removed", removed);
+    }
+    // The Scribe's Lore at each pause, added by a World Change rather than a Turn's operation.
+    flat["lore.added"] = logged("Lore grown").reduce((sum, grown) => sum + (grown.added as number), 0);
+    flat["moves.failed"] = logged("World didn't move on").length;
+    flat.unusable = logged("Unusable Narrator reply").length;
+    flat.failed = steps.filter(({ ok }) => !ok).length;
+    flat["chapters.closed"] = logged("Chapter closed").length;
+    for (const action of ACTIONS) flat[`actions.${action}`] = steps.filter((step) => step.action === action && step.ok).length;
+    const end = saves.latestState(id);
+    Object.assign(flat, {
+      "end.plotThreads": end.plotThreads.length,
+      "end.npcKnows": Object.values(end.npcKnows).flat().length,
+      "end.knownFacts": end.pcKnown.facts.length,
+      "end.knownNpcs": end.pcKnown.npcs.length,
+      "end.looseEnds": end.looseEnds.length,
+      "end.sceneMemories": end.sceneMemories.length,
+      "end.worldBible": end.worldBible.length,
+      "end.npcs": end.npcs.length,
+    });
+    const played = steps.filter(({ ok, action }) => ok && action !== "chapter" && action !== "worldChange");
+    const timing = (key: string, values: number[]) => {
+      flat[`timing.${key}.median`] = Math.round(median(values));
+      flat[`timing.${key}.max`] = Math.round(Math.max(0, ...values));
+    };
+    timing(
+      "firstText",
+      played.flatMap(({ firstText }) => (firstText === undefined ? [] : [firstText])),
+    );
+    timing(
+      "reply",
+      played.flatMap(({ reply }) => (reply === undefined ? [] : [reply])),
+    );
+    timing(
+      "turn",
+      played.map(({ ms }) => ms),
+    );
+    timing(
+      "upkeep",
+      calls.filter(({ role }) => role === "reviewer.upkeep").map(({ ms }) => ms),
+    );
+    timing(
+      "memory",
+      calls.filter(({ role }) => role === "narrator.memory").map(({ ms }) => ms),
+    );
+    timing(
+      "picture",
+      // Writing or checking an Image Prompt: a Cover's, a portrait's, a scene's or a requested one's.
+      calls.filter(({ role }) => role.endsWith("Prompt")).map(({ ms }) => ms),
+    );
+    const gallery = saves.gallery(id);
+    for (const kind of ["scene", "portrait", "requested"]) flat[`images.${kind}`] = gallery.filter((image) => image.kind === kind).length;
+    Object.assign(
+      flat,
+      tokenUse(
+        calls,
+        steps.flatMap((step, at) => (played.includes(step) ? [at] : [])),
+      ),
+    );
+    Object.assign(
+      flat,
+      stateFaults(
+        changes,
+        [...logged("Operations ignored"), ...logged("Upkeep operations dropped")].flatMap(({ reason }) => String(reason).split(", ")),
+      ),
+    );
+    // The last Message, so a judge's mistake can't be placed past the story.
+    flat.messages = saves.messages(id).at(-1)?.id ?? 0;
+    if (resumed) flat["continued.round"] = resumed.round;
+    // How big the Turn's prompt grew, as a long story's runs compare on it.
+    const sizes = logged("Prompt size").map(({ total }) => Number(total));
+    if (sizes.length > 0) [flat["prompt.tokens.first"], flat["prompt.tokens.last"]] = [sizes[0]!, sizes.at(-1)!];
+    flat["cost.total"] = calls.reduce((sum, { cost }) => sum + cost, 0);
+    flat["cost.perRound"] = flat["cost.total"] / rounds;
+    for (const side of ["narrator", "reviewer"] as const) {
+      const mine = calls.filter(({ role }) => role.startsWith(`${side}.`));
+      flat[`perRound.${side}.in`] = Math.round(mine.reduce((sum, { in: tokens }) => sum + tokens, 0) / rounds);
+      flat[`perRound.${side}.out`] = Math.round(mine.reduce((sum, { out }) => sum + out, 0) / rounds);
+    }
+
+    const { textHost, textHostFallback } = settings.read();
+    const setup = `Narrator host: ${textHost ? `${textHost}${textHostFallback ? ", falling back" : ", no fallback"}` : "any"}.`;
+    writeFileSync(join(folder, "transcript.md"), transcript(world, saves, id, steps, setup, resumed));
+    if (draw) keepPictures(saves, id, join(folder, "pictures"));
+    cpSync(savesDir, join(folder, "Saves"), { recursive: true });
+    rmSync(savesDir, { recursive: true, force: true });
+    return flat;
+  }
+
+  return { server, saves, id, first, replayed, send, latestNarrator, settle, close, finish };
+}
+
+/** A play of the bench's own: seeded Choices or typed moves, with each of its own actions once. */
+async function play(
+  index: number,
+  seed: number,
+  rounds: number,
+  moves: string[] | undefined,
+  settingsPath: string,
+  world: z.infer<typeof World>,
+  folder: string,
+) {
+  const pick = seeded(seed * 1000 + index);
+  const { server, saves, id, first, replayed, send, latestNarrator, settle, close, finish } = await openPlay(index, seed, settingsPath, folder, (saves) =>
+    saves.create({ ...world.save, opening: world.opening as Partial<State> }),
+  );
   // Spread across the play, so each comes after some story; a short play may fit fewer.
   // None in a replay, which tests only the Turn that went wrong.
   const due = new Map(
@@ -562,148 +755,11 @@ async function play(
       const { offer } = (await (await fetch(new URL(`/saves/${id}/chapters`, server.url))).json()) as { offer: boolean };
       if (offer) await send(round, "chapter", `/saves/${id}/chapters`, {});
     }
-    // OpenRouter reports some usage a moment after the reply ends, and the last pictures may still be written, or with --draw
-    // still drawing, which the count alone can't tell as one picture takes longer than a check.
-    // The last move of the world too, as removing the Save under it lost it from the transcript. It stops itself at MOVE_LIMIT.
-    await worldMoved(id, new AbortController().signal);
-    await Bun.sleep(5000);
-    const drawing = async () => ((await (await fetch(new URL(`/saves/${id}/images`, server.url))).json()) as { pending: boolean }).pending;
-    for (let waited = 0, seen = -1; waited < 600 && (saves.gallery(id).length !== seen || (await drawing())); waited += 5) {
-      seen = saves.gallery(id).length;
-      await Bun.sleep(5000);
-    }
+    await settle();
   } finally {
-    await server.stop(true);
-    console.info = info;
-    console.debug = debug;
-    console.warn = warn;
+    await close();
   }
-
-  const lines = readFileSync(join(folder, "inkandthread.log"), "utf8").split("\n");
-  const logged = (message: string) =>
-    lines.flatMap((line) => {
-      const at = line.indexOf(` ${message} {`);
-      return at === -1 ? [] : [JSON.parse(line.slice(at + message.length + 2)) as Record<string, unknown>];
-    });
-  // At 0 rather than missing, so a run shows what never happened.
-  const flat: Flat = { rounds, turns: 0, retries: 0, "checks.asked": 0, "upkeep.total": 0 };
-  const add = (key: string, by = 1) => (flat[key] = (flat[key] ?? 0) + by);
-  // Every operation listed, at 0 if never given, so a run shows what the Narrator never did.
-  for (const { shape } of StateOperation.options) flat[`ops.${shape.op.value}`] = 0;
-  for (const turn of logged("Turn committed")) {
-    add("turns");
-    add(`turns.${turn.kind}`);
-    add("retries", (turn.attempts as number) - 1);
-    const check = turn.check as { outcome: string; difficulty: number } | false;
-    if (check) {
-      add("checks.asked");
-      add(`checks.${check.outcome}`);
-      add("checks.difficultySum", check.difficulty);
-    }
-    for (const op of turn.operations as string[]) add(`ops.${op}`);
-    for (const op of (turn.upkeep as string[] | undefined) ?? []) {
-      add(`upkeep.${op}`);
-      // Not the time, which Upkeep gives every Turn the Narrator moved none, so the total still shows what it corrected.
-      if (op !== "set_story_time") add("upkeep.total");
-    }
-    add("upkeep.refused", (turn.upkeepRefused as number | undefined) ?? 0);
-    if (turn.chapterEnds) add("chapterSuggested");
-  }
-  flat["checks.difficultyMean"] = flat["checks.asked"] ? (flat["checks.difficultySum"] ?? 0) / flat["checks.asked"] : 0;
-  delete flat["checks.difficultySum"];
-  // World Moves On changes the threads too, between Turns.
-  Object.assign(flat, { "moves.rewritten": 0, "moves.added": 0, "moves.removed": 0 });
-  for (const move of logged("World moved on")) {
-    const [added, removed] = [move.added as number, move.removed as number];
-    add("moves.rewritten", (move.threads as number) - added - removed);
-    add("moves.added", added);
-    add("moves.removed", removed);
-  }
-  // The Scribe's Lore at each pause, added by a World Change rather than a Turn's operation.
-  flat["lore.added"] = logged("Lore grown").reduce((sum, grown) => sum + (grown.added as number), 0);
-  flat["moves.failed"] = logged("World didn't move on").length;
-  flat.unusable = logged("Unusable Narrator reply").length;
-  flat.failed = steps.filter(({ ok }) => !ok).length;
-  flat["chapters.closed"] = logged("Chapter closed").length;
-  for (const action of ACTIONS) flat[`actions.${action}`] = steps.filter((step) => step.action === action && step.ok).length;
-  const end = saves.latestState(id);
-  Object.assign(flat, {
-    "end.plotThreads": end.plotThreads.length,
-    "end.npcKnows": Object.values(end.npcKnows).flat().length,
-    "end.knownFacts": end.pcKnown.facts.length,
-    "end.knownNpcs": end.pcKnown.npcs.length,
-    "end.looseEnds": end.looseEnds.length,
-    "end.sceneMemories": end.sceneMemories.length,
-    "end.worldBible": end.worldBible.length,
-    "end.npcs": end.npcs.length,
-  });
-  const played = steps.filter(({ ok, action }) => ok && action !== "chapter" && action !== "worldChange");
-  const timing = (key: string, values: number[]) => {
-    flat[`timing.${key}.median`] = Math.round(median(values));
-    flat[`timing.${key}.max`] = Math.round(Math.max(0, ...values));
-  };
-  timing(
-    "firstText",
-    played.flatMap(({ firstText }) => (firstText === undefined ? [] : [firstText])),
-  );
-  timing(
-    "reply",
-    played.flatMap(({ reply }) => (reply === undefined ? [] : [reply])),
-  );
-  timing(
-    "turn",
-    played.map(({ ms }) => ms),
-  );
-  timing(
-    "upkeep",
-    calls.filter(({ role }) => role === "reviewer.upkeep").map(({ ms }) => ms),
-  );
-  timing(
-    "memory",
-    calls.filter(({ role }) => role === "narrator.memory").map(({ ms }) => ms),
-  );
-  timing(
-    "picture",
-    // Writing or checking an Image Prompt: a Cover's, a portrait's, a scene's or a requested one's.
-    calls.filter(({ role }) => role.endsWith("Prompt")).map(({ ms }) => ms),
-  );
-  const gallery = saves.gallery(id);
-  for (const kind of ["scene", "portrait", "requested"]) flat[`images.${kind}`] = gallery.filter((image) => image.kind === kind).length;
-  Object.assign(
-    flat,
-    tokenUse(
-      calls,
-      steps.flatMap((step, at) => (played.includes(step) ? [at] : [])),
-    ),
-  );
-  Object.assign(
-    flat,
-    stateFaults(
-      changes,
-      [...logged("Operations ignored"), ...logged("Upkeep operations dropped")].flatMap(({ reason }) => String(reason).split(", ")),
-    ),
-  );
-  // The last Message, so a judge's mistake can't be placed past the story.
-  flat.messages = saves.messages(id).at(-1)?.id ?? 0;
-  if (resumed) flat["continued.round"] = resumed.round;
-  // How big the Turn's prompt grew, as a long story's runs compare on it.
-  const sizes = logged("Prompt size").map(({ total }) => Number(total));
-  if (sizes.length > 0) [flat["prompt.tokens.first"], flat["prompt.tokens.last"]] = [sizes[0]!, sizes.at(-1)!];
-  flat["cost.total"] = calls.reduce((sum, { cost }) => sum + cost, 0);
-  flat["cost.perRound"] = flat["cost.total"] / rounds;
-  for (const side of ["narrator", "reviewer"] as const) {
-    const mine = calls.filter(({ role }) => role.startsWith(`${side}.`));
-    flat[`perRound.${side}.in`] = Math.round(mine.reduce((sum, { in: tokens }) => sum + tokens, 0) / rounds);
-    flat[`perRound.${side}.out`] = Math.round(mine.reduce((sum, { out }) => sum + out, 0) / rounds);
-  }
-
-  const { textHost, textHostFallback } = settings.read();
-  const setup = `Narrator host: ${textHost ? `${textHost}${textHostFallback ? ", falling back" : ", no fallback"}` : "any"}.`;
-  writeFileSync(join(folder, "transcript.md"), transcript(world, saves, id, steps, setup, resumed));
-  if (draw) keepPictures(saves, id, join(folder, "pictures"));
-  cpSync(savesDir, join(folder, "Saves"), { recursive: true });
-  rmSync(savesDir, { recursive: true, force: true });
-  return flat;
+  return finish(world, rounds);
 }
 
 /** Each drawn picture as a file named as the transcript names it, so a judge can look at it. */
@@ -732,7 +788,7 @@ function transcript(
     regenerate: "Written again by the bench's Regenerate",
     edit: `The bench's Edit added the last paragraph: "${world.actions.edit}"`,
   };
-  const benched = new Map(steps.flatMap(({ message, action }) => (message === undefined ? [] : [[message, byBench[action] ?? action] as const])));
+  const benched = new Map(steps.flatMap(({ message, action, mark }) => (message === undefined ? [] : [[message, mark ?? byBench[action] ?? action] as const])));
   const gallery = saves.gallery(id);
   const scenes = new Map(gallery.filter(({ kind }) => kind === "scene").map(({ messageId, prompt }) => [messageId, prompt]));
   const all = saves.messages(id);
@@ -943,25 +999,11 @@ async function playApart(index: number, seed: number, rounds: number, movesFile:
   return played;
 }
 
-async function run() {
-  const movesFile = option("--moves");
-  const moves = readMoves(movesFile);
-  const rounds = moves?.length ?? count("--rounds");
-  const runs = count("--runs");
-  const judge = option("--judge") ?? "self";
-  if (judge !== "self" && judge !== "narrator") fail("--judge is self or narrator.");
-  const label = safe(option("--label") ?? (movesFile ? `moves-${basename(movesFile).replace(/\.\w+$/, "")}` : "run"));
-  const seed = Number(option("--seed") ?? 1);
+/** The Settings a run or a live play uses: a copy, with the models and host its flags name. */
+function setUp(world?: z.infer<typeof World>) {
   // Its own file, git-ignored like the player's, so changing the player's Settings never changes a run. Only a copy is ever changed.
   const given = option("--settings") ?? "bench/settings.json";
   if (!fake && !existsSync(given)) fail(`No Settings file at ${given}. Copy settings.json there, set up as the bench should play.`);
-  if (!existsSync(worldFile)) fail(`No world file at ${worldFile}.`);
-  readWorld();
-  if (replayAt !== undefined && (!fromSaves || movesFile || !Number.isInteger(replayAt) || replayAt < 1))
-    fail("--at takes a Message number, with --from and without --moves.");
-  if (toneArg !== undefined && (!fromSaves || (toneArg !== "none" && !TONES[toneArg])))
-    fail(`--tone takes none or one of ${Object.keys(TONES).join(", ")}, with --from.`);
-
   // A copy outside the repo, as it holds keys. Pictures are on, drawn by a stand-in, with the player's image Settings, which shape
   // the prompts; with none set up, as an OpenRouter model, which takes prose prompts.
   const temp = mkdtempSync(join(tmpdir(), "inkandthread-bench-"));
@@ -971,7 +1013,7 @@ async function run() {
   process.on("exit", remove);
   process.on("SIGINT", () => process.exit(130));
   const settings = settingsStore(settingsPath);
-  const { modelInstructions = "", imageInstructions = "" } = readWorld();
+  const { modelInstructions = "", imageInstructions = "" } = world ?? {};
   settings.update({ imagesEnabled: true, drawScenes: true, modelInstructions, imageInstructions });
   const drawing = settings.read();
   // With --fake, the stand-in still draws, so keeping the pictures can be tried free.
@@ -1006,6 +1048,106 @@ async function run() {
     reviewThinking: all.reviewThinking,
   };
   if (!models.narrator) fail("The Settings file names no Narrator model.");
+  return { settings, settingsPath, all, provider, models };
+}
+
+/** A Save as a world file, so a random story's Turns can be replayed as any other's. */
+function worldOf(saves: ReturnType<typeof saveStore>, id: string): z.infer<typeof World> {
+  const { tone: _tone, ...setup } = saves.setup(id);
+  const { artStyle } = saves.read(id);
+  const actions = { rewrite: "Make it shorter.", edit: "Nothing more happens for a while.", worldChange: "The weather turns." };
+  // As a file holds it, with no field left undefined.
+  return World.parse(JSON.parse(JSON.stringify({ save: { ...setup, artStyle }, opening: saves.latestState(id), actions })));
+}
+
+/** One story held open for an agent to play with `bun bench do`, until it finishes or is left idle. */
+async function live() {
+  const label = safe(option("--label") ?? fail("--label is required."));
+  const turns = count("--turns");
+  const random = flag("--random");
+  const theme = option("--theme");
+  if (replayAt !== undefined) fail("--at replays a Turn with run, not live.");
+  if (random && (fromSaves || option("--world"))) fail("--random builds its own world, so it can't go with --from or --world.");
+  if (theme !== undefined && (!random || !THEMES[theme])) fail(`--theme takes one of ${Object.keys(THEMES).join(", ")}, with --random.`);
+  if (!random && !existsSync(worldFile)) fail(`No world file at ${worldFile}.`);
+  const given = random ? undefined : readWorld();
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
+  const folder = resolve(option("--folder") ?? join(LIVE, `${stamp}-${label}`));
+  if (existsSync(folder)) fail(`There's a play at ${folder} already.`);
+  const { settingsPath, all, provider, models } = setUp(given);
+  const { dollars, how } = fake ? { dollars: 0, how: "the fakes cost nothing" } : await estimate(provider, models.narrator, models.reviewer, turns, 1);
+  console.log(`A live play of up to ${turns} Turns on ${provider} ${models.narrator}, reviewer ${models.reviewer}.`);
+  console.log(dollars === null ? `Estimated cost: ${how}.` : `Estimated cost: about $${dollars.toFixed(2)} (${how}).`);
+  if (!flag("--yes") && prompt("Start? [y/N]")?.trim().toLowerCase() !== "y") fail("Not started.");
+
+  let built: z.infer<typeof World> | undefined;
+  const opened = await openPlay(1, Number(option("--seed") ?? 1), settingsPath, folder, async (saves, url) => {
+    if (given) return saves.create({ ...given.save, opening: given.opening as Partial<State> });
+    const id = await randomStory(url, theme);
+    built = worldOf(saves, id);
+    return id;
+  });
+  const world = (built ?? given)!;
+  writeFileSync(join(folder, "world.json"), JSON.stringify(world, null, 2));
+  const { server, id, first, send, settle, close } = opened;
+  // Tried again once, as in a run; a player can send it again after that.
+  if (!fromSaves && !(await send(0, "opening", `/saves/${id}/opening`, {})).ok) await send(0, "opening", `/saves/${id}/opening`, {});
+
+  const { promise: over, resolve: finish } = Promise.withResolvers<void>();
+  const player = livePlay({ url: server.url, id, folder, turns, first, draw, send, finish });
+  let idle = setTimeout(finish, LIVE_IDLE_MS);
+  const control = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    // A Turn can take minutes.
+    idleTimeout: 0,
+    fetch: async (request) => {
+      clearTimeout(idle);
+      try {
+        return new Response(await player.do(await request.json().catch(() => undefined)));
+      } finally {
+        clearTimeout(idle);
+        idle = setTimeout(finish, LIVE_IDLE_MS);
+      }
+    },
+  });
+  writeFileSync(liveFile(folder), JSON.stringify({ url: control.url.href }));
+  console.log(`Open for play: ${folder}`);
+  await over;
+  rmSync(liveFile(folder));
+  try {
+    await settle();
+  } finally {
+    await close();
+  }
+  const flat = opened.finish(world, Math.max(1, player.played()));
+  const commit = Bun.spawnSync(["git", "rev-parse", "--short", "HEAD"]).stdout.toString().trim();
+  const about = { date: new Date().toISOString(), label, version: BENCH_VERSION, commit, provider, models, host: all.textHost, thinking: all.textThinking };
+  // Never result.json, which a run's is, as plays steered by hand don't compare.
+  writeFileSync(join(folder, "counts.json"), JSON.stringify({ ...about, title: world.save.title, drawn: draw && !fake, counts: flat }, null, 2));
+  console.log(`Played ${player.played()} Turns for $${(flat["cost.total"] ?? 0).toFixed(3)}, kept in ${folder}.`);
+  console.log(`To replay a Turn: bun bench run --from "${join(folder, "Saves")}" --at <M> --world "${join(folder, "world.json")}" --rounds 1 --runs 5`);
+  await control.stop(true);
+  process.exit(0);
+}
+
+async function run() {
+  const movesFile = option("--moves");
+  const moves = readMoves(movesFile);
+  const rounds = moves?.length ?? count("--rounds");
+  const runs = count("--runs");
+  const judge = option("--judge") ?? "self";
+  if (judge !== "self" && judge !== "narrator") fail("--judge is self or narrator.");
+  const label = safe(option("--label") ?? (movesFile ? `moves-${basename(movesFile).replace(/\.\w+$/, "")}` : "run"));
+  const seed = Number(option("--seed") ?? 1);
+  if (!existsSync(worldFile)) fail(`No world file at ${worldFile}.`);
+  readWorld();
+  if (replayAt !== undefined && (!fromSaves || movesFile || !Number.isInteger(replayAt) || replayAt < 1))
+    fail("--at takes a Message number, with --from and without --moves.");
+  if (toneArg !== undefined && (!fromSaves || (toneArg !== "none" && !TONES[toneArg])))
+    fail(`--tone takes none or one of ${Object.keys(TONES).join(", ")}, with --from.`);
+
+  const { settings, settingsPath, all, provider, models } = setUp(readWorld());
 
   const { dollars, how } = fake ? { dollars: 0, how: "the fakes cost nothing" } : await estimate(provider, models.narrator, models.reviewer, rounds, runs);
   const pinned = all.textHost ? ` on ${all.textHost}${all.textHostFallback ? " (falling back)" : ""}` : "";
@@ -1269,8 +1411,10 @@ function chart() {
 const command = args[0];
 if (command === "run") await run();
 else if (command === "play") await playOne();
+else if (command === "live") await live();
+else if (command === "do") console.log(await sendAction(args[1], args[2], args[3]));
 else if (command === "judge") judgeRun();
 else if (command === "keep") keep();
 else if (command === "table") table();
 else if (command === "chart") chart();
-else fail("Use: bun bench run | judge | keep | table | chart (see the top of bench/bench.ts).");
+else fail("Use: bun bench run | live | do | judge | keep | table | chart (see the top of bench/bench.ts).");

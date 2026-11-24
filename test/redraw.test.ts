@@ -500,9 +500,10 @@ const looksAgain = (name: string) =>
     visual_description: "",
   });
 
-test("with Update portraits on, a Turn that changes someone's looks draws their portrait again, keeping the face", async () => {
+// Not on the Turn itself, as wet hair, a mark or a pose redrew a portrait every Turn, but once when the Scene next moves.
+test("with Update portraits on, someone's new looks draw their portrait again when the Scene next moves, keeping the face", async () => {
   await play(
-    [turn("[Hesper] on a wet street", meet("Hesper"), know("Hesper"), scene("The ferry", "Hesper")), looksAgain("Hesper")],
+    [turn("[Hesper] on a wet street", meet("Hesper"), know("Hesper"), scene("The ferry", "Hesper")), looksAgain("Hesper"), quiet(scene("The quay", "Hesper"))],
     png(1),
     png(2),
     png(3),
@@ -511,6 +512,8 @@ test("with Update portraits on, a Turn that changes someone's looks draws their 
   await app.patch("/settings", { updatePortraits: true });
   const id = await newSave();
   const before = (await playTurn(id)).images.find(({ label }) => label === "Hesper")!;
+  const waiting = (await playTurn(id)).images.find(({ label }) => label === "Hesper")!;
+  expect(waiting.redraws).toBe(before.redraws);
 
   const after = (await playTurn(id)).images.find(({ label }) => label === "Hesper")!;
 
@@ -535,8 +538,8 @@ const quiet = (...state_operations: object[]) =>
   JSON.stringify({ check: null, narration: "The tide rises.", state_operations, scene_changed: false, visual_description: "" });
 const pcLooksNow = (appearance: string, ...more: object[]) => quiet({ op: "set_pc_appearance", appearance }, ...more);
 
-test("with Update portraits on, a Turn that changes the PC's looks draws their portrait again from the new looks", async () => {
-  await play([turn("A wet street", scene("The ferry")), pcLooksNow("Short, hair shorn close, a scar on the chin")], png(1), png(2), png(3));
+test("with Update portraits on, the PC's new looks draw their portrait again from them when the Scene moves", async () => {
+  await play([turn("A wet street", scene("The ferry")), pcLooksNow("Short, hair shorn close, a scar on the chin", scene("The quay"))], png(1), png(2), png(3));
   await app.patch("/settings", { updatePortraits: true });
   const id = await newSave();
   const before = find(await playTurn(id), "portrait");
@@ -561,7 +564,11 @@ test("a PC with no looks gets a portrait once the story gives them some and the 
 
 test("a failed portrait update is tried again when the Scene next moves", async () => {
   await play(
-    [turn("[Hesper] on a wet street", meet("Hesper"), know("Hesper"), scene("The ferry", "Hesper")), looksAgain("Hesper"), quiet(scene("The quay", "Hesper"))],
+    [
+      turn("[Hesper] on a wet street", meet("Hesper"), know("Hesper"), scene("The ferry", "Hesper")),
+      quiet({ op: "update_npc", name: "Hesper", appearance: "Tall, soaked, a fresh scar across one cheek" }, scene("The quay", "Hesper")),
+      quiet(scene("The ferry", "Hesper")),
+    ],
     png(1),
     png(2),
     png(3),

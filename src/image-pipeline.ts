@@ -331,6 +331,9 @@ export function imagePipeline(
   const failures = new Map<string, string>();
   // shortcut: kept in memory like the jobs, so a restart forgets which portraits are out of date, keep it in the Save if that bites.
   const outOfDate = new Set<string>();
+  // Whose looks changed since the Scene last moved, by name and null for the PC, as a portrait redrawn every Turn for wet hair, a
+  // mark or a pose cost a picture each time. shortcut: in memory, so a restart forgets them until their looks next change.
+  const lookedAgain = new Map<string, Set<string | null>>();
   // shortcut: in memory and one per Save, so a restart or a second failure loses it, and that picture was never drawn anyway.
   const requestFailures = new Map<string, { error: string; words: string }>();
   let session = 0;
@@ -678,14 +681,22 @@ export function imagePipeline(
         }
       });
       if (!updatePortraits) return;
+      // New looks wait for the Scene to move, then draw once as they are by then, as most changes within a scene pass with it.
+      const due = lookedAgain.get(id) ?? new Set<string | null>();
+      for (const person of scene.restyled ?? []) due.add(person?.name ?? null);
+      if (!scene.moved) {
+        if (due.size > 0) lookedAgain.set(id, due);
+        if (scene.restyled?.length) log.info("images", "Portrait updates wait for the Scene to move", { save: id, waiting: due.size });
+        return;
+      }
+      lookedAgain.delete(id);
+      const named = (name: string | null) => (name === null ? [null] : scene.npcs.filter((npc) => npc.name === name));
       // A portrait whose update failed is tried again when the Scene moves, as missing portraits are.
-      const stale = scene.moved
-        ? saves
-            .portraits(id)
-            .filter(({ id: ref }) => outOfDate.has(redrawKey(id, { kind: "portrait", ref })))
-            .flatMap(({ npc }) => (npc === null ? [null] : scene.npcs.filter(({ name }) => name === npc)))
-        : [];
-      pipeline.restyled(id, [...new Set([...(scene.restyled ?? []), ...stale])], scene.wearing);
+      const stale = saves
+        .portraits(id)
+        .filter(({ id: ref }) => outOfDate.has(redrawKey(id, { kind: "portrait", ref })))
+        .flatMap(({ npc }) => named(npc));
+      pipeline.restyled(id, [...new Set([...[...due].flatMap(named), ...stale])], scene.wearing);
     },
 
     /** Updates the portraits of those whose looks changed, when the player has Update portraits on. */

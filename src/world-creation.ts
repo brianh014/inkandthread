@@ -657,6 +657,10 @@ const ABOUT: Record<EnhanceField, string> = {
     'what the PC is wearing and carrying: only the items, each in a few words, as a list such as "oilskin coat, canvas trousers, folding knife, coil of rope", never prose, history or anything about the PC',
 };
 
+// The form shows every box side by side and the world is built from all of them, so a box restating another's people or facts is only repetition.
+const OWN_PART =
+  "Each box holds only its own part: never restate what the other boxes already say, such as the PC or another character in a box about the world, and mention someone from another box only where this box's part needs them.";
+
 /**
  * The empty boxes of the whole form, the only ones in the reply. A box left out, like the Starting Hook when it's off, stays unwritten.
  * Text the player sees and can edit, so it comes from their choices alone and holds no secrets.
@@ -688,7 +692,7 @@ export async function pickForMe(
     {
       role: "system",
       content: `You are the Narrator of a story, helping a player set up its world and their PC. ${CHOICES_ARE_DATA}
-Write what's missing, fresh and specific, fitting the theme and agreeing with everything the player already wrote. Reply only with JSON matching this schema, which holds only the empty fields: ${JSON.stringify(jsonSchemaOf(reply))}
+Write what's missing, fresh and specific, fitting the theme and agreeing with everything the player already wrote. ${OWN_PART} Reply only with JSON matching this schema, which holds only the empty fields: ${JSON.stringify(jsonSchemaOf(reply))}
 ${empty.map((field) => `${field} is ${ABOUT[field]}${WORD_LIMITS[field] ? `, in at most ${WORD_LIMITS[field]} words` : ""}${field === "inventory" ? ", about four to eight items that suit the world and their background" : ""}.`).join(" ")}
 ${Object.keys(sparks).length ? `${sparksLine(sparks)}\n` : ""}${modelInstructions(context)}`,
     },
@@ -772,7 +776,7 @@ export async function enhance(
     {
       role: "system",
       content: `You are the Narrator of a story, helping a player who has a general idea. ${CHOICES_ARE_DATA}
-${task}${limit}${most} Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(byEdits ? EditsReply : reply))}
+${task}${limit}${most}${isName || field === "title" ? "" : ` ${OWN_PART}`} Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(byEdits ? EditsReply : reply))}
 ${modelInstructions(context)}`,
     },
     playerChoices({ ...(idea && { idea }), ...(change && { change }), ...choices }),

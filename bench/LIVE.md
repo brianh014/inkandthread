@@ -11,7 +11,7 @@ A play costs money, at about the bench's rate for its Turns, and needs no per-ru
 3. **Open** each play in the background, up to three at once:
    `bun bench live --label <charter> --turns N <story flags> --narrator deepseek/deepseek-v4.1-flash-1017 --reviewer openai/gpt-6-luna --review-thinking medium --yes`, with `--draw` when local ComfyUI is up (say so if it isn't). It prints the folder, in `bench/live/`, and is ready once `live.json` is there.
 4. **Player:** a Sonnet subagent per play, given the player brief with its folder, charter and Turns filled in. Never tell it what a world hides, and never name an expected fault.
-5. The play finishes when its player does, or after an hour left alone, and saves `transcript.md`, `notes.md`, `verdict.md`, `inkandthread.log`, `counts.json`, `world.json`, `pictures` and `Saves` in its folder.
+5. The play finishes when its player does, or after an hour left alone, and saves `transcript.md`, `notes.md`, `verdict.md`, `inkandthread.log`, `counts.json`, `world.json`, `replay.txt`, `pictures` and `Saves` in its folder.
 6. **Auditor:** once it's saved, a Fable subagent at high effort per play, given the auditor brief. Never the player's agent, so its guesses don't steer the audit.
 7. **Report** (below), and add the play to its charter's line in `bench/charters.md`.
 
@@ -66,4 +66,4 @@ Read each `audit.md` and `verdict.md`, check the cause of each top finding in th
 - **Second story:** a fault noted once before and now seen in another story, so a prompt change for it may be proposed.
 - **New:** a ticket in `.scratch`, then offer to post it on GitHub.
 
-Tell the player, for all the plays together: were they good stories and why, what to protect, the weaknesses in order of how much they cost a reader, then the faults with the major and minor count, and the cost against the estimate. Fix nothing until the player picks it. A fault is replayed with the command `bun bench live` printed, on the old code and the fix. Delete a play's folder once no finding needs it.
+Tell the player, for all the plays together: were they good stories and why, what to protect, the weaknesses in order of how much they cost a reader, then the faults with the major and minor count, and the cost against the estimate. Fix nothing until the player picks it. A fault is replayed with the command in its folder's `replay.txt`, reading the replies rather than scoring them, on the old code and the fix. Delete a play's folder once no finding needs it.

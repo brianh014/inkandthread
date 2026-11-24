@@ -41,16 +41,19 @@ test("a live play is steered an action at a time, shows nothing hidden, stops at
   seen.push(await act("Who was that?", "ask"));
   seen.push(await act("", "choose", "1", "Bored."));
   expect(await act("", "continue", "", "More.")).toContain("used up");
+  // Never to the player's own words, which would be left unanswered.
+  expect(await act("", "revert", "M3")).toContain("one of the story's own");
   seen.push(await act("", "revert", "M2"));
   for (const look of ["story", "journal", "inventory", "setup"]) seen.push(await act("", look));
   const { plotThreads, worldBible } = JSON.parse(file("world.json")).opening;
   for (const hidden of [...plotThreads, ...worldBible.map(({ content }: { content: string }) => content)]) expect(seen.join("\n")).not.toContain(hidden);
 
-  expect(await act("I'd play on.", "finish")).toContain("Finished");
+  expect(await run("It gripped me.\n---\nI'd play on.", "finish")).toContain("Finished");
   await server.exited;
   expect(server.exitCode).toBe(0);
   expect(file("verdict.md")).toContain("I'd play on.");
   expect(file("notes.md")).toContain("Interested. I expect a knock.");
+  expect(file("transcript.md")).toContain("Offered: ");
   expect(file("transcript.md")).toContain('Round 1, move "I say "wait"."');
   expect(JSON.parse(file("counts.json")).counts["actions.rewrite"]).toBe(1);
   expect(await run("", "look")).toContain("No play is open");

@@ -428,6 +428,8 @@ function hiddenChanges(before: State, after: State) {
   return lines;
 }
 
+/** The steps that write a reply, which a Turn's timing and tokens are the median of. */
+const REPLIES = new Set(["opening", "choice", "move", "continue", "continue (no Choices)", "rewrite", "regenerate", "edit"]);
 const ACTIONS = ["rewrite", "regenerate", "continue", "edit", "worldChange"] as const;
 
 /**
@@ -632,7 +634,7 @@ async function openPlay(
       "end.worldBible": end.worldBible.length,
       "end.npcs": end.npcs.length,
     });
-    const played = steps.filter(({ ok, action }) => ok && action !== "chapter" && action !== "worldChange");
+    const played = steps.filter(({ ok, action }) => ok && REPLIES.has(action));
     const timing = (key: string, values: number[]) => {
       flat[`timing.${key}.median`] = Math.round(median(values));
       flat[`timing.${key}.max`] = Math.round(Math.max(0, ...values));
@@ -1051,6 +1053,12 @@ function setUp(world?: z.infer<typeof World>) {
   return { settings, settingsPath, all, provider, models };
 }
 
+/** The code a run plays on, marked when it holds changes no commit does. */
+function commitNow() {
+  const commit = Bun.spawnSync(["git", "rev-parse", "--short", "HEAD"]).stdout.toString().trim();
+  return `${commit}${Bun.spawnSync(["git", "status", "--porcelain"]).stdout.toString().trim() ? "+changes" : ""}`;
+}
+
 /** A Save as a world file, so a random story's Turns can be replayed as any other's. */
 function worldOf(saves: ReturnType<typeof saveStore>, id: string): z.infer<typeof World> {
   const { tone: _tone, ...setup } = saves.setup(id);
@@ -1067,6 +1075,7 @@ async function live() {
   const random = flag("--random");
   const theme = option("--theme");
   if (replayAt !== undefined) fail("--at replays a Turn with run, not live.");
+  if (toneArg !== undefined) fail("--tone goes with run, not live.");
   if (random && (fromSaves || option("--world"))) fail("--random builds its own world, so it can't go with --from or --world.");
   if (theme !== undefined && (!random || !THEMES[theme])) fail(`--theme takes one of ${Object.keys(THEMES).join(", ")}, with --random.`);
   if (!random && !existsSync(worldFile)) fail(`No world file at ${worldFile}.`);
@@ -1075,6 +1084,8 @@ async function live() {
   const folder = resolve(option("--folder") ?? join(LIVE, `${stamp}-${label}`));
   if (existsSync(folder)) fail(`There's a play at ${folder} already.`);
   const { settingsPath, all, provider, models } = setUp(given);
+  // Before the play, as the branch may move on while it's open.
+  const commit = commitNow();
   const { dollars, how } = fake ? { dollars: 0, how: "the fakes cost nothing" } : await estimate(provider, models.narrator, models.reviewer, turns, 1);
   console.log(`A live play of up to ${turns} Turns on ${provider} ${models.narrator}, reviewer ${models.reviewer}.`);
   console.log(dollars === null ? `Estimated cost: ${how}.` : `Estimated cost: about $${dollars.toFixed(2)} (${how}).`);
@@ -1121,12 +1132,18 @@ async function live() {
     await close();
   }
   const flat = opened.finish(world, Math.max(1, player.played()));
-  const commit = Bun.spawnSync(["git", "rev-parse", "--short", "HEAD"]).stdout.toString().trim();
   const about = { date: new Date().toISOString(), label, version: BENCH_VERSION, commit, provider, models, host: all.textHost, thinking: all.textThinking };
   // Never result.json, which a run's is, as plays steered by hand don't compare.
   writeFileSync(join(folder, "counts.json"), JSON.stringify({ ...about, title: world.save.title, drawn: draw && !fake, counts: flat }, null, 2));
   console.log(`Played ${player.played()} Turns for $${(flat["cost.total"] ?? 0).toFixed(3)}, kept in ${folder}.`);
-  console.log(`To replay a Turn: bun bench run --from "${join(folder, "Saves")}" --at <M> --world "${join(folder, "world.json")}" --rounds 1 --runs 5`);
+  // On the models it was played on, as a fault may be one model's.
+  const same = [
+    ...["--settings", "--narrator", "--reviewer", "--review-thinking", "--host"].flatMap((name) => (option(name) ? [`${name} "${option(name)}"`] : [])),
+    ...["--narrator-only", "--reviewer-anywhere", "--draw", "--fake"].filter(flag),
+  ].join(" ");
+  const replay = `bun bench run --from "${join(folder, "Saves")}" --at <M> --world "${join(folder, "world.json")}" --rounds 1 --runs 5 --yes ${same}`;
+  writeFileSync(join(folder, "replay.txt"), `${replay}\n`);
+  console.log(`To replay a Turn: ${replay}`);
   await control.stop(true);
   process.exit(0);
 }
@@ -1157,14 +1174,12 @@ async function run() {
 
   const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, "-");
   const folder = join(RUNS, provider, safe(models.narrator), `${stamp}-${label}`);
-  const commit = Bun.spawnSync(["git", "rev-parse", "--short", "HEAD"]).stdout.toString().trim();
-  const dirty = Bun.spawnSync(["git", "status", "--porcelain"]).stdout.toString().trim() ? "+changes" : "";
   const result: Result = {
     version: BENCH_VERSION,
     setup: all.reviewOtherModel ? "full" : "narrator",
     date: new Date().toISOString(),
     label,
-    commit: `${commit}${dirty}`,
+    commit: commitNow(),
     provider,
     models,
     ...(all.textHost && { host: all.textHost, hostFallback: all.textHostFallback }),

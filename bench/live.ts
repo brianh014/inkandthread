@@ -9,7 +9,7 @@ import { TONES, toneText } from "../src/tones";
 import { ART_STYLES } from "../src/web/art-styles";
 import { blank, THEMES } from "../src/web/wizard-draft";
 
-export type Sent = { ok: boolean; status: number; answer: string; message?: number; mark?: string };
+export type Sent = { ok: boolean; status: number; answer: string; offered?: string[]; message?: number; mark?: string };
 export type LivePlay = {
   /** The app's own server, whose routes hide what a player mustn't see. */
   url: URL;
@@ -45,7 +45,7 @@ Other actions: rewrite (what to change on stdin), regenerate, edit (the reply's 
   rename ({"name": "...", "newName": "..."} on stdin), opening (only if the first one failed)
 Looking: look, story, journal, inventory, setup, pictures
 Ending: finish (your verdict on stdin)
-A note goes on stdin too, after a line of ---`;
+A Turn's note goes on stdin too, after a line of ---`;
 
 const pickOne = <T>(items: T[]) => items[Math.floor(Math.random() * items.length)]!;
 
@@ -103,6 +103,8 @@ export function livePlay({ url, id, folder, turns, first, draw, send, finish }: 
       writeFileSync(file, await response.bytes());
       lines.push(`New picture, ${kind}${kind === "scene" ? ` of M${ref}` : ""}, "${caption}": ${file}`);
     }
+    const { failure } = await get<{ failure?: string }>("/requested-images/failure");
+    if (failure) lines.push(`The picture you asked for failed: ${failure}`);
     return lines.join("\n");
   }
 
@@ -110,11 +112,13 @@ export function livePlay({ url, id, folder, turns, first, draw, send, finish }: 
     const { messages, choices } = await read();
     const reply = messages.findLast(({ role }) => role === "narrator");
     const { offer } = await get<{ offer: boolean }>("/chapters");
+    const { unmade } = await get<{ unmade?: number }>("/remakes");
     // Asked for now and then, as what a reader waits to find out says more of a story's pull than whether it was liked.
     const pull = played > 0 && played % 5 === 0 ? " In your next note, also say: would you put the story down here, and what are you waiting to find out?" : "";
     return [
       reply ? label(reply) : "The story hasn't begun: send opening.",
       choices ? `Choices:\n${choices.map((choice, at) => `${at + 1}. ${choice}`).join("\n")}` : "No Choices were offered: move or continue.",
+      unmade ? "A change you told the Narrator of couldn't be made again after the Revert: tell it again." : "",
       offer ? "The app offers to end the chapter here (chapter)." : "",
       await pictures(),
       `Turns left: ${turns - played}.${pull}`,
@@ -163,10 +167,12 @@ export function livePlay({ url, id, folder, turns, first, draw, send, finish }: 
       case "tell":
         return text ? { path: "/world-change", body: { change: text }, input: text } : "Say what changes on stdin.";
       case "revert":
-        return /^M?\d+$/i.test(arg)
-          ? { path: `/messages/${arg.replace(/^M/i, "")}/revert`, body: {}, input: arg }
-          : "Give the Message to go back to, such as M12.";
+        // Only to a reply, as the app too goes back past the player's own words, so none is left unanswered.
+        return (await read()).messages.some(({ id: at, role }) => role === "narrator" && `M${at}` === arg)
+          ? { path: `/messages/${arg.slice(1)}/revert`, body: {}, input: arg }
+          : "Give the reply to go back to, one of the story's own, such as M12.";
       case "picture":
+        if (!draw) return "Pictures aren't drawn in this play.";
         return { path: "/requested-images", body: { words: text }, input: text };
       case "chapter":
         return { path: "/chapters", body: {} };
@@ -195,11 +201,15 @@ export function livePlay({ url, id, folder, turns, first, draw, send, finish }: 
     if (typeof asked === "string") return asked;
     const number = played + (turn ? 1 : 0);
     const after = (await latestReply())?.id ?? 0;
-    if (note) appendFileSync(join(folder, "notes.md"), `## Turn ${number}, after M${after}: ${[tool, arg].join(" ").trim()}\n\n${note}\n\n`);
+    const { choices } = await read();
     const sent = await send(first + number, STEP_NAMES[tool] ?? tool, `/saves/${id}${asked.path}`, asked.body, asked.input);
     if (!sent.ok) return `The app said: ${errorOf(sent.answer) || "nothing, it couldn't be reached"} (${sent.status}). You can send it again.`;
     // Only once it was played, so a Turn that failed can be sent again.
-    if (turn) played++;
+    if (turn) {
+      played++;
+      sent.offered = choices;
+      appendFileSync(join(folder, "notes.md"), `## Turn ${number}, after M${after}: ${[tool, arg].join(" ").trim()}\n\n${note}\n\n`);
+    }
     if (asked.mark) Object.assign(sent, { mark: asked.mark, message: (await latestReply())?.id });
     if (asked.show) return (JSON.parse(sent.answer) as { text: string }).text;
     return tool === "picture" ? "It's being drawn, and shows with a later action." : look();
@@ -246,7 +256,9 @@ export async function sendAction(folder: string | undefined, tool = "", arg = ""
   if (!folder || !existsSync(folder)) return "Give the play's folder, then a tool.";
   if (!existsSync(liveFile(folder))) return "No play is open there: it is still starting, or it has finished.";
   const { url } = JSON.parse(readFileSync(liveFile(folder), "utf8")) as { url: string };
-  const [text = "", ...note] = (process.stdin.isTTY ? "" : await Bun.stdin.text()).split(/^---[ \t]*\r?$/m);
+  const words = process.stdin.isTTY ? "" : await Bun.stdin.text();
+  // Only a Turn has a note, as a verdict or a reply's new text may hold such a line of its own.
+  const [text = "", ...note] = TURN_TOOLS.includes(tool) ? words.split(/^---[ \t]*\r?$/m) : [words];
   try {
     const body = JSON.stringify({ tool, arg, text: text.trim(), note: note.join("---").trim() });
     return await (await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body, timeout: false })).text();

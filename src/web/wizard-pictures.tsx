@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getHeldImage, type HeldImage, type HeldPicture, heldImageUrl, redrawHeldImage } from "./api";
+import { getHeldImage, type HeldImage, type HeldPicture, heldImageUrl, redrawHeldImage, turnPolling } from "./api";
 import { Painting, RegenerateIcon } from "./icons";
 import { NudgeButton, PromptBox, RedrawPanel, UploadButton, Zoomable } from "./zoom";
 
@@ -16,32 +16,39 @@ function HeldArt(props: { id: string; picture: HeldPicture; naming: Naming; vers
   const [image, setImage] = useState<HeldImage>();
   const [redrawing, setRedrawing] = useState(false);
   const [failure, setFailure] = useState("");
-  const [returns, setReturns] = useState(0);
+  const [asks, setAsks] = useState(0);
 
   // A hidden tab can lose the long wait without hearing it fail, as a Turn's stream can, so a page coming back asks again.
   useEffect(() => {
     if (image) return;
-    const onReturn = () => document.visibilityState === "visible" && setReturns((count) => count + 1);
+    const onReturn = () => document.visibilityState === "visible" && setAsks((count) => count + 1);
     document.addEventListener("visibilitychange", onReturn);
     return () => document.removeEventListener("visibilitychange", onReturn);
   }, [image]);
 
   useEffect(() => {
-    let leaving = false;
-    getHeldImage(id, picture).then(
+    // Aborted too, as a browser only keeps a few requests open at once and each of these waits for its picture.
+    const leaving = new AbortController();
+    let again: ReturnType<typeof setTimeout>;
+    getHeldImage(id, picture, leaving.signal).then(
       (details) => {
-        if (leaving) return;
+        if (leaving.signal.aborted) return;
         setImage(details);
         setFailure(details.failure);
         if (!details.hasImage && !details.failure) onLost();
       },
-      // A wait cut off in a hidden tab isn't a lost picture: it's asked again on return.
-      () => !leaving && document.visibilityState === "visible" && onLost(),
+      (failure) => {
+        if (leaving.signal.aborted) return;
+        // A connection lost isn't a lost picture, so it's asked for again.
+        if (failure instanceof TypeError) again = setTimeout(() => setAsks((count) => count + 1), turnPolling.everyMs);
+        else onLost();
+      },
     );
     return () => {
-      leaving = true;
+      leaving.abort();
+      clearTimeout(again);
     };
-  }, [id, picture, version, returns]);
+  }, [id, picture, version, asks]);
 
   if (!image)
     return (
@@ -95,7 +102,7 @@ export function PictureSection(props: {
   naming: Naming;
   missing: string;
   onCover?: { on: boolean; set: (on: boolean) => void };
-  id: string | undefined;
+  id: string;
   version: number | undefined;
   nudge: string | undefined;
   imagesReady: boolean | undefined;
@@ -106,7 +113,7 @@ export function PictureSection(props: {
   onLost: () => void;
 }) {
   const { picture, legend, naming, missing, onCover, id, version, imagesReady, asking, onDraw } = props;
-  const held = id && version !== undefined;
+  const held = version !== undefined;
   return (
     <div>
       <fieldset>

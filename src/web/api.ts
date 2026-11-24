@@ -281,7 +281,7 @@ export const updateImage = (id: string, { kind, ref }: GalleryImage, nudge = "")
 export const deleteImage = (id: string, { kind, ref }: GalleryImage) => request<object>(`/saves/${id}/gallery/delete`, jsonBody({ kind, ref }));
 
 /** Answers only once the image is done. */
-export const getHeldImage = (id: string, picture: HeldPicture) => request<HeldImage>(`/worlds/${id}/${picture}/details`);
+export const getHeldImage = (id: string, picture: HeldPicture, signal: AbortSignal) => request<HeldImage>(`/worlds/${id}/${picture}/details`, { signal });
 
 export const redrawHeldImage = (id: string, picture: HeldPicture, prompt: string) => request<object>(`/worlds/${id}/${picture}`, jsonBody({ prompt }));
 
@@ -314,61 +314,71 @@ export const portraitUrl = (id: string, { id: portraitId, redraws }: Pick<Portra
 
 export const statusWords = ({ health, injuries, conditions }: Status) => [health, ...injuries, ...conditions].join(", ");
 
-/** `id` is the one this form's images are held under, if it has one yet. */
-/** Resolves once the page is in view. */
-const shown = () =>
-  new Promise<void>((resolve) => {
-    if (globalThis.document?.visibilityState !== "hidden") return resolve();
-    const onShow = () => {
-      if (document.visibilityState === "hidden") return;
-      document.removeEventListener("visibilitychange", onShow);
-      resolve();
-    };
-    document.addEventListener("visibilitychange", onShow);
-  });
+/** The app couldn't be reached, which says nothing of what it was doing: that may still be going. */
+export class Unreachable extends Error {}
+
+// A request this slow to answer at once has been lost without failing, as a phone's can be while it sleeps.
+const LOST_MS = 30_000;
 
 /**
- * A world build the page waits for. The build goes on if a hidden tab loses the request, so a page coming back asks for
- * that same build, never a new one, as that would be paid for again. A cancel stops it on the server too.
+ * A world build, which goes on without this page: `begin` asks for it, and the page then asks how it went until it's done,
+ * through a lost connection. `begin` is safe to send again, as the server knows `build`, the build's own id. A cancel stops
+ * it on the server too.
  */
-async function awaitBuild(id: string, started: Promise<{ overview: string }>, signal?: AbortSignal) {
-  const stop = () => void fetch(`/worlds/${id}/build`, { method: "DELETE" }).catch(() => {});
-  let hidden = false;
-  const onHide = () => {
-    if (document.visibilityState === "hidden") hidden = true;
+async function awaitBuild(id: string, build: string, begin: ((signal: AbortSignal) => Promise<unknown>) | undefined, cancel?: AbortSignal) {
+  const path = `/worlds/${id}/builds/${build}`;
+  const soon = () => AbortSignal.any([AbortSignal.timeout(LOST_MS), ...(cancel ? [cancel] : [])]);
+  let wake = () => {};
+  const stop = () => {
+    void fetch(path, { method: "DELETE", keepalive: true }).catch(() => {});
+    wake();
   };
-  signal?.addEventListener("abort", stop, { once: true });
-  globalThis.document?.addEventListener("visibilitychange", onHide);
+  cancel?.addEventListener("abort", stop, { once: true });
+  let asked = !begin;
   try {
-    let waiting = started;
-    for (;;) {
+    for (let misses = 0; misses < turnPolling.tries; ) {
       try {
-        return await waiting;
+        if (!asked) await begin!(soon());
+        asked = true;
+        const { overview } = await request<{ overview?: string }>(path, { signal: soon() });
+        if (overview !== undefined) return { overview };
+        misses = 0;
       } catch (failure) {
-        // Only a connection lost while out of view is waited out: an answer from the server is the build's own.
-        if (signal?.aborted || !(failure instanceof TypeError) || !(hidden || globalThis.document?.visibilityState === "hidden")) throw failure;
-        hidden = false;
-        await shown();
-        reportEvent("world-build-picked-up");
-        waiting = request<{ overview: string }>(`/worlds/${id}/overview`, { signal });
+        // An answer from the server is the build's own failure. Only a connection lost is waited out.
+        const lost = failure instanceof TypeError || (failure as Error).name === "TimeoutError";
+        if (cancel?.aborted || !lost) throw failure;
+        misses++;
       }
+      await new Promise<void>((resolve) => {
+        wake = resolve;
+        setTimeout(resolve, turnPolling.everyMs);
+      });
+      cancel?.throwIfAborted();
     }
   } finally {
-    signal?.removeEventListener("abort", stop);
-    globalThis.document?.removeEventListener("visibilitychange", onHide);
+    // The screen's own leaving aborts it too, and by then a finished build has nothing to stop.
+    cancel?.removeEventListener("abort", stop);
   }
+  reportEvent("polling-gave-up", { misses: turnPolling.tries });
+  throw new Unreachable("Ink & Thread can't be reached. Make sure it's still running, then reload this page.");
 }
 
-/** `id` is the form's, made before the build so the page can ask for it again. */
-export const generateWorld = (world: WorldChoices & WorldPc & { id: string }, signal?: AbortSignal) =>
-  awaitBuild(world.id, request<{ overview: string }>("/worlds", { ...jsonBody(world), signal }), signal);
+/** `id` is the one this form's images are held under, and `build` a new one for each build. */
+export const generateWorld = (world: WorldChoices & WorldPc & { id: string }, build: string, cancel?: AbortSignal) =>
+  awaitBuild(world.id, build, (signal) => request("/worlds", { ...jsonBody({ ...world, build }), signal }), cancel);
+
+export const regenerateWorld = (id: string, choices: WorldChoices, build: string, cancel?: AbortSignal) =>
+  awaitBuild(id, build, (signal) => request(`/worlds/${id}/regenerate`, { ...jsonBody({ ...choices, build }), signal }), cancel);
+
+/** Picks up a build this page no longer holds, after a reload. */
+export function resumeBuild(id: string, build: string, cancel: AbortSignal) {
+  reportEvent("world-build-picked-up");
+  return awaitBuild(id, build, undefined, cancel);
+}
 
 /** Makes the Save from the world held under `id`, with its images. */
 export const beginStory = (id: string, artStyle: string, signal?: AbortSignal) =>
   request<{ id: string }>(`/worlds/${id}/begin`, { ...jsonBody({ artStyle }), signal });
-
-export const regenerateWorld = (id: string, choices: WorldChoices, signal?: AbortSignal) =>
-  awaitBuild(id, request<{ overview: string }>(`/worlds/${id}/regenerate`, { ...jsonBody(choices), signal }), signal);
 
 /** Writes the empty boxes of the form. Leave out a box that shouldn't be written. */
 export const pickForMe = (theme: string, form: Partial<Record<WorldField, string>> & { pc: PcDraft }, signal?: AbortSignal) =>

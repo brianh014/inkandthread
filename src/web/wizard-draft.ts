@@ -56,8 +56,8 @@ export const blank = {
   pc: { name: "", background: "", physicalTraits: "", inventory: "" } as PcDraft,
   /** Whether the Cover shows the PC, as the Important Characters each say for themselves. */
   pcOnCover: true,
-  /** What the server holds this form's images and world under, once it holds any. */
-  id: undefined as string | undefined,
+  /** What the server holds this form's images and world under. Each form gets its own from `stored`. */
+  id: "",
   /** The player's own few words for each picture's next prompt, such as "smiling". */
   nudges: {} as Record<HeldPicture, string>,
   /** Each picture asked for or uploaded, and how many times it has changed, so that a new image is a new address. */
@@ -93,7 +93,29 @@ export const stored = () => {
   const characters = Array.isArray(draft.characters) ? draft.characters.map((character) => ({ ...character, ref: character.ref ?? newRef() })) : [];
   // A form kept from when pictures went by kind, whose numbers still name the Cover and portrait.
   const drawn = typeof draft.drawn === "object" && draft.drawn ? draft.drawn : {};
-  return { ...draft, pc, characters, drawn };
+  return { ...draft, id: draft.id || newRef(24), pc, characters, drawn };
+};
+
+const BUILDING_KEY = "novelforge-building";
+
+/** The build this form waits for, kept for the tab so that a reload picks it up. */
+export const keepBuilding = (form: string, build: string) => {
+  try {
+    sessionStorage.setItem(BUILDING_KEY, JSON.stringify({ form, build }));
+  } catch {}
+};
+export const forgetBuilding = () => {
+  try {
+    sessionStorage.removeItem(BUILDING_KEY);
+  } catch {}
+};
+export const keptBuilding = (form: string) => {
+  try {
+    const kept = JSON.parse(sessionStorage.getItem(BUILDING_KEY) ?? "{}");
+    return kept.form === form ? (kept.build as string) : undefined;
+  } catch {
+    return undefined;
+  }
 };
 
 export const MAX_CHARACTERS = 10;

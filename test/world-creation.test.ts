@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { saveStore } from "../src/save-store";
 import { ContentRefused } from "../src/turn-engine";
+import { worldBuilds } from "../src/world-builds";
 import { logOf, narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -249,43 +250,88 @@ const worldAsked = async () => {
   while (prompts.length < 2) await Bun.sleep(1);
 };
 
-test("a build whose page lost the request goes on, and the page picks up that same build by its id", async () => {
+const buildOf = (build: string) => fetch(app.url(`/worlds/form-1/builds/${build}`));
+const cancel = (build: string) => fetch(app.url(`/worlds/form-1/builds/${build}`), { method: "DELETE" });
+
+test("a named build is answered at once, and the same one asked for again is never built twice", async () => {
   const world = slowWorld();
   play(sheet, world.reply);
-  const leaving = new AbortController();
-  const sent = fetch(app.url("/worlds"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...choices, id: "form-1" }),
-    signal: leaving.signal,
-  }).catch(() => undefined);
+  const body = { ...choices, id: "form-1", build: "build-1" };
+  expect((await app.post("/worlds", body)).status).toBe(202);
   await worldAsked();
-  leaving.abort();
-  await sent;
+  expect((await app.post("/worlds", body)).status).toBe(202);
+  expect(await (await buildOf("build-1")).json()).toEqual({ running: true });
+  expect((await buildOf("build-2")).status).toBe(404);
 
-  const picked = fetch(app.url("/worlds/form-1/overview"));
   world.finish(generated());
-  expect(await (await picked).json()).toEqual({ overview: "Rain never stops in Saltmere." });
+  while ((await (await buildOf("build-1")).json()).running) await Bun.sleep(1);
+
+  expect(await (await buildOf("build-1")).json()).toEqual({ overview: "Rain never stops in Saltmere." });
   expect(prompts).toHaveLength(2);
   expect((await app.post("/worlds/form-1/begin", { artStyle: "Ink" })).status).toBe(201);
 });
 
-test("a cancelled build stores no world, even once its reply comes in", async () => {
-  const world = slowWorld();
-  play(sheet, world.reply);
-  const sent = app.post("/worlds", { ...choices, id: "form-1" });
+test("a build that failed answers with its failure when asked", async () => {
+  play(sheet, new ContentRefused());
+  await app.post("/worlds", { ...choices, id: "form-1", build: "build-1" });
   await worldAsked();
-
-  expect((await fetch(app.url("/worlds/form-1/build"), { method: "DELETE" })).status).toBe(200);
-  world.finish(generated());
-
-  expect((await sent).status).not.toBe(201);
-  expect((await app.post("/worlds/form-1/begin", { artStyle: "Ink" })).status).toBe(404);
+  await Bun.sleep(5);
+  expect((await buildOf("build-1")).status).toBe(422);
 });
 
-test("a world never built has no build to pick up", async () => {
+test("a cancelled build stores no world, even once its reply comes in, and its late cancel can't stop the next", async () => {
+  const world = slowWorld();
+  play(sheet, world.reply, sheet, generated());
+  const sent = app.post("/worlds", { ...choices, id: "form-1", build: "build-1" });
+  await worldAsked();
+  await sent;
+
+  expect((await cancel("build-1")).status).toBe(200);
+  world.finish(generated());
+  await Bun.sleep(5);
+  expect((await app.post("/worlds/form-1/begin", { artStyle: "Ink" })).status).toBe(404);
+
+  await app.post("/worlds", { ...choices, id: "form-1", build: "build-2" });
+  await cancel("build-1");
+  while ((await (await buildOf("build-2")).json()).running) await Bun.sleep(1);
+  expect((await app.post("/worlds/form-1/begin", { artStyle: "Ink" })).status).toBe(201);
+});
+
+test("a cancel that overtakes its build keeps it from being built", async () => {
   play();
-  expect((await fetch(app.url("/worlds/nothing/overview"))).status).toBe(404);
+  await cancel("build-1");
+  await app.post("/worlds", { ...choices, id: "form-1", build: "build-1" });
+  await Bun.sleep(5);
+  expect(prompts).toHaveLength(0);
+});
+
+test("Begin stops a rebuild still going, so it draws nothing for a world left behind", async () => {
+  const world = slowWorld();
+  play(sheet, generated(), world.reply);
+  const { body } = await generate();
+  await app.post(`/worlds/${body.id}/regenerate`, { ...choices, build: "build-2" });
+  while (prompts.length < 3) await Bun.sleep(1);
+
+  const log = await logOf(async () => {
+    expect((await app.post(`/worlds/${body.id}/begin`, { artStyle: "Ink" })).status).toBe(201);
+    world.finish(generated("New "));
+    await Bun.sleep(20);
+  });
+
+  expect(log).toContain('"outcome":"stopped"');
+  expect((await app.post(`/worlds/${body.id}/begin`, { artStyle: "Ink" })).status).toBe(404);
+});
+
+test("builds are busy until the last one ends, so the app won't quit on one", async () => {
+  const builds = worldBuilds();
+  const world = slowWorld();
+  expect(builds.busy()).toBe(false);
+  const { done } = builds.start("form-1", "build-1", () => world.reply);
+  expect(builds.busy()).toBe(true);
+  world.finish("Overview");
+  await done;
+  await Bun.sleep(0);
+  expect(builds.busy()).toBe(false);
 });
 
 test("a world that is not held can't be regenerated", async () => {

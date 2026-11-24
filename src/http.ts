@@ -23,6 +23,7 @@ import type { OnlineImageProvider, SettingsStore } from "./settings-store";
 import { type TextProvider, TurnFailed } from "./turn-engine";
 import { UpdateFailed } from "./updater";
 import type { UsageStore } from "./usage-store";
+import type { worldBuilds } from "./world-builds";
 
 /** What every route module shares: the request checks, the error answers, and the server's parts. */
 
@@ -66,7 +67,13 @@ export type ServerOptions = {
 };
 
 /** The one of each a server runs on, which every area's routes share. */
-export type ServerContext = { options: ServerOptions; saves: SaveStore; turns: ReturnType<typeof liveTurns>; images: ImagePipeline };
+export type ServerContext = {
+  options: ServerOptions;
+  saves: SaveStore;
+  turns: ReturnType<typeof liveTurns>;
+  images: ImagePipeline;
+  builds: ReturnType<typeof worldBuilds>;
+};
 
 /** A table of routes outside `Bun.serve`, typed the same, so each handler still knows its path's params. */
 export const routes = <Route extends string>(table: Bun.Serve.Routes<undefined, Route>) => table;

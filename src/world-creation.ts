@@ -659,7 +659,7 @@ const ABOUT: Record<EnhanceField, string> = {
 
 // The form shows every box side by side and the world is built from all of them, so a box restating another's people or facts is only repetition.
 const OWN_PART =
-  "Each box holds only its own part: never restate what the other boxes already say, such as the PC or another character in a box about the world, and mention someone from another box only where this box's part needs them.";
+  "Each box holds only its own part: add nothing another box already says, such as the PC or another character in a box about the world, and bring in someone from another box only where this box's part needs them.";
 
 /**
  * The empty boxes of the whole form, the only ones in the reply. A box left out, like the Starting Hook when it's off, stays unwritten.

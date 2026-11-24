@@ -12,17 +12,37 @@ import {
   type HeldPicture,
   pickForMe,
   regenerateWorld,
+  resumeBuild,
   setupProblem,
+  Unreachable,
   uploadHeldImage,
 } from "./api";
 import { toneLabel, toneText } from "../tones";
 import { DecideIcon, EditIcon } from "./icons";
 import { ConfirmDialog, MenuRibbon, Sheet } from "./menu";
-import { blank, characterLabel, type Draft, newRef, npcPicture, OWN_THEME, redrew, STEPS, STORAGE_KEY, stored, THEMES, withCoverChoice } from "./wizard-draft";
+import {
+  blank,
+  characterLabel,
+  type Draft,
+  forgetBuilding,
+  keepBuilding,
+  keptBuilding,
+  newRef,
+  npcPicture,
+  OWN_THEME,
+  redrew,
+  STEPS,
+  STORAGE_KEY,
+  stored,
+  THEMES,
+  withCoverChoice,
+} from "./wizard-draft";
 import { WorldForm } from "./wizard-form";
 import { Heading, LeaveWorld, PickForMe, Working } from "./wizard-frame";
 import { type Naming, PictureSection } from "./wizard-pictures";
 import { NudgeButton, TEXT_NUDGE } from "./zoom";
+
+const BUILDING = "The Narrator is building the world. Missing pictures are drawn as well. This can take a few minutes.";
 
 /** Steps live in the hash like screens, so the browser's back button walks them. `step` is the part after `#/new/`: none, "art" or "overview". */
 export function NewStory({ step }: { step?: string }) {
@@ -31,7 +51,7 @@ export function NewStory({ step }: { step?: string }) {
   const [error, setError] = useState("");
   const [setupNotice, setSetupNotice] = useState<string>();
   const [imagesReady, setImagesReady] = useState<boolean>();
-  /** True while a picture is being asked for, so that a form's first two can't each get an id of their own. */
+  /** True while a picture is being asked for, so that a second press can't ask for it again. */
   const [asking, setAsking] = useState(false);
   /** Where the player asked to go back to from the world, while they confirm it. */
   const [leaving, setLeaving] = useState<string>();
@@ -46,7 +66,7 @@ export function NewStory({ step }: { step?: string }) {
   const scrolledTo = useRef<(readonly [Element, number])[]>(undefined);
 
   const { world, id: worldId } = draft;
-  const page = step === "overview" && world && worldId ? "overview" : step === "art" ? "art" : "form";
+  const page = step === "overview" && world ? "overview" : step === "art" ? "art" : "form";
 
   useEffect(() => {
     try {
@@ -159,23 +179,39 @@ export function NewStory({ step }: { step?: string }) {
       onCover,
     }));
     const { inventory, ...pc } = draft.pc;
-    return run("The Narrator is building the world. Missing pictures are drawn as well. This can take a few minutes.", async (signal) => {
-      // Kept before the build, so the page can ask for it again by its id.
-      const id = draft.id ?? newRef(24);
-      setDraft((current) => ({ ...current, id }));
-      const { overview } = await generateWorld({ ...worldChoices, characters, artStyle, id, pc, inventory }, signal);
-      setDraft((current) => ({ ...current, world: { overview }, drawn: redrew(current.drawn, ...allPictures) }));
-      location.hash = "/new/overview";
-    });
+    return build(BUILDING, (id, signal) => generateWorld({ ...worldChoices, characters, artStyle, id: worldId, pc, inventory }, id, signal));
   }
 
-  /** A first picture, or a Redo or upload in place of one. `send` answers with the id the form's pictures are held under. */
-  async function hold(picture: HeldPicture, send: () => Promise<string>) {
+  /** The tab keeps the build until it ends, so a reload picks that one up rather than paying for another. */
+  const build = (waiting: string, work: (id: string, signal: AbortSignal) => Promise<{ overview: string }>, id = newRef(24)) =>
+    run(waiting, async (signal) => {
+      keepBuilding(worldId, id);
+      try {
+        const { overview } = await work(id, signal);
+        setDraft((current) => ({ ...current, world: { overview }, drawn: redrew(current.drawn, ...allPictures) }));
+        location.hash = "/new/overview";
+      } catch (failure) {
+        // It may still be going, and the player is told to reload.
+        if (failure instanceof Unreachable) return setError(failure.message);
+        forgetBuilding();
+        throw failure;
+      }
+      forgetBuilding();
+    });
+
+  // Once, as the page opens.
+  useEffect(() => {
+    const kept = keptBuilding(worldId);
+    if (kept) build(BUILDING, (id, signal) => resumeBuild(worldId, id, signal), kept);
+  }, []);
+
+  /** A first picture, or a Redo or upload in place of one. */
+  async function hold(picture: HeldPicture, send: () => Promise<unknown>) {
     setAsking(true);
     setError("");
     try {
-      const id = await send();
-      setDraft((current) => ({ ...current, id, drawn: redrew(current.drawn, picture) }));
+      await send();
+      setDraft((current) => ({ ...current, drawn: redrew(current.drawn, picture) }));
     } catch (failure) {
       setError((failure as Error).message);
     }
@@ -185,15 +221,10 @@ export function NewStory({ step }: { step?: string }) {
   /** `nudge` is kept for the picture, so its next Draw or Redo asks for the same. */
   const drawFirst = (picture: HeldPicture, ask: Parameters<typeof drawOnForm>[0], nudge = draft.nudges[picture] ?? "") => {
     setDraft((current) => ({ ...current, nudges: { ...current.nudges, [picture]: nudge } }));
-    return hold(picture, async () => (await drawOnForm({ ...ask, id: draft.id, nudge })).id);
+    return hold(picture, () => drawOnForm({ ...ask, id: worldId, nudge }));
   };
 
-  const uploadOwn = (picture: HeldPicture, file: File) =>
-    hold(picture, async () => {
-      const id = draft.id ?? newRef(24);
-      await uploadHeldImage(id, picture, file);
-      return id;
-    });
+  const uploadOwn = (picture: HeldPicture, file: File) => hold(picture, () => uploadHeldImage(worldId, picture, file));
 
   const feedback = (
     <>
@@ -321,7 +352,7 @@ export function NewStory({ step }: { step?: string }) {
       naming={naming}
       missing={missing}
       onCover={onCover}
-      id={draft.id}
+      id={worldId}
       version={draft.drawn[picture]}
       nudge={draft.nudges[picture]}
       imagesReady={imagesReady}
@@ -383,13 +414,12 @@ export function NewStory({ step }: { step?: string }) {
 
   if (page === "overview") {
     const regenerate = () =>
-      run("The Narrator is rebuilding the world. This can take a few minutes.", async (signal) => {
-        const { overview } = await regenerateWorld(worldId!, { ...worldChoices, artStyle }, signal);
-        setDraft((current) => ({ ...current, world: { overview }, drawn: redrew(current.drawn, ...allPictures) }));
-      });
+      build("The Narrator is rebuilding the world. This can take a few minutes.", (id, signal) =>
+        regenerateWorld(worldId, { ...worldChoices, artStyle }, id, signal),
+      );
     const begin = () =>
       run("Opening the book…", async (signal) => {
-        const { id } = await beginStory(worldId!, artStyle, signal);
+        const { id } = await beginStory(worldId, artStyle, signal);
         sessionStorage.removeItem(STORAGE_KEY);
         location.hash = `/play/${id}`;
       });

@@ -10,7 +10,7 @@ A play costs money, at about the bench's rate for its Turns, and needs no per-ru
 2. **Charter**, one per play, from `bench/charters.md`: the least played first, half reader and half strain, unless the player names one. Tell the player the stories and charters before starting.
 3. **Open** each play in the background, up to three at once:
    `bun bench live --label <charter> --turns N <story flags> --narrator deepseek/deepseek-v4.1-flash-1017 --reviewer openai/gpt-6-luna --review-thinking medium --yes`, with `--draw` when local ComfyUI is up (say so if it isn't). It prints the folder, in `bench/live/`, and is ready once `live.json` is there.
-4. **Player:** a Sonnet subagent per play, given the player brief with its folder, charter and Turns filled in. Never tell it what a world hides, and never name an expected fault.
+4. **Player:** a Sonnet subagent per play, given the player brief with its folder, charter and Turns filled in, and how to move as its charter's heading in `bench/charters.md` says. Never tell it what a world hides, and never name an expected fault.
 5. The play finishes when its player does, or after an hour left alone, and saves `transcript.md`, `notes.md`, `verdict.md`, `inkandthread.log`, `counts.json`, `world.json`, `replay.txt`, `pictures` and `Saves` in its folder.
 6. **Auditor:** once it's saved, a Fable subagent at high effort per play, given the auditor brief. Never the player's agent, so its guesses don't steer the audit.
 7. **Report** (below), and add the play to its charter's line in `bench/charters.md`.
@@ -29,7 +29,7 @@ A play costs money, at about the bench's rate for its Turns, and needs no per-ru
 > EOF
 > ```
 >
-> Start with `look` and `setup`. Turns are `move`, `choose <1-3>` and `continue`. Use the other tools when a player would, such as `journal` to check a name, `rewrite` for a reply that went wrong, or `ask`; send `help` to list them. Mix your own moves with the Choices offered. Everything you send as a move is the main character's own words and deeds. When a picture's path is printed, look at it with Read.
+> Start with `look` and `setup`. Turns are `move`, `choose <1-3>` and `continue`. Use the other tools when a player would, such as `journal` to check a name, `rewrite` for a reply that went wrong, or `ask`; send `help` to list them. `<how to move>` Everything you send as a move is the main character's own words and deeds. When a picture's path is printed, look at it with Read.
 >
 > Know only what the player is shown. Read nothing in the folder but the pictures it prints, nothing in `bench/`, `src/` or `.scratch/`, and no logs.
 >

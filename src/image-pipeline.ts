@@ -172,12 +172,14 @@ export function expandMarks(text: string, npcs: Npc[], pcName: string, reference
       const firstDescribed = !!brief && !described.has(person);
       if (brief) described.add(person);
       // By their image where there is one, as "the same person" four times over, for four people, drew strangers.
-      const again = referenced.indexOf(person) + 1;
-      if (pictured.includes(person) && !firstDescribed) return again && pictured.length > 1 ? `the same person from image ${again}` : "the same person";
+      const image = referenced.indexOf(person) + 1;
+      // Not a possessive, as "image 1's arm" is the image's.
+      const possessive = /^['’]s\b/.test(whole.slice(at + _.length));
+      if (pictured.includes(person) && !firstDescribed)
+        return image && pictured.length > 1 && !possessive ? `the same person from image ${image}` : "the same person";
       const first = !pictured.includes(person);
       if (first) pictured.push(person);
       const looks = [brief, ...(first && npc ? missingFeatures(npc.appearance, brief) : [])].filter(Boolean).join(", ");
-      const image = referenced.indexOf(person) + 1;
       if (!image) return looks || "a person";
       // A comma closes the phrase only when the sentence reads on, as in "the person from image 1, a tall woman, kneels".
       const readsOn = /^\s*[a-z]/i.test(whole.slice(at + _.length));

@@ -489,13 +489,14 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       return;
     case "add_status":
       if (hasNumber(operation.text)) return "has a number";
-      if (othersBody(state, operation.text)) return OTHERS_BODY;
+      if (othersBody(state, operation.kind, operation.text)) return OTHERS_BODY;
       if (!addOnce(state.status[operation.kind], operation.text)) return "already there";
       // The oldest goes, as Narrators often forget to remove what has passed.
       state.status[operation.kind] = state.status[operation.kind].slice(-MAX_STATUS);
       return;
     case "remove_status":
-      return take(state.status[operation.kind], operation.text) ? undefined : "not there";
+      if (take(state.status[operation.kind], operation.text)) return undefined;
+      return othersBody(state, operation.kind, operation.text) ? OTHERS_BODY : "not there";
     case "add_npc": {
       // No two people share a name, so adding someone already there gives them the looks they now have, as update_npc would.
       // By another form of a full name with a title too, as a garbled speaker label, "Rerend Amos Thorne", was added as a second
@@ -737,15 +738,18 @@ const lasting = (appearance: string) => {
 
 const OTHERS_BODY = "someone else's body";
 /**
- * Whether a status is another's: an NPC who "has" or "is" it, or whose part of the body it is on, as "Barra has a crossbow bolt
- * through the thigh" stood as the PC's injury. shortcut: by these forms only; add one when another's wound shows.
+ * Whether an injury is another's: an NPC who "has" or "is" it, or whose body a weapon or wound is in, as "Barra has a crossbow
+ * bolt through the thigh" stood as the PC's. Never one that speaks of the PC too. shortcut: by these forms only, and a PC who
+ * shares a name word with an NPC is taken for them; add a form when another's wound shows.
  */
-const othersBody = (state: State, text: string) =>
+const othersBody = (state: State, kind: string, text: string) =>
+  kind === "injuries" &&
+  !/\b(?:you|your|me|my)\b/i.test(text) &&
   state.npcs.some(({ name }) =>
     nameForms(name).some((form) =>
       new RegExp(
-        String.raw`^(?:the\s+)?${RegExp.escape(form)}\s+(?:has|is|was)\b|\b(?:in|into|through|on|to|across)\s+${RegExp.escape(form)}['’]s\s+(?:\p{L}+\s+)?(?:thigh|leg|arm|hand|head|face|side|shoulder|chest|back|foot|belly|stomach|neck|knee|ribs?|wrist|fingers?|thumb|eyes?)\b`,
-        "iu",
+        String.raw`^(?:The\s+)?${RegExp.escape(form)}\s+(?:has|is)\b|^(?:\p{L}+\s+){0,2}(?:bolt|arrow|bullet|ball|blade|knife|wound|cut|gash|burn)s?\s+(?:in|through|on|to|across)\s+${RegExp.escape(form)}['’]s\s`,
+        "u",
       ).test(text),
     ),
   );

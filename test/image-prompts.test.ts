@@ -292,7 +292,20 @@ test("an injury told as someone else's isn't the PC's", () => {
   const injured = (text: string) => applyOperations(before, [{ op: "add_status", kind: "injuries", text }]);
   for (const text of ["Barra has a crossbow bolt through the thigh", "Barra is bleeding from the thigh", "Crossbow bolt through Barra's left thigh"])
     expect([injured(text).next.status.injuries, injured(text).refused]).toEqual([[], []]);
-  for (const text of ["a bite from Barra's dog", "cut thumb, bound by Barra", "bruised by Barra's grip"])
+  // Taken back with no Turn lost to it.
+  const back = applyOperations(before, [
+    { op: "add_status", kind: "injuries", text: "Barra is cut" },
+    { op: "remove_status", kind: "injuries", text: "Barra is cut" },
+  ]);
+  expect(back.refused).toEqual([]);
+  expect(applyOperations(before, [{ op: "add_status", kind: "conditions", text: "Barra has you pinned" }]).next.status.conditions).toHaveLength(1);
+  for (const text of [
+    "split knuckles on Barra's face",
+    "fingers crushed in Barra's hand",
+    "a bite from Barra's dog",
+    "cut thumb, bound by Barra",
+    "bruised by Barra's grip",
+  ])
     expect(injured(text).next.status.injuries).toEqual([text]);
 });
 

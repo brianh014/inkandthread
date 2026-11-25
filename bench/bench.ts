@@ -64,7 +64,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 30;
+const BENCH_ITERATION = 31;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 45;
@@ -113,7 +113,7 @@ const COVERAGE: [string, string[]][] = [
   ["Hidden Check", ["checks.asked"]],
   ["Plot Thread added", ["ops.add_plot_thread", "moves.added"]],
   ["Plot Thread moved on", ["ops.update_plot_thread", "moves.rewritten"]],
-  ["Plot Thread resolved", ["ops.resolve_plot_thread", "moves.removed"]],
+  ["Plot Thread resolved", ["moves.removed"]],
   ["NPC learns (npcKnows)", ["ops.npc_learns", "upkeep.npc_learns"]],
   ["Known fact added", ["ops.add_known_fact"]],
   ["Known fact changed", ["ops.update_known_fact", "ops.remove_known_fact", "upkeep.update_known_fact", "upkeep.remove_known_fact"]],
@@ -150,7 +150,6 @@ const HEADLINE = [
   "failed",
   "checks.asked",
   "ops.update_plot_thread",
-  "ops.resolve_plot_thread",
   "moves.rewritten",
   "moves.added",
   "moves.removed",
@@ -1368,16 +1367,7 @@ function table() {
     }
     return;
   }
-  const columns = [
-    "cost.perRound",
-    "timing.firstText.median",
-    "timing.reply.median",
-    "timing.turn.median",
-    "checks.asked",
-    "ops.resolve_plot_thread",
-    "coverage.fired",
-    "judge.overall",
-  ];
+  const columns = ["cost.perRound", "timing.firstText.median", "timing.reply.median", "timing.turn.median", "checks.asked", "coverage.fired", "judge.overall"];
   console.log(["date".padEnd(17), "kept", "narrator".padEnd(30), "rounds x runs", ...columns].join("  "));
   for (const { path, result } of found) {
     const cells = columns.map((key) => {

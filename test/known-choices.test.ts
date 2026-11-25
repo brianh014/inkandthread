@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { UPKEEP_LIMIT } from "../src/state-upkeep";
 import { knownChoices, unknownWords, withoutUnread, writeChoices } from "../src/known-choices";
 import { openingState, type State } from "../src/state-applier";
 import { scriptedTextProvider } from "./support";
@@ -234,4 +235,18 @@ test("Choices asked for alone get no date the clock has passed midnight beyond, 
     storyTime: { day: 4, date: "3rd of Thaw", timeOfDay: "the small hours", hours: 75, dateDue: true },
   });
   expect(JSON.parse(prompts[0]!.at(-1)!.content).story_time).toEqual({ day: 4, timeOfDay: "the small hours", clock: "03:00" });
+});
+
+test("the Choices call has a thinking budget, so one still thinking has time to be asked again without it", async () => {
+  let sent: { thinkingBudget?: number; thinkingMs?: number } = {};
+  await writeChoices(
+    async (_prompt, request) => {
+      sent = request;
+      return JSON.stringify({ choices: ["Ask Jory.", "Ride on now.", "Wait here."] });
+    },
+    "Jory looks away.",
+    new AbortController().signal,
+  );
+  expect(sent.thinkingBudget).toBe(1000);
+  expect(sent.thinkingMs).toBeLessThan(UPKEEP_LIMIT.ms / 2);
 });

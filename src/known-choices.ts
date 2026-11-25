@@ -190,6 +190,10 @@ export function withoutUnread<Operation extends StateOperation>(operations: Oper
   return operations.filter((operation) => !leaking.has(operation));
 }
 
+// Thinking tokens the Choices may spend where the provider takes a budget, and milliseconds where it doesn't.
+const CHOICES_THINKING = 1_000;
+const CHOICES_THINKING_MS = 6_000;
+
 /**
  * Three Choices for a reply that came without usable ones, asked of the Narrator alone, so the Turn's story isn't lost for them.
  * Undefined on any failure, which leaves the Turn without Choices: the player writes their own move, or Regenerates for some.
@@ -257,7 +261,9 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       Reply,
       "The Narrator refused to write the Choices.",
       AbortSignal.any([signal, AbortSignal.timeout(UPKEEP_LIMIT.ms)]),
-      { call: "choices", lessThinking: 1 },
+      // Cut off thinking soon enough to be asked again without it in the time left, as two Turns of one bench play ran out of
+      // time still thinking and had no Choices. Upkeep cut at 9 s left its second try too little.
+      { call: "choices", lessThinking: 1, thinkingBudget: CHOICES_THINKING, thinkingMs: CHOICES_THINKING_MS },
     );
     log.info("turn", "Choices written alone", { sent: choices.length, usable: usableChoices(choices)?.length ?? 0 });
     return usableChoices(choices);

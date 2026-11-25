@@ -212,12 +212,7 @@ test("a Revert past the reply the world is moving on from stops the move, so the
 
 test("a move reads the Lore Entries the story names too, not only its threads', so a thread it adds keeps to the world", async () => {
   const told = play(
-    narration(
-      "Ash catches the thief where a gull nests on the dome.",
-      { op: "resolve_plot_thread", thread: THIEF },
-      { op: "set_scene", location: "The dome", visible_cast: [] },
-      nextDay(),
-    ),
+    narration("Ash catches the thief where a gull nests on the dome.", { op: "set_scene", location: "The dome", visible_cast: [] }, nextDay()),
     moved(),
     narration("Ash looks out over the city."),
   );
@@ -322,56 +317,6 @@ test("a move the clock brings a reply after the last reads only the replies sinc
 
   const sent = JSON.parse(told.prompts[5]!.at(-1)!.content);
   expect(sent.latest_replies).toEqual([expect.stringContaining("hides the ledger")]);
-});
-
-test("a Turn's resolve only asks the next move to close the thread, which the move removes or keeps", async () => {
-  const told = play(
-    narration(
-      "Ash catches the thief at the dock.",
-      { op: "resolve_plot_thread", thread: THIEF },
-      { op: "set_scene", location: "The dock", visible_cast: [] },
-      nextDay(),
-    ),
-    moved(change(THIEF, null), change(null, "He walks the docks at night.", "The thief's father wants him back.")),
-    narration("Ash looks out over the water."),
-  );
-  const id = createSave();
-
-  const log = await logOf(async () => {
-    expect((await turn(id, "I catch him.")).ok).toBe(true);
-    // The next Turn waits for the move.
-    expect((await turn(id, "I look out.")).ok).toBe(true);
-  }, "info");
-
-  // Still open when the move was asked, which was told the Turn asked to close it.
-  const asked = JSON.parse(told.prompts[1]!.at(-1)!.content);
-  expect(asked.plot_threads).toEqual([{ truth: THIEF, now: "" }]);
-  expect(asked.asked_to_close).toEqual([THIEF]);
-  expect(store().latestState(id).plotThreads).toEqual(["The thief's father wants him back."]);
-  expect(store().latestState(id).threadsNow).toEqual({ "The thief's father wants him back.": "He walks the docks at night." });
-  expect(log).toContain('"closeAsked":1');
-  expect(log).toContain('"asked":1,"closed":1');
-});
-
-test("a close ask follows its thread through a later amended truth, and a Turn logs only the asks that matched a thread", async () => {
-  const AMENDED = "The thief, the librarian's son, plans to rob the library at the next high tide.";
-  const told = play(
-    narration("Ash hears of a ghost.", { op: "resolve_plot_thread", thread: "A ghost haunts the dome." }),
-    narration("Ash corners the thief.", { op: "resolve_plot_thread", thread: THIEF }),
-    narration("The thief slips away.", { op: "update_plot_thread", thread: THIEF, now: "He hides.", truth: AMENDED }, nextDay()),
-    moved(),
-    narration("Ash looks out."),
-  );
-  const id = createSave();
-
-  const log = await logOf(async () => {
-    for (const input of ["I listen.", "I grab him.", "I chase him.", "I look out."]) expect((await turn(id, input)).ok).toBe(true);
-  }, "info");
-
-  expect(JSON.parse(told.prompts[3]!.at(-1)!.content).asked_to_close).toEqual([AMENDED]);
-  expect(log).toContain('"closeAsked":0');
-  expect(log).toContain('"closeAsked":1');
-  expect(log).toContain('Thread truths amended {"route":"/saves/:id/turns","save":"');
 });
 
 test("a Turn amends a thread's truth only when the reply names someone the thread names, and otherwise keeps only its now", () => {

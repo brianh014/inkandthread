@@ -1607,7 +1607,7 @@ test("speech left in the prose is found, but never a speaker line, an apostrophe
   expect(speechOutsideLines("She called it 'the old road' once.")).toBe(false);
 });
 
-test("placeholder operations, a known fact that is only a name, and a reply's resolves of more than one thread are dropped", () => {
+test("placeholder operations, a known fact that is only a name, and retired operations are dropped", () => {
   const kept = [
     { op: "add_item", slot: "carrying", item: "a brass key" },
     { op: "add_known_fact", fact: "Grout moved the tomb aside." },
@@ -1624,12 +1624,8 @@ test("placeholder operations, a known fact that is only a name, and a reply's re
     { op: "add_known_fact", fact: "Silas Grout" },
   ];
   expect(usableOperations([...kept, ...junk])).toEqual(kept);
-  const two = [
-    { op: "resolve_plot_thread", thread: "One thread." },
-    { op: "resolve_plot_thread", thread: "Another thread." },
-  ];
-  expect(usableOperations([...kept, ...two])).toEqual(kept);
-  expect(usableOperations([...kept, two[0]])).toEqual([...kept, two[0]]);
+  // However many it loops.
+  expect(usableOperations([...kept, ...Array.from({ length: 60 }, () => ({ op: "resolve_plot_thread", thread: "One thread." }))])).toEqual(kept);
 });
 
 test("a reply changes a record once, so a chain of rewrites keeps only its first link", () => {

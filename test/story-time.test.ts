@@ -264,3 +264,16 @@ test("a short walk after talk over-counted past midnight is no new day, however 
   const { next } = applyOperations(before, [{ op: "set_story_time", days_passed: 1, hours_passed: 0.17, date: "Tuesday, 16th", time_of_day: "evening" }]);
   expect(next.storyTime).toMatchObject({ day: 1, date: "Monday, 15th" });
 });
+
+test("words that name the morning for an afternoon never set the clock back half a day, as noon became midnight", () => {
+  const at = (timeOfDay: string, hours: number) => ({
+    ...openingState,
+    storyTime: { day: 1, date: "6th June", timeOfDay, hours },
+  });
+  const move = (hours_passed: number, time_of_day: string) => ({ op: "set_story_time" as const, days_passed: 0, hours_passed, time_of_day, date: null });
+  const noon = applyOperations(at("about six minutes to twelve", 11.9), [move(0.75, "about a quarter to one in the morning")]).next;
+  expect(noon.storyTime?.hours).toBeCloseTo(12.65);
+  // Words a few hours off the count still set it, as it must never drift from what the page says.
+  const drifted = applyOperations(at("a while later", 17), [move(0.1, "eleven in the morning")]).next;
+  expect(drifted.storyTime?.hours).toBe(11);
+});

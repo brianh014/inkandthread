@@ -29,7 +29,6 @@ import type { NarratorTurn, UsageStore } from "./usage-store";
 import {
   applyOperations,
   clockOf,
-  closestThread,
   findPerson,
   givenName,
   introduce,
@@ -49,7 +48,7 @@ import { applyWorldChange } from "./world-creation";
 import { foldKnows } from "./knowledge-folds";
 import { closeLooseEnds } from "./loose-ends-check";
 import { growLore } from "./lore-growth";
-import { askToClose, deedWords, forgetUnread, MOVE_LIMIT, moveDue, moveSoon, sameDeed, moveWorldOn, turnThreadChanges } from "./world-moves-on";
+import { deedWords, forgetUnread, MOVE_LIMIT, moveDue, moveSoon, sameDeed, moveWorldOn, turnThreadChanges } from "./world-moves-on";
 import { threadPeople } from "./thread-people";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
@@ -156,7 +155,9 @@ export class TurnFailed extends Error {
 // the PC's own goals. A model that still sends one has it dropped, not the reply.
 // Nor removes a Lore Entry, as the removes were filler in run-on lists, and deleted live entries in two plays and nine of a
 // world's ten in a third; update_lore_entry corrects one, and a World Change can still remove one.
-const RETIRED = ["set_summary", "add_plot_thread", "remove_lore_entry"];
+// Nor resolves a thread, which was only ever a request to World Moves On: looped resolves ran on past whole replies, 537 in one
+// 30-Turn play, and a move decides by its own answer to each thread's question.
+const RETIRED = ["set_summary", "add_plot_thread", "remove_lore_entry", "resolve_plot_thread"];
 // DeepSeek filled its operations with placeholders, such as resolving a thread named "x", "none" or "", which failed whole Turns,
 // and saved an item named "x" and a known fact that was only a name, such as "Silas Grout", to the Journal.
 const PLACEHOLDER = /^[\s_]*(?:none|nonexistent|unused|placeholder|n\/a|null|\p{L})?[\s_]*$/iu;
@@ -164,19 +165,14 @@ export const isJunk = (operation: Record<string, unknown>) =>
   Object.values(operation).some((value) => typeof value === "string" && PLACEHOLDER.test(value)) ||
   (operation.op === "add_known_fact" && typeof operation.fact === "string" && /^\p{Lu}\p{L}*(?:\s+\p{Lu}\p{L}*)+$/u.test(operation.fact.trim()));
 /**
- * The operations without retired ones and placeholders. A reply's resolves go too when it resolves more than one thread, as
- * DeepSeek wiped every open thread at once, early and again later, with nothing ended; World Moves On removes what play has ended.
- * Removing other records two at a time is common in play, such as two items handed over, so only resolves are held to one.
+ * The operations without retired ones and placeholders.
  */
 export const usableOperations = (operations: unknown) => {
   if (!Array.isArray(operations)) return operations;
-  const usable = operations.filter((operation) => !RETIRED.includes(operation?.op ?? "") && !(operation && typeof operation === "object" && isJunk(operation)));
-  const asked = usable.filter(({ op }) => op === "resolve_plot_thread");
-  // 0 when they name one thread only.
-  const resolves = new Set(asked.map(({ thread }) => thread)).size > 1 ? asked.length : 0;
-  const kept = usable.filter(({ op }) => !(resolves && op === "resolve_plot_thread"));
+  const kept = operations.filter((operation) => !RETIRED.includes(operation?.op ?? "") && !(operation && typeof operation === "object" && isJunk(operation)));
+  const retired = operations.filter((operation) => RETIRED.includes(operation?.op ?? "")).length;
   const dropped = operations.length - kept.length;
-  if (dropped > 0) log.info("turn", "Operations dropped", { placeholders: operations.length - usable.length, resolves });
+  if (dropped > 0) log.info("turn", "Operations dropped", { placeholders: dropped - retired, retired });
   return kept;
 };
 const TurnOperation = z.discriminatedUnion(
@@ -507,8 +503,6 @@ type Narrated = {
   committed: (messageId: number, scene: Scene) => void;
   /** Tallies a committed player's Turn for the Narrator report. */
   counted?: (turn: NarratorTurn) => void;
-  /** The open threads a committed reply asked to close, for World Moves On to weigh. */
-  askClose?: (threads: string[], rewrites: (readonly [string, string])[]) => void;
   times: FollowUpTimes;
 };
 
@@ -751,7 +745,6 @@ export async function playTurn(
     committed: (messageId, scene) => images.sceneChanged(id, messageId, scene),
     // Only what the player did counts, so not the opening or a Continue, which have nothing to check.
     counted: kind === "turn" && !isContinueInput(input) ? (turn) => usage?.turn(id, model, turn) : undefined,
-    askClose: (threads, rewrites) => askToClose(id, threads, rewrites),
     times,
   });
   if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies + 1)) {
@@ -946,7 +939,6 @@ async function narrate(
     commit,
     committed,
     counted,
-    askClose,
     times,
   }: Narrated,
 ) {
@@ -1035,11 +1027,6 @@ async function narrate(
       const operationLimit = MAX_OPERATIONS * (kind === "opening" ? 2 : 1);
       let state_operations = withoutLoop(response.state_operations, operationLimit);
       const looping = state_operations.length < response.state_operations.length;
-      // Only asked of World Moves On, which weighs it at its next move, as lone resolves ended threads whose secrets were unplayed.
-      const asks = state_operations.flatMap((operation) => (operation.op === "resolve_plot_thread" ? [operation.thread] : []));
-      state_operations = state_operations.filter(({ op }) => op !== "resolve_plot_thread");
-      let asked: string[] = [];
-      let rewrites: (readonly [string, string])[] = [];
       // Later replies copy marks like these, so they never reach a Save.
       const unlabelled = withoutFields(withoutStrayMarks(response.narration as string));
       const speakers = [
@@ -1250,17 +1237,6 @@ async function narrate(
           next.threadsPlan = Object.fromEntries(Object.entries(next.threadsPlan).filter(([truth]) => !overtaken.includes(truth)));
           next.threadsDue = Object.fromEntries(Object.entries(next.threadsDue).filter(([truth]) => !overtaken.includes(truth)));
           overtakenPlans = overtaken.length;
-          // Through this Turn's amended truths, so an ask follows its thread to its new words, as the next move matches them exactly.
-          rewrites = [...state_operations, ...(upkept ?? [])].flatMap((operation) =>
-            operation.op === "update_plot_thread" && operation.truth
-              ? [[closestThread(state.plotThreads, operation.thread) ?? operation.thread, operation.truth] as const]
-              : [],
-          );
-          const rewritten = new Map(rewrites);
-          asked = asks.flatMap((thread) => {
-            const old = closestThread(state.plotThreads, thread) ?? thread;
-            return closestThread(next.plotThreads, rewritten.get(old) ?? old) ?? [];
-          });
           repeated = repeats;
           ignored = harmless;
           const written = summary.trim();
@@ -1316,7 +1292,6 @@ async function narrate(
       if (ignored.length > 0) log.warning("turn", "Operations ignored", { reason: refusalText(ignored) });
       // Why, as the count alone hid State Upkeep repeating what NPCs learned.
       if (upkeepDropped.length > 0) log.info("turn", "Upkeep operations dropped", { reason: refusalText(upkeepDropped) });
-      askClose?.(asked, rewrites);
       const operations = state_operations.map(({ op }) => op);
       counted?.({ difficulty: check?.difficulty, operations });
       // Counts only, so that the log never repeats the story: a Check's action is the player's words, so it's left out.
@@ -1338,8 +1313,6 @@ async function narrate(
         // Plans dropped as overtaken, their hour come while their doer was with the PC.
         ...(overtakenPlans > 0 && { plansOvertaken: overtakenPlans }),
         ...(plansPutOff > 0 && { plansPutOff }),
-        // The asks that matched an open thread, as the Narrator's own count logged asks of threads that never existed.
-        ...(asks.length > 0 && { closeAsked: asked.length }),
       }));
       return messages;
     } catch (cause) {

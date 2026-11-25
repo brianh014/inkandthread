@@ -267,7 +267,8 @@ const NARRATOR_COLUMNS: [string, (row: NarratorStory) => string][] = [
   ["Scenes", (row) => count(row.scenes)],
   ["Facts", (row) => count(row.facts)],
   ["Loose Ends opened / settled", (row) => `${count(row.looseOpened)} / ${count(row.looseClosed)}`],
-  ["Plot Threads new / moved / ended", (row) => `${count(row.threadsAdded)} / ${count(row.threadsMoved)} / ${count(row.threadsResolved)}`],
+  // Only those the Narrator moved, as World Moves On alone adds and ends them.
+  ["Plot Threads moved", (row) => count(row.threadsMoved)],
 ];
 
 /** How the Narrator used its tools in each story: Checks and state changes over the player's Turns, for each model that wrote there. */

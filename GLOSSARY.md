@@ -128,7 +128,7 @@ A secret storyline held by the Narrator that play can reveal. Its truth is what 
 _Avoid_: Hook (alone), plot
 
 **Loose End**:
-Something the PC knows is still unresolved, such as an unanswered question, a promise, a plan, an invitation or someone still missing. It stays on the list until play settles it, closed by the Narrator or State Upkeep as a reply settles it, or by the Scribe at a pause once many are open, and the player can read and edit it in the Journal.
+Something the PC knows is still unresolved, such as an unanswered question, a promise, a plan, an invitation or someone still missing. It stays on the list until play settles it, closed by the Narrator or State Upkeep as a reply settles it, or by the Scribe at a pause once several are open, never one just opened, and the player can read and edit it in the Journal.
 _Avoid_: Open thread, Plot Thread (that is secret, and says where the story could go)
 
 **Scene Memory**:

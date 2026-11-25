@@ -182,7 +182,9 @@ export const StateOperation = z.discriminatedUnion("op", [
   z.object({
     op: z.literal("npc_learns"),
     name: nonEmpty,
-    fact: nonEmpty.describe("one short sentence of what this NPC learned or lived through in play, in the third person, naming the PC and anyone else in it"),
+    fact: nonEmpty.describe(
+      "one short sentence of what this NPC learned or lived through in play, in the third person, naming everyone in it as they know them",
+    ),
   }),
   z.object({ op: z.literal("set_scene"), location: nonEmpty, visible_cast: z.array(nonEmpty) }),
   z.object({ op: z.literal("add_known_fact"), fact: nonEmpty }),

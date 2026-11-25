@@ -42,10 +42,15 @@ test("the pause closes what the Scribe found settled, asks nothing with few open
   expect(edit).toMatchObject({ moved: true, settled: ["Loose end 1."] });
   expect(applyEdit(state, edit).looseEnds).not.toContain("Loose end 1.");
 
-  // Nor one opened in the latest replies.
-  const fresh = savesWith(state, [], { ...state, looseEnds: ends(1) });
-  await closeLooseEnds(scriptedTextProvider(JSON.stringify({ settled: [2, 1] })).textProvider, fresh.saves, "save", signal);
-  expect((fresh.changes as [[WorldEdit]])[0][0]).toMatchObject({ settled: ["Loose end 0."] });
+  // Nor one opened in the latest replies or the player's own, which aren't asked about, and with no other nothing is asked.
+  const fresh = savesWith(state, [{ edit: "looseEnd", old: null, new: "Loose end 0." }], { ...state, looseEnds: ends(3) });
+  const asked = scriptedTextProvider(JSON.stringify({ settled: [2] }));
+  await closeLooseEnds(asked.textProvider, fresh.saves, "save", signal);
+  expect(JSON.parse(asked.prompts[0]![1]!.content).loose_ends.map(({ text }: { text: string }) => text)).toEqual(["Loose end 1.", "Loose end 2."]);
+  expect((fresh.changes as [[WorldEdit]])[0][0]).toMatchObject({ settled: ["Loose end 2."] });
+  const unasked = scriptedTextProvider();
+  await closeLooseEnds(unasked.textProvider, savesWith(state, [], { ...state, looseEnds: [] }).saves, "save", signal);
+  expect(unasked.prompts).toHaveLength(0);
 
   const few = scriptedTextProvider();
   await closeLooseEnds(few.textProvider, savesWith({ ...state, looseEnds: ends(CHECK_LOOSE_ENDS - 1) }).saves, "save", signal);

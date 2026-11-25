@@ -243,8 +243,15 @@ test("a clothing clause keeps its clothes when a word in it passes with the scen
     "a man, a shirt black with soot beneath a red leather coat, boots",
     "a woman, a blouse streaked with mud over the green skirt",
     "a man, hair dusted with snow around a scarred face",
+    "a man dusted with snow on his red leather coat",
+    "a man, his arms streaked with mud below a scarred face",
   ])
     expect(looksOf(kept)).toContain(kept.match(/red leather coat|green skirt|scarred face/)![0]);
+  // Told where it lies, at more length, and where no rule knows the place.
+  expect(looksOf("a man, a shirt grey with dust across the shoulders from the road, hair greyed with ash at one temple, boots")).toBe(
+    "a man, a shirt, hair, boots",
+  );
+  expect(looksOf("a man, boots white with dust up to the tops, a cap")).toContain("a cap");
   // Both halves of it, where it is told, and none of what it isn't on.
   expect(
     looksOf(

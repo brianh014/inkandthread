@@ -769,7 +769,6 @@ export async function playTurn(
   // Only now, as a Turn that failed or was stopped brought nothing on.
   if (due) planOffered(id, due, replyBefore(messages));
   const replies = narratorReplies(messages) + 1;
-  // Off the player's path, as the Turn waited for a slow one. shortcut: after a move of the world rather than beside it, so the next Turn may wait on both.
   const summarise = moveWorld && reviewProvider && summaryDue(saves.latestState(id), replies - 1) ? reviewProvider : undefined;
   if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies)) {
     // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
@@ -790,7 +789,8 @@ export async function playTurn(
       .finally(() => moving.get(id) === move && moving.delete(id));
     moving.set(id, move);
   }
-  if (summarise) void afterMoves(id, () => keepSummary({ provider: summarise, narrator: textProvider, settings }, saves, id));
+  // Never waited for, as it lands whenever it comes, and a slow Scribe held the player.
+  if (summarise) void keepSummary({ provider: summarise, narrator: textProvider, settings }, saves, id);
   followedUp(id, kind, images, times);
   return played;
 }

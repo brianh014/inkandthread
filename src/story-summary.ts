@@ -9,7 +9,6 @@ import { slowReviewer } from "./state-upkeep";
 import { askForJson, jsonSchemaOf, type TextProvider, TurnFailed } from "./turn-engine";
 import { readable } from "./web/chat-style";
 
-// The next Turn waits for it, so a Scribe that takes longer leaves it for the Turn after.
 const SUMMARY_LIMIT_MS = 60_000;
 const SUMMARY_THINKING = 1_000;
 
@@ -99,8 +98,7 @@ export async function nextSummary(
       log.warning("turn", "Summary kept", words);
       return null;
     }
-    log.info("turn", "Summary written", { model, replies: covered - from, ...words, ms: Date.now() - started });
-    return { summary, replies: covered };
+    return { summary, replies: covered, last, log: { model, replies: covered - from, ...words, ms: Date.now() - started } };
   } catch (error) {
     log.warning("turn", "Summary missed", { model, ...(signal.aborted ? { type: "time limit", ms: SUMMARY_LIMIT_MS } : errorType(error)) });
     return null;
@@ -109,15 +107,40 @@ export async function nextSummary(
 
 type Scribe = { provider: TextProvider; narrator: TextProvider; settings: TextSettings };
 
-/** Writes the summary due after a Turn, while the player reads. Never over one the player changed meanwhile, nor on a story they moved on. */
+// Those being written, so a Turn that comes meanwhile asks for no second.
+const writing = new Set<string>();
+
+/**
+ * Writes the summary due after a Turn, while the player reads or plays on. Kept however late it comes, unless the player changed
+ * the last one meanwhile or the story it tells is no longer there with a reply after it. Never throws, as nothing awaits it.
+ */
 export async function keepSummary(scribe: Scribe, saves: SaveStore, id: string) {
-  const basedOn = saves.latestMessageId(id);
-  const state = saves.latestState(id);
-  const own = saves.playersEdits(id).some(({ edit }) => edit === "summary");
-  const story = await nextSummary(scribe, saves.read(id).pc.name, state, saves.messages(id), AbortSignal.timeout(SUMMARY_LIMIT_MS), own);
-  if (!story) return;
-  if (saves.latestState(id).summary !== state.summary) return log.info("turn", "Summary dropped", { save: id, reason: "changed meanwhile" });
-  saves.addWorldChange(id, basedOn, [
-    { edit: "world", update: { lore_entries: [], removed_lore: [], world_rules: [], plot_threads: [] }, made: 0, moved: true, story },
-  ]);
+  if (writing.has(id)) return;
+  writing.add(id);
+  try {
+    const messages = saves.messages(id);
+    const state = saves.latestState(id);
+    // The player's, until the Scribe has rewritten it.
+    const own = saves.playersEdits(id).some((edit) => edit.edit === "summary" && edit.text === state.summary);
+    // Never a fact only the newest reply gave, which goes with it when it is replaced.
+    const before = messages.filter(({ role }) => role === "narrator").at(-2);
+    const then = before ? saves.snapshot(id, before.id).pcKnown.facts : [];
+    const known = { ...state, pcKnown: { ...state.pcKnown, facts: state.pcKnown.facts.filter((fact) => then.includes(fact)) } };
+    const written = await nextSummary(scribe, saves.read(id).pc.name, known, messages, AbortSignal.timeout(SUMMARY_LIMIT_MS), own);
+    if (!written) return;
+    const now = saves.messages(id);
+    const told = messages.filter((message) => message.id <= written.last);
+    const stands = told.every(({ id, text }, index) => now[index]?.id === id && now[index]?.text === text) && narratorReplies(now) > written.replies;
+    if (!stands || saves.latestState(id).summary !== state.summary)
+      return log.info("turn", "Summary dropped", { save: id, ...written.log, reason: stands ? "changed meanwhile" : "story changed" });
+    const story = { summary: written.summary, replies: written.replies };
+    saves.addWorldChange(id, saves.latestMessageId(id), [
+      { edit: "world", update: { lore_entries: [], removed_lore: [], world_rules: [], plot_threads: [] }, made: 0, moved: true, story },
+    ]);
+    log.info("turn", "Summary written", { save: id, ...written.log });
+  } catch (error) {
+    log.warning("turn", "Summary not kept", { save: id, ...errorType(error) });
+  } finally {
+    writing.delete(id);
+  }
 }

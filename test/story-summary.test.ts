@@ -60,7 +60,7 @@ test("the summary is due every few replies, at the first reply there is none, an
 test("the Scribe is sent the page alone: the summary so far and the Messages it doesn't cover, never the newest reply", async () => {
   const asked = ask(summed("Ash came and went."), 8, { summary: "It began.", summaryReplies: 2 });
 
-  expect(await asked.written).toEqual({ summary: "Ash came and went.", replies: 7 });
+  expect(await asked.written).toMatchObject({ summary: "Ash came and went.", replies: 7, last: 14 });
   const sent = await asked.sent();
   expect(Object.keys(sent)).toEqual(["pc_name", "older_scenes", "pc_knows", "summary", "messages"]);
   expect(sent).toMatchObject({ older_scenes: ["They met."], pc_knows: ["The tap drips."], summary: "It began." });
@@ -74,13 +74,13 @@ test("what the player left out of a summary they wrote isn't sent again", async 
 
 test("a story left long without one catches up oldest first, with nothing from after it, and an older Save is sent its latest", async () => {
   const behind = ask(summed("So it went."), 31, { summary: "So far.", summaryReplies: 4 });
-  expect(await behind.written).toEqual({ summary: "So it went.", replies: 14 });
+  expect(await behind.written).toMatchObject({ summary: "So it went.", replies: 14 });
   expect(await behind.sent()).toMatchObject({ older_scenes: ["They met."], pc_knows: [] });
   // A blank one covers nothing, whatever it says.
-  expect(await ask(summed("So it went."), 31, { summary: "", summaryReplies: 20 }).written).toEqual({ summary: "So it went.", replies: 10 });
+  expect(await ask(summed("So it went."), 31, { summary: "", summaryReplies: 20 }).written).toMatchObject({ summary: "So it went.", replies: 10 });
 
   const older = ask(summed("So it went."), 31);
-  expect(await older.written).toEqual({ summary: "So it went.", replies: 30 });
+  expect(await older.written).toMatchObject({ summary: "So it went.", replies: 30 });
   expect((await older.sent()).messages.filter(({ role }: { role: string }) => role === "narrator")).toHaveLength(2 * SUMMARY_EVERY);
   // An opening's marker is no move.
   expect((await ask(summed("It began."), 2, { summary: "", summaryReplies: 0 }).sent()).messages).toEqual([{ role: "narrator", text: "Reply 0." }]);
@@ -89,11 +89,11 @@ test("a story left long without one catches up oldest first, with nothing from a
 test("a summary that is missing, blank or cut to a fraction of the last is not taken", async () => {
   const long = { summary: "one two three four five six seven eight nine ten", summaryReplies: 0 };
   expect(await ask(summed("one two three"), 7, long).written).toBeNull();
-  expect(await ask(summed("one two three four five"), 7, long).written).toEqual({ summary: "one two three four five", replies: 6 });
+  expect(await ask(summed("one two three four five"), 7, long).written).toMatchObject({ summary: "one two three four five", replies: 6 });
   for (const bad of [summed("  "), summed(7), summed(null), new Error("down")]) expect(await ask(bad, 7).written).toBeNull();
 });
 
-test("a summary another model refuses is asked of the Narrator, which the log names", async () => {
+test("a summary another model refuses is asked of the Narrator, whose model the log names", async () => {
   const settings = settingsWith();
   settings.update({ reviewOtherModel: true, reviewModel: "scribe/model" });
   const provider = scriptedTextProvider(new ContentRefused("policy")).textProvider;
@@ -102,8 +102,8 @@ test("a summary another model refuses is asked of the Narrator, which the log na
   const log = await logOf(async () => {
     written = await nextSummary({ provider, narrator, settings }, "Ash", { ...known, summary: "It began.", summaryReplies: 1 }, story(7), signal);
   }, "info");
-  expect(written).toEqual({ summary: "It went on.", replies: 6 });
-  expect(log).toMatch(/Summary written .*"model":"narrator\/model"/);
+  expect(written).toMatchObject({ summary: "It went on.", replies: 6, log: { model: "narrator/model" } });
+  expect(log).toContain("Summary refused");
 });
 
 test("no Scribe's model is asked for none", async () => {
@@ -112,9 +112,10 @@ test("no Scribe's model is asked for none", async () => {
   expect(scribe.prompts).toEqual([]);
 });
 
-test("a summary is written after the Turn, so a slow one never holds it, and a Regenerate keeps it", async () => {
-  const narrator = scriptedTextProvider(narration("One."), narration("Two."), narration("Two again."), narration("Three."));
-  let give = (_: string) => {};
+test("a summary is written after the Turn and never waited for: it lands in a later Turn, is kept by a Regenerate, and a missed one is asked for again", async () => {
+  const told = ["One.", "Two.", "Three.", "Three again.", "Four.", "Five."];
+  const narrator = scriptedTextProvider(...told.map((text) => narration(text)));
+  const scribed: ((reply: string) => void)[] = [];
   const asked: string[] = [];
   server = startServer({
     savesDir,
@@ -122,9 +123,12 @@ test("a summary is written after the Turn, so a slow one never holds it, and a R
     textProvider: narrator.textProvider,
     moveWorld: true,
     reviewProvider: async (prompt) => {
-      if (!prompt[0]!.content.startsWith("You keep the summary")) return JSON.stringify({ state_operations: [] });
+      // A fact of the newest reply, which the summary never reads.
+      if (prompt[0]!.content.startsWith("You keep a story's state"))
+        return JSON.stringify({ state_operations: [{ op: "add_known_fact", fact: `Fact ${asked.length}.` }] });
+      if (!prompt[0]!.content.startsWith("You keep the summary")) throw new Error("not scripted");
       asked.push(prompt[1]!.content);
-      return new Promise<string>((resolve) => (give = resolve));
+      return new Promise<string>((resolve) => scribed.push(resolve));
     },
     imageAdapter: scriptedImages().imageAdapter,
     dice: scriptedDice(),
@@ -137,24 +141,61 @@ test("a summary is written after the Turn, so a slow one never holds it, and a R
   const id = store.create({ worldBrief: "A drowned city", pc: { name: "Ash" }, opening: { plotThreads: ["HIDDEN-TRUTH"] } });
   const post = (path: string, body: object = {}) =>
     fetch(new URL(`/saves/${id}/${path}`, server!.url), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const until = async (done: () => boolean) => {
+    for (let tries = 0; !done() && tries < 200; tries++) await Bun.sleep(5);
+    expect(done()).toBe(true);
+  };
 
   expect((await post("turns", { input: "I wait." })).status).toBe(201);
   expect(asked).toEqual([]);
-  // Back before the summary is written.
   expect((await post("turns", { input: "I wait." })).status).toBe(201);
-  expect(store.latestState(id).summary).toBe("");
-  for (let tries = 0; asked.length === 0 && tries < 100; tries++) await Bun.sleep(5);
+  await until(() => asked.length === 1);
   expect(asked[0]).not.toContain("HIDDEN-TRUTH");
   expect(asked[0]).not.toContain("Two.");
-  give(summed("SUMMARY-ONE"));
-  for (let tries = 0; store.latestState(id).summary === "" && tries < 100; tries++) await Bun.sleep(5);
-  expect(store.latestState(id)).toMatchObject({ summary: "SUMMARY-ONE", summaryReplies: 1 });
-
-  expect((await post("messages/4/regenerate")).status).toBe(201);
-  expect(store.latestState(id)).toMatchObject({ summary: "SUMMARY-ONE", summaryReplies: 1 });
-  expect((await post("turns", { input: "I go." })).status).toBe(201);
-  expect(JSON.stringify(narrator.prompts[3])).toContain("SUMMARY-ONE");
+  // Its Scribe still writing, the story goes on, and asks for no second.
+  expect((await post("turns", { input: "I wait." })).status).toBe(201);
   expect(asked).toHaveLength(1);
+  // One that can't be used is asked for again after the next Turn.
+  scribed[0]!("no JSON");
+  await until(() => scribed.length === 2);
+  scribed[1]!("no JSON");
+  await until(() => scribed.length === 3);
+  scribed[2]!("no JSON");
+  await Bun.sleep(20);
+  expect(store.latestState(id).summary).toBe("");
+  expect((await post("messages/6/regenerate")).status).toBe(201);
+  expect((await post("turns", { input: "I go." })).status).toBe(201);
+  await until(() => scribed.length === 4);
+  scribed[3]!(summed("SUMMARY-ONE"));
+  await until(() => store.latestState(id).summary === "SUMMARY-ONE");
+  expect(store.latestState(id).summaryReplies).toBe(3);
+  expect((await post("turns", { input: "I go on." })).status).toBe(201);
+  expect(JSON.stringify(narrator.prompts[5])).toContain("SUMMARY-ONE");
+  expect(asked).toHaveLength(4);
+});
+
+test("a fact only the newest reply gave is not sent, and a summary of a story no longer there is dropped", async () => {
+  const store = saveStore(savesDir);
+  const id = store.create({ worldBrief: "A drowned city", pc: { name: "Ash" } });
+  const turn = (text: string, fact: string) =>
+    store.commitTurn(id, store.latestMessageId(id), "I go.", text, undefined, (state) => ({
+      ...state,
+      pcKnown: { ...state.pcKnown, facts: [...state.pcKnown.facts, fact] },
+    }));
+  turn("One.", "Kept.");
+  turn("Two.", "NEWEST");
+  let sent = "";
+  const provider: TextProvider = async (prompt) => {
+    sent = prompt[1]!.content;
+    store.revert(id, 2);
+    return summed("One.");
+  };
+
+  const log = await logOf(() => keepSummary(by(provider), store, id), "info");
+
+  expect(JSON.parse(sent).pc_knows).toEqual(["Kept."]);
+  expect(store.latestState(id).summary).toBe("");
+  expect(log).toMatch(/Summary dropped .*story changed/);
 });
 
 test("a summary is never written over one the player changed meanwhile", async () => {

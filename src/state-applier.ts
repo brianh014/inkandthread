@@ -730,9 +730,9 @@ const SOILED =
   /((?:^|,\s*|\b(?:an?|his|her|their|the|in|over|under|wearing|with|of|from)\s))(?:dusty|muddied|(?:mud|dust|snow|sand)-(?!colou?red)\w+ed)\s+(?!(?:a|an|the|at|with|from|to|through|in|on|of|by|and|now|up|down|after)\b)(\p{L})/giu;
 // Dirt told after what it is on, up to what the clause says next, as a plait "greyed with ash at the tip" redrew a blonde woman grey.
 const DIRT = String.raw`(?:ash(?:es)?|soot|dust|mud|sand|snow|frost|sweat|rain)(?![-\w])`;
-// Never where the next words may be what the dirt describes, as ash blonde hair is no dirt.
+// Only the dirt and a body part or edge it is told on, as any more took a garment with it, and never a colour, as ash blonde.
 const DIRTIED = new RegExp(
-  String.raw`\s+(?:and\s+)?(?:grey|greyed|gray|grayed|white|whitened|black|blackened|dark|darkened|stiff|smudged|smeared|streaked|dusted|grimed|powdered) with ${DIRT}(?:\s+and\s+(?:${DIRT}|(?:grape )?must|water|grease|oil|blood|grime))?(?:\s(?:at|on|across|from|up to|to|around|along|near|round)\s(?:the|his|her|their|its)\s[\w'-]+(?:\s(?!(?:and|with|in|over|under|above|below|beneath|wearing)\s)[\w'-]+)?)?(?=\s*(?:[,;.]|$)|\s(?:and|with|in|over|under|above|below|beneath|wearing)\s)`,
+  String.raw`\s+(?:and\s+)?(?:grey|greyed|gray|grayed|white|whitened|black|blackened|dark|darkened|stiff|smudged|smeared|streaked|dusted|grimed|powdered) with ${DIRT}(?!\s(?:blonde?|brown|gr[ae]y|white|black)\b)(?:\s+and\s+(?:${DIRT}|(?:grape )?must|water|grease|oil|blood|grime)\b)?(?:\s(?:at|on|across|from|up to|to|around|along)\s(?:the|his|her|their|one|both)\s(?:(?:left|right)\s)?(?:tips?|ends?|roots|parting|temples?|brow|collar|neck|shoulders?|chest|sleeves?|elbows?|wrists?|cuffs?|hem|waist|thighs?|knees?|ankles|toes?|heels?|nails|edges?|road)\b)*`,
   "gi",
 );
 /**

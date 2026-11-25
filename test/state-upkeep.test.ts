@@ -558,3 +558,38 @@ test("State Upkeep is told who the PC knows and what people know, without their 
   expect(state.known_people).toEqual({ Mara: "" });
   expect(store().latestState(id).pcKnown.summaries).toEqual({ Mara: "The ferry's pilot." });
 });
+
+test("a person's line never holds what only someone's knowledge does, nor replaces the player's own, and one is asked for those without", async () => {
+  const summary = (name: string, text: string) => ({ op: "set_known_npc_summary", name, summary: text });
+  const { upkeep } = play(
+    // The edit's own settling fails, which the Turn plays on past.
+    [narration("Mara waves from the quay."), new Error("down"), narration("Mara smiles.")],
+    [
+      upkept(summary("Mara", "The pilot who buried the ledger."), summary("Tobin", "A clerk."), summary("constructor", "Nobody.")),
+      upkept(summary("Mara", "A smuggler.")),
+    ],
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: ["Mara"] },
+      summary: "",
+      npcs: [
+        { name: "Mara", appearance: "a pilot" },
+        { name: "Tobin", appearance: "a clerk" },
+      ],
+      pcKnown: { facts: [], npcs: ["Mara", "Tobin"], summaries: {} },
+      npcKnows: { Mara: ["Mara buried the ledger under the cistern."] },
+    },
+  });
+
+  expect((await turn(id)).ok).toBe(true);
+  expect(JSON.parse(upkeep.prompts[0]![1]!.content).state.known_people).toEqual({ Mara: "", Tobin: "" });
+  expect(store().latestState(id).pcKnown.summaries).toEqual({ Tobin: "A clerk." });
+
+  store().addEdit(id, { edit: "npcSummary", name: "Mara", text: "My sister-in-law, whom I trust." });
+  expect((await turn(id)).ok).toBe(true);
+  expect(store().latestState(id).pcKnown.summaries!.Mara).toBe("My sister-in-law, whom I trust.");
+});

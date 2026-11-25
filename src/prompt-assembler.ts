@@ -329,18 +329,16 @@ const looksInView = ({ scene, npcs }: Pick<State, "scene" | "npcs">) =>
   Object.fromEntries(scene.visibleCast.flatMap((name) => npcs.filter((npc) => npc.name === name).map(({ appearance }) => [name, appearance])));
 
 /**
- * npcKnows of only those in the scene or named in `said`, as everyone's would crowd a prompt. The full name in any case, or
- * a capitalised part of it as written, so "Nadia" finds Nadia Petrova, "Al" isn't in "Alright" and "will" isn't Will.
- * Articles never count, as they start sentences.
+ * The people in the scene or named in `said`. The full name in any case, or a capitalised part of it as written, so "Nadia"
+ * finds Nadia Petrova, "Al" isn't in "Alright" and "will" isn't Will. Articles never count, as they start sentences.
  */
-/** The people in view or named in what was said. */
 export function presentOf({ scene, npcs }: Pick<State, "scene" | "npcs">, said: string) {
   const parts = (name: string) => name.split(" ").filter((part) => /^\p{Lu}/u.test(part) && !ARTICLES.has(part.toLowerCase()));
   const mentioned = (name: string) => wholeWord(name).test(said) || parts(name).some((part) => wholeWord(part, "u").test(said));
   return [...new Set([...scene.visibleCast, ...npcs.map(({ name }) => name).filter(mentioned)])];
 }
 
-/** What the people in view or named in what was said know. */
+/** npcKnows of only those in the scene or named in `said`, as everyone's would crowd a prompt. */
 export function knowsOfPresent(state: Pick<State, "scene" | "npcs" | "npcKnows">, said: string) {
   const { npcKnows } = state;
   const present = new Set(presentOf(state, said));

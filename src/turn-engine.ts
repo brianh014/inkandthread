@@ -27,6 +27,7 @@ import { type Message, type Reply, type SaveStore, StaleTurn } from "./save-stor
 import { modelName, type SettingsStore } from "./settings-store";
 import type { NarratorTurn, UsageStore } from "./usage-store";
 import {
+  alike,
   applyOperations,
   clockOf,
   findPerson,
@@ -38,6 +39,7 @@ import {
   type SceneMemory,
   type State,
   StateOperation,
+  type WorldEdit,
 } from "./state-applier";
 import { duePlan, planOffered, planShown, replyBefore } from "./due-plans";
 import { countWords, withinLimit } from "./limits";
@@ -742,7 +744,7 @@ export async function playTurn(
     pcName: saves.read(id).pc.name,
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     before: state,
-    upkeep: reviewProvider && { provider: reviewProvider, settings, input },
+    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines(saves.pendingEdits(id)) },
     offerChoices,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
@@ -834,7 +836,7 @@ export async function replaceResponse(
     pcName: saves.read(id).pc.name,
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     before: state,
-    upkeep: reviewProvider && { provider: reviewProvider, settings, input },
+    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines(journalEdits) },
     offerChoices,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
@@ -915,7 +917,7 @@ export async function editResponse(
     pcName: saves.read(id).pc.name,
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     before: state,
-    upkeep: reviewProvider && { provider: reviewProvider, settings, input },
+    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines(journalEdits) },
     offerChoices,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
@@ -1187,7 +1189,7 @@ async function narrate(
               ).then((ops) => {
                 if (!ops) return ops;
                 const told = groundedNotes(ops, narrated.next, `${move}\n${upkeepReads?.narration ?? narration}`, read);
-                return withoutRelearned(seen ? journalRead(told, narrated.next, read) : told, state_operations, narrated.next.npcs);
+                return withoutRelearned(seen ? journalRead(told, narrated.next, read) : told, state_operations, narrated.next);
               })
             : undefined,
         ),
@@ -1368,11 +1370,15 @@ export const sameApproach = (one: string, other: string) => {
   const shared = [...a].filter((word) => b.has(word)).length;
   return one === other || (shared >= 4 && shared * 2 >= Math.min(a.size, b.size));
 };
+/** The people whose line in the Journal the player has written since the last reply, which Upkeep leaves as they wrote it. */
+const ownLines = (edits: WorldEdit[]) => edits.flatMap((edit) => (edit.edit === "npcSummary" ? [edit.name] : []));
 /** The operations without a Journal entry naming a secret, logging the Loose Ends among those dropped. */
 function journalRead<Operation extends StateOperation>(operations: Operation[], state: State, read: string) {
   const kept = withoutUnread(operations, state, read);
   const ends = (list: Operation[]) => list.filter(({ op }) => op === "add_loose_end").length;
   const dropped = ends(operations) - ends(kept);
+  const lines = (list: Operation[]) => list.filter(({ op }) => op === "set_known_npc_summary").length;
+  if (lines(kept) < lines(operations)) log.info("turn", "Lines on people naming secrets dropped", { dropped: lines(operations) - lines(kept) });
   if (dropped > 0) log.info("turn", "Loose Ends with unknown words dropped", { dropped, kept: ends(kept) });
   return kept;
 }
@@ -1415,6 +1421,11 @@ export function groundedNotes<Operation extends StateOperation>(upkept: Operatio
   const [untold, unread] = [unreadIn(told), unreadIn(read)];
   const known = Object.values(npcKnows).flat().join("\n");
   const kept = upkept.filter((operation) => {
+    // What only someone's knowledge holds never reaches the player in a line on a person either.
+    if (operation.op === "set_known_npc_summary" && secretWords(operation.summary, known, read, unread).length > 0) {
+      dropped.secret++;
+      return false;
+    }
     if (operation.op !== "add_known_fact" && operation.op !== "add_loose_end") return true;
     const { op } = operation;
     const note = operation.op === "add_known_fact" ? operation.fact : operation.loose_end;
@@ -1439,11 +1450,20 @@ export function groundedNotes<Operation extends StateOperation>(upkept: Operatio
  * State Upkeep's operations without an npc_learns that says again in other words what the Narrator's own gave that person in
  * the same Turn, as Upkeep repeated them most Turns of a bench play.
  */
-export function withoutRelearned<Operation extends StateOperation>(upkept: Operation[], narrated: StateOperation[], npcs: State["npcs"]) {
+export function withoutRelearned<Operation extends StateOperation>(
+  upkept: Operation[],
+  narrated: StateOperation[],
+  { npcs, npcParts }: Pick<State, "npcs" | "npcParts">,
+) {
   const who = (name: string) => findPerson(npcs, name)?.name ?? name;
   const learned = narrated.flatMap((operation) => (operation.op === "npc_learns" ? [operation] : []));
+  // Nor the part of a thread they hold already, which Upkeep isn't sent, so it looks new as they tell it.
+  const holds = (name: string, fact: string) => Object.hasOwn(npcParts, name) && npcParts[name]!.some((part) => alike(part, fact));
   const kept = upkept.filter(
-    (operation) => operation.op !== "npc_learns" || !learned.some(({ name, fact }) => who(name) === who(operation.name) && sameApproach(fact, operation.fact)),
+    (operation) =>
+      operation.op !== "npc_learns" ||
+      (!holds(who(operation.name), operation.fact) &&
+        !learned.some(({ name, fact }) => who(name) === who(operation.name) && sameApproach(fact, operation.fact))),
   );
   if (kept.length < upkept.length) log.info("turn", "Upkeep's repeats of what someone learned dropped", { count: upkept.length - kept.length });
   return kept;

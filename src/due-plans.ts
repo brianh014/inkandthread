@@ -13,7 +13,10 @@ const USUAL_PACE = 0.1;
 const LATE_HOURS = 0.5;
 /** The most replies one plan is offered to, so one the Narrator leaves out goes to the next move of the world. */
 const MOST_OFFERS = 2;
-const JOINING = new Set(["the", "and", "above", "below", "between", "near", "inside", "outside", "behind", "under", "over", "from", "with", "into"]);
+// The words of a place that tell nothing of which, a direction among them, as "carries the lie north" put a far well at a north rock.
+const JOINING = new Set(
+  "the and above below between near inside outside behind under over from with into north south east west upper lower old new".split(" "),
+);
 
 /** How often each Save's plans have been offered. shortcut: in memory, so a restart offers a plan afresh; store it if one is played twice. */
 const offered = new Map<string, Map<string, number>>();

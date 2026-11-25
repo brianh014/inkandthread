@@ -31,11 +31,12 @@ test("the plan brought on is one near the PC whose hour this reply reaches, neve
   expect(duePlan("early", { ...state, storyTime: at(18.5) }, "Wren")).toBeUndefined();
   expect(duePlan("pace", { ...state, storyTime: at(18.5) }, "Wren", 0.5)?.truth).toBe(DREM);
   expect(duePlan("late", { ...state, storyTime: at(19.6) }, "Wren")).toBeUndefined();
-  // Someone with the PC, the PC by name, or the PC's place makes it near, and otherwise none is sent.
+  // Someone with the PC, the PC by name, or the PC's place makes it near, and otherwise none is sent. A direction is no place.
   const alone = { ...state, scene: { location: "the north rock", visibleCast: [] } };
   expect(duePlan("alone", alone, "Wren")).toBeUndefined();
+  expect(duePlan("direction", { ...alone, threadsPlan: { [DREM]: "At seven Drem will carry the lie north." } }, "Wren")).toBeUndefined();
   expect(duePlan("named", { ...alone, threadsPlan: { [DREM]: "At seven Drem will call Wren out." } }, "Wren")?.truth).toBe(DREM);
-  expect(duePlan("place", { ...alone, threadsPlan: { [DREM]: "At seven Drem will climb the north face." } }, "Wren")?.truth).toBe(DREM);
+  expect(duePlan("place", { ...alone, threadsPlan: { [DREM]: "At seven Drem will carry it north, and climb the rock." } }, "Wren")?.truth).toBe(DREM);
 });
 
 test("a plan is offered to two replies at most, so one the Narrator leaves out goes to the next move", () => {

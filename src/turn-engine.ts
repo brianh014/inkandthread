@@ -1052,7 +1052,7 @@ async function narrate(
         continue;
       }
       if (!check && rollCheck) ratedNone = true;
-      const { people, summary, recent_summary, scene_changed, visual_description, chapter_ends } = response;
+      const { people: listed, summary, recent_summary, scene_changed, visual_description, chapter_ends } = response;
       // Kept without the loop, not written again, as DeepSeek's whole narration was lost to a retry eight times in one 30-round play.
       const operationLimit = MAX_OPERATIONS * (kind === "opening" ? 2 : 1);
       let state_operations = withoutLoop(response.state_operations, operationLimit);
@@ -1099,6 +1099,22 @@ async function narrate(
       if (spoken === LONG_SPEECH) log.warning("turn", "Long speech kept", { attempt, generation });
       if (looping)
         log.warning("turn", "Looping operations dropped", { attempt, generation, sent: response.state_operations.length, kept: state_operations.length });
+      const story = seen?.() ?? "";
+      // With the move, as the player has read their own words, and the Messages don't hold it yet.
+      const read = `${story}\n${move}\n${narration}`;
+      // Someone of the hidden world the page never names isn't known to the PC, as a looping reply listed a man off in his own
+      // town, who then stood in the player's Journal. Those the story meets under another name have no Lore Entry of it.
+      const hidden = (name: string) => seen !== undefined && unnamedSecret(name, before.worldBible, read);
+      const people = listed.filter(({ name }) => !hidden(name));
+      const known = state_operations.filter((operation) => operation.op !== "add_known_npc" || !hidden(operation.name));
+      if (people.length < listed.length || known.length < state_operations.length)
+        log.info("turn", "People the page never names left out", {
+          attempt,
+          generation,
+          people: listed.length - people.length,
+          known: state_operations.length - known.length,
+        });
+      state_operations = known;
       // Checked before State Upkeep, so a reply that will be written again costs no call.
       const introducedBefore = introduce(before, people, pcName, state_operations);
       const narrated = applyOperations(introducedBefore.state, introducedBefore.operations);
@@ -1108,14 +1124,11 @@ async function narrate(
       const restarted = narrated.repeats > 0 && narrated.ignored.some(({ reason }) => reason === "earlier than now");
       if (restarted && attempt < MAX_ATTEMPTS) throw new InvalidResponse(undefined, { cause: RESTARTED });
       const description = withoutJsonTail(visual_description ?? "");
-      const story = seen?.() ?? "";
       const threads = turnThreadChanges(state_operations, before, narration);
       if (Object.keys(threads.dropped).length > 0) log.info("turn", "Thread changes dropped", { attempt, generation, ...threads.dropped });
       state_operations = threads.kept;
       const amended = state_operations.filter((operation) => operation.op === "update_plot_thread" && operation.truth).length;
       if (amended > 0) log.info("turn", "Thread truths amended", { attempt, generation, amended });
-      // With the move, as the player has read their own words, and the Messages don't hold it yet.
-      const read = `${story}\n${move}\n${narration}`;
       if (seen) {
         const kept = journalRead(state_operations, narrated.next, read);
         if (kept.length < state_operations.length)
@@ -1557,6 +1570,10 @@ const LONG_SPEECH = "someone speaks more than three times";
 const INLINE_SPEECH = "speech in the prose, not on a speaker line";
 const LEFT_OUT = "an opening that leaves out someone its Starting Hook names";
 
+/** Whether someone with a Lore Entry of their own has been named nowhere in what the player has read. */
+const unnamedSecret = (name: string, worldBible: State["worldBible"], read: string) =>
+  worldBible.some(({ title, alwaysOn }) => !alwaysOn && nameForms(title).some((form) => nameForms(name).includes(form))) &&
+  !nameForms(name).some((form) => wholeWord(form, "iu").test(read));
 /** Who of `people` the narration never names, by their full name or any capitalised part of it, such as a surname. */
 export const peopleLeftOut = (narration: string, people: string[]) =>
   people.filter((name) => !nameForms(name).some((part) => wholeWord(part, "u").test(narration)));

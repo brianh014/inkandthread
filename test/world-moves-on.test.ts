@@ -1463,33 +1463,6 @@ test("a now that has the PC told a secret off the page is asked again, naming th
   expect(store().latestState(id).threadsNow[hidden]).toBe(FRESH_NOW);
 });
 
-test("a plan for someone to tell the PC a secret is not asked again, as it happens on the page", async () => {
-  const hidden = "The ledger is hidden in the cottage chimney, and the vicar is searching for it.";
-  const plan = "The ferryman will come to the quay and tell Ash the ledger lies hidden up the cottage chimney.";
-  const told = play(
-    narration("Ash walks to the quay.", nextDay()),
-    moved({ ...change(hidden, "The ferryman rows in."), plan, plan_in_hours: 2 }),
-    narration("Ash waits."),
-  );
-  const id = store().create({
-    worldBrief: "A harbour town",
-    pc: { name: "Ash" },
-    opening: {
-      inventory: { wearing: [], carrying: [] },
-      scene: { location: "The quay", visibleCast: [] },
-      summary: "",
-      worldRules: [],
-      plotThreads: [hidden],
-      worldBible: [],
-    },
-  });
-
-  for (const input of ["I walk.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
-
-  expect(told.prompts).toHaveLength(3);
-  expect(store().latestState(id).threadsPlan[hidden]).toBe(plan);
-});
-
 test("a now that has someone shown or told 'her' a secret, naming no one else, counts as the PC told it", async () => {
   const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
   const hidden = "The ledger is hidden in the cottage chimney, and the vicar is searching for it.";

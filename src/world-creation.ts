@@ -21,7 +21,6 @@ import {
   changeList,
   clockOf,
   hasNumber,
-  MAX_PLAN_HOURS,
   MAX_PLOT_THREADS,
   ListChange,
   LoreEntryReply,
@@ -1144,6 +1143,9 @@ export async function pcSheet(context: Context, pc: Save["pc"], inventory: strin
 
 const words = z.string().trim().min(1);
 
+/** The most story hours ahead a World Change's plan may fall due: the player's own words may say tomorrow or next week, which twelve hours brought the same evening. */
+const MAX_CHANGE_HOURS = 14 * 24;
+
 /** A World Change's reply: the hidden `WorldUpdate`, and whatever it contradicts in the Journal, which the player reads. */
 const WorldChange = WorldUpdate.extend({
   // Apart from the truth in new, as a thread added without them was written as one "Truth: Now: Plan:" text with no now.
@@ -1438,7 +1440,7 @@ export async function applyWorldChange(
     // A plan kept as it was may be retimed alone, though not by a change that rewrites the now, which drops it.
     plot_threads.flatMap(({ new: truth, now, plan, plan_in_hours }) =>
       truth && (plan || (before.threadsPlan[truth] && !now)) && plan_in_hours !== null && clock !== undefined
-        ? [[truth, clock + Math.min(plan_in_hours, MAX_PLAN_HOURS)]]
+        ? [[truth, clock + Math.min(plan_in_hours, MAX_CHANGE_HOURS)]]
         : [],
     ),
   );

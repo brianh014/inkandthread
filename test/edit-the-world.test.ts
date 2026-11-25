@@ -574,6 +574,22 @@ test("a thread's plan a World Change writes falls due on the story clock, so Wor
   expect(prompts[0]![0]!.content).toContain('"story_time":{"date":"1 May","time_of_day":"midnight"}');
 });
 
+test("a World Change's plan for tomorrow falls due tomorrow, not the same evening", async () => {
+  const truth = "A cutter's officer has come to ask about the night landings.";
+  play(
+    update({ plot_threads: [{ old: null, new: truth, now: "The cutter lies off the bar.", plan: "Tomorrow the officer rows ashore.", plan_in_hours: 26 }] }),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: { ...WORLD, npcs: NPCS, storyTime: { day: 1, date: "1 May", timeOfDay: "seven", hours: 7 } },
+  });
+
+  expect((await change(id, "a revenue cutter anchors offshore")).status).toBe(200);
+
+  expect(store().latestState(id).threadsDue).toEqual({ [truth]: 33 });
+});
+
 test("a World Change's new plan with no due hour drops the old plan's", async () => {
   const [truth] = WORLD.plotThreads as [string];
   play(update({ plot_threads: [{ old: truth, new: truth, now: null, plan: "The bees swarm the town hall.", plan_in_hours: null }] }));

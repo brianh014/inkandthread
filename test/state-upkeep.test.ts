@@ -288,8 +288,9 @@ test("State Upkeep is told a few lines of talk take minutes, as six a reply made
 
 test("State Upkeep keeps the Journal, never twice, and no more than it may", async () => {
   play(
-    [narration("Kit shows Ash four round bruises on the drowned man's neck and says the sexton locked the crypt.")],
+    [narration("Rain falls."), narration("Kit shows Ash four round bruises on the drowned man's neck and says the sexton locked the crypt.")],
     [
+      upkept(),
       upkept(
         { op: "add_known_fact", fact: "The drowned man has four round bruises on his neck." },
         { op: "add_known_fact", fact: "Four round bruises mark the neck of the drowned man." },
@@ -301,6 +302,8 @@ test("State Upkeep keeps the Journal, never twice, and no more than it may", asy
     ],
   );
   const id = createSave();
+  // Never the story's first reply, which may add twice as many.
+  expect((await turn(id)).ok).toBe(true);
 
   const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
 
@@ -317,6 +320,17 @@ test("an Upkeep note carries nothing only someone's secret knowledge holds, thou
   expect(groundedNotes([secret], state, told)).toEqual([]);
   // Once the player has read of it, it is no secret.
   expect(groundedNotes([secret], state, `${told} They spoke of smuggling he ordered.`)).toEqual([secret]);
+});
+
+test("a known fact may be reworded in the words it already has, and one refused takes the place of nothing", () => {
+  const fact = "Bram is behind the smuggling.";
+  const state = { ...openingState, npcKnows: { Bram: ["Ash knows of his smuggling, and the oilskin."] }, pcKnown: { ...openingState.pcKnown, facts: [fact] } };
+  const update = (replacement: string) => ({ op: "update_known_fact" as const, fact, replacement });
+  const moved = update("Bram is behind the smuggling and left for the quay.");
+  expect(groundedNotes([moved], state, "Bram runs contraband to the quay.")).toEqual([moved]);
+  const note = { op: "add_known_fact" as const, fact: "Bram carried something heavy toward the quay." };
+  const secret = update("Bram carried the oilskin, something heavy, toward the quay.");
+  expect(groundedNotes([secret, note], state, "Bram carries something heavy to the quay.")).toEqual([note]);
 });
 
 test("an Upkeep note that takes the place of a fact the same reply removes is no repeat of it", () => {

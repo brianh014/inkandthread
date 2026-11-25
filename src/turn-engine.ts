@@ -206,8 +206,8 @@ export function withoutLoop(operations: TurnOperation[], limit: number) {
       const key = JSON.stringify(Object.entries(operation).filter(([field]) => !NEW_VALUES.includes(field)));
       if (seen.has(key)) return false;
       seen.add(key);
-      if (operation.op !== "update_plot_thread" && operation.op !== "update_known_fact") return true;
-      const [old, next] = operation.op === "update_plot_thread" ? [operation.thread, operation.truth] : [operation.fact, operation.replacement];
+      if (operation.op !== "update_plot_thread") return true;
+      const { thread: old, truth: next } = operation;
       // Each link's new words are noted even when it goes, so the rest of the chain goes too. A thread's identity is its truth.
       if (next && next !== old) seen.add(`${operation.op}\n${next}`);
       return !seen.has(`${operation.op}\n${old}`);
@@ -1119,7 +1119,6 @@ async function narrate(
       );
       const unread = new Set(told.filter((name) => !before.pcKnown.npcs.includes(name) && hidden(name))).size;
       if (unread > 0) log.info("turn", "People the page never names kept out of the Journal", { attempt, generation, count: unread });
-      const opening = move === OPENING_INPUT || input === OPENING_INPUT;
       // Checked before State Upkeep, so a reply that will be written again costs no call.
       const introducedBefore = introduce(before, people, pcName, state_operations, hidden);
       const narrated = applyOperations(introducedBefore.state, introducedBefore.operations, pcTraits);
@@ -1137,12 +1136,6 @@ async function narrate(
       state_operations = threads.kept;
       const amended = state_operations.filter((operation) => operation.op === "update_plot_thread" && operation.truth).length;
       if (amended > 0) log.info("turn", "Thread truths amended", { attempt, generation, amended });
-      if (seen) {
-        const kept = journalRead(state_operations, narrated.next, read);
-        if (kept.length < state_operations.length)
-          log.info("turn", "Journal entries naming secrets dropped", { attempt, generation, operations: state_operations.length - kept.length });
-        state_operations = kept;
-      }
       // The text is final here, so the player reads it while the follow-ups below run, and nothing after changes it.
       emit("reply", { text: narration });
       const shown = Date.now();
@@ -1212,6 +1205,8 @@ async function narrate(
                 timed,
               ).then((ops) => {
                 if (!ops) return ops;
+                // An opening by what Upkeep is told one is, as an Edit of one gives no opening's move.
+                const opening = !(upkeepReads?.previous ?? previous);
                 const told = groundedNotes(ops, { ...narrated.next, npcKnows: before.npcKnows }, read, opening);
                 return withoutRelearned(seen ? journalRead(told, narrated.next, read) : told, state_operations, narrated.next);
               })
@@ -1438,12 +1433,14 @@ const ownLines = (edits: WorldEdit[]) => {
     ...Object.entries(pcKnown.summaries ?? {}).flatMap(([name, line]) => (lines.some(({ text }) => text === line) ? [name] : [])),
   ];
 };
-/** The operations without a Journal entry naming a secret, logging the Loose Ends among those dropped. */
+/** The operations without a Journal entry naming a secret, logging how many of each kind were dropped. */
 function journalRead<Operation extends StateOperation>(operations: Operation[], state: State, read: string) {
   const kept = withoutUnread(operations, state, read);
   const ends = (list: Operation[]) => list.filter(({ op }) => op === "add_loose_end").length;
   const dropped = ends(operations) - ends(kept);
   const lines = (list: Operation[]) => list.filter(({ op }) => op === "set_known_npc_summary").length;
+  const facts = operations.length - kept.length - dropped - (lines(operations) - lines(kept));
+  if (facts > 0) log.info("turn", "Known facts naming secrets dropped", { dropped: facts });
   if (lines(kept) < lines(operations)) log.info("turn", "Lines on people naming secrets dropped", { dropped: lines(operations) - lines(kept) });
   if (dropped > 0) log.info("turn", "Loose Ends with unknown words dropped", { dropped, kept: ends(kept) });
   return kept;
@@ -1463,7 +1460,17 @@ const MOST_NOTES = { add_known_fact: 2, add_loose_end: 1 } as const;
  * reply has its words, which lost a third of them, nearly all true: what Upkeep is sent, no thread or lore, is what keeps them to the page.
  */
 export function groundedNotes<Operation extends StateOperation>(upkept: Operation[], { pcKnown, looseEnds, npcKnows }: State, read: string, opening = false) {
-  const given: StateOperation[] = upkept;
+  const known = Object.values(npcKnows).flat().join("\n");
+  const unread = unreadIn(read);
+  const told = upkept.filter((each) => {
+    const operation: StateOperation = each;
+    // What only someone's knowledge holds never reaches the player in a line on a person or a fact reworded either.
+    const reworded = operation.op === "set_known_npc_summary" ? operation.summary : operation.op === "update_known_fact" ? operation.replacement : "";
+    const words = secretWords(reworded, known, read, unread);
+    // But the player has the words of the fact it rewords.
+    return words.length === 0 || (operation.op === "update_known_fact" && words.every((word) => !unreadIn(operation.fact)(word)));
+  });
+  const given: StateOperation[] = told;
   const gone = new Set(
     given.flatMap((each) =>
       each.op === "remove_known_fact" || each.op === "update_known_fact" ? [each.fact] : each.op === "resolve_loose_end" ? [each.loose_end] : [],
@@ -1477,16 +1484,8 @@ export function groundedNotes<Operation extends StateOperation>(upkept: Operatio
     add_loose_end: looseEnds.filter((end) => !gone.has(end)),
   };
   const added = { add_known_fact: 0, add_loose_end: 0 };
-  const dropped = { secret: 0, repeated: 0, overMost: 0 };
-  const unread = unreadIn(read);
-  const known = Object.values(npcKnows).flat().join("\n");
-  const kept = upkept.filter((operation) => {
-    // What only someone's knowledge holds never reaches the player in a line on a person or a fact reworded either.
-    const reworded = operation.op === "set_known_npc_summary" ? operation.summary : operation.op === "update_known_fact" ? operation.replacement : "";
-    if (secretWords(reworded, known, read, unread).length > 0) {
-      dropped.secret++;
-      return false;
-    }
+  const dropped = { secret: upkept.length - told.length, repeated: 0, overMost: 0 };
+  const kept = told.filter((operation) => {
     if (operation.op !== "add_known_fact" && operation.op !== "add_loose_end") return true;
     const { op } = operation;
     const note = operation.op === "add_known_fact" ? operation.fact : operation.loose_end;

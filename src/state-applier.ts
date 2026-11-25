@@ -730,8 +730,9 @@ const SOILED =
   /((?:^|,\s*|\b(?:an?|his|her|their|the|in|over|under|wearing|with|of|from)\s))(?:dusty|muddied|(?:mud|dust|snow|sand)-(?!colou?red)\w+ed)\s+(?!(?:a|an|the|at|with|from|to|through|in|on|of|by|and|now|up|down|after)\b)(\p{L})/giu;
 // Dirt told after what it is on, up to what the clause says next, as a plait "greyed with ash at the tip" redrew a blonde woman grey.
 const DIRT = String.raw`(?:ash(?:es)?|soot|dust|mud|sand|snow|frost|sweat|rain)(?![-\w])`;
+// Never where the next words may be what the dirt describes, as ash blonde hair is no dirt.
 const DIRTIED = new RegExp(
-  String.raw`\s+(?:and\s+)?(?:grey|greyed|gray|grayed|white|whitened|black|blackened|dark|darkened|stiff|smudged|smeared|streaked|dusted|grimed|powdered) with ${DIRT}(?:\s+and\s+${DIRT})?(?:(?!\s(?:and|with|in|over|under|wearing)\s)[^,;.])*`,
+  String.raw`\s+(?:and\s+)?(?:grey|greyed|gray|grayed|white|whitened|black|blackened|dark|darkened|stiff|smudged|smeared|streaked|dusted|grimed|powdered) with ${DIRT}(?:\s+and\s+(?:${DIRT}|(?:grape )?must|water|grease|oil|blood|grime))?(?:\s(?:at|on|across|from|up to)\s(?:(?!\s(?:and|with|in|over|under|above|wearing)\s)[^,;.])*)?(?=\s*(?:[,;.]|$)|\s(?:and|with|in|over|under|above|below|wearing)\s)`,
   "gi",
 );
 /**
@@ -750,7 +751,7 @@ const lasting = (appearance: string) => {
     )
     .split(",")
     .flatMap((clause) => {
-      if (PASSING.test(clause)) return [];
+      if (PASSING.test(clause) || !clause.trim()) return [];
       const parts = clause.split(/(?=\s(?:and|with (?:an?|the|his|her|their|wet|rime|bare|hood))\s)/);
       const at = parts.findIndex((part) => FOR_NOW.test(part));
       return at === 0 ? [] : [parts.slice(0, at < 0 ? parts.length : at).join("")];

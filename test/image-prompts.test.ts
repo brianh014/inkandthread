@@ -239,6 +239,11 @@ test("a clothing clause keeps its clothes when a word in it passes with the scen
   expect(looksOf("a woman, blonde hair in a long plait greyed with ash at the tip, a shirt black with soot and a leather cap")).toBe(
     "a woman, blonde hair in a long plait, a shirt and a leather cap",
   );
+  // Both halves of it, and none of what it isn't on.
+  expect(looksOf("a man, his hands dark with soot and water, sleeves smeared with soot above a dark waistcoat, boots, blackened with soot, a cap")).toBe(
+    "a man, his hands, sleeves above a dark waistcoat, boots, a cap",
+  );
+  expect(looksOf("a woman, a short bob dark with ash blonde highlights, green eyes")).toBe("a woman, a short bob dark with ash blonde highlights, green eyes");
   expect(looksOf("a man, a fair beard streaked with ash-blonde, boots stained with grape must")).toBe(
     "a man, a fair beard streaked with ash-blonde, boots stained with grape must",
   );

@@ -82,7 +82,7 @@ The AI that keeps the story's record and reviews the world: State Upkeep after e
 _Avoid_: Reviewer, Review model, Lore Keeper (Lore is the World Bible's)
 
 **State Upkeep**:
-A second AI call after each reply, the Scribe's, that brings the scene, cast, inventory, Story Time, known facts and Loose Ends in line with what the reply showed happening, and alone writes the Journal: its facts, its Loose Ends and its line on each person the PC knows, as it sees none of the secrets the Narrator does. It never changes a Plot Thread, which is World Moves On's. It records only changes the reply shows, never a detail to fit a passing mention. The Turn is saved once it finishes; if it fails, the Narrator's own state is kept.
+A second AI call after each reply, the Scribe's, that brings the scene, cast, inventory, Story Time, known facts and Loose Ends in line with what the reply showed happening, and alone writes the Journal: its facts, its Loose Ends and its line on each person the PC knows, as it sees none of the secrets the Narrator does. It never changes a Plot Thread, which is World Moves On's. It records only changes the reply shows, never a detail to fit a passing mention. The Turn is saved once it finishes; if it fails, the Narrator's own state is kept and the Journal gains nothing.
 _Avoid_: State sync, bookkeeping call
 
 **World Moves On**:

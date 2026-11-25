@@ -360,7 +360,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
     body: (
       <>
         <p>
-          The Journal is what your PC knows, kept up to date by the Narrator as you play. It never holds the world's secrets. You can change its text with{" "}
+          The Journal is what your PC knows, kept up to date by the AI as you play. It never holds the world's secrets. You can change its text with{" "}
           {tool(EditIcon, "Edit")}, and your edit lasts unless you Revert to before it.
         </p>
         <ul>

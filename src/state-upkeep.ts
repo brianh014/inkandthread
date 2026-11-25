@@ -60,7 +60,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(time ? 
 const RULES = { withTime: rules(true), withoutTime: rules(false) };
 
 // The Choices and the Turn's save wait for State Upkeep, which took 1 to 5 s on the bench; past this, as a slow or retrying
-// reviewer could hold them for 30 s or more, the Turn keeps the Narrator's own state. Exported only so a test can shorten it.
+// reviewer could hold them for 30 s or more, the Turn keeps the Narrator's own state and adds nothing to the Journal. Exported only so a test can shorten it.
 export const UPKEEP_LIMIT = { ms: 15_000 };
 // Thinking tokens Upkeep may spend, sent where the provider takes a budget: 1,000, which 44 of 52 finished Upkeeps by DeepSeek at
 // Low stayed within over three bench runs, as 600 stopped 34 of 35. Where it can't be sent, thinking stops a third of UPKEEP_LIMIT
@@ -114,7 +114,7 @@ const MOST_WITHOUT = 3;
 /**
  * State Upkeep: a second call after each reply, on the reviewer's model and Review thinking, that brings the scene, inventory,
  * Story Time, known facts and looks in line with what the reply shows happening. Any failure gives undefined, as the
- * Turn keeps the Narrator's own state then, and the log gets the failure's type only.
+ * Turn keeps the Narrator's own state then and adds nothing to the Journal, and the log gets the failure's type only.
  */
 export async function upkeepOperations(
   { provider, settings, input, held = () => [], traits = "" }: Upkeep,

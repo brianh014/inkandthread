@@ -360,7 +360,7 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
     body: (
       <>
         <p>
-          The Journal is what your PC knows, kept up to date by the Narrator as you play. It never holds the world's secrets. You can change its text with{" "}
+          The Journal is what your PC knows, kept up to date by the AI as you play. It never holds the world's secrets. You can change its text with{" "}
           {tool(EditIcon, "Edit")}, and your edit lasts unless you Revert to before it.
         </p>
         <ul>
@@ -486,13 +486,13 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           </li>
           <li>
             <b>Scribe</b>: after every reply, the Scribe keeps the story's record straight: where you are, who's there, what you wear and carry, what people
-            have learned, and the time, so the next reply starts from what's true. It also looks over your new world, and any change to it, for contradictions
-            and plot holes, and quietly fixes them, keeping its secrets from you. It works after the reply shows, so you don't wait on it. Tick{" "}
-            <b>Use another model as the Scribe</b> to have a different AI do it: we recommend one from another family than the Narrator's, at least as smart, on
-            Medium thinking, such as GPT-6 Luna. Its calls are small, so a smart one costs little, but a closed AI like that one sends what it reads to its
-            maker. It uses the Narrator's provider unless you untick <b>Same provider as the Narrator</b> and give it its own. Its calls show in Usage under its
-            own model. <b>Scribe thinking</b> lets it think harder, or less, than the story. On High, some AIs think past <b>Longest thinking</b>, and its work
-            is then skipped.
+            have learned, and the time, so the next reply starts from what's true. Every few replies it also writes the Story Summary. It also looks over your
+            new world, and any change to it, for contradictions and plot holes, and quietly fixes them, keeping its secrets from you. It works after the reply
+            shows, so you don't wait on it. Tick <b>Use another model as the Scribe</b> to have a different AI do it: we recommend one from another family than
+            the Narrator's, at least as smart, on Medium thinking, such as GPT-6 Luna. Its calls are small, so a smart one costs little, but a closed AI like
+            that one sends what it reads to its maker. It uses the Narrator's provider unless you untick <b>Same provider as the Narrator</b> and give it its
+            own. Its calls show in Usage under its own model. <b>Scribe thinking</b> lets it think harder, or less, than the story. On High, some AIs think past{" "}
+            <b>Longest thinking</b>, and its work is then skipped.
           </li>
           <li>
             <b>Longest reply, in tokens</b> and <b>in minutes</b>: limits on one reply.

@@ -78,11 +78,11 @@ A second AI call that checks a new world, or a World Change before it is applied
 _Avoid_: Critic, judge, validator
 
 **Scribe**:
-The AI that keeps the story's record and reviews the world: State Upkeep after every reply, the Review of a new world and of each World Change, and, at each pause when the world moves on, new Lore, the folding of What an NPC Knows and the closing of settled Loose Ends and dropping of outdated known facts. It is the Narrator's model unless the player chooses another in Settings. The stored settings keep their old `review` names.
+The AI that keeps the story's record and reviews the world: State Upkeep after every reply, the summary every fifth, the Review of a new world and of each World Change, and, at each pause when the world moves on, new Lore, the folding of What an NPC Knows and the closing of settled Loose Ends and dropping of outdated known facts. It is the Narrator's model unless the player chooses another in Settings. The stored settings keep their old `review` names.
 _Avoid_: Reviewer, Review model, Lore Keeper (Lore is the World Bible's)
 
 **State Upkeep**:
-A second AI call after each reply, the Scribe's, that brings the scene, cast, inventory, Story Time, known facts and Loose Ends in line with what the reply showed happening, adding the Journal notes the Narrator left out. It never changes a Plot Thread, which is World Moves On's. It records only changes the reply shows, never a detail to fit a passing mention. The Turn is saved once it finishes; if it fails, the Narrator's own state is kept.
+A second AI call after each reply, the Scribe's, that brings the scene, cast, inventory, Story Time, known facts and Loose Ends in line with what the reply showed happening, and alone writes the Journal: its facts, its Loose Ends and its line on each person the PC knows, as it sees none of the secrets the Narrator does. It never changes a Plot Thread, which is World Moves On's. It records only changes the reply shows, never a detail to fit a passing mention. The Turn is saved once it finishes; if it fails, the Narrator's own state is kept and the Journal gains nothing.
 _Avoid_: State sync, bookkeeping call
 
 **World Moves On**:
@@ -128,7 +128,7 @@ A secret storyline held by the Narrator that play can reveal. Its truth is what 
 _Avoid_: Hook (alone), plot
 
 **Loose End**:
-Something the PC knows is still unresolved, such as an unanswered question, a promise, a plan, an invitation or someone still missing. It stays on the list until play settles it, closed by the Narrator or State Upkeep as a reply settles it, or by the Scribe at a pause once many are open, and the player can read and edit it in the Journal.
+Something the PC knows is still unresolved, such as an unanswered question, a promise, a plan, an invitation or someone still missing. It stays on the list until play settles it, closed by State Upkeep as a reply settles it, or by the Scribe at a pause once several are open, never one just opened, and the player can read and edit it in the Journal.
 _Avoid_: Open thread, Plot Thread (that is secret, and says where the story could go)
 
 **Scene Memory**:
@@ -136,7 +136,7 @@ About 100 words on what happened in a batch of 20 older Messages, written by the
 _Avoid_: Summary (that is the one rolling account of the whole story), Scene (that is a place and situation in the story)
 
 **Story Summary**:
-The one rolling account of the whole story so far, under 500 words, which the Narrator rewrites every fifth reply, leaning on the latest scenes, and reads on every Turn. The player reads and edits it in the Journal, beside the **Recent summary** of the last few scenes, which is written every Turn. Code and prompts call it the summary.
+The one rolling account of the whole story so far, under 500 words, which the Scribe rewrites every fifth reply, after the Turn, from the story's own text up to the reply before the newest, leaning on the latest scenes, and the Narrator reads on every Turn. The player reads and edits it in the Journal, beside the **Recent summary** of the last few scenes, which the Narrator writes every Turn. Code and prompts call it the summary.
 _Avoid_: Scene Memory (that covers one batch of older Messages)
 
 **World Overview**:

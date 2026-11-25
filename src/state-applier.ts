@@ -182,7 +182,9 @@ export const StateOperation = z.discriminatedUnion("op", [
   z.object({
     op: z.literal("npc_learns"),
     name: nonEmpty,
-    fact: nonEmpty.describe("one short sentence of what this NPC learned or lived through in play, as they would remember it"),
+    fact: nonEmpty.describe(
+      "one short sentence of what this NPC learned or lived through in play, in the third person, naming everyone in it as they know them",
+    ),
   }),
   z.object({ op: z.literal("set_scene"), location: nonEmpty, visible_cast: z.array(nonEmpty) }),
   z.object({ op: z.literal("add_known_fact"), fact: nonEmpty }),
@@ -284,7 +286,8 @@ export const FOLD_NPC_KNOWS = 12;
 /** The most an NPC's list keeps, dropping the oldest, only reached when folding fails. */
 export const MAX_NPC_KNOWS = 20;
 // Of those, how many may be parts of threads, which the cap keeps.
-const MAX_PARTS = 4;
+// Five, as with a fold's summary and the newest facts more would be due for folding again at once.
+const MAX_PARTS = 5;
 
 // Saying what someone doesn't know, which an NPC's list read as what they do, and which goes stale once they learn it.
 // Any verb of knowing or learning denied, or with nothing or no one as what is known, as "has not heard of", "heard nothing of"
@@ -462,9 +465,11 @@ function namedThread(state: State, text: string, { became }: ThreadsSoFar) {
 }
 
 /** Changes `state` and returns nothing, or returns why `operation` is disproved, having changed nothing. The reason goes to the Server Log, so it never quotes the operation. */
-function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = { became: new Map() }): string | undefined {
+function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = { became: new Map() }, pcTraits = ""): string | undefined {
   switch (operation.op) {
     case "add_item": {
+      // As the Narrator wrote who the PC met, or brought along, into what they wear and carry.
+      if (isPerson(state, operation.item)) return NOT_AN_ITEM;
       // Worn or carried, the same thing held twice was the same notebook three times and a shawl both worn and carried. A fuller
       // name replaces the old where it is, as models restate what is held with how it is now.
       // The same words twice in one reply may be two of a thing, as "two lengths of rope" are, so only one held before it repeats.
@@ -482,19 +487,25 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
     case "remove_item":
       if (take(state.inventory.carrying, operation.item) || take(state.inventory.wearing, operation.item)) return;
       // The old name of what an add just gave a fuller one, as a reply adds the new and removes the old: it is the same thing, still held.
-      return [...state.inventory.wearing, ...state.inventory.carrying].some((held) => sameItem(held, operation.item)) ? undefined : "not held";
+      return [...state.inventory.wearing, ...state.inventory.carrying].some((held) => sameItem(held, operation.item))
+        ? undefined
+        : isPerson(state, operation.item)
+          ? NOT_AN_ITEM
+          : "not held";
     case "set_health":
       if (hasNumber(operation.health)) return "has a number";
       state.status.health = operation.health;
       return;
     case "add_status":
       if (hasNumber(operation.text)) return "has a number";
+      if (othersBody(state, operation.kind, operation.text)) return OTHERS_BODY;
       if (!addOnce(state.status[operation.kind], operation.text)) return "already there";
       // The oldest goes, as Narrators often forget to remove what has passed.
       state.status[operation.kind] = state.status[operation.kind].slice(-MAX_STATUS);
       return;
     case "remove_status":
-      return take(state.status[operation.kind], operation.text) ? undefined : "not there";
+      if (take(state.status[operation.kind], operation.text)) return undefined;
+      return othersBody(state, operation.kind, operation.text) ? OTHERS_BODY : "not there";
     case "add_npc": {
       // No two people share a name, so adding someone already there gives them the looks they now have, as update_npc would.
       // By another form of a full name with a title too, as a garbled speaker label, "Rerend Amos Thorne", was added as a second
@@ -607,6 +618,7 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       return;
     }
     case "set_pc_appearance":
+      if (looksOfAnother(state, operation.appearance, pcTraits)) return SOMEONE_ELSE;
       state.pcAppearance = operation.appearance;
       return;
     case "set_era":
@@ -619,7 +631,9 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const before = state.storyTime;
       // A new day only where the hours or the words reach one, as a ten-yard walk from a quarter to six to a quarter past was given
       // a day and the next date, and a date once moved on never comes back. Not a date the clock is waiting on, nor a clock it lacks.
-      const wentBack = (hourOf(time_of_day) ?? 24) < (hourOf(before?.timeOfDay ?? "") ?? 0);
+      const [from, to] = [hourOf(before?.timeOfDay ?? ""), hourOf(time_of_day)];
+      // Not from a late hour to only "night", as "nearly midnight" to "late at night" goes nowhere back.
+      const wentBack = from !== undefined && to !== undefined && to < from && !(from >= 20 && to >= 20 && clockTimeOf(time_of_day) === undefined);
       // Two days or more that the dates agree with is meant, never that slip, as a reply going on to "Saturday came in grey" two
       // days later gave five hours with it and the story stayed on Thursday.
       const reached =
@@ -645,10 +659,14 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       // the story stayed on Monday to the end.
       // Only where the words go back past midnight, or, naming no hour, where this reply's own hours crossed it, as hours
       // over-counted on talk would put an afternoon on the next day.
-      const [from, to] = [hourOf(before?.timeOfDay ?? ""), hourOf(time_of_day)];
       const crossed = operation.hours_passed !== null && Math.floor(hours / 24) > Math.floor((before?.hours ?? hours) / 24);
       const wordsRoll = from !== undefined && to !== undefined ? to < from : crossed;
-      const day = Math.max((before?.day ?? 1) + days, wordsRoll ? Math.floor(hours / 24) + 1 : 0);
+      // A night's words going back past midnight are the next day whatever the count, as one a hair short of it at "just past
+      // midnight" never rolled, and "one in the morning" then set the clock back a whole day, where it stayed to the end.
+      // Only from a day's second half, as "late at night" said of the small hours is the night already turned.
+      const late = before && (before.hours === undefined || before.hours - (before.day - 1) * 24 >= 12);
+      const overnight = late && from !== undefined && to !== undefined && to < from && nightWraps(from, to) ? before.day + 1 : 0;
+      const day = Math.max((before?.day ?? 1) + days, wordsRoll ? Math.floor(hours / 24) + 1 : 0, overnight);
       // Back to a clock time the words give, where far from the count, so it never drifts from what the page says; never to
       // words alone, as "three in the morning" reads as morning's nine.
       const at = clockTimeOf(time_of_day);
@@ -658,14 +676,16 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       // and hours over-counted on a night's are still set back to its morning.
       const slipped =
         named !== undefined && before?.hours !== undefined && day === before.day && named < before.hours && Math.abs(hours - named - 12) <= DRIFT_HOURS;
-      const clock = named !== undefined && !slipped && Math.abs(hours - named) > DRIFT_HOURS ? named : hours;
+      const counted = named !== undefined && !slipped && Math.abs(hours - named) > DRIFT_HOURS ? named : hours;
+      // Never before the day it is now.
+      const clock = day > (before?.day ?? 1) ? Math.max(counted, (day - 1) * 24) : counted;
       const newDay = day > (before?.day ?? 1);
       // Never back within a day, as a reply that did so had started the story over from its first morning.
       const [was, now] = [dayPart(before?.timeOfDay), dayPart(time_of_day)];
       // From night on, the small hours and the next morning come after, as "past midnight" refused them all for five rounds.
       const wraps = was !== undefined && was >= NIGHT && now !== undefined && (now >= NIGHT || now <= MORNING);
       // By the hours too, as clock times such as "3 pm" to "9 am" have no part of the day in words to compare.
-      const hoursBack = from !== undefined && to !== undefined && to < from && !nightWraps(from, to);
+      const hoursBack = wentBack && !nightWraps(from!, to!);
       if (!newDay && date === before?.date && ((was !== undefined && now !== undefined && now < was && !wraps) || hoursBack)) return "earlier than now";
       // A new day with no date of its own keeps the old one until a Turn names it, as code can't reckon a world's calendar.
       const dateDue = (newDay || before?.dateDue) && date === before?.date;
@@ -700,18 +720,96 @@ const DAY_PARTS: [RegExp, number][] = [
 // passing pallor, bonds or a garment taken off and put down, as "coat folded over a barrel" redrew one coatless, or carried on
 // an arm, as another man's coat "under his arm" stayed in a constable's looks.
 // Bare feet too, as a man was drawn barefoot in the morning from the night before.
-// shortcut: whole comma clauses by these words; add a word when another passing state sticks.
+// shortcut: by these words; add one when another passing state sticks.
 const PASSING =
-  /\b(?:holding|carrying|carried|clutch(?:ing|ed)|gripp(?:ing|ed)|kneeling|crouching|sitting|seated|lying|leaning|standing (?:at|in|by|on|beside|over|before)|gone (?:out|off|away|into|to|back)|in (?:his|her|their|one) (?:other )?hand|in hand|held (?:high|low|up|out)|rain-\w+|wet|soaked|sodden|drenched|dripping|damp|dusty|dust|mud-\w+|muddied|windblown|caked|crusted|drained|ashen|flushed|(?:wrists|hands|arms|ankles) (?:bound|tied)|(?:bound|tied) (?:before|behind)|manacled|shackled|in irons|(?:taken|pulled|shrugged) off|(?:coat|jacket|cloak|hat|cap|shirt|boots) off|bare-?foot(?:ed)?|folded (?:over|on|across)|left (?:below|behind)|(?:under|over|across) (?:his|her|their|one|an?) arms?|tucked)\b/i;
-/** The looks without their passing clauses, or as written if nothing else is left. */
+  /\b(?:holding|carrying|carried|clutch(?:ing|ed)|gripp(?:ing|ed)|kneeling|crouching|sitting|seated|lying|leaning|standing (?:at|in|by|on|beside|over|before)|gone (?:out|off|away|into|to|back)|in (?:his|her|their|one) (?:other )?hand|in hand|held (?:high|low|up|out)(?! by)|soaked|sodden|drenched|dripping|damp|rain-\w+|mud-(?!brown|colou?red)\w+|windblown|caked|crusted|drained|ashen|flushed|(?:wrists|hands|arms|ankles) (?:bound|tied)|(?:bound|tied) (?:before|behind)|manacled|shackled|in irons|(?:taken|pulled|shrugged) off|(?:coat|jacket|cloak|hat|cap|shirt|boots) off|bare-?foot(?:ed)?|folded (?:over|on|across)|left (?:below|behind)|(?:under|over|across) (?:his|her|their|one|an?) arms?|tucked(?! into (?:[\w'-]+ ){0,3}(?:boots|trousers|breeches|skirts?|pants|jeans)\b))\b/i;
+// Dirt, wet and how a garment sits for now, which say nothing of what comes before them, so only they go.
+const FOR_NOW = /\b(?:wet|dusty(?!-)|dust(?!-(?:gr[ae]y|brown|colou?red))|muddied|bare feet|hood (?:up|down)|rime)\b/i;
+// Dirt on what the next words name, as a "dusty blue officer's coat" lost the whole coat from looks in five plays.
+const SOILED =
+  /((?:^|,\s*|\b(?:an?|his|her|their|the|in|over|under|wearing|with|of|from)\s))(?:dusty|muddied|(?:mud|dust|snow|sand)-(?!colou?red)\w+ed)\s+(?!(?:a|an|the|at|with|from|to|through|in|on|of|by|and|now|up|down|after)\b)(\p{L})/giu;
+// Dirt told after what it is on, up to what the clause says next, as a plait "greyed with ash at the tip" redrew a blonde woman grey.
+const DIRT = String.raw`(?:ash(?:es)?|soot|dust|mud|sand|snow|frost|sweat|rain)(?![-\w])`;
+// Only the dirt and a body part or edge it is told on, as any more took a garment with it, and never a colour, as ash blonde.
+const DIRTIED = new RegExp(
+  String.raw`\s+(?:and\s+)?(?:grey|greyed|gray|grayed|white|whitened|black|blackened|dark|darkened|stiff|smudged|smeared|streaked|dusted|grimed|powdered) with ${DIRT}(?!\s(?:blonde?|brown|gr[ae]y|white|black)\b)(?:\s+and\s+(?:${DIRT}|(?:grape )?must|water|grease|oil|blood|grime)(?![-\w]))?(?:\s(?:at|on|across|from|up to|to|around|along)\s(?:the|his|her|their|one|both)\s(?:(?:left|right)\s)?(?:tips?|ends?|roots|parting|temples?|brow|collar|neck|shoulders?|chest|sleeves?|elbows?|wrists?|cuffs?|hem|waist|thighs?|knees?|ankles|toes?|heels?|nails|edges?|road)\b)*`,
+  "gi",
+);
+/**
+ * The looks without what passes: a word of dirt on its own, then what a clause says of now from its "and" or "with", so the
+ * clothes it opens with stay, and the whole of a clause that has something held, put off or bound, as both sides of its "and"
+ * may be. As written if nothing else is left.
+ */
 const lasting = (appearance: string) => {
   const kept = appearance
+    .replace(DIRTIED, "")
+    .replace(
+      SOILED,
+      (_, before: string, letter: string) =>
+        // Its article still fits the word that now follows it.
+        (/^an?\s$/i.test(before) ? (/[aeio]/i.test(letter) ? before[0] + "n " : before[0] + " ") : before) + letter,
+    )
     .split(",")
-    .filter((clause) => !PASSING.test(clause))
+    .flatMap((clause) => {
+      if (PASSING.test(clause) || !clause.trim()) return [];
+      const parts = clause.split(/(?=\s(?:and|with (?:an?|the|his|her|their|wet|rime|bare|hood))\s)/);
+      const at = parts.findIndex((part) => FOR_NOW.test(part));
+      return at === 0 ? [] : [parts.slice(0, at < 0 ? parts.length : at).join("")];
+    })
     .join(",")
     .trim();
   return kept || appearance;
 };
+
+const NOT_AN_ITEM = "a person, not an item";
+// Exactly as named, as amber isn't Amber.
+const isPerson = (state: State, item: string) => state.npcs.some(({ name }) => name === item);
+
+const OTHERS_BODY = "someone else's body";
+const BODY_PART =
+  "(?:(?:arm|forearm|elbow|wrist|hand|finger|thumb|knuckle|palm|shoulder|collarbone|chest|breast|torso|trunk|side|flank|rib|back|spine|belly|abdomen|stomach|gut|groin|waist|hip|thigh|leg|knee|shin|ankle|heel|toe|neck|throat|head|skull|scalp|temple|face|brow|forehead|cheek|cheekbone|jaw|chin|nose|mouth|lip|ear|eye|eyelid)s?|foot|feet|calf|calves)";
+/**
+ * Whether an injury is another's: an NPC who "has" or "is" it, or whose body a weapon or wound is in, as "Barra has a crossbow
+ * bolt through the thigh" stood as the PC's. Never one that speaks of the PC too. shortcut: by these forms only, and a PC who
+ * shares a name word with an NPC is taken for them; add a form when another's wound shows.
+ */
+const othersBody = (state: State, kind: string, text: string) =>
+  kind === "injuries" &&
+  !/\b(?:you|your|me|my)\b/i.test(text) &&
+  state.npcs.some(({ name }) =>
+    nameForms(name).some((form) =>
+      new RegExp(
+        String.raw`^(?:The\s+)?${RegExp.escape(form)}\s+(?:has|is)\b|^(?:\p{L}+\s+){0,2}(?i:bolt|arrow|bullet|ball|blade|knife|wound|cut|gash|burn)s?\s+(?:in|through|on|to|across)\s+${RegExp.escape(form)}['’]s\s+(?:\p{L}+\s+){0,2}${BODY_PART}\b`,
+        "u",
+      ).test(text),
+    ),
+  );
+const SOMEONE_ELSE = "someone else's looks";
+// What most people's looks say, which tells no one apart.
+const ANYONES = new Set(
+  "with that this hair eyes face skin years about over under wearing woman young tall short long slim dark pale light brown black grey gray white blue green".split(
+    " ",
+  ),
+);
+/**
+ * Whether looks given the PC are an NPC's, by five or more words that tell someone apart and most of those, as a reply gave the PC
+ * the constable's walrus moustache and coat and their portrait was drawn so. shortcut: by words, so a PC dressed and built as an
+ * NPC is refused too; give the PC their own words if one shows.
+ */
+function looksOfAnother(state: State, appearance: string, pcTraits: string) {
+  const wordsOf = (looks: string): string[] => looks.toLowerCase().match(/\p{L}{4,}/gu) ?? [];
+  // Never the words the PC has already, as one built like an NPC could never be given a new look.
+  const own = new Set([...wordsOf(state.pcAppearance), ...wordsOf(pcTraits)]);
+  const telling = (looks: string) => new Set(wordsOf(looks).filter((word) => !ANYONES.has(word)));
+  const matches = (looks: string, npc: string, most: number) => {
+    const [words, theirs] = [telling(looks), telling(npc)];
+    const shared = [...words].filter((word) => theirs.has(word) && !own.has(word)).length;
+    return shared >= 5 && shared >= words.size * 0.6 && shared >= theirs.size * most;
+  };
+  // Without what passes too, as theirs are kept, where that is nearly all of theirs, as a frosted man's looks given the PC whole
+  // matched too little of what was kept of his.
+  return state.npcs.some((npc) => matches(appearance, npc.appearance, 0) || matches(lasting(appearance), lasting(npc.appearance), 0.8));
+}
 
 /**
  * Whether going from one hour back to an earlier one is the night running on past midnight: from night, about eight on, to the
@@ -721,7 +819,6 @@ const nightWraps = (from: number, to: number) => from >= 20 && to < 12;
 
 // Hours the count may stray from a clock time the words give before it is set back to it.
 const DRIFT_HOURS = 3;
-
 /**
  * How many days on `to` is from `from` by their day of the month, or undefined where either has none, as dates are any
  * world's words. shortcut: within one month only; a jump across a month's end falls back to the hours.
@@ -760,6 +857,8 @@ function clockHours(was: StoryTime | null, day: number, timeOfDay: string, passe
 
 // Checked in order, as "afternoon" holds "noon" and "midnight" holds "night".
 const HOURS: [RegExp, number][] = [
+  // Before it, as "a few minutes to midnight" read as past it would be the next day.
+  [/\b(?:to|before|nearly|almost|close to|close on|towards?|near|not yet|short of) (?:\p{L}+ )?midnight/u, 23.5],
   [/midnight/, 0],
   // Before "night", as a horror opening's "small hours, dark" was read as noon.
   [/small hours/, 2],
@@ -815,10 +914,16 @@ const isRepeat = ({ pcKnown, looseEnds }: State, operation: StateOperation) =>
 // None of these contradict the narration, so they aren't worth a whole response. Someone nameless is added once they're named.
 const IGNORABLE: StateOperation["op"][] = ["resolve_loose_end", "add_known_npc", "set_known_npc_summary", "set_story_time", "npc_learns"];
 const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }) =>
-  IGNORABLE.includes(op) || reason === "already there" || reason === "matches no thread";
+  IGNORABLE.includes(op) ||
+  reason === "already there" ||
+  reason === SOMEONE_ELSE ||
+  reason === OTHERS_BODY ||
+  reason === NOT_AN_ITEM ||
+  reason === "matches no thread";
 
 /** Applies operations in order, so each is judged against the ones before it. */
-export function applyOperations(state: State, operations: StateOperation[]) {
+/** `pcTraits` is how the player described the PC, whose own words are never someone else's looks. */
+export function applyOperations(state: State, operations: StateOperation[], pcTraits = "") {
   const next = structuredClone(state);
   let repeats = 0;
   const threads: ThreadsSoFar = {
@@ -827,7 +932,7 @@ export function applyOperations(state: State, operations: StateOperation[]) {
   };
   const refusals = operations.flatMap(({ ...operation }) => {
     if (isRepeat(next, operation)) repeats++;
-    const reason = apply(next, operation, threads);
+    const reason = apply(next, operation, threads, pcTraits);
     return reason ? [{ op: operation.op, reason }] : [];
   });
   return { next, refused: refusals.filter((refusal) => !isHarmless(refusal)), ignored: refusals.filter(isHarmless), repeats };
@@ -929,6 +1034,8 @@ export const WorldEdit = z.discriminatedUnion("edit", [
     settled: z.array(z.string()).optional(),
     // The Scribe's at a pause: the known facts that repeat another, are no longer true or tell of a moment now over.
     outdated: z.array(z.string()).optional(),
+    // The Scribe's: the story's summary, and how many replies it covers, never the newest.
+    story: z.object({ summary: z.string(), replies: z.number().int().nonnegative() }).optional(),
   }),
   // Whole lists, as a World Change rewrites what the player says is wrong rather than one item at a time.
   z.object({ edit: z.literal("inventory"), wearing: z.array(z.string()), carrying: z.array(z.string()) }),
@@ -1021,7 +1128,8 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       const looseEnds = state.looseEnds.filter((looseEnd) => !settled.has(looseEnd));
       const outdated = new Set(edit.outdated);
       const pcKnown = { ...state.pcKnown, facts: state.pcKnown.facts.filter((fact) => !outdated.has(fact)) };
-      return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, npcKnows, npcParts, threadParts, looseEnds, pcKnown };
+      const told = edit.story && { summary: edit.story.summary, summaryReplies: edit.story.replies };
+      return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, npcKnows, npcParts, threadParts, looseEnds, pcKnown, ...told };
     }
     case "inventory":
       return { ...state, inventory: { wearing: edit.wearing, carrying: edit.carrying } };
@@ -1049,7 +1157,14 @@ export const Person = z.object({ name: z.string().trim().min(1), appearance: z.s
  * Makes everyone a response names a known NPC, as Narrators often forget to, ahead of `operations`, so that those can
  * use the new names. Returns the state and what's left of `operations` once anything this already did is taken out.
  */
-export function introduce(state: State, people: z.infer<typeof Person>[], pcName: string, operations: StateOperation[]) {
+export function introduce(
+  state: State,
+  people: z.infer<typeof Person>[],
+  pcName: string,
+  operations: StateOperation[],
+  /** Whether someone has been named nowhere the player has read, so they aren't known to the PC. */
+  unread: (name: string) => boolean = () => false,
+) {
   // Someone shortened to a name only one person has is that person, not someone new.
   const known = (name: string) => findPerson(state.npcs, name)?.name;
   // A list of people is never worth a Turn, so someone with no looks waits until they're named again. Each name once, the first
@@ -1062,7 +1177,7 @@ export function introduce(state: State, people: z.infer<typeof Person>[], pcName
       const kept = known(name) ?? name;
       return [
         ...(known(name) ? [] : [{ op: "add_npc" as const, name, appearance }]),
-        ...(state.pcKnown.npcs.includes(kept) ? [] : [{ op: "add_known_npc" as const, name: kept }]),
+        ...(state.pcKnown.npcs.includes(kept) || unread(kept) ? [] : [{ op: "add_known_npc" as const, name: kept }]),
       ];
     });
   // Two people with one given name can't be told apart, by the player or by the matching above.
@@ -1087,7 +1202,9 @@ export function introduce(state: State, people: z.infer<typeof Person>[], pcName
   return {
     state: applyOperations(state, introductions).next,
     operations: operations.filter(
-      (operation) => !introductions.some((done) => done.op === operation.op && "name" in done && "name" in operation && done.name === operation.name),
+      (operation) =>
+        (operation.op !== "add_known_npc" || !unread(operation.name)) &&
+        !introductions.some((done) => done.op === operation.op && "name" in done && "name" in operation && done.name === operation.name),
     ),
     refused,
   };

@@ -111,13 +111,14 @@ const LOOSE_ENDS = [
   "Who rings the bell at night?",
   "What does the harbourmaster owe?",
 ];
+// In words no FACT holds, as a line on a person naming what only someone knows is dropped.
 const WHO = [
-  "A dockhand who owes the harbourmaster money",
-  "A widow who keeps the lamp shop by the quay",
-  "A sailor stranded since the storm",
+  "A dockhand with a limp",
+  "A widow who sells lamps by the quay",
+  "A sailor stranded a long way from home",
   "A clerk at the customs house",
-  "A priest who rarely leaves the chapel",
-  "A smuggler posing as a net mender",
+  "A priest with a kind face",
+  "A net mender with quick hands",
 ];
 const CONDITIONS = ["Soaked to the skin", "Tired from the long walk", "Uneasy", "Hungry"];
 const INJURIES = ["A grazed hand", "A bruised shoulder", "A twisted ankle"];
@@ -136,10 +137,7 @@ function storyChanges(people: string[]) {
   return [
     // Everyone a reply meets is in the scene, as a real Narrator's set_scene would say, so they show under Recent Characters.
     { op: "set_scene", location: "The old sea wall", visible_cast: people },
-    ...people.map((name, index) => ({ op: "set_known_npc_summary", name, summary: WHO[(at * people.length + index) % WHO.length] })),
-    ...people.map((name) => ({ op: "npc_learns", name, fact: pick(FACTS) })),
-    { op: "add_known_fact", fact: pick(FACTS) },
-    { op: "add_loose_end", loose_end: pick(LOOSE_ENDS) },
+    ...people.map((name) => ({ op: "npc_learns", name, fact: pick(CONDITIONS) })),
     { op: "set_health", health: pick(HEALTH) },
     { op: "add_status", kind: "conditions", text: pick(CONDITIONS) },
     { op: "add_status", kind: "injuries", text: pick(INJURIES) },
@@ -205,11 +203,19 @@ export const fakeTextProvider: TextProvider = async (prompt, { schema, onText, o
   if (sampled && title && typeof sampled.text === "string")
     sampled.text = `A book cover with large bold title text reading "${title}" across the top. Rain on a harbour at dusk.`;
   // A picture's review hands its prompt back as it was, as a sampled one would replace the scene with filler words.
-  const reviewed = prompt.at(-1)?.content.match(/^\{"prompt":(".*")\}$/s)?.[1];
-  if (sampled && reviewed && typeof sampled.prompt === "string") sampled.prompt = JSON.parse(reviewed);
+  const reviewed = parsed(prompt.at(-1)?.content ?? "")?.prompt;
+  if (sampled && typeof reviewed === "string" && typeof sampled.prompt === "string") sampled.prompt = reviewed;
   // A World or World Change review, State Upkeep or the Loose Ends check finds nothing, as sampled edits would name parts the world doesn't have.
   if (sampled && /^You (review|keep a story's state|keep the Loose Ends)/.test(prompt[0]?.content ?? ""))
     for (const [key, value] of Object.entries(sampled)) sampled[key] = Array.isArray(value) ? [] : null;
+  // But it says who the people the PC knows are, and gives the Turn's fact and Loose End, as the Journal shows them.
+  if (sampled && /^You keep a story's state/.test(prompt[0]?.content ?? "")) {
+    const { state } = JSON.parse(prompt.at(-1)?.content ?? "{}") as { state?: { known_people?: Record<string, string> } };
+    sampled.state_operations = Object.entries(state?.known_people ?? {})
+      .filter(([, line]) => !line)
+      .map(([name], index) => ({ op: "set_known_npc_summary", name, summary: WHO[(turn * 3 + index) % WHO.length] }) as object)
+      .concat({ op: "add_known_fact", fact: FACTS[turn % FACTS.length] }, { op: "add_loose_end", loose_end: LOOSE_ENDS[turn % LOOSE_ENDS.length] });
+  }
   // World Moves On rewrites each thread's now and keeps its truth, as sampled words would quote no thread.
   if (sampled && /^You plot the hidden side/.test(prompt[0]?.content ?? "")) {
     const { plot_threads = [], visible_cast = [] } = JSON.parse(prompt.at(-1)?.content ?? "{}") as {

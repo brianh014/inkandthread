@@ -27,8 +27,8 @@ export async function logOf(run: () => Promise<unknown>, level: LogLevel = "verb
   }
 }
 
-/** A reply's summary field, which `narration` takes among its operations. */
-export const withSummary = (summary: string) => ({ summary });
+/** A reply's recent_summary field, which `narration` takes among its operations. */
+export const withRecent = (recent_summary: string) => ({ recent_summary });
 export const narration = (text: string, ...parts: object[]) =>
   JSON.stringify({ narration: text, state_operations: parts.filter((part) => "op" in part), ...Object.assign({}, ...parts.filter((part) => !("op" in part))) });
 

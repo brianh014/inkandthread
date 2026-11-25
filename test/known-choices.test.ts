@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
+import { join } from "node:path";
 import { UPKEEP_LIMIT } from "../src/state-upkeep";
 import { knownChoices, unknownWords, withoutUnread, writeChoices } from "../src/known-choices";
 import { openingState, type State } from "../src/state-applier";
-import { scriptedTextProvider } from "./support";
+import { narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 const state: State = {
   ...openingState,
@@ -249,4 +250,39 @@ test("the Choices call has a thinking budget, so one still thinking has time to 
   );
   expect(sent.thinkingBudget).toBe(1000);
   expect(sent.thinkingMs).toBeLessThan(UPKEEP_LIMIT.ms / 2);
+});
+
+test("the Choices are told who the PC is and the theme, ahead of the journal, where there are any", async () => {
+  const { textProvider, prompts } = scriptedTextProvider(JSON.stringify({ choices: ["I ask Jory why.", "I go out to the well.", "I sit by the fire."] }));
+  await writeChoices(textProvider, "Jory looks away.", new AbortController().signal, "", "", {
+    facts: [],
+    looseEnds: [],
+    about: { pc: "Quick to care and quicker to leave.", theme: "Romance" },
+  });
+  expect(Object.keys(JSON.parse(prompts[0]![1]!.content)).slice(0, 3)).toEqual(["about", "theme", "journal"]);
+});
+
+test("a Turn sends the Choices the player's notes on the PC, and a word of theirs doesn't drop a Choice", async () => {
+  const folder = tempFolder();
+  const review = scriptedTextProvider(JSON.stringify({ state_operations: [] }));
+  const script = scriptedTextProvider(
+    narration("Anselm looks up."),
+    JSON.stringify({ choices: ["I ask Anselm about the Salvatori fresco.", "I go out to the well.", "I sit by the fire."] }),
+  );
+  const app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, undefined, undefined, undefined, review.textProvider, true);
+  await app.patch("/settings", { textModel: "narrator/model" });
+  const { id } = (await (
+    await app.post("/saves", {
+      worldBrief: "A vineyard",
+      pc: { name: "Mara", background: "She restored the Salvatori fresco.", personality: "Quick to care." },
+    })
+  ).json()) as { id: string };
+
+  const turn = (await (await app.post(`/saves/${id}/turns`, { input: "I wait." })).json()) as { messages: { choices?: string[] }[] };
+
+  const choices = script.prompts.find(([system]) => system!.content.startsWith("You offer the player"))!;
+  expect(JSON.parse(choices[1]!.content).about).toBe("Quick to care. She restored the Salvatori fresco.");
+  expect(JSON.stringify(turn)).toContain("Salvatori");
+  await app.stop();
+  folder.remove();
 });

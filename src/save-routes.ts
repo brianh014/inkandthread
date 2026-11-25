@@ -129,7 +129,7 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
     "/saves/:id/journal": {
       GET: (req) => {
         // An allowlist, so the World Bible, Plot Threads and NPC appearance text can never reach the player by default.
-        // shortcut: the summary, facts, Loose Ends and Scene Memories are Narrator free text, kept clean only by its prompt, screen them if models leak.
+        // shortcut: the recent summary is Narrator free text, and the rest the Scribe's or a call's sent no secrets, kept clean only by their prompts, screen them if models leak.
         const { summary, recentSummary, pcKnown, looseEnds, sceneMemories, scene, storyTime, status } = saves.latestState(req.params.id);
         // Everyone in the scene, then the last seen. The filter keeps an NPC the PC doesn't know yet hidden.
         const seen = [...new Set([...scene.visibleCast, ...saves.recentCast(req.params.id)])].filter((name) => pcKnown.npcs.includes(name));
@@ -315,6 +315,7 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         // and while the last Revert's are made, as this one would leave them to fail after their call was paid for.
         if (turns.isRemaking(id)) throw new WorldChanging();
         if (saves.revertPreview(id, messageId).worldChanges > 0) turns.assertIdle(id);
+        const before = saves.latestState(id);
         const { asked, ...deleted } = saves.revert(id, messageId);
         if (deleted.messages > 0) stopMoves(id);
         images.forget(id, messageId, "revert");
@@ -322,7 +323,9 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         // Once each, as the same words given twice made one change twice, at a minute's wait. The last time they were given, as
         // a change made, undone and made again must end up made.
         const changes = asked.filter((change, at) => asked.lastIndexOf(change) === at);
-        if (changes.length > 0) {
+        // Once any World Changes are made again, as one may give the looks back.
+        if (changes.length === 0) images.takenBack(id, before);
+        else {
           // After any move of the world, which rewrites the threads a change must see, and before the next Turn, which waits
           // on them, so the Revert answers at once and the player's words go out again: a wait of a minute was refreshed away.
           // Made again from the player's words, in order, on the world the Revert went back to, each failure its own, and on
@@ -340,6 +343,7 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
               }
             }
             log.info("world", "World Changes made again after a Revert", { made: changes.length - failed, failed });
+            images.takenBack(id, before);
           });
           turns.remake(
             id,

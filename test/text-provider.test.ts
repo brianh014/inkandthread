@@ -349,7 +349,6 @@ test("the schema keeps to what strict schema modes accept, with check first", as
     "narration",
     "state_operations",
     "people",
-    "summary",
     "recent_summary",
     "scene_changed",
     "visual_description",
@@ -1026,7 +1025,7 @@ test("a reply that ends its narration with the brace or tag of its own JSON is s
 
 test("a reply that repeats an operation on one record is kept with only the first, not written again", async () => {
   const update = (now: string) => ({ op: "update_plot_thread", thread: "The duke plots.", now, truth: null });
-  const learns = { op: "add_known_fact", fact: "The duke keeps a ledger." };
+  const learns = { op: "add_item", slot: "carrying", item: "a ledger" };
   play([narrated("He sits.", update("The duke waits."), learns, update("The duke strikes."), learns)]);
   // With the thread there, as a rewrite that matches none is ignored rather than added.
   const store = saveStore(join(folder.path, "Saves"));
@@ -1042,7 +1041,7 @@ test("a reply that repeats an operation on one record is kept with only the firs
 test("a reply that runs on in its operations is kept up to its last whole one, as its narration came whole, and its lost picture logged", async () => {
   const runOn = async function* () {
     yield delta(
-      '{"check":null,"narration":"He sits.","people":[],"state_operations":[{"op":"set_scene","location":"The quay","visible_cast":[]},{"op":"add_known_fact","fact":"The duke keeps a ledger."}',
+      '{"check":null,"narration":"He sits.","people":[],"state_operations":[{"op":"set_scene","location":"The quay","visible_cast":[]},{"op":"add_item","slot":"carrying","item":"a ledger"}',
     );
     for (let at = 0; at < 1000; at++) yield delta(',{"op":"update_plot_thread","thread":"The duke plots.","now":"The duke plots.","truth":null}');
   };
@@ -1054,7 +1053,7 @@ test("a reply that runs on in its operations is kept up to its last whole one, a
 
   expect(provider.requests).toHaveLength(1);
   expect((await storedMessages(id)).at(-1)!.text).toBe("He sits.");
-  expect(store.latestState(id).pcKnown.facts).toEqual(["The duke keeps a ledger."]);
+  expect(store.latestState(id).inventory.carrying).toEqual(["a ledger"]);
   expect(log).toContain("Run-on reply kept");
   // The picture's prompt came after the operations, so it never came.
   expect(log).toContain('"message":2,"words":0');
@@ -1365,7 +1364,13 @@ test("the log shows how each reply went, and none of the story", async () => {
     choices: [{ delta: { content: "" }, finish_reason: "stop", native_finish_reason: "STOP" }],
     usage: { prompt_tokens: 5, completion_tokens: 7 },
   });
-  const reply = { check: null, narration: "The tide rises.", state_operations: [], people: [{ name: "Ada", appearance: "tall" }], summary: "A wet day." };
+  const reply = {
+    check: null,
+    narration: "The tide rises.",
+    state_operations: [],
+    people: [{ name: "Ada", appearance: "tall" }],
+    recent_summary: "A wet day.",
+  };
   play([[delta(JSON.stringify(reply)), finished, "data: [DONE]\n\n"]]);
   const id = await app.createSave();
 
@@ -1375,7 +1380,7 @@ test("the log shows how each reply went, and none of the story", async () => {
     expect(log).toContain(fact);
   }
   expect(log).toContain('"people":1');
-  expect(log).toContain('"summary":10');
+  expect(log).toContain('"recentSummary":true');
   expect(log).toContain('"attempts":1');
   for (const story of ["The tide rises", "A wet day", "I wade forward", "Ada"]) expect(log).not.toContain(story);
 });
@@ -1607,11 +1612,8 @@ test("speech left in the prose is found, but never a speaker line, an apostrophe
   expect(speechOutsideLines("She called it 'the old road' once.")).toBe(false);
 });
 
-test("placeholder operations, a known fact that is only a name, and retired operations are dropped", () => {
-  const kept = [
-    { op: "add_item", slot: "carrying", item: "a brass key" },
-    { op: "add_known_fact", fact: "Grout moved the tomb aside." },
-  ];
+test("placeholder and retired operations are dropped", () => {
+  const kept = [{ op: "add_item", slot: "carrying", item: "a brass key" }];
   const junk = [
     { op: "resolve_plot_thread", thread: "x" },
     { op: "resolve_loose_end", loose_end: "__none__" },
@@ -1621,7 +1623,7 @@ test("placeholder operations, a known fact that is only a name, and retired oper
     // A real entry's too, as a lone remove deleted a live one; the reply isn't lost for it.
     { op: "remove_lore_entry", title: "The mill" },
     { op: "add_item", slot: "carrying", item: "x" },
-    { op: "add_known_fact", fact: "Silas Grout" },
+    { op: "add_known_fact", fact: "Grout moved the tomb aside." },
   ];
   expect(usableOperations([...kept, ...junk])).toEqual(kept);
   // However many it loops.
@@ -1630,15 +1632,17 @@ test("placeholder operations, a known fact that is only a name, and retired oper
 
 test("a reply changes a record once, so a chain of rewrites keeps only its first link", () => {
   const first = { op: "update_plot_thread", thread: "A", now: "a", truth: "B" } as const;
-  const fact = { op: "update_known_fact", fact: "B", replacement: "C" } as const;
   const chain = [
     first,
     { op: "update_plot_thread", thread: "B", now: "b", truth: "C" } as const,
     { op: "update_plot_thread", thread: "C", now: "c", truth: "D" } as const,
   ];
-  expect(withoutLoop([...chain, fact], 30)).toEqual([first, fact]);
+  expect(withoutLoop(chain, 30)).toEqual([first]);
   // A rewrite of its now alone keeps the thread's truth, so it is no link of a chain.
-  const moves = [{ op: "update_plot_thread", thread: "A", now: "a", truth: null } as const, { op: "update_known_fact", fact: "A", replacement: "B" } as const];
+  const moves = [
+    { op: "update_plot_thread", thread: "A", now: "a", truth: null } as const,
+    { op: "update_plot_thread", thread: "B", now: "b", truth: "C" } as const,
+  ];
   expect(withoutLoop(moves, 30)).toEqual(moves);
 });
 
@@ -1661,23 +1665,13 @@ test("a speaker label that shortens one known name, by its first words or initia
   );
 });
 
-test("a summary cut to under two-fifths of the last is not taken, as a reply that did so had started the story again", async () => {
-  const reply = (summary: string) => [delta(JSON.stringify({ check: null, narration: "The tide rises.", state_operations: [], summary })), "data: [DONE]\n\n"];
-  play([reply("one two three four five six seven eight nine ten"), reply("one two three")]);
-  const id = await app.createSave();
-  await streamTurn(id, "I wait.").then(turnEvents);
-
-  const log = await logOf(() => streamTurn(id, "I wait again.").then(turnEvents));
-
-  expect(log).toMatch(/Summary kept .*"was":10,"now":3/);
-});
-
-test("a reply that sets the clock back within the day and adds again what the PC knew is written again, as it had started the story over", async () => {
-  const fact = { op: "add_known_fact", fact: "The keeper drowned." };
+test("a reply that sets the clock back within the day and adds again whom the PC knew is written again, as it had started the story over", async () => {
+  const keeper = { op: "add_known_npc", name: "The keeper" };
+  const met = { op: "add_npc", name: "The keeper", appearance: "an old man" };
   const time = (time_of_day: string) => ({ op: "set_story_time", days_passed: 0, date: "1st of Lowtide", time_of_day });
   play([
-    narrated("Evening falls.", time("evening"), fact),
-    narrated("Morning. The keeper is dead.", time("morning"), fact),
+    narrated("Evening falls.", time("evening"), met, keeper),
+    narrated("Morning. The keeper is dead.", time("morning"), keeper),
     narrated("The lamps are lit.", time("night")),
   ]);
   const id = await app.createSave();

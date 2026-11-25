@@ -10,7 +10,7 @@ let app: ReturnType<typeof startApp>;
 beforeEach(() => {
   process.env.FAKE_STREAM_MS = "0";
   folder = tempFolder();
-  app = startApp(join(folder.path, "Saves"), fakeTextProvider, () => 10, 2, fakeImages);
+  app = startApp(join(folder.path, "Saves"), fakeTextProvider, () => 10, 2, fakeImages, undefined, undefined, fakeTextProvider);
 });
 
 afterEach(async () => {
@@ -20,7 +20,18 @@ afterEach(async () => {
 
 const choices = { title: "The Salt Road", theme: "Western", worldBrief: "A drowned city", startingHook: "", pc: { name: "Ash" } };
 
+test("the fake picture check gives a prompt back whatever is sent beside it", async () => {
+  const schema = { type: "object", properties: { prompt: { type: "string" } } };
+  const content = JSON.stringify({ prompt: "A lit quay.", cast: [{ name: "Ash", looks: "tall" }], moment: "Ash waits." });
+  const reply = await fakeTextProvider([{ role: "user", content }], { schema, onText: () => {}, signal: new AbortController().signal } as unknown as Parameters<
+    typeof fakeTextProvider
+  >[1]);
+  expect(JSON.stringify(reply)).toContain("A lit quay.");
+});
+
 test("the fake Narrator answers world creation, the Opening and a Turn with replies the app accepts", async () => {
+  // State Upkeep asks its model only once there is one.
+  await app.patch("/settings", { textModel: "fake/model" });
   expect((await app.post("/worlds/pick", { theme: "Western", title: "", worldBrief: "" })).status).toBe(200);
   const setup = { theme: "Western", title: "", worldBrief: "A drowned city", startingHook: "", characters: [] };
   expect((await app.post("/enhance", { ...setup, field: "worldBrief", text: "A city" })).status).toBe(200);

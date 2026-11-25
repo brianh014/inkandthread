@@ -65,15 +65,17 @@ export const visibleNpcs = ({ scene, npcs }: State) => scene.visibleCast.flatMap
 
 /**
  * Who to ask for a portrait after a Turn: only those the page shows, in view or given a spoken line (`speakers`), as someone
- * only spoken of, a painter dead two hundred years, was drawn in the story's own dress. Anyone shown who wasn't in view or
- * known before, and on every move of the Scene everyone shown, so someone missed is drawn then, without paying each Turn after
+ * only spoken of, a painter dead two hundred years, was drawn in the story's own dress. Anyone shown who wasn't in view, or who has
+ * become known, and on every move of the Scene everyone shown, so someone missed is drawn then, without paying each Turn after
  * a failure. Someone only spoken of is drawn the first Turn they appear.
  */
 export function portraitsDue(before: State, after: State, speakers: string[] = []) {
   const shown = [...after.scene.visibleCast, ...speakers.filter((name) => after.pcKnown.npcs.includes(name))];
   // Someone known is due again only on coming into view, as a voice heard each Turn from behind a door was asked for every Turn.
   const cameIntoView = (name: string) => after.scene.visibleCast.includes(name) && !before.scene.visibleCast.includes(name);
-  const due = movedScene(before, after) ? shown : shown.filter((name) => !before.pcKnown.npcs.includes(name) || cameIntoView(name));
+  const due = movedScene(before, after)
+    ? shown
+    : shown.filter((name) => (!before.pcKnown.npcs.includes(name) && after.pcKnown.npcs.includes(name)) || cameIntoView(name));
   // Not someone named as a body, as a portrait draws them alive.
   const dead = (name: string) => isBody(after, name);
   const bodies = [...new Set(due)].filter(dead).length;
@@ -125,7 +127,12 @@ export function pcLooks({ name, physicalTraits = "" }: Save["pc"], wearing: stri
   return [traits, dressed].filter(Boolean).join(", ");
 }
 
-const FEATURE = /\b(?:skin|skinned|complexion|hair|haired|beard|bearded|moustache|moustached|bald|freckles|freckled)\b/i;
+const sameWords = (one: string, other: string) => {
+  const said = (text: string) => (text.toLowerCase().match(/\p{L}+/gu) ?? []).filter((word) => !["a", "an", "the"].includes(word)).join(" ");
+  return said(one) !== "" && said(one) === said(other);
+};
+
+const FEATURE = /\b(?:skin|skinned|complexion|hair|haired|beard|bearded|mo?ustached?|bald|freckles|freckled)\b/i;
 const FILLER = new Set(["a", "an", "the", "his", "her", "their", "of"]);
 
 /**
@@ -169,11 +176,15 @@ export function expandMarks(text: string, npcs: Npc[], pcName: string, reference
       // A described mark after a bare one keeps its words, as "the same person" there drew someone else in their place.
       const firstDescribed = !!brief && !described.has(person);
       if (brief) described.add(person);
-      if (pictured.includes(person) && !firstDescribed) return "the same person";
+      // By their image where there is one, as "the same person" four times over, for four people, drew strangers.
+      const image = referenced.indexOf(person) + 1;
+      // Not a possessive, as "image 1's arm" is the image's.
+      const possessive = /^['’]s\b/.test(whole.slice(at + _.length));
+      if (pictured.includes(person) && !firstDescribed)
+        return image && pictured.length > 1 && !possessive ? `the same person from image ${image}` : "the same person";
       const first = !pictured.includes(person);
       if (first) pictured.push(person);
       const looks = [brief, ...(first && npc ? missingFeatures(npc.appearance, brief) : [])].filter(Boolean).join(", ");
-      const image = referenced.indexOf(person) + 1;
       if (!image) return looks || "a person";
       // A comma closes the phrase only when the sentence reads on, as in "the person from image 1, a tall woman, kneels".
       const readsOn = /^\s*[a-z]/i.test(whole.slice(at + _.length));
@@ -264,6 +275,31 @@ The title is the only writing anywhere on the cover: no author name, subtitle, t
 Theme: ${theme}
 The world: ${opening(world, COVER_WORLD_WORDS)}${people.length > 0 ? `\nShow these people on the cover, the first in front as its hero, each looking as described: ${people.map((looks) => `(${opening(looks, COVER_PERSON_WORDS)})`).join(" ")}` : ""}`;
 
+const ELECTRIC_ERA =
+  /\b(?:19[2-9]\d|20\d\d)s?\b(?!\s*BCE?\b)|\b(?:present|modern)[- ]day\b|\bcontemporary\b|\b(?:mid|late)[- ](?:20th|twentieth)[- ]century\b|\b(?:21st|twenty-first)[- ]century\b/i;
+const BURNS =
+  /\b(?:flames?|flaming|burns?|burning|fires?|fire(?:light|lit|side|place)|blaz(?:e|es|ing)|smok(?:e|es|ing)|gutter(?:s|ing)|flicker(?:s|ing)?|sconces?|brackets?|lit torch(?:es)?)\b/i;
+/**
+ * An Image Prompt with an electric torch called a flashlight, as an image model draws a torch burning: one its own words make
+ * electric anywhere, a bare one only in an era that has them, and not where anything in the prompt burns.
+ * shortcut: so a torch by a fire stays a torch; tell them apart by their own words if it shows.
+ */
+export function flashlights(prompt: string, era = "") {
+  const cased = (found: string, word: string) => (/^\p{Lu}/u.test(found) ? word[0]!.toUpperCase() + word.slice(1) : word);
+  const electric = prompt
+    .replace(/\bhead[- ]?torch(es)?\b/gi, (found, many?: string) => cased(found, many ? "headlamps" : "headlamp"))
+    .replace(/\b(?:(hand|pen|pocket)|electric|battery)[- ]torch(es)?\b/gi, (found, kind?: string, many?: string) =>
+      cased(found, [kind?.toLowerCase(), many ? "flashlights" : "flashlight"].filter(Boolean).join(" ")),
+    )
+    .replace(/\btorch[- ]?beam(s)?\b/gi, (found, many?: string) => cased(found, many ? "flashlight beams" : "flashlight beam"));
+  if (!ELECTRIC_ERA.test(era) || BURNS.test(electric)) return electric;
+  return electric
+    .replace(/\btorchlight\b(?!\s+(?:procession|parade|march))/gi, (found) => cased(found, "flashlight beam"))
+    .replace(/(?<!\b(?:welding|cutting|soldering|butane|propane|gas|tiki|bamboo|olympic|blow)[- ])\btorch(es)?\b(?![- ]?lit\b)/gi, (found, many?: string) =>
+      cased(found, many ? "flashlights" : "flashlight"),
+    );
+}
+
 /** `text` with each of `names` taken out, as a name in an image prompt gets lettered into the picture. */
 export const unnamed = (names: string[], text: string) => names.filter(Boolean).reduce((words, name) => words.replaceAll(name, "someone"), text.trim());
 
@@ -328,6 +364,8 @@ export type PictureReviewer = (
   signal: AbortSignal,
   /** Those in view whose portrait can be sent and whom the prompt doesn't mark. */
   cast?: { name: string; looks: string }[],
+  /** The story's words the picture is of, to tell them by. */
+  moment?: string,
 ) => Promise<string>;
 
 export function imagePipeline(
@@ -338,12 +376,21 @@ export function imagePipeline(
   reviewPicture: PictureReviewer = async (description) => description,
 ) {
   /** Waits to be called, so a held image can start drawing as soon as its prompt is written. */
-  const writer = (ask: PictureAsk) => (signal: AbortSignal) => {
+  const writer = (ask: PictureAsk) => async (signal: AbortSignal) => {
     const style = promptStyle(settings.read());
     const template = ask.kind === "cover" ? coverPrompt(ask) : portraitPrompt(ask.looks, style);
     const styled = { ...ask, artStyle: artStyleFor(ask.artStyle, drawingFamily(settings.read())) };
     // The Art Style first, as the text model would have put it.
-    return writePicture(styled, style, [styled.artStyle.trim(), template, ask.nudge?.trim()].filter(Boolean).join("\n"), signal);
+    const written = await writePicture(styled, style, [styled.artStyle.trim(), template, ask.nudge?.trim()].filter(Boolean).join("\n"), signal);
+    // Never a cover's, as its title is lettered from the prompt.
+    return ask.kind === "cover" ? written : electricTorches(written, ask.era);
+  };
+
+  const electricTorches = (written: string, era?: string) => {
+    const prompt = flashlights(written, era);
+    const torches = (text: string) => text.match(/torch/gi)?.length ?? 0;
+    if (prompt !== written) log.info("images", "Torches named as flashlights", { count: torches(written) - torches(prompt) });
+    return prompt;
   };
 
   const work = new Map<string, Work>();
@@ -351,6 +398,10 @@ export function imagePipeline(
   const failures = new Map<string, string>();
   // shortcut: kept in memory like the jobs, so a restart forgets which portraits are out of date, keep it in the Save if that bites.
   const outOfDate = new Set<string>();
+  /** The looks each portrait's last update was drawn from. shortcut: in memory, so a restart forgets them; store them if a portrait is left from looks taken back. */
+  const drawnFrom = new Map<string, string>();
+  /** Portraits whose looks changed again while they were being updated. */
+  const changedSince = new Set<string>();
   // shortcut: in memory and one per Save, so a restart or a second failure loses it, and that picture was never drawn anyway.
   const requestFailures = new Map<string, { error: string; words: string }>();
   let session = 0;
@@ -428,7 +479,7 @@ export function imagePipeline(
     return { prompt, negative_prompt: AVOID, aspect_ratio: "16:9", reference_images, style_preset: "" };
   };
 
-  async function drawMoment(id: string, { description: written, npcs, inView, wearing }: Moment, signal: AbortSignal) {
+  async function drawMoment(id: string, messageId: number, { description: written, npcs, inView, wearing }: Moment, signal: AbortSignal) {
     const { pc } = saves.read(id);
     const pcName = pc.name;
     const style = promptStyle(settings.read());
@@ -448,10 +499,12 @@ export function imagePipeline(
                 : { name: person, looks: npcs.find(({ name }) => name === person)!.appearance },
             )
         : [];
-    const description = await reviewPicture(marked, style, signal, cast);
+    const moment = cast.length > 0 ? saves.messages(id).find((message) => message.id === messageId)?.text : undefined;
+    const description = await reviewPicture(marked, style, signal, cast, moment);
     // Twice, as who is pictured decides which portraits go in, and those decide how each mark is written.
     const { pictured } = expandMarks(description, npcs, pcName);
-    const { prompt } = expandMarks(description, npcs, pcName, referenced(id, pictured));
+    const { prompt: expanded } = expandMarks(description, npcs, pcName, referenced(id, pictured));
+    const prompt = electricTorches(expanded, saves.latestState(id).era);
     const bytes = await adapter(scenePayload(id, prompt, pictured), signal);
     // Counted before storing, as the player has paid for it whether or not its Message is still there.
     session++;
@@ -459,7 +512,7 @@ export function imagePipeline(
   }
 
   async function drawScene(id: string, messageId: number, scene: Scene, signal: AbortSignal) {
-    const { prompt, pictured, bytes } = await drawMoment(id, scene, signal);
+    const { prompt, pictured, bytes } = await drawMoment(id, messageId, scene, signal);
     saves.addSceneImage(id, messageId, scene.location, bytes, prompt, pictured);
     log.info("images", "Image drawn", about(id, { kind: "scene", messageId }));
   }
@@ -551,7 +604,21 @@ export function imagePipeline(
     const looks = npc ? chestUp(npc.appearance) : pc.physicalTraits?.trim() && pcLooks(pc, wearing);
     if (!looks) return;
     const ask = { kind: "portrait" as const, looks, theme, world: worldBrief, artStyle, era: state.era };
-    if (pipeline.redraw(id, { kind: "portrait", ref: portrait.id }, portrait.messageId, ask)) {
+    const target = { kind: "portrait" as const, ref: portrait.id };
+    const key = redrawKey(id, target);
+    const same = drawnFrom.get(key) === looks;
+    if (isRedrawing(id, key)) {
+      // Already drawing from looks since changed, such as a reply's the player has rewritten: again when the Scene next moves.
+      if (same) changedSince.delete(key);
+      else {
+        changedSince.add(key);
+        log.info("images", "Portrait update put off", about(id, { kind: "portrait", messageId: portrait.messageId }));
+      }
+      return;
+    }
+    if (same && !outOfDate.has(key)) return;
+    if (pipeline.redraw(id, target, portrait.messageId, ask)) {
+      drawnFrom.set(key, looks);
       log.info("images", "Portrait updated to new looks", about(id, { kind: "portrait", messageId: portrait.messageId }));
     }
   }
@@ -612,12 +679,14 @@ export function imagePipeline(
           const bytes = await adapter(redrawPayload(id, target, messageId, written, keepFace || fromOriginal), signal);
           session++;
           saves.replaceImage(id, target, written, bytes);
-          outOfDate.delete(key);
+          if (changedSince.delete(key)) outOfDate.add(key);
+          else outOfDate.delete(key);
           log.info("images", "Image drawn", about(id, { kind, messageId }));
         } catch (error) {
           if (!signal.aborted && !(error instanceof SaveNotFound)) {
             failures.set(key, shownFailure(error));
             if (keepFace && target.kind === "portrait") outOfDate.add(key);
+            changedSince.delete(key);
           }
           throw error;
         }
@@ -649,7 +718,7 @@ export function imagePipeline(
         try {
           const { text: description, title } = await write(signal);
           step = "drawing it";
-          const { prompt, pictured, bytes } = await drawMoment(id, { ...moment, description }, signal);
+          const { prompt, pictured, bytes } = await drawMoment(id, messageId, { ...moment, description }, signal);
           saves.addRequestedImage(id, messageId, words || title.trim().slice(0, 80) || "The current scene", bytes, prompt, pictured);
           log.info("images", "Image drawn", about(id, { kind: "requested", messageId }));
         } catch (error) {
@@ -700,10 +769,14 @@ export function imagePipeline(
         // A lone word, such as one object named alone, was drawn as that thing with no place or people.
         // shortcut: only a lone word in lower case, the fragment a reply sent, as tests draw from one capitalised word; count words if a real one shows.
         const fragment = /^\p{Ll}\S*$/u.test(scene.description.trim());
-        // No words too, as a reply cut where it ran on never wrote its picture's prompt.
-        if (drawScenes && scene.changed && (fragment || !scene.description.trim()))
-          log.info("images", "Scene picture skipped", { save: id, message: messageId, words: fragment ? 1 : 0 });
-        if (drawScenes && scene.changed && scene.description && !fragment) {
+        // No words too, as a reply cut where it ran on never wrote its picture's prompt, and a placeholder of underscores drew a
+        // motorcycle.
+        const wordless = !/\p{L}/u.test(scene.description);
+        // Nor the place's own name, as "the camp" alone drew a forest campsite in a desert story; in lower case, as a fragment is told.
+        const placeOnly = /^\p{Ll}/u.test(scene.description.trim()) && sameWords(scene.description, scene.location);
+        if (drawScenes && scene.changed && (fragment || wordless || placeOnly))
+          log.info("images", "Scene picture skipped", { save: id, message: messageId, words: scene.description.match(/\p{L}+/gu)?.length ?? 0 });
+        if (drawScenes && scene.changed && !wordless && !fragment && !placeOnly) {
           if (jobs.waiting) dropped(id, jobs.waiting, "a newer scene");
           jobs.waiting = queued(id, {
             kind: "scene",
@@ -729,6 +802,25 @@ export function imagePipeline(
     restyled(id: string, people: (Npc | null)[], wearing: string[]) {
       // Only when images are on, as a Redraw draws whatever the Settings say, and nobody asked for this one.
       if (settings.read().updatePortraits && ready()) for (const person of people) updatePortrait(id, person, wearing);
+    },
+
+    /**
+     * Draws again the portraits updated from looks that a Rewrite, Regenerate, Edit or Revert has taken back, those before it being
+     * `before`. With `started`, the state the replaced reply began from, only of those whose looks that reply had changed, as what
+     * the new one changes is its own to draw.
+     */
+    takenBack(id: string, before: State, started?: State) {
+      const after = saves.latestState(id);
+      const changed = started && new Set(restyledBy(started, before).map((person) => person?.name ?? null));
+      const updated = new Set(
+        saves
+          .portraits(id)
+          .filter(({ id: ref }) => drawnFrom.has(redrawKey(id, { kind: "portrait", ref })))
+          .map(({ npc }) => npc),
+      );
+      const people = restyledBy(before, after).filter((person) => updated.has(person?.name ?? null) && (changed?.has(person?.name ?? null) ?? true));
+      if (people.length > 0) log.info("images", "Portraits' looks taken back", { save: id, count: people.length });
+      pipeline.restyled(id, people, after.inventory.wearing);
     },
 
     /** Whether `messageId`'s Scene Image is still on the way. */

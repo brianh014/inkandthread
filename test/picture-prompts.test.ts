@@ -106,13 +106,20 @@ test("a review may mark someone in view the prompt left unmarked, and no one els
   const cast = [{ name: "Mara Vukas", looks: "a tall woman of forty" }];
 
   const log = await logOf(async () => {
-    const reviewed = await reviewScenePrompt({ textProvider: script.textProvider, settings }, bare, "prose", new AbortController().signal, cast);
+    const reviewed = await reviewScenePrompt(
+      { textProvider: script.textProvider, settings },
+      bare,
+      "prose",
+      new AbortController().signal,
+      cast,
+      "Mara kneels by the fire.",
+    );
     expect(reviewed).toBe(marked);
   }, "info");
 
   expect(script.prompts).toHaveLength(3);
   expect(script.prompts[0]![0]!.content).toContain("Never add anyone's name outside a mark");
-  expect(JSON.parse(script.prompts[0]![1]!.content)).toEqual({ prompt: bare, cast });
+  expect(JSON.parse(script.prompts[0]![1]!.content)).toEqual({ prompt: bare, cast, moment: "Mara kneels by the fire." });
   expect(log).toContain('"unmarked":1,"marked":1');
 });
 
@@ -181,6 +188,27 @@ test("a garbled portrait prompt is written again, with only the reason logged, a
   expect(await titled.written).toBe(`A drowned city, "Salt #9 塩" lettered above.`);
 });
 
+test("a review's mark on a person keeps the words the prompt has of them, and what it adds follows", async () => {
+  const bare = "A pit. A slight woman in her early thirties kneeling at the lip. {The people are the same people.}";
+  const cast = [{ name: "Mara Vukas", looks: "a slight woman of thirty-two" }];
+  const reply = (marked: string) => checked(`A pit. ${marked} {The people are the same people.}`);
+  const reviewed = (marked: string) => {
+    const script = scriptedTextProvider(reply(marked), reply(marked), reply(marked));
+    const settings = settingsStore(join(folder.path, "settings.json"));
+    return reviewScenePrompt({ textProvider: script.textProvider, settings }, bare, "prose", new AbortController().signal, cast);
+  };
+  expect(await reviewed("[Mara Vukas: A slight woman in her early thirties with olive skin, kneeling at the lip].")).toContain(
+    "[Mara Vukas: A slight woman in her early thirties] with olive skin, kneeling at the lip.",
+  );
+  // Its comma isn't the prompt's, and a mark never ends half way through a phrase.
+  expect(await reviewed("[Mara Vukas: A slight woman in her early thirties, olive-skinned, kneeling at the lip].")).toContain(
+    "[Mara Vukas: A slight woman in her early thirties], olive-skinned, kneeling at the lip.",
+  );
+  expect(await reviewed("[Mara Vukas: A slight woman in her early forties].")).toBe(bare);
+  // Described anew from the start is still refused.
+  expect(await reviewed("[Mara Vukas: A grey old woman kneeling at the lip].")).toBe(bare);
+});
+
 test("an Update's portrait prompt keeps the hair and beard of their looks it leaves out, but not their skin", async () => {
   const reply = JSON.stringify({ keep: "The same man with his face preserved.", changes: "He wears a white shirt." });
   const looks = "a tall man with weathered olive skin, close-cut greying hair, a short beard and grey-green eyes, wearing a white shirt";
@@ -189,6 +217,33 @@ test("an Update's portrait prompt keeps the hair and beard of their looks it lea
   expect(await written).toBe(
     `The same man with his face preserved. With close-cut greying hair and a short beard. He wears a white shirt. ${setting.artStyle}`,
   );
+});
+
+test("an edit says the skin where facial hair has gone, dark skin with any beard, and not otherwise", async () => {
+  const looks = "a heavy-set man of fifty with dark brown skin, clean-shaven";
+  const reply = JSON.stringify({
+    keep: "The same man with his face preserved.",
+    changes: "He is clean-shaven. Standing in front of a plain neutral background.",
+  });
+  expect(await write({ ...portrait, looks, was: "A heavy-set man with a black beard." }, "prose", reply).written).toContain("With dark brown skin.");
+  const off = "a heavy-set man of fifty with dark brown skin, his beard shaved off";
+  expect(await write({ ...portrait, looks: off, was: "A heavy-set man with a black mustache." }, "prose", reply).written).toContain("With dark brown skin");
+  expect(await write({ ...portrait, looks, was: "A heavy-set man." }, "prose", reply).written).not.toContain("brown skin");
+  // Dark skin with any beard too.
+  const bearded = "a heavy-set man of fifty with dark brown skin and a grey-shot black beard";
+  const kept = JSON.stringify({
+    keep: "The same man with his face preserved.",
+    changes: "He wears a sweater. Standing in front of a plain neutral background.",
+  });
+  expect(await write({ ...portrait, looks: bearded, was: "A heavy-set man with a black beard." }, "prose", kept).written).toContain(
+    "With dark brown skin and a grey-shot black beard.",
+  );
+  const named = "a tall dark-skinned man of fifty with a black beard";
+  expect(await write({ ...portrait, looks: named, was: "A tall man with a black beard." }, "prose", kept).written).toContain(
+    "With dark skin and a black beard.",
+  );
+  for (const other of ["a man with fair skin under a black beard", "a woman with dark brown skin and no beard"])
+    expect(await write({ ...portrait, looks: other, was: "A tall person." }, "prose", kept).written).not.toMatch(/(?:fair|brown) skin/);
 });
 
 test("a prompt the text model can't write fails with a reason to show, and nothing is drawn from a template", async () => {

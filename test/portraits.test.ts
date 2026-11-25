@@ -395,6 +395,29 @@ test("Regenerate takes the portrait with the old response and draws one for the 
   expect(await app.get(`/saves/${id}/portraits/${portraits[0]!.id}`).then((r) => r.bytes())).toEqual(png(3));
 });
 
+test("a Rewrite's own passing looks aren't drawn as looks taken back", async () => {
+  const looks = (appearance: string, portrait: boolean) => ({ op: "update_npc" as const, name: "Hesper", appearance, portrait });
+  play(
+    [
+      turn(meet("Hesper", "a woman in a grey coat"), know("Hesper"), inView("Hesper")),
+      turn(looks("a woman in a red coat", true)),
+      turn(),
+      turn(looks("a woman in a red coat, a smudge on her cheek", false)),
+    ],
+    ...[1, 2, 3, 4, 5, 6, 7].map((n) => png(n)),
+  );
+  await enableImages();
+  await app.patch("/settings", { updatePortraits: true });
+  const id = await app.createSave();
+  for (let played = 0; played < 3; played++) await playSettled(id);
+  const { messages } = (await (await app.get(`/saves/${id}/messages`)).json()) as { messages: { id: number }[] };
+
+  expect((await app.post(`/saves/${id}/messages/${messages.at(-1)!.id}/rewrite`, { feedback: "Dirty her cheek." })).status).toBe(201);
+  await settled(id);
+
+  expect((await journalOf(id)).portraits.find(({ npc }) => npc === "Hesper")).toMatchObject({ redraws: 1 });
+});
+
 test("a Revert cancels a portrait in flight and drops a waiting one, and neither writes", async () => {
   play([turn(meet("Hesper"), meet("Orin"), inView("Hesper", "Orin"))], new Promise<Uint8Array>(() => {}), png(1));
   await enableImages();
@@ -670,12 +693,8 @@ test("someone with a portrait who was never made known appears once named, with 
   expect(portraits.map(({ npc }) => npc)).toEqual(["Marcus"]);
 });
 
-test("the Narrator doing the same work in its operations costs nothing, and a summary and the cast can use the new name", async () => {
-  play(
-    [naming([person("Priya")], meet("Priya"), know("Priya"), { op: "set_known_npc_summary", name: "Priya", summary: "A ferry hand." }, inView("Priya"))],
-    png(1),
-    png(2),
-  );
+test("the Narrator doing the same work in its operations costs nothing, and the cast can use the new name", async () => {
+  play([naming([person("Priya")], meet("Priya"), know("Priya"), inView("Priya"))], png(1), png(2));
   await enableImages();
   const id = await app.createSave();
 
@@ -684,7 +703,6 @@ test("the Narrator doing the same work in its operations costs nothing, and a su
 
   expect(response.status).toBe(201);
   expect((await journalOf(id)).npcs).toEqual(["Priya"]);
-  expect((await app.get(`/saves/${id}/journal`).then((r) => r.json())).npcSummaries).toEqual({ Priya: "A ferry hand." });
   expect((await app.get(`/saves/${id}/journal`).then((r) => r.json())).recentNpcs).toEqual(["Priya"]);
 });
 

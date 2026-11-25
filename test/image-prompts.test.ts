@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { promptStyle } from "../src/graph-builder";
-import { chestUp, expandMarks, markNames, portraitsDue, restyledBy } from "../src/image-pipeline";
+import { chestUp, expandMarks, flashlights, markNames, portraitsDue, restyledBy } from "../src/image-pipeline";
 import { assemblePrompt, IN_ITS_WORLD_AND_STYLE, REQUESTED_IMAGE_PROMPT } from "../src/prompt-assembler";
 import { applyOperations, openingState } from "../src/state-applier";
 
@@ -225,6 +225,132 @@ test("someone's looks keep no caked dirt, passing pallor, bonds or garment taken
   expect(applyOperations(before, [{ op: "update_npc", name: "Price", appearance: lasting, portrait: null }]).next.npcs[0]!.appearance).toBe(lasting);
 });
 
+test("a clothing clause keeps its clothes when a word in it passes with the scene", () => {
+  const looksOf = (appearance: string) =>
+    applyOperations({ ...openingState, npcs: [{ name: "Price", appearance: "a man" }] }, [{ op: "update_npc", name: "Price", appearance, portrait: null }]).next
+      .npcs[0]!.appearance;
+  expect(looksOf("a tall man, wearing a dusty blue officer's coat with brass buttons and a sabre at his hip")).toBe(
+    "a tall man, wearing a blue officer's coat with brass buttons and a sabre at his hip",
+  );
+  expect(looksOf("a lanky boy with dusty brown skin and a shaven head, in a dust-caked orange coat")).toBe(
+    "a lanky boy with brown skin and a shaven head, in an orange coat",
+  );
+  // Dirt told after it, up to what the clause says next.
+  expect(looksOf("a woman, blonde hair in a long plait greyed with ash at the tip, a shirt black with soot and a leather cap")).toBe(
+    "a woman, blonde hair in a long plait, a shirt and a leather cap",
+  );
+  for (const kept of [
+    "a man, a shirt black with soot beneath a red leather coat, boots",
+    "a woman, a blouse streaked with mud over the green skirt",
+    "a man, hair dusted with snow around a scarred face",
+    "a man dusted with snow on his red leather coat",
+    "a man, his arms streaked with mud below a scarred face",
+  ])
+    expect(looksOf(kept)).toContain(kept.match(/red leather coat|green skirt|scarred face/)![0]);
+  expect(looksOf("a man, a moustache white with frost and grease-blackened hands")).toBe("a man, a moustache and grease-blackened hands");
+  // Told where it lies, at more length, and where no rule knows the place.
+  expect(looksOf("a man, a shirt grey with dust across the shoulders from the road, hair greyed with ash at one temple, boots")).toBe(
+    "a man, a shirt, hair, boots",
+  );
+  expect(looksOf("a man, boots white with dust up to the tops, a cap")).toContain("a cap");
+  // Both halves of it, where it is told, and none of what it isn't on.
+  expect(
+    looksOf(
+      "a woman, black hair grey with ash along the parting, trousers black with mud to the knee, sleeves streaked with mud at the cuffs below a red sash",
+    ),
+  ).toBe("a woman, black hair, trousers, sleeves below a red sash");
+  expect(looksOf("a man, his hands dark with soot and water, sleeves smeared with soot above a dark waistcoat, boots, blackened with soot, a cap")).toBe(
+    "a man, his hands, sleeves above a dark waistcoat, boots, a cap",
+  );
+  expect(looksOf("a woman, a short bob dark with ash blonde highlights, green eyes")).toBe("a woman, a short bob dark with ash blonde highlights, green eyes");
+  expect(looksOf("a man, a fair beard streaked with ash-blonde, boots stained with grape must")).toBe(
+    "a man, a fair beard streaked with ash-blonde, boots stained with grape must",
+  );
+  // Half of a compound says more than dirt.
+  expect(looksOf("a man, dusty-haired and lean, blue eyes")).toBe("a man, dusty-haired and lean, blue eyes");
+  // A colour, not dirt.
+  expect(looksOf("a woman, in a dust-grey coat buttoned to the throat")).toBe("a woman, in a dust-grey coat buttoned to the throat");
+  expect(looksOf("a man, in brown trousers tucked into scuffed riding boots, canvas breeches held up by one suspender and bare feet")).toBe(
+    "a man, in brown trousers tucked into scuffed riding boots, canvas breeches held up by one suspender",
+  );
+  expect(looksOf("a girl with wet hair, in a grey cloak with hood up, a black beard with rime in it, mud-brown eyes")).toBe(
+    "a girl, in a grey cloak, a black beard, mud-brown eyes",
+  );
+  // Both sides of an "and" may be held, so the clause goes whole, and so do dirt that follows its garment and all other dirt.
+  for (const passing of [
+    "his hat and gloves under his arm",
+    "a sword and shield in hand",
+    "a lantern and a rope held high",
+    "skirts muddied up to the knee",
+    "boots dusty after the road",
+    "boots grey with road dust",
+    "rain-darkened coat",
+    "hands tucked into his armpits",
+    "hood up",
+  ])
+    expect([passing, looksOf(`a man, a scar on his cheek, ${passing}`)]).toEqual([passing, "a man, a scar on his cheek"]);
+});
+
+test("looks given the PC that are an NPC's are left out", () => {
+  const price = "a broad man in his fifties with a grey walrus moustache and a red face, in a dark blue constable's coat";
+  const before = { ...openingState, npcs: [{ name: "Price", appearance: price }], pcAppearance: "a tall woman with red hair" };
+  const set = (appearance: string) => applyOperations(before, [{ op: "set_pc_appearance", appearance }]);
+  const taken = set("a broad man in his fifties with a red face, a grey walrus moustache, in a dark blue constable's coat buttoned wrong");
+  expect([taken.next.pcAppearance, taken.refused, taken.ignored.length]).toEqual(["a tall woman with red hair", [], 1]);
+  // A PC only alike keeps their own.
+  const mara = {
+    ...openingState,
+    npcs: [{ name: "Mara", appearance: "a tall woman in her forties with long dark hair, brown eyes and pale skin, in a green coat" }],
+  };
+  const own = "a tall woman in her thirties with long dark brown hair, brown eyes and olive skin and a scar on her cheek";
+  expect(applyOperations(mara, [{ op: "set_pc_appearance", appearance: own }]).next.pcAppearance).toBe(own);
+  expect(set("a tall woman with red hair cropped short and a scar").next.pcAppearance).toContain("scar");
+});
+
+test("a person named again beside others is told by their image", () => {
+  const npcs = [
+    { name: "Vane", appearance: "a tall man" },
+    { name: "Jory", appearance: "a boy" },
+  ];
+  expect(expandMarks("[Vane: a tall man] rides beside [Jory: a boy], and [Vane] listens while [Jory] talks.", npcs, "Wren", ["Vane", "Jory"]).prompt).toBe(
+    "the person from image 1, a tall man, rides beside the person from image 2, a boy, and the same person from image 1 listens while the same person from image 2 talks.",
+  );
+  expect(expandMarks("[Vane: a tall man] turns, and [Vane] sighs.", npcs, "Wren", ["Vane"]).prompt).toBe(
+    "the person from image 1, a tall man, turns, and the same person sighs.",
+  );
+});
+
+test("an injury told as someone else's isn't the PC's", () => {
+  const before = { ...openingState, npcs: [{ name: "Barra", appearance: "a woman" }] };
+  const injured = (text: string) => applyOperations(before, [{ op: "add_status", kind: "injuries", text }]);
+  for (const text of [
+    "Barra has a crossbow bolt through the thigh",
+    "Barra is bleeding from the thigh",
+    "Crossbow bolt through Barra's left thigh",
+    "Bolt through Barra's thigh",
+    "Cut across Barra's cheek",
+    "Crossbow bolt through Barra's torso",
+    "Gash on Barra's temple",
+  ])
+    expect([injured(text).next.status.injuries, injured(text).refused]).toEqual([[], []]);
+  // Taken back with no Turn lost to it.
+  const back = applyOperations(before, [
+    { op: "add_status", kind: "injuries", text: "Barra is cut" },
+    { op: "remove_status", kind: "injuries", text: "Barra is cut" },
+  ]);
+  expect(back.refused).toEqual([]);
+  expect(applyOperations(before, [{ op: "add_status", kind: "conditions", text: "Barra has you pinned" }]).next.status.conditions).toHaveLength(1);
+  for (const text of [
+    "palm cut on Barra's blade",
+    "split knuckles on Barra's face",
+    "fingers crushed in Barra's hand",
+    "a bite from Barra's dog",
+    "cut thumb, bound by Barra",
+    "bruised by Barra's grip",
+  ])
+    expect(injured(text).next.status.injuries).toEqual([text]);
+});
+
 test("the era is set once, and a later set_era is ignored rather than failing the Turn, so pictures never drift", () => {
   const first = applyOperations(openingState, [{ op: "set_era", era: "early medieval Arabia" }]);
   const again = applyOperations(first.next, [{ op: "set_era", era: "1870s American West" }]);
@@ -258,4 +384,65 @@ test("someone known and heard from out of view is due no portrait again each Tur
 
   expect(portraitsDue(known, known, ["Owen Price"])).toEqual([]);
   expect(portraitsDue(known, { ...known, scene: { location: "The loft", visibleCast: ["Owen Price"] } })).toEqual([voice]);
+});
+
+test("a PC built like an NPC is still given new looks, by the words they had and the player's", () => {
+  const own = "a lean man in his thirties with cropped hair, stubble and broad shoulders";
+  const before = { ...openingState, npcs: [{ name: "Tam", appearance: `${own}, a bandaged scar` }] };
+  const looks = [{ op: "set_pc_appearance" as const, appearance: `${own}, a bandaged eye` }];
+  expect(applyOperations({ ...before, pcAppearance: own }, looks).next.pcAppearance).toContain("eye");
+  expect(applyOperations(before, looks, own).next.pcAppearance).toContain("eye");
+  // Back out of a disguise, and into clothes like theirs.
+  expect(applyOperations({ ...before, pcAppearance: "a bent old beggar in rags" }, looks, own).next.pcAppearance).toContain("eye");
+  const dressed = { op: "set_pc_appearance" as const, appearance: `${own}, now in a constable's uniform with brass buttons, helmet and polished belt` };
+  const constable = { ...before, npcs: [{ name: "Tam", appearance: "a man in a constable's uniform with brass buttons, helmet and polished belt" }] };
+  expect(applyOperations(constable, [dressed], own).next.pcAppearance).toContain("helmet");
+});
+
+test("an electric torch is told to the image model as a flashlight, and one that burns as a torch", () => {
+  for (const [era, written, drawn] of [
+    ["", "a woman with a head torch on her brow", "a woman with a headlamp on her brow"],
+    ["", "Torch beams cross the yard, a pen torch in her hand", "Flashlight beams cross the yard, a pen flashlight in her hand"],
+    ["Antarctic research station, 1978", "holding a torch low. Torchlight rakes the drift", "holding a flashlight low. Flashlight beam rakes the drift"],
+    ["present day rural Italy", "two torches on the floor", "two flashlights on the floor"],
+    // Stays, as it burns, the era has no other, or it isn't a torch.
+    ["present-day southern Italy", "a burning torch held at his side", "a burning torch held at his side"],
+    ["present-day southern Italy", "torches in iron brackets", "torches in iron brackets"],
+    ["early modern Levant", "a torch in his hand", "a torch in his hand"],
+    ["1890s northern England", "a torch in his hand", "a torch in his hand"],
+    ["", "a torch in his hand", "a torch in his hand"],
+    ["1978", "a blowtorch on the bench", "a blowtorch on the bench"],
+    ["1978", "a welding torch, a torch-lit hall", "a welding torch, a torch-lit hall"],
+    ["circa 2000 BC Mesopotamia", "a torch in his hand", "a torch in his hand"],
+    ["pre-modern Japan", "a torch in his hand", "a torch in his hand"],
+    // Words that only look like fire.
+    ["late 20th century Britain", "a woman in a blazer, a torch in her hand", "a woman in a blazer, a flashlight in her hand"],
+    ["early 21st-century London", "a firearm at his belt, a torch raised", "a firearm at his belt, a flashlight raised"],
+  ] as const)
+    expect([era, flashlights(written, era)]).toEqual([era, drawn]);
+});
+
+test("a person is never something the PC wears or carries, at no cost to the Turn", () => {
+  const before = { ...openingState, npcs: [{ name: "Ossery", appearance: "a man" }] };
+  const { next, refused } = applyOperations(before, [
+    { op: "add_item", slot: "wearing", item: "Ossery" },
+    { op: "add_item", slot: "carrying", item: "Ossery's letter" },
+    { op: "remove_item", item: "Ossery" },
+  ]);
+  expect([next.inventory, refused]).toEqual([{ ...openingState.inventory, carrying: [...openingState.inventory.carrying, "Ossery's letter"] }, []]);
+});
+
+test("an NPC's looks given the PC whole are refused, though theirs were kept without what passes", () => {
+  const given =
+    "a gaunt, lean man in his forties with windburned cracked skin, a straggling grey-brown beard, deep-set eyes and frost-split lips, wearing a torn orange nylon flight suit under a cracked canvas anorak with a fur-lined hood and leather straps crusted with ice, dark trousers and mitts with the wool showing through";
+  const own = "a strong, rawboned woman in her forties with a weathered pale face and short ash-blonde hair";
+  const met = applyOperations({ ...openingState, pcAppearance: own }, [{ op: "add_npc", name: "Halvorsen", appearance: given }]).next;
+  expect(applyOperations(met, [{ op: "set_pc_appearance", appearance: given }], own).next.pcAppearance).toBe(own);
+  // And one's kept as written, while a PC who only shares some of theirs keeps their own.
+  const raw = { ...openingState, pcAppearance: own, npcs: [{ name: "Halvorsen", appearance: given }] };
+  expect(applyOperations(raw, [{ op: "set_pc_appearance", appearance: given }], own).next.pcAppearance).toBe(own);
+  const sailor = { name: "Olsen", appearance: "a broad bearded sailor with a broken nose, scarred cheek, cropped greying temples and weathered forehead" };
+  const hurt =
+    "a slight woman with a broken nose, scarred cheek, cropped temples and weathered forehead, left shoulder caked in dried blood, knuckles split from gripping rope";
+  expect(applyOperations({ ...raw, npcs: [sailor] }, [{ op: "set_pc_appearance", appearance: hurt }], own).next.pcAppearance).toBe(hurt);
 });

@@ -286,13 +286,13 @@ test("State Upkeep is told a few lines of talk take minutes, as six a reply made
   expect(upkeep.prompts[0]![0]!.content).not.toContain("0.1 for a few lines");
 });
 
-test("State Upkeep keeps the Journal the Narrator left, only from the reply, never twice, and no more than it may", async () => {
+test("State Upkeep keeps the Journal, never twice, and no more than it may", async () => {
   play(
-    [narration("Kit shows Ash four round bruises on the drowned man's neck and says the sexton locked the crypt.")],
+    [narration("Rain falls."), narration("Kit shows Ash four round bruises on the drowned man's neck and says the sexton locked the crypt.")],
     [
+      upkept(),
       upkept(
         { op: "add_known_fact", fact: "The drowned man has four round bruises on his neck." },
-        { op: "add_known_fact", fact: "The vicar ordered smuggling through the harbour." },
         { op: "add_known_fact", fact: "Four round bruises mark the neck of the drowned man." },
         { op: "add_known_fact", fact: "The sexton locked the crypt." },
         { op: "add_known_fact", fact: "Kit shows the bruises." },
@@ -302,13 +302,15 @@ test("State Upkeep keeps the Journal the Narrator left, only from the reply, nev
     ],
   );
   const id = createSave();
+  // Never the story's first reply, which may add twice as many.
+  expect((await turn(id)).ok).toBe(true);
 
   const log = await logOf(async () => expect((await turn(id)).ok).toBe(true), "info");
 
   expect(store().latestState(id).pcKnown.facts).toEqual(["The drowned man has four round bruises on his neck.", "The sexton locked the crypt."]);
   expect(store().latestState(id).looseEnds).toEqual(["Why the sexton locked the crypt."]);
   expect(log).toContain("Upkeep's Journal entries dropped {");
-  expect(log).toContain('"ungrounded":1,"secret":0,"repeated":1,"overMost":2');
+  expect(log).toContain('"secret":0,"repeated":1,"overMost":2');
 });
 
 test("an Upkeep note carries nothing only someone's secret knowledge holds, though its other words are in the reply", () => {
@@ -317,15 +319,20 @@ test("an Upkeep note carries nothing only someone's secret knowledge holds, thou
   const told = "The vicar's housekeeper pours tea above the harbour.";
   expect(groundedNotes([secret], state, told)).toEqual([]);
   // Once the player has read of it, it is no secret.
-  expect(groundedNotes([secret], state, told, `${told} They spoke of smuggling he ordered.`)).toEqual([secret]);
+  expect(groundedNotes([secret], state, `${told} They spoke of smuggling he ordered.`)).toEqual([secret]);
 });
 
-test("a short Upkeep note, one in a script without capitals and one the reply words in another form are kept", () => {
-  const notes = ["Mara is dead.", "明美は死んだ。", "The sexton carries bruised knuckles."].map((fact) => ({ op: "add_known_fact" as const, fact }));
-  expect(groundedNotes([notes[0]!], openingState, "Mara is dead.")).toEqual([notes[0]!]);
-  expect(groundedNotes([notes[0]!], openingState, "The rain goes on.")).toEqual([]);
-  expect(groundedNotes([notes[1]!], openingState, "明美は死んだ。")).toEqual([notes[1]!]);
-  expect(groundedNotes([notes[2]!], openingState, "The sexton's bruised hands shook.")).toEqual([notes[2]!]);
+test("a known fact may be reworded in the words it already has, and one refused takes the place of nothing", () => {
+  const fact = "Bram is behind the smuggling.";
+  const state = { ...openingState, npcKnows: { Bram: ["Ash knows of his smuggling, and the oilskin."] }, pcKnown: { ...openingState.pcKnown, facts: [fact] } };
+  const update = (replacement: string) => ({ op: "update_known_fact" as const, fact, replacement });
+  const moved = update("Bram is behind the smuggling and left for the quay.");
+  expect(groundedNotes([moved], state, "Bram runs contraband to the quay.")).toEqual([moved]);
+  // One the Journal doesn't hold would be added, so its words are no one's yet.
+  expect(groundedNotes([moved], { ...state, pcKnown: { ...state.pcKnown, facts: [] } }, "Bram runs contraband to the quay.")).toEqual([]);
+  const note = { op: "add_known_fact" as const, fact: "Bram carried something heavy toward the quay." };
+  const secret = update("Bram carried the oilskin, something heavy, toward the quay.");
+  expect(groundedNotes([secret, note], state, "Bram carries something heavy to the quay.")).toEqual([note]);
 });
 
 test("an Upkeep note that takes the place of a fact the same reply removes is no repeat of it", () => {
@@ -341,11 +348,8 @@ test("an Upkeep note that takes the place of a fact the same reply removes is no
 });
 
 test("State Upkeep is sent the Loose Ends and resolves one the reply settled, as long stories kept a dozen stale", async () => {
-  const { upkeep } = play(
-    [narration("Ash finds the key under the mat.", { op: "add_loose_end", loose_end: "Find the key to the boathouse" })],
-    [upkept({ op: "resolve_loose_end", loose_end: "Find the key to the boathouse" })],
-  );
-  const id = createSave();
+  const { upkeep } = play([narration("Ash finds the key under the mat.")], [upkept({ op: "resolve_loose_end", loose_end: "Find the key to the boathouse" })]);
+  const id = store().create({ worldBrief: "A drowned city", pc: { name: "Ash" }, opening: { looseEnds: ["Find the key to the boathouse"] } });
 
   expect((await turn(id)).ok).toBe(true);
 
@@ -533,4 +537,93 @@ test("an Edit that adds to the response gives State Upkeep only the added words,
 
   expect(edited.ok).toBe(true);
   expect(JSON.parse(upkeep.prompts[1]!.at(-1)!.content)).toMatchObject({ previous_reply: GIVEN, reply: "A gull cries." });
+});
+
+test("State Upkeep is told who the PC knows and what people know, without their parts of the threads", async () => {
+  const { upkeep } = play([narration("Mara waves from the quay.")], [upkept({ op: "set_known_npc_summary", name: "Mara", summary: "The ferry's pilot." })]);
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash", physicalTraits: "A tall woman with red hair." },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: ["Mara"] },
+      summary: "",
+      npcs: [{ name: "Mara", appearance: "a pilot" }],
+      pcKnown: { facts: [], npcs: ["Mara"], summaries: {} },
+      npcKnows: { Mara: ["She held the harbourmaster under.", "Ash waved to her."] },
+      npcParts: { Mara: ["She held the harbourmaster under."] },
+    },
+  });
+
+  expect((await turn(id)).ok).toBe(true);
+
+  const { state } = JSON.parse(upkeep.prompts[0]![1]!.content);
+  expect(state.npc_knows).toEqual({ Mara: ["Ash waved to her."] });
+  expect(state.known_people).toEqual({ Mara: "" });
+  expect(state.pc_appearance).toBe("A tall woman with red hair.");
+  expect(store().latestState(id).pcKnown.summaries).toEqual({ Mara: "The ferry's pilot." });
+});
+
+test("a person's line never holds what only someone's knowledge does, nor replaces the player's own, and one is asked for those without", async () => {
+  const summary = (name: string, text: string) => ({ op: "set_known_npc_summary", name, summary: text });
+  const { upkeep } = play(
+    // The edit's own settling fails, which the Turn plays on past.
+    [narration("Mara waves from the quay."), new Error("down"), narration("Mara smiles."), narration("Mara nods.")],
+    [
+      upkept(summary("Mara", "The pilot who buried the ledger."), summary("Tobin", "A clerk."), summary("constructor", "Nobody.")),
+      upkept(summary("Mara", "A smuggler.")),
+      upkept(summary("Mara", "A smuggler.")),
+    ],
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: ["Mara"] },
+      summary: "It began.",
+      npcs: [
+        { name: "Mara", appearance: "a pilot" },
+        { name: "Tobin", appearance: "a clerk" },
+      ],
+      pcKnown: { facts: [], npcs: ["Mara", "Tobin"], summaries: {} },
+      npcKnows: { Mara: ["Mara buried the ledger under the cistern."] },
+    },
+  });
+
+  expect((await turn(id)).ok).toBe(true);
+  expect(JSON.parse(upkeep.prompts[0]![1]!.content).state.known_people).toEqual({ Mara: "", Tobin: "" });
+  expect(store().latestState(id).pcKnown.summaries).toEqual({ Tobin: "A clerk." });
+
+  store().addEdit(id, { edit: "npcSummary", name: "Mara", text: "My sister-in-law, whom I trust." });
+  // Nor a Turn later.
+  for (let played = 0; played < 2; played++) {
+    expect((await turn(id)).ok).toBe(true);
+    expect(store().latestState(id).pcKnown.summaries!.Mara).toBe("My sister-in-law, whom I trust.");
+  }
+});
+
+test("the player's line on a person outlives the reply that gives them their full name", async () => {
+  const summary = (name: string) => ({ op: "set_known_npc_summary", name, summary: "A smuggler." });
+  play(
+    [narration("Mara waves."), new Error("down"), narration("Mara Vell, as she is called, smiles.", { op: "merge_npc", name: "Mara", into: "Mara Vell" })],
+    [upkept(), upkept(summary("Mara Vell"))],
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: ["Mara"] },
+      summary: "",
+      npcs: [{ name: "Mara", appearance: "a pilot" }],
+      pcKnown: { facts: [], npcs: ["Mara"], summaries: {} },
+    },
+  });
+  expect((await turn(id)).ok).toBe(true);
+  store().addEdit(id, { edit: "npcSummary", name: "Mara", text: "My sister-in-law, whom I trust." });
+
+  expect((await turn(id)).ok).toBe(true);
+
+  expect(store().latestState(id).pcKnown.summaries).toEqual({ "Mara Vell": "My sister-in-law, whom I trust." });
 });

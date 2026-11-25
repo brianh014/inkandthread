@@ -356,7 +356,7 @@ test("the Narrator is told to keep its records true to play", () => {
 
   expect(prompt).toContain("what has happened in play beats any Lore Entry or Plot Thread");
   expect(prompt).not.toContain("remove_lore_entry");
-  for (const op of ["update_lore_entry", "update_plot_thread", "update_known_fact", "remove_known_fact", "merge_npc"]) expect(prompt).toContain(op);
+  for (const op of ["update_lore_entry", "update_plot_thread", "merge_npc"]) expect(prompt).toContain(op);
 });
 
 test("the Narrator tells what the PC says in narration, never as a line under someone else's name", () => {
@@ -380,11 +380,6 @@ test("a picture prompt names what each person rides, sits on or holds, as the im
     }),
   );
   expect(prompt).toContain("name whatever it rests on, such as what each person rides, sits on or holds");
-});
-
-test("the summary has room to keep what still matters, most of it for the recent story", () => {
-  expect(promptFor()).toContain("under 500 words");
-  expect(promptFor()).toContain("give the last few scenes about two thirds of the words");
 });
 
 test("the last instruction asks for fresh prose, natural speech and none of the player's words back", () => {

@@ -98,3 +98,34 @@ test("a garbled or titled form of someone already met finds them, rather than ad
   expect(father.npcs.map(({ name }) => name)).toEqual(["Reverend Amos Thorne", "Owen Price", "Thomas Owen Price"]);
   expect(next.npcKnows).toEqual({ "Owen Price": ["The ledger is in the chimney."] });
 });
+
+test("someone of the hidden world the page never names doesn't become known to the PC", async () => {
+  const reply = (text: string) =>
+    JSON.stringify({
+      ...JSON.parse(narration(text, { op: "add_known_npc", name: "Ossery" }, { op: "update_npc", name: "Ossery", appearance: "a stout man in an apron" })),
+      people: [{ name: "Ossery", appearance: "a stout man" }],
+    });
+  play(reply("The well is quiet."), reply("Ossery comes out with a lantern."));
+  const id = store().create({
+    worldBrief: "A desert",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The well", visibleCast: [] },
+      summary: "",
+      worldBible: [{ title: "Ossery", keywords: ["Ossery", "innkeeper"], content: "A stout man who keeps the well.", alwaysOn: false }],
+    },
+  });
+
+  expect((await turn(id)).status).toBe(201);
+  expect(store().latestState(id).pcKnown.npcs).toEqual([]);
+  // In the state all the same, as the reply's other operations name them.
+  expect(
+    store()
+      .latestState(id)
+      .npcs.map(({ name }) => name),
+  ).toEqual(["Ossery"]);
+
+  expect((await turn(id)).status).toBe(201);
+  expect(store().latestState(id).pcKnown.npcs).toEqual(["Ossery"]);
+});

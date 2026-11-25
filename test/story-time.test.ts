@@ -156,13 +156,8 @@ test("a memory is dated from the Story Time just before its first Message, as th
   folder.remove();
 });
 
-test("people are asked to stay true to what they said they intend, time included, and to record it", () => {
-  const text = prompt(DUSK, true);
-
-  expect(text).toContain("People stay true to what they have said, intend and feel");
-  expect(text).toContain(
-    "Record an intention that will matter later, and what the PC is told of where someone out of sight is and what they are doing, with add_known_fact",
-  );
+test("people are asked to stay true to what they said they intend, time included", () => {
+  expect(prompt(DUSK, true)).toContain("People stay true to what they have said, intend and feel");
 });
 
 test("the clock adds each reply's hours_passed, or the hours its words moved on, and never falls short of the days passed", () => {
@@ -285,4 +280,27 @@ test("words that name the morning for an afternoon never set the clock back half
   // Words a few hours off the count still set it, as it must never drift from what the page says.
   const drifted = applyOperations(at("a while later", 17), [move(0.1, "eleven in the morning")]).next;
   expect(drifted.storyTime?.hours).toBe(11);
+});
+
+test("a night's words past midnight are the next day however far the count is short, and words before it are not", () => {
+  const night = (hours: number, timeOfDay = "late night") => at({ day: 2, date: "7th of Dry Month", timeOfDay, hours });
+  const after = (state: ReturnType<typeof night>, words: string, hours: number, days = 0, date: string | null = null) =>
+    applyOperations(state, [set(days, date, words, hours)]).next.storyTime!;
+  const past = after(night(47.79999), "just past midnight", 0.2);
+  expect(past).toMatchObject({ day: 3, dateDue: true });
+  expect(past.hours).toBeGreaterThanOrEqual(48);
+  // And on from there, never back a day.
+  expect(after({ ...night(0), storyTime: past }, "going on one in the morning", 0.5).hours).toBeGreaterThanOrEqual(48);
+  expect(after(night(47), "a quarter past twelve at night", 0.5)).toMatchObject({ day: 3 });
+  expect(after(night(47, "eleven at night"), "six in the morning", 7)).toMatchObject({ day: 3 });
+  // The date it gives is the new day's, once.
+  expect(after(night(47.8), "just past midnight", 0.2, 1, "8th of Dry Month")).toMatchObject({ day: 3, date: "8th of Dry Month" });
+  expect(after(night(47.8), "just past midnight", 0.2, 1, "8th of Dry Month").dateDue).toBeUndefined();
+  // Turned once, though the small hours are called late at night.
+  expect(after({ ...night(0), storyTime: { day: 3, date: "8th of Dry Month", timeOfDay: "late at night", hours: 49 } }, "one in the morning", 0.5).day).toBe(3);
+  // Only "night" after a late hour is no hour back.
+  expect(after(night(47.6, "nearly midnight"), "late at night", 0.2)).toMatchObject({ timeOfDay: "late at night", day: 2 });
+  // Still the night before.
+  for (const words of ["a few minutes to midnight", "nearly midnight", "not yet midnight"])
+    expect([words, after(night(47.5), words, 0.2).day]).toEqual([words, 2]);
 });

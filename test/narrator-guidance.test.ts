@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import { SUMMARY_EVERY } from "../src/prompt-assembler";
 import { saveStore } from "../src/save-store";
 import { narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
@@ -30,88 +29,18 @@ const summaryOf = async (id: string) => ((await app.get(`/saves/${id}/journal`).
 const playTurn = (id: string) => app.post(`/saves/${id}/turns`, { input: "I wait." });
 const lastSystem = () => prompts.at(-1)!.findLast(({ role }) => role === "system")!.content as string;
 
-test("each finished Turn's summary becomes the story's", async () => {
-  play(summed("Ash reached the docks."), summed("Ash left the docks."));
-  const id = await app.createSave();
-
-  await playTurn(id);
-  expect(await summaryOf(id)).toBe("Ash reached the docks.");
-  await playTurn(id);
-
-  expect(await summaryOf(id)).toBe("Ash left the docks.");
-});
-
-test("the summary is asked for every few replies, and again until one comes, in the tail, so the cached start never changes", async () => {
-  // Written in the first reply only, so the one due a round later doesn't come and is asked for again.
-  const turns = SUMMARY_EVERY + 2;
-  play(summed("Ash reached the docks."), ...Array.from({ length: turns - 1 }, () => summed("")));
-  const id = await app.createSave();
-
-  const due: boolean[] = [];
-  for (let turn = 0; turn < turns; turn++) {
-    await playTurn(id);
-    due.push(lastSystem().includes("The summary is due in this Turn."));
-  }
-
-  expect(due).toEqual(Array.from({ length: turns }, (_, turn) => turn === 0 || turn >= SUMMARY_EVERY));
-  expect(new Set(prompts.map((prompt) => prompt[0]!.content)).size).toBe(1);
-});
-
 test("each finished Turn's recent_summary becomes the Journal's recent summary, and a blank one keeps the last", async () => {
-  const recent = (text: string | null) =>
-    JSON.stringify({ check: null, narration: "Rain.", state_operations: [], summary: "All of it.", recent_summary: text });
+  const recent = (text: string | null) => JSON.stringify({ check: null, narration: "Rain.", state_operations: [], recent_summary: text });
   play(recent("Ash reached the docks."), recent(null));
   const id = await app.createSave();
   const journal = async () => (await app.get(`/saves/${id}/journal`).then((r) => r.json())) as { summary: string; recentSummary: string };
 
   await playTurn(id);
-  expect(await journal()).toMatchObject({ summary: "All of it.", recentSummary: "Ash reached the docks." });
+  expect(await journal()).toMatchObject({ recentSummary: "Ash reached the docks." });
   await playTurn(id);
 
   expect((await journal()).recentSummary).toBe("Ash reached the docks.");
   expect(lastSystem()).not.toContain("recentSummary");
-});
-
-test("a summary cut to a fraction of the last, as a placeholder such as '(see journal)', keeps the last; a shorter real one is taken", async () => {
-  const long = "Ash reached the docks at dusk, met the ferryman, learned the tide tables were forged, and followed the forger to the old customs house.";
-  const turn = (summary: string) => JSON.stringify({ check: null, narration: "Rain.", state_operations: [], summary, recent_summary: null });
-  play(turn(long), turn("(see journal)"), turn("Ash followed the forger to the customs house and found the false tables."));
-  const id = await app.createSave();
-  const summary = async () => ((await app.get(`/saves/${id}/journal`).then((r) => r.json())) as { summary: string }).summary;
-
-  await playTurn(id);
-  await playTurn(id);
-  expect(await summary()).toBe(long);
-  await playTurn(id);
-
-  expect(await summary()).toBe("Ash followed the forger to the customs house and found the false tables.");
-});
-
-for (const [label, missing] of [
-  ["blank", "  "],
-  ["malformed", 7],
-  ["null", null],
-] as const) {
-  test(`a ${label} summary leaves the story's as it was, and doesn't cost the Turn`, async () => {
-    play(summed("Ash reached the docks."), summed(missing));
-    const id = await app.createSave();
-    await playTurn(id);
-
-    const response = await playTurn(id);
-
-    expect(response.status).toBe(201);
-    expect(await summaryOf(id)).toBe("Ash reached the docks.");
-  });
-}
-
-test("the summary has one way in, its field, as a second one in state_operations was what a looping model repeated", async () => {
-  play(narration("Rain."));
-  const id = await app.createSave();
-
-  await playTurn(id);
-
-  expect(JSON.stringify(prompts)).toContain('\\"summary\\"');
-  expect(JSON.stringify(prompts)).not.toContain("set_summary");
 });
 
 test("the last word before the player's action keeps the PC's choices theirs and their thoughts private", async () => {
@@ -249,12 +178,12 @@ test("no one echoes the PC, re-argues a case the PC turned down, or ends most re
   ).toContain("with its colours and materials, and name each garment by its period form");
 });
 
-test("a reply that still sends the retired set_summary is kept, with its summary field", async () => {
+test("a reply that still sends the retired set_summary or the old summary field is kept without them", async () => {
   play(JSON.stringify({ check: null, narration: "Rain.", state_operations: [{ op: "set_summary", summary: "An older idea." }], summary: "It rained." }));
   const id = await app.createSave();
 
   expect((await playTurn(id)).status).toBe(201);
 
-  expect(await summaryOf(id)).toBe("It rained.");
+  expect(await summaryOf(id)).toBe("");
   expect(prompts).toHaveLength(1);
 });

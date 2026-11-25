@@ -45,7 +45,7 @@ function play(...replies: (string | Error | Promise<string>)[]) {
 
 const THIEF = "A thief plans to rob the library at the next high tide.";
 const store = () => saveStore(savesDir);
-const createSave = () =>
+const createSave = (facts: string[] = []) =>
   store().create({
     worldBrief: "A drowned city",
     pc: { name: "Ash" },
@@ -55,6 +55,7 @@ const createSave = () =>
       summary: "",
       worldRules: ["The city has one boat."],
       plotThreads: [THIEF],
+      pcKnown: { facts, npcs: [] },
       worldBible: [
         { title: "The thief", keywords: ["thief"], content: "The thief is the librarian's own son.", alwaysOn: false },
         { title: "Gulls", keywords: ["gull"], content: "Gulls nest on the dome.", alwaysOn: false },
@@ -270,14 +271,12 @@ test("a move is told what the PC knows of each thread's people, so no plan calls
     narration(
       "Ash learns Kit now sleeps above the bakery.",
       { op: "add_npc", name: "Kit", appearance: "a boy in a cap" },
-      { op: "add_known_fact", fact: "Kit sleeps above the bakery now." },
-      { op: "add_known_fact", fact: "The tide turns at noon." },
       { op: "update_plot_thread", thread: THIEF, truth: null, now: "Kit watches the library stacks.", plan: null },
       nextDay(),
     ),
     moved(),
   );
-  const id = createSave();
+  const id = createSave(["Kit sleeps above the bakery now.", "The tide turns at noon."]);
   expect((await turn(id, "I listen.")).ok).toBe(true);
 
   expect(JSON.parse(told.prompts[1]!.at(-1)!.content).plot_threads[0].pc_knows).toEqual(["Kit sleeps above the bakery now."]);
@@ -285,7 +284,7 @@ test("a move is told what the PC knows of each thread's people, so no plan calls
 
 test("a move reads every reply since the last in full, as with only the last two it never saw someone shown and sent off between moves", async () => {
   const told = play(
-    narration("Ash enters the archive.", { summary: "Ash entered the archive." }),
+    narration("Ash enters the archive."),
     narration("Ash finds the ledger, and Kit takes the cart out of town."),
     narration("Ash reads the ledger."),
     narration("Ash hides the ledger.", nextDay()),
@@ -297,7 +296,6 @@ test("a move reads every reply since the last in full, as with only the last two
   expect((await turn(id, "I sleep.")).ok).toBe(true);
 
   const sent = JSON.parse(told.prompts[4]!.at(-1)!.content);
-  expect(sent.summary).toBe("Ash entered the archive.");
   expect(sent.earlier_replies).toEqual([]);
   expect(sent.latest_replies).toHaveLength(4);
   expect(sent.latest_replies[1]).toContain("Kit takes the cart");
@@ -657,7 +655,8 @@ test("a re-ask for a missing part keeps the part it gives, though another now ha
       nextDay(),
     ),
     moved(change(drowned, "Grout digs a grave."), elsewhere),
-    moved({ ...change(drowned, "Grout digs a grave."), knows: [part] }, elsewhere),
+    // Never the PC, who is no one with a hidden part.
+    moved({ ...change(drowned, "Grout digs a grave."), knows: [part, { name: "Ash", knows: "Ash met the ferryman." }] }, elsewhere),
     narration("Ash waits."),
   );
   const id = store().create({
@@ -669,7 +668,7 @@ test("a re-ask for a missing part keeps the part it gives, though another now ha
   for (const input of ["I meet him.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
 
   expect(told.prompts).toHaveLength(4);
-  expect(store().latestState(id).npcKnows["Silas Grout"]).toEqual([part.knows]);
+  expect(store().latestState(id).npcKnows).toEqual({ "Silas Grout": [part.knows] });
 });
 
 test("a missing part is not asked again past half the move's time, as two such re-asks were cut off at its end", async () => {
@@ -923,6 +922,41 @@ test("a move that thinks too long is written again with no thinking, and stands"
 
   expect(store().latestState(id).threadsNow).toEqual({ [THIEF]: "The thief waits." });
   expect(log).toContain('"overthought":true');
+});
+
+test("a move written again with no thinking closes no thread, as its answers told how things stood", async () => {
+  const PELL = "Mr Pell means to burn the mill.";
+  const others = ["The tide is wrong.", "The gulls are omens.", "The bells ring wrong."];
+  play(
+    narration("Ash sees Mr Pell at the quay.", nextDay()),
+    new ThoughtTooLong("thought too long"),
+    JSON.stringify({
+      left: [{ thread: PELL, answer: "He has been seen at the quay, and the mill stands." }],
+      plot_threads: [change(PELL, "Mr Pell buys oil.")],
+    }),
+    narration("Ash goes home."),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The library", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [PELL, ...others],
+      threadsQuestion: { [PELL]: "Whether Pell is caught." },
+      worldBible: [{ title: "The miller", keywords: ["Mr Pell"], content: "", alwaysOn: false }],
+    },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I walk to the quay.", "I go home."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(store().latestState(id).plotThreads).toEqual([PELL, ...others]);
+  expect(store().latestState(id).threadsNow[PELL]).toBe("Mr Pell buys oil.");
+  expect(log).toContain('"answersUntaken":1');
 });
 
 test("a deed counts as put off by its own words, never by the names and places another deed shares", () => {
@@ -1398,6 +1432,67 @@ test("a move asked again for a faulted now keeps the first reply's sound changes
   expect(told.prompts[2]!.at(-1)!.content).toContain("only the changes named here are taken from your next reply");
   expect(store().latestState(id).threadsNow).toEqual({ [drowned]: dug, [hidden]: vicar });
   expect(log).toMatch(/Faulted nows settled .*"kept":1,"reAsked":1,"replaced":1,"reverted":0/);
+});
+
+test("a move asked again for a faulted now never closes that thread instead", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  const hidden = "The ledger is hidden in the cottage chimney, and the vicar is searching for it.";
+  const barred = "Grout has barred the chapel and burned his spade.";
+  const added = "The lamplighter saw a boat come in without a light and has told no one.";
+  play(
+    narration("Ash walks to the quay.", nextDay()),
+    moved(change(drowned, "Grout will deal with Ash if she presses."), change(hidden, "The vicar has torn up the cottage floor.")),
+    moved(change(drowned, null), change(null, barred, added)),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [drowned, hidden],
+      threadsNow: { [drowned]: "Grout digs a grave.", [hidden]: "The vicar waits for night." },
+      worldBible: [],
+    },
+  });
+
+  for (const input of ["I walk.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+
+  expect(store().latestState(id).plotThreads).toContain(drowned);
+});
+
+test("a plan for someone to tell the PC a secret is asked again, as another told it instead", async () => {
+  const hidden = "The ledger is hidden in the cottage chimney, and the vicar is searching for it.";
+  const told = play(
+    narration("Ash walks to the quay.", nextDay()),
+    moved({
+      ...change(hidden, "The ferryman rows in"),
+      plan: "The ferryman will come to the quay and tell Ash the ledger lies hidden up the cottage chimney.",
+      plan_in_hours: 2,
+    }),
+    moved({ ...change(hidden, "The ferryman rows in."), plan: "The ferryman will moor at the quay.", plan_in_hours: 2 }),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [hidden],
+      worldBible: [],
+    },
+  });
+
+  for (const input of ["I walk.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+
+  expect(told.prompts).toHaveLength(4);
+  expect(store().latestState(id).threadsPlan[hidden]).toBe("The ferryman will moor at the quay.");
 });
 
 test("a now that has the PC told a secret off the page is asked again, naming that thread, and kept out if still so while the old now is the newest reply's", async () => {

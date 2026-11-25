@@ -214,7 +214,7 @@ test("a stranger with no record or a repeated status is ignored, so the Turn isn
 test("a refused Turn logs why, a retry its generation, and a repeat a count", async () => {
   const provider = fakeOpenAi([
     [`data: ${JSON.stringify({ id: "gen-bad", choices: [{ delta: { content: narration("ZQX.", { op: "remove_item", item: "ZQX" }) } }] })}\n\n`],
-    [delta(narration("A line.", { op: "add_known_fact", fact: "ZQX" }, { op: "add_known_fact", fact: "ZQX" }))],
+    [delta(narration("A line.", { op: "set_health", health: "ZQX" }, { op: "set_health", health: "ZQX" }))],
   ]);
   const settingsPath = join(folder.path, "settings.json");
   const app = startApp(join(folder.path, "Saves"), textProvider(settingsStore(settingsPath)));

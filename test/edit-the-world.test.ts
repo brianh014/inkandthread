@@ -90,11 +90,17 @@ test("facts can be edited in place, added and removed", async () => {
 });
 
 test("text stored with stray spaces can still be named exactly", async () => {
-  play(narration("One.", { op: "add_known_fact", fact: "Bees sing. " }), update({ plot_threads: [{ old: "Bees spy. ", new: "Bees rest." }] }));
+  play(narration("One."), update({ plot_threads: [{ old: "Bees spy. ", new: "Bees rest." }] }));
   const id = store().create({
     worldBrief: "A drowned city",
     pc: { name: "Ash" },
-    opening: { ...WORLD, plotThreads: [...WORLD.plotThreads, "Bees spy. "], npcs: NPCS, pcKnown: KNOWN, summary: "It began to rain." },
+    opening: {
+      ...WORLD,
+      plotThreads: [...WORLD.plotThreads, "Bees spy. "],
+      npcs: NPCS,
+      pcKnown: { ...KNOWN, facts: [...KNOWN.facts, "Bees sing. "] },
+      summary: "It began to rain.",
+    },
   });
   await turn(id);
 
@@ -145,7 +151,7 @@ test.each([
 
 test("the next Turn uses the edited world, and its Snapshots hold the edit", async () => {
   // The first reply settles the edited fact, before the Turn.
-  play(update(), narration("Glass rings.", { op: "add_known_fact", fact: "Bells ring." }));
+  play(update(), narration("Glass rings.", { op: "add_item", slot: "carrying", item: "a key" }));
   const id = createSave();
   await edit(id, { edit: "worldBrief", text: "A city of glass" });
   await edit(id, { edit: "fact", old: firstFact, new: "The city is dry." });
@@ -158,8 +164,8 @@ test("the next Turn uses the edited world, and its Snapshots hold the edit", asy
   expect(system!.content).not.toContain("A drowned city");
   expect(system!.content).not.toContain(firstFact);
   expect(store().snapshot(id, 1).pcKnown.facts).toEqual(["The city is dry.", "Ferries stop at dusk."]);
-  expect(store().snapshot(id, 2)).toMatchObject({ worldBrief: "A city of glass" });
-  expect(facts(id)).toEqual(["The city is dry.", "Ferries stop at dusk.", "Bells ring."]);
+  expect(store().snapshot(id, 2)).toMatchObject({ worldBrief: "A city of glass", inventory: { carrying: ["a key"] } });
+  expect(facts(id)).toEqual(["The city is dry.", "Ferries stop at dusk."]);
 });
 
 test("a Revert to before an edit undoes it, and one to after keeps it", async () => {
@@ -234,15 +240,15 @@ test("a Revert past a replaced response undoes an edit it carried", async () => 
   expect(await brief(id)).toBe("A drowned city");
 });
 
-test("an edit to something the replaced response wrote still stands after a Regenerate", async () => {
-  play(narration("One.", { op: "add_known_fact", fact: "Bees sing." }), narration("Two."));
+test("an edit made after the replaced response still stands after a Regenerate", async () => {
+  play(narration("One."), update(), narration("Two."));
   const id = createSave();
   await turn(id);
-  await edit(id, { edit: "fact", old: "Bees sing.", new: "Bees hum." });
+  await edit(id, { edit: "fact", old: firstFact, new: "Bees hum." });
 
   await app.post(`/saves/${id}/messages/2/regenerate`, {});
 
-  expect(facts(id)).toEqual([...KNOWN.facts, "Bees hum."]);
+  expect(facts(id)).toEqual(["Bees hum.", ...KNOWN.facts.slice(1)]);
 });
 
 test("a failed Regenerate leaves an edit waiting", async () => {
@@ -572,6 +578,22 @@ test("a thread's plan a World Change writes falls due on the story clock, so Wor
 
   expect(store().latestState(id).threadsDue).toEqual({ [truth]: 30 });
   expect(prompts[0]![0]!.content).toContain('"story_time":{"date":"1 May","time_of_day":"midnight"}');
+});
+
+test("a World Change's plan for tomorrow falls due tomorrow, not the same evening", async () => {
+  const truth = "A cutter's officer has come to ask about the night landings.";
+  play(
+    update({ plot_threads: [{ old: null, new: truth, now: "The cutter lies off the bar.", plan: "Tomorrow the officer rows ashore.", plan_in_hours: 26 }] }),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: { ...WORLD, npcs: NPCS, storyTime: { day: 1, date: "1 May", timeOfDay: "seven", hours: 7 } },
+  });
+
+  expect((await change(id, "a revenue cutter anchors offshore")).status).toBe(200);
+
+  expect(store().latestState(id).threadsDue).toEqual({ [truth]: 33 });
 });
 
 test("a World Change's new plan with no due hour drops the old plan's", async () => {

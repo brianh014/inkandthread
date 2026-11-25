@@ -288,7 +288,10 @@ test("Scene Memories end the first system message, as text only, and the summary
 });
 
 test("what changes from Turn to Turn stays out of the prompt's start, so the provider can cache it", async () => {
-  const learned = JSON.stringify({ narration: "Rain falls.", state_operations: [{ op: "add_known_fact", fact: "The ferry stopped." }], summary: "Now." });
+  const learned = JSON.stringify({
+    narration: "Rain falls.",
+    state_operations: [{ op: "add_item", slot: "carrying", item: "The ferry token" }],
+  });
   play(learned, narration("Rain stops."));
   const id = seeded(3);
 
@@ -300,8 +303,7 @@ test("what changes from Turn to Turn stays out of the prompt's start, so the pro
   // The newest two replies carry their people, so the oldest Messages are what must stay the same.
   expect(after!.slice(1, 5)).toEqual(before!.slice(1, 5));
   expect(before![0]!.content).not.toContain("Current state");
-  expect(after!.at(-2)!.content).toContain("The ferry stopped.");
-  expect(after!.at(-2)!.content).toContain("Now.");
+  expect(after!.at(-2)!.content).toContain("The ferry token");
 });
 
 test("only the newest replies repeat their people", () => {

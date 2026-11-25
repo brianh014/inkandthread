@@ -130,7 +130,11 @@ test("a picture without set_scene is retried, so it never takes the last place's
 
 test("with State Upkeep, a picture without set_scene is placed by it, without writing the reply again", async () => {
   const unplaced = turn({ scene_changed: true, visual_description: "A ridge at dusk" });
-  const upkeep = scriptedTextProvider(JSON.stringify({ state_operations: [] }), JSON.stringify({ state_operations: moveTo("The ridge") }));
+  const upkeep = scriptedTextProvider(
+    JSON.stringify({ state_operations: [] }),
+    JSON.stringify({ summary: "It rained." }),
+    JSON.stringify({ state_operations: moveTo("The ridge") }),
+  );
   images = scriptedImages(png(1), png(2));
   script = scriptedTextProvider(newScene(), unplaced);
   app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter, undefined, undefined, upkeep.textProvider);
@@ -698,6 +702,7 @@ test("the picture check is given those in view with a portrait whom the prompt l
   images = scriptedImages(PNG, PNG, PNG);
   script = scriptedTextProvider(newScene("A woman stands by [Kit: a boy in a cap].", "The quay"));
   const given: { name: string; looks: string }[][] = [];
+  const moments: string[] = [];
   app = startApp(
     join(folder.path, "Saves"),
     script.textProvider,
@@ -705,8 +710,9 @@ test("the picture check is given those in view with a portrait whom the prompt l
     undefined,
     images.imageAdapter,
     undefined,
-    async (description, _style, _signal, cast = []) => {
+    async (description, _style, _signal, cast = [], moment = "") => {
       given.push(cast);
+      moments.push(moment);
       return description.replace("A woman", "[Ash: A woman]");
     },
   );
@@ -720,7 +726,80 @@ test("the picture check is given those in view with a portrait whom the prompt l
   expect(given).toHaveLength(1);
   expect(given[0]!.map(({ name }) => name)).toEqual(["Ash"]);
   expect(given[0]![0]!.looks).toContain("a tall woman of forty");
+  expect(moments).toEqual([
+    ((await app.get(`/saves/${id}/messages`).then((r) => r.json())) as { messages: { role: string; text: string }[] }).messages.findLast(
+      ({ role }) => role === "narrator",
+    )!.text,
+  ]);
   const scene = images.payloads.at(-1)!;
   expect(scene.prompt).toContain("the person from image 1");
   expect(scene.reference_images).toHaveLength(1);
+});
+
+test("a picture prompt that is the Narrator's notes on its own fields draws nothing", async () => {
+  images = scriptedImages(PNG);
+  script = scriptedTextProvider(newScene("Keep scene_changed false. I set visual_description null.", "The quay"));
+  app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter);
+  await enableImages();
+  const id = await app.createSave();
+
+  await playTurn(id);
+  await settled(id);
+
+  expect(images.payloads.map(({ prompt }) => prompt).join(" ")).not.toContain("visual_description");
+});
+
+test("a picture prompt that names its field only to say it is empty draws nothing", async () => {
+  images = scriptedImages(PNG);
+  script = scriptedTextProvider(newScene("visual_description: null because the scene has not changed", "The quay"));
+  app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter);
+  await enableImages();
+  const id = await app.createSave();
+
+  await playTurn(id);
+  await settled(id);
+
+  expect(images.payloads.map(({ prompt }) => prompt).join(" ")).not.toContain("null");
+});
+
+test("a picture prompt of no words, such as a placeholder of underscores, draws nothing", async () => {
+  images = scriptedImages(PNG, PNG);
+  script = scriptedTextProvider(newScene("______________", "The quay"));
+  app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter);
+  await enableImages();
+  const id = await app.createSave();
+
+  await playTurn(id);
+  await settled(id);
+
+  expect(images.payloads.filter(({ prompt }) => prompt.includes("____"))).toHaveLength(0);
+  expect((await imagesOf(id)).images).toEqual([]);
+});
+
+test("a prompt is kept after its own field's name and before a JSON tail with a null in it", async () => {
+  for (const written of ["visual_description: A lit quay at dusk.", 'A lit quay at dusk.", "chapter_ends": null, "recent_summary": "It rained."']) {
+    images = scriptedImages(PNG, PNG);
+    script = scriptedTextProvider(newScene(written, "The quay"));
+    app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter);
+    await enableImages();
+    const id = await app.createSave();
+
+    await playTurn(id);
+    await settled(id);
+
+    expect(images.payloads.map(({ prompt }) => prompt)).toContain("A lit quay at dusk.");
+  }
+});
+
+test("a picture prompt that is only the place's name draws nothing", async () => {
+  images = scriptedImages(PNG);
+  script = scriptedTextProvider(newScene("the camp", "The camp"));
+  app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter);
+  await enableImages();
+  const id = await app.createSave();
+
+  await playTurn(id);
+  await settled(id);
+
+  expect(images.payloads.map(({ prompt }) => prompt)).not.toContain("the camp");
 });

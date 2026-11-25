@@ -79,23 +79,11 @@ test("resolve_loose_end on an item not in the list is ignored with a reason, and
   expect(ignored).toEqual([{ op: "resolve_loose_end", reason: "not there" }]);
 });
 
-test("a miscopied resolve costs no Turn or second call, and logs why with no story text", async () => {
-  play(narration("A line.", resolve("ZQX"), resolve(SOCIAL)));
-  const id = createSave(MISSING, SOCIAL);
-
-  const line = await logOf(() => turn(id).then((r) => r.text()), "warning");
-
-  expect(prompts).toHaveLength(1);
-  expect(ends(id)).toEqual([MISSING]);
-  expect(line).toMatch(/WARNING turn .*resolve_loose_end: not there/);
-  expect(line).not.toContain("ZQX");
-});
-
 test("an Edit that keeps the response whole starts from the state it left, so what it changed stays though the Narrator misses it", async () => {
   const LORE = { op: "add_lore_entry", title: "The Bell", keywords: ["bell"], content: "It rings at the flood." } as StateOperation;
   play(
     narration("Owen waits.", { op: "add_npc", name: "Owen", appearance: "a tall man in a grey coat" }),
-    narration("Owen shaves his beard. Kit runs off. The bell rings.", resolve(MISSING), LORE, {
+    narration("Owen shaves his beard. Kit runs off. The bell rings.", LORE, {
       op: "update_npc",
       name: "Owen",
       appearance: "a tall man, clean-shaven, in a grey coat",
@@ -112,7 +100,7 @@ test("an Edit that keeps the response whole starts from the state it left, so wh
   );
 
   const state = store().latestState(id);
-  expect(state.looseEnds).toEqual([SOCIAL]);
+  expect(state.looseEnds).toEqual([MISSING, SOCIAL]);
   expect(state.npcs.find(({ name }) => name === "Owen")?.appearance).toBe("a tall man, clean-shaven, in a grey coat");
   expect(state.worldBible.map(({ title }) => title)).toContain("The Bell");
   expect(textOf(prompts.at(-1)!)).toContain('"added_words":"A gull cries."');
@@ -120,13 +108,13 @@ test("an Edit that keeps the response whole starts from the state it left, so wh
 });
 
 test("an Edit that changes the response's words rebuilds from the state before it", async () => {
-  play(narration("You find the guide.", resolve(MISSING)), narration("You lose the guide."));
+  play(narration("You find the guide.", { op: "add_item", slot: "carrying", item: "a key" }), narration("You lose the guide."));
   const id = createSave(MISSING, SOCIAL);
   expect((await turn(id)).status).toBe(201);
 
   expect((await app.post(`/saves/${id}/messages/2/edit`, { text: "You lose the guide." })).status).toBe(201);
 
-  expect(ends(id)).toEqual([MISSING, SOCIAL]);
+  expect(store().latestState(id).inventory.carrying).toEqual([]);
   expect(textOf(prompts.at(-1)!)).not.toContain("added_words");
 });
 
@@ -140,13 +128,12 @@ test("a Check request can't change the list, even with operations beside it", as
   expect(ends(id)).toEqual([MISSING]);
 });
 
-test("the prompt carries the list and its rules, and asks for no Journal entry", () => {
+test("the prompt carries the list, and asks for no Journal entry", () => {
   const prompt = promptWith({ looseEnds: [MISSING] });
 
   expect(prompt).toContain(`"looseEnds":${JSON.stringify([MISSING])}`);
-  for (const words of ["resolve_loose_end", "copying the item exactly", "never to make room"]) expect(prompt).toContain(words);
-  // State Upkeep's alone to add, as the Narrator sees the secrets.
-  for (const op of ["add_loose_end", "add_known_fact", "update_known_fact"]) expect(prompt).not.toContain(op);
+  // State Upkeep's alone to write, as the Narrator sees the secrets.
+  for (const op of ["add_loose_end", "resolve_loose_end", "add_known_fact", "update_known_fact", "remove_known_fact"]) expect(prompt).not.toContain(op);
 });
 
 test("the Journal shows the list, and the player can add to, edit and remove from it", async () => {
@@ -172,15 +159,15 @@ test("an edit naming an item the Journal doesn't show is refused, as is an empty
   expect(ends(id)).toEqual([MISSING]);
 });
 
-test("the next Turn hears a Journal edit, and a Revert undoes it and the Turn's own changes", async () => {
-  play(narration("One."), settled(), narration("Two.", resolve(SOCIAL)));
+test("the next Turn hears a Journal edit, and a Revert undoes it", async () => {
+  play(narration("One."), settled(), narration("Two."));
   const id = createSave(SOCIAL);
   await turn(id);
   await edit(id, { edit: "looseEnd", old: null, new: MISSING });
   await turn(id);
 
   expect(prompts[2]!.at(-2)!.content).toContain(MISSING);
-  expect(ends(id)).toEqual([MISSING]);
+  expect(ends(id)).toEqual([SOCIAL, MISSING]);
 
   await app.post(`/saves/${id}/messages/2/revert`, {});
   expect(ends(id)).toEqual([SOCIAL]);
@@ -353,14 +340,14 @@ test.each([
   ["Rewrite", "rewrite", { feedback: "Softer." }],
   ["Regenerate", "regenerate", {}],
 ])("%s starts again from the list before the Turn, and keeps a later edit", async (_, action, body) => {
-  play(narration("One.", resolve(MISSING)), settled(), narration("Two.", resolve(SOCIAL)));
+  play(narration("One."), settled(), narration("Two."));
   const id = createSave(MISSING, SOCIAL);
   await turn(id);
   await edit(id, { edit: "looseEnd", old: null, new: "Added by hand." });
 
   expect((await app.post(`/saves/${id}/messages/2/${action}`, body)).status).toBe(201);
 
-  expect(ends(id)).toEqual([MISSING, "Added by hand."]);
+  expect(ends(id)).toEqual([MISSING, SOCIAL, "Added by hand."]);
 });
 
 test("export and import keep the list", async () => {

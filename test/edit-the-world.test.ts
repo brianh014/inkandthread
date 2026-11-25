@@ -151,7 +151,7 @@ test.each([
 
 test("the next Turn uses the edited world, and its Snapshots hold the edit", async () => {
   // The first reply settles the edited fact, before the Turn.
-  play(update(), narration("Glass rings.", { op: "remove_known_fact", fact: "Ferries stop at dusk." }));
+  play(update(), narration("Glass rings.", { op: "add_item", slot: "carrying", item: "a key" }));
   const id = createSave();
   await edit(id, { edit: "worldBrief", text: "A city of glass" });
   await edit(id, { edit: "fact", old: firstFact, new: "The city is dry." });
@@ -164,8 +164,8 @@ test("the next Turn uses the edited world, and its Snapshots hold the edit", asy
   expect(system!.content).not.toContain("A drowned city");
   expect(system!.content).not.toContain(firstFact);
   expect(store().snapshot(id, 1).pcKnown.facts).toEqual(["The city is dry.", "Ferries stop at dusk."]);
-  expect(store().snapshot(id, 2)).toMatchObject({ worldBrief: "A city of glass" });
-  expect(facts(id)).toEqual(["The city is dry."]);
+  expect(store().snapshot(id, 2)).toMatchObject({ worldBrief: "A city of glass", inventory: { carrying: ["a key"] } });
+  expect(facts(id)).toEqual(["The city is dry.", "Ferries stop at dusk."]);
 });
 
 test("a Revert to before an edit undoes it, and one to after keeps it", async () => {
@@ -240,8 +240,8 @@ test("a Revert past a replaced response undoes an edit it carried", async () => 
   expect(await brief(id)).toBe("A drowned city");
 });
 
-test("an edit to something the replaced response took out still stands after a Regenerate", async () => {
-  play(narration("One.", { op: "remove_known_fact", fact: KNOWN.facts[1] }), update(), narration("Two."));
+test("an edit made after the replaced response still stands after a Regenerate", async () => {
+  play(narration("One."), update(), narration("Two."));
   const id = createSave();
   await turn(id);
   await edit(id, { edit: "fact", old: firstFact, new: "Bees hum." });

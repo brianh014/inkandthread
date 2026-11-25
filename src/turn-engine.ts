@@ -162,7 +162,8 @@ export class TurnFailed extends Error {
 // 30-Turn play, and a move decides by its own answer to each thread's question.
 // Nor says who a known person is, which is State Upkeep's, as the Narrator's words told the player a secret.
 // Nor writes the Journal's facts and Loose Ends, for the same reason: of twelve entries the page never showed, all were the Narrator's.
-const JOURNAL_OPS = ["add_known_fact", "update_known_fact", "add_loose_end"];
+// Nor takes them out, as left with those alone it named in them what it would have added, 37 in one looping reply.
+const JOURNAL_OPS = ["add_known_fact", "update_known_fact", "remove_known_fact", "add_loose_end", "resolve_loose_end"];
 const RETIRED = ["set_summary", "add_plot_thread", "remove_lore_entry", "resolve_plot_thread", "set_known_npc_summary", ...JOURNAL_OPS];
 // DeepSeek filled its operations with placeholders, such as resolving a thread named "x", "none" or "", which failed whole Turns,
 // and saved an item named "x" and a known fact that was only a name, such as "Silas Grout", to the Journal.

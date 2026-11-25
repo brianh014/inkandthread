@@ -356,7 +356,7 @@ test("the Narrator is told to keep its records true to play", () => {
 
   expect(prompt).toContain("what has happened in play beats any Lore Entry or Plot Thread");
   expect(prompt).not.toContain("remove_lore_entry");
-  for (const op of ["update_lore_entry", "update_plot_thread", "remove_known_fact", "merge_npc"]) expect(prompt).toContain(op);
+  for (const op of ["update_lore_entry", "update_plot_thread", "merge_npc"]) expect(prompt).toContain(op);
 });
 
 test("the Narrator tells what the PC says in narration, never as a line under someone else's name", () => {

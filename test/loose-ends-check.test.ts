@@ -16,7 +16,8 @@ const savesWith = (state: State, playersEdits: WorldEdit[] = [], before = state)
     latestMessageId: () => 7,
     latestState: () => state,
     messages: () => Array.from({ length: 11 }, (_, at) => ({ id: at - 3, role: "narrator", text: "Ash keeps the promise." })),
-    snapshot: () => before,
+    // The state before the latest five replies.
+    snapshot: (_id: string, message: number) => (message === 2 ? before : state),
     playersEdits: () => playersEdits,
     addWorldChange: (_id: string, _on: number, edits: WorldEdit[]) => changes.push(edits),
   };

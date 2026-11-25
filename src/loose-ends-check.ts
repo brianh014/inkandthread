@@ -12,6 +12,8 @@ export const CHECK_FACTS = 30;
 const MOST_CLOSED = 0.25;
 /** And the most of the known facts one drops, fewer, as a fact is what the PC remembers and a clue lost never comes back. */
 const MOST_DROPPED = 0.1;
+/** A fact learned in this many of the latest replies stands. */
+const RECENT_REPLIES = SUMMARY_EVERY;
 /** Past this share named, a reply is guessing, and closes none. */
 const GUESSING = 0.5;
 
@@ -47,10 +49,6 @@ export async function closeLooseEnds(provider: TextProvider, saves: SaveStore, i
   if (ends.length + facts.length === 0) return;
   const told = saves.messages(id).filter(({ role }) => role === "narrator");
   const replies = told.map(({ text }) => text).slice(-2 * SUMMARY_EVERY);
-  // Known since before these replies, as a lock-up still in force was dropped as a moment now over four replies after it.
-  const before = told.at(-2 * SUMMARY_EVERY - 1);
-  const held = before ? saves.snapshot(id, before.id).pcKnown.facts : [];
-  const recent = facts.filter((fact) => !held.includes(fact));
   const Reply = z.object({ ...(facts.length > 0 && { outdated: numbers }), ...(ends.length > 0 && { settled: numbers }) });
   const numbered = (entries: string[]) => entries.map((text, at) => ({ number: at + 1, text }));
   const rules = [RULES, ...(facts.length > 0 ? [OUTDATED] : []), ...(ends.length > 0 ? [SETTLED] : [])].join("\n");
@@ -69,6 +67,11 @@ export async function closeLooseEnds(provider: TextProvider, saves: SaveStore, i
   ];
   const started = Date.now();
   try {
+    // Learned in the last few replies, as a lock-up still in force was dropped as a moment now over four replies after it, but
+    // no longer, so one the replies sent disprove can still go.
+    const before = told.at(-RECENT_REPLIES - 1) ?? told[0];
+    const held = facts.length > 0 && before ? saves.snapshot(id, before.id).pcKnown.facts : [];
+    const recent = facts.filter((fact) => !held.includes(fact));
     const reply = await askForJson(provider, prompt, Reply, "The Scribe refused to check the Journal.", signal, { call: "looseEnds", reviewer: true });
     const given = reply as { settled?: number[]; outdated?: number[] };
     // The player's own stand, as the Narrator is told they hold as worded.

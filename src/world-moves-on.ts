@@ -102,6 +102,16 @@ export function hoursPerReply(clock: (number | undefined)[]) {
   return Math.round(median * 100) / 100 || undefined;
 }
 
+/** The story hours a reply has lately taken, up to the clock now. */
+export const storyPace = (saves: SaveStore, id: string, messages: { id: number; role: string }[], clock: number | undefined) =>
+  hoursPerReply([
+    ...messages
+      .filter(({ role }) => role === "narrator")
+      .slice(-PACE_REPLIES)
+      .map((message) => clockOf(saves.storyTimeBefore(id, message.id))),
+    clock,
+  ]);
+
 /** A plan's own words for its deed: long words in lower case and not everyday ones, so names count for nothing. */
 export const deedWords = (plan: string) => [...new Set(plan.match(/(?<!\p{L})\p{Ll}\p{L}{4,}/gu) ?? [])].filter((word) => !EVERYDAY.has(word));
 
@@ -180,8 +190,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const earlierReplies = replies.slice(Math.max(state.summaryReplies, replies.length - 2 * SUMMARY_EVERY), -latestReplies.length);
   const shown = latestReplies.join("\n");
   const played = [state.summary, ...earlierReplies, shown].join("\n");
-  const lately = messages.filter(({ role }) => role === "narrator").slice(-PACE_REPLIES);
-  const pace = hoursPerReply([...lately.map((message) => clockOf(saves.storyTimeBefore(id, message.id))), clock]);
+  const pace = storyPace(saves, id, messages, clock);
   const { named, mentions } = threadPeople(state);
   const adds = ({ thread, truth, now }: ThreadMove) => thread === null && truth !== null && now !== null;
   // Why a change can't be used, named so the log and the request to write it again both say which.

@@ -1072,7 +1072,7 @@ async function narrate(
       const cleaned = withKnownSpeakers(unlabelled, [...new Set(speakers)]);
       if (cleaned !== unlabelled && edited === undefined) log.info("turn", "Speaker labels given in full", { attempt, generation });
       // A bare quoted line is left as written: no rule told the PC's from someone else's, and dropping them cut an NPC's question.
-      let narration = edited ?? cleaned;
+      const narration = edited ?? cleaned;
       // The last attempt keeps such a reply, as losing the Turn costs more than a long speech.
       // A picture without set_scene would be drawn from the last scene's place and people, which may have moved on. State Upkeep
       // brings the scene up to date, so with it the picture is kept; without it the reply is written again, then the picture dropped.
@@ -1124,7 +1124,11 @@ async function narrate(
       // Both together, as a reply that did so had started the story over, while either alone was a sound reply's slip.
       const restarted = narrated.repeats > 0 && narrated.ignored.some(({ reason }) => reason === "earlier than now");
       if (restarted && attempt < MAX_ATTEMPTS) throw new InvalidResponse(undefined, { cause: RESTARTED });
-      const description = withoutJsonTail(visual_description ?? "");
+      const written = withoutJsonTail(visual_description ?? "");
+      // Never the Narrator's notes on its own fields, as "I set visual_description null" was drawn as fog and a hedge.
+      const namesFields = NAMES_A_FIELD.test(written);
+      if (namesFields) log.info("turn", "Picture prompt that names the reply's fields dropped", { attempt, generation });
+      const description = namesFields ? "" : written;
       const threads = turnThreadChanges(state_operations, before, narration);
       if (Object.keys(threads.dropped).length > 0) log.info("turn", "Thread changes dropped", { attempt, generation, ...threads.dropped });
       state_operations = threads.kept;
@@ -1137,9 +1141,9 @@ async function narrate(
         state_operations = kept;
       }
       // After the secrets, so one that names none is never lost to one that does.
-      const once = withoutRepeatedFacts(state_operations);
+      const once = withoutRepeatedFacts(state_operations, kind === "opening" ? MOST_FACTS.opening : MOST_FACTS.turn);
       if (once.length < state_operations.length)
-        log.info("turn", "Known facts said again in one reply dropped", { attempt, generation, count: state_operations.length - once.length });
+        log.info("turn", "Known facts said again or past the most in one reply dropped", { attempt, generation, count: state_operations.length - once.length });
       state_operations = once;
       // The text is final here, so the player reads it while the follow-ups below run, and nothing after changes it.
       emit("reply", { text: narration });
@@ -1392,12 +1396,18 @@ export const sameApproach = (one: string, other: string) => {
   const shared = [...a].filter((word) => b.has(word)).length;
   return one === other || (shared >= 4 && shared * 2 >= Math.min(a.size, b.size));
 };
-/** A reply's operations with each known fact it adds given once, the last time it says it, as a looping reply wrote one six ways. */
-const withoutRepeatedFacts = <Operation extends StateOperation>(operations: Operation[]) =>
-  operations.filter(
+const NAMES_A_FIELD = /(?:visual_description|scene_changed|state_operations|chapter_ends)/;
+// Of 638 replies six added more than five, and those wrote one fact eleven ways; an opening tells the world.
+const MOST_FACTS = { turn: 5, opening: 8 };
+/** A reply's operations with each known fact it adds given once, the last time it says it, and at most `most` of them, as a looping reply wrote one eleven ways. */
+const withoutRepeatedFacts = <Operation extends StateOperation>(operations: Operation[], most: number) => {
+  const once = operations.filter(
     (operation, at) =>
       operation.op !== "add_known_fact" || !operations.slice(at + 1).some((later) => later.op === "add_known_fact" && alike(later.fact, operation.fact)),
   );
+  const facts = once.filter(({ op }) => op === "add_known_fact").slice(0, most);
+  return once.filter((operation) => operation.op !== "add_known_fact" || facts.includes(operation));
+};
 // The player's notes on the PC a Choice may be coloured by, what they want first.
 // shortcut: its first words only, and a script without spaces isn't cut; raise it, or cut by characters, if notes that matter are lost.
 const ABOUT_WORDS = 300;

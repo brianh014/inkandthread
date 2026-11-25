@@ -731,3 +731,16 @@ test("the picture check is given those in view with a portrait whom the prompt l
   expect(scene.prompt).toContain("the person from image 1");
   expect(scene.reference_images).toHaveLength(1);
 });
+
+test("a picture prompt that is the Narrator's notes on its own fields draws nothing", async () => {
+  images = scriptedImages(PNG);
+  script = scriptedTextProvider(newScene("Keep scene_changed false. I set visual_description null.", "The quay"));
+  app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter);
+  await enableImages();
+  const id = await app.createSave();
+
+  await playTurn(id);
+  await settled(id);
+
+  expect(images.payloads.map(({ prompt }) => prompt).join(" ")).not.toContain("visual_description");
+});

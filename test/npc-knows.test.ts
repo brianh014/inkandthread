@@ -140,3 +140,13 @@ test("a fact said again in one reply is recorded once, and no different one is l
   await turn(id);
   expect(store().latestState(id).pcKnown.facts).toEqual([again, other]);
 });
+
+test("a reply adds at most five known facts, the first, as a looping one wrote one eleven ways", async () => {
+  const facts = ["The tide turned.", "Grout left.", "Kit wept.", "The bell rang.", "Price drank.", "Nell slept.", "Thorne prayed."];
+  play(narration("One.", ...facts.map((fact) => ({ op: "add_known_fact", fact }))));
+  const id = store().create({ worldBrief: "A harbour", pc: { name: "Ash" }, opening: {} });
+
+  await turn(id);
+
+  expect(store().latestState(id).pcKnown.facts).toEqual(facts.slice(0, 5));
+});

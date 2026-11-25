@@ -1114,6 +1114,8 @@ async function live() {
     // A Turn can take minutes.
     idleTimeout: 0,
     fetch: async (request) => {
+      // JSON only, so another website needs a CORS preflight to post here, as with the app's own routes.
+      if (!request.headers.get("content-type")?.startsWith("application/json")) return new Response("Send JSON.", { status: 415 });
       clearTimeout(idle);
       try {
         return new Response(await player.do(await request.json().catch(() => undefined)));
@@ -1123,7 +1125,7 @@ async function live() {
       }
     },
   });
-  writeFileSync(liveFile(folder), JSON.stringify({ url: control.url.href }));
+  writeFileSync(liveFile(folder), JSON.stringify({ port: control.port }));
   console.log(`Open for play: ${folder}`);
   await over;
   rmSync(liveFile(folder));

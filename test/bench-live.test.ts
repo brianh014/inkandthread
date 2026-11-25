@@ -22,8 +22,9 @@ async function livePlay(...flags: string[]) {
   };
   // Straight to the play, which is what that sends, as a process for each is slow.
   const act = async (text: string, tool: string, arg = "", note = "") => {
-    const { url } = JSON.parse(readFileSync(join(folder, "live.json"), "utf8"));
-    return (await fetch(url, { method: "POST", body: JSON.stringify({ tool, arg, text, note }) })).text();
+    const { port } = JSON.parse(readFileSync(join(folder, "live.json"), "utf8"));
+    const headers = { "Content-Type": "application/json" };
+    return (await fetch(`http://127.0.0.1:${port}/`, { method: "POST", headers, body: JSON.stringify({ tool, arg, text, note }) })).text();
   };
   const file = (name: string) => readFileSync(join(folder, name), "utf8");
   return { server, folder, run, act, file, remove: () => rmSync(temp, { recursive: true, force: true }) };
@@ -33,6 +34,9 @@ test("a live play is steered an action at a time, shows nothing hidden, stops at
   const { server, folder, run, act, file, remove } = await livePlay();
   const seen = [await act("", "look")];
   expect(seen[0]).toMatch(/Story \(M2\)[\s\S]*Choices:[\s\S]*Turns left: 2\./);
+  // A post any website could send, with no preflight, is refused.
+  const { port } = JSON.parse(file("live.json"));
+  expect((await fetch(`http://127.0.0.1:${port}/`, { method: "POST", body: '{"tool":"look"}' })).status).toBe(415);
   // A Turn with no note is never sent, as the notes are half of what a play is for.
   expect(await act('I say "wait".', "move")).toContain("Add a note");
   seen.push(await run('I say "wait".\n---\nInterested. I expect a knock.', "move"));

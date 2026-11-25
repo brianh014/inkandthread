@@ -26,7 +26,7 @@ export type LivePlay = {
   finish: () => void;
 };
 
-/** Holds the address `bun bench do` sends to, in the play's folder while it's open. */
+/** Holds the port `bun bench do` sends to, in the play's folder while it's open. */
 export const liveFile = (folder: string) => join(folder, "live.json");
 
 const Ask = z.object({ tool: z.string(), arg: z.string().default(""), text: z.string().default(""), note: z.string().default("") });
@@ -256,7 +256,10 @@ function errorOf(answer: string) {
 export async function sendAction(folder: string | undefined, tool = "", arg = "") {
   if (!folder || !existsSync(folder)) return "Give the play's folder, then a tool.";
   if (!existsSync(liveFile(folder))) return "No play is open there: it is still starting, or it has finished.";
-  const { url } = JSON.parse(readFileSync(liveFile(folder), "utf8")) as { url: string };
+  // Only a port, so whatever the file holds, the words go no further than this machine.
+  const open = z.object({ port: z.number().int().min(1).max(65535) }).safeParse(JSON.parse(readFileSync(liveFile(folder), "utf8")));
+  if (!open.success) return "The play's live.json isn't one this bench wrote.";
+  const url = `http://127.0.0.1:${open.data.port}/`;
   // Not for a tool that takes no words, as a shell may leave stdin open and the read would never end.
   const words = process.stdin.isTTY || !WORDS_TOOLS.includes(tool) ? "" : await Bun.stdin.text();
   // Only a Turn has a note, as a verdict or a reply's new text may hold such a line of its own.

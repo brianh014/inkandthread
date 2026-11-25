@@ -39,6 +39,7 @@ import {
   type State,
   StateOperation,
 } from "./state-applier";
+import { duePlan, planOffered, planShown, replyBefore } from "./due-plans";
 import { countWords, withinLimit } from "./limits";
 import { knownChoices, secretWords, unreadIn, withoutUnread, writeChoices } from "./known-choices";
 import { estimateTokens, wholeWord } from "./lore-activation";
@@ -48,7 +49,7 @@ import { applyWorldChange } from "./world-creation";
 import { foldKnows } from "./knowledge-folds";
 import { closeLooseEnds } from "./loose-ends-check";
 import { growLore } from "./lore-growth";
-import { deedWords, forgetUnread, MOVE_LIMIT, moveDue, moveSoon, sameDeed, moveWorldOn, turnThreadChanges } from "./world-moves-on";
+import { deedWords, forgetUnread, MOVE_LIMIT, moveDue, moveSoon, sameDeed, moveWorldOn, storyPace, turnThreadChanges } from "./world-moves-on";
 import { threadPeople } from "./thread-people";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
@@ -496,6 +497,8 @@ type Narrated = {
   upkeepReads?: { narration: string; previous: string };
   /** The player's moves before this one, which no Choice offers again. */
   recentMoves?: string[];
+  /** The hidden plan the reply was asked to bring on, which goes once it has. */
+  due?: string;
   /** Left out when no new roll is allowed, which makes a Check request an invalid reply. */
   rollCheck?: (request: z.infer<typeof CheckRequest>) => Check;
   commit: (narration: string, check: Check | undefined, advance: (state: State) => State, choices: string[] | undefined) => Reply[];
@@ -520,13 +523,22 @@ function turnPrompt(
     directions,
     journalEdits,
     picture,
-  }: Pick<Parameters<typeof assemblePrompt>[0], "state" | "messages" | "input" | "directions" | "journalEdits"> & { picture: boolean },
+    written = false,
+  }: Pick<Parameters<typeof assemblePrompt>[0], "state" | "messages" | "input" | "directions" | "journalEdits"> & {
+    picture: boolean;
+    /** Whether the player has written the reply, which nothing can be brought on in. */
+    written?: boolean;
+  },
 ) {
   const current = settings.read();
   const signs = worldSigns(journalEdits ?? []).length;
   if (signs > 0) log.info("turn", "World Change sign sent", { save: id, signs });
   const memoryStart = saves.memoryStart(id);
   const save = saves.read(id);
+  // Found for a reply the player writes too, as one that still tells the deed has played it.
+  const due =
+    input === OPENING_INPUT ? undefined : duePlan(id, state, save.pc.name, replyBefore(messages), storyPace(saves, id, messages, clockOf(state.storyTime)));
+  if (due && !written) log.info("world", "Due plan offered", { save: id, thread: state.plotThreads.findIndex((truth) => state.threadsPlan[truth] === due) });
   const prompt = assemblePrompt({
     save: withArtStyleFor(save, current),
     state,
@@ -537,6 +549,7 @@ function turnPrompt(
     imageInstructions: current.imageInstructions,
     directions,
     journalEdits,
+    duePlan: written ? undefined : due,
     memoryTimes: saves.storyTimesAt(
       id,
       state.sceneMemories.map(({ firstMessage }) => firstMessage),
@@ -567,6 +580,7 @@ function turnPrompt(
   });
   return {
     prompt,
+    due,
     memory: nextMemory(textProvider, messages, state.sceneMemories, memoryStart, current.textRecentMessages, signal),
     replies: narratorReplies(messages),
     clockBack: clockBack(saves, id, messages),
@@ -707,7 +721,7 @@ export async function playTurn(
   const basedOn = saves.latestMessageId(id);
   const state = saves.latestState(id);
   const messages = saves.messages(id);
-  const { prompt, memory, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, due, memory, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -736,6 +750,7 @@ export async function playTurn(
         ? (saves.read(id).importantCharacters ?? []).map(({ name }) => name).filter((name) => (saves.read(id).startingHook ?? "").includes(name))
         : [],
     memory,
+    due,
     replies,
     clockBack,
     recentMoves,
@@ -747,6 +762,8 @@ export async function playTurn(
     counted: kind === "turn" && !isContinueInput(input) ? (turn) => usage?.turn(id, model, turn) : undefined,
     times,
   });
+  // Only now, as a Turn that failed or was stopped brought nothing on.
+  if (due) planOffered(id, due, replyBefore(messages));
   if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies + 1)) {
     // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
     // Lore and the folds beside the move, by the Scribe, as Upkeep is, so the next Turn waits on them all at most one MOVE_LIMIT, never one after the other.
@@ -794,7 +811,7 @@ export async function replaceResponse(
   const { input, narration, check, state, messages, sceneImage, journalEdits, movesDropped } = saves.turnToReplace(id, messageId, true);
   // The old picture goes with its response, so the new one always gets its own, whatever the Narrator decides.
   const hadPicture = !!sceneImage || images.sceneDrawing(id, messageId);
-  const { prompt, memory, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, due, memory, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -820,6 +837,7 @@ export async function replaceResponse(
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     memory,
+    due,
     replies,
     clockBack,
     recentMoves,
@@ -875,7 +893,7 @@ export async function editResponse(
   const added = (replaced && text.includes(replaced) ? text.split(replaced).join("\n").trim() : undefined) || undefined;
   const state = added === undefined ? turn.state : saves.latestState(id);
   if (added !== undefined) log.info("turn", "Edit adds to the response", { save: id, message: messageId });
-  const { prompt, memory, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, due, memory, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -883,6 +901,7 @@ export async function editResponse(
     journalEdits: journalEdits.map((edit) => (edit.edit === "world" ? { ...edit, sign: undefined } : edit)),
     // No picture is drawn, so the Narrator needn't write a prompt for one.
     picture: false,
+    written: true,
   });
   const done = await narrate(textProvider, signal, emit, {
     kind: "edit",
@@ -898,6 +917,7 @@ export async function editResponse(
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     narration: text,
     memory,
+    due,
     replies,
     clockBack,
     recentMoves,
@@ -931,6 +951,7 @@ async function narrate(
     mustMeet = [],
     narration: edited,
     memory: pendingMemory,
+    due,
     replies,
     clockBack,
     recentMoves,
@@ -1191,6 +1212,7 @@ async function narrate(
       let ignored: Refusal[] = [];
       let overtakenPlans = 0;
       let plansPutOff = 0;
+      let plansShown = 0;
       const messages = commit(
         narration,
         check,
@@ -1211,8 +1233,12 @@ async function narrate(
           const { doerIn } = threadPeople(next);
           const clock = next.storyTime?.hours;
           // A plan with no hour counts as come, as moves read it as due.
+          // By its words, as the reply that plays it is the likeliest to amend its thread's truth.
+          const dueThread = due === undefined ? undefined : Object.keys(next.threadsPlan).find((truth) => next.threadsPlan[truth] === due);
+          const played = due !== undefined && dueThread !== undefined && planShown(due, state, next, narration) ? dueThread : undefined;
           const come = Object.keys(next.threadsPlan).filter(
             (truth) =>
+              truth !== played &&
               clock !== undefined &&
               (next.threadsDue[truth] === undefined || next.threadsDue[truth]! <= clock) &&
               doerIn(next.threadsPlan[truth]!, next.scene.visibleCast),
@@ -1227,16 +1253,17 @@ async function narrate(
           const castBefore = state.scene.visibleCast.flatMap((name) => [name, intos.get(name) ?? name]);
           const started = clockOf(state.storyTime) ?? Number.POSITIVE_INFINITY;
           const putOff = come.filter((truth) => {
-            const due = next.threadsDue[truth];
+            const hour = next.threadsDue[truth];
             const plan = next.threadsPlan[truth]!;
-            return due !== undefined && due > started && clock! - due <= PUT_OFF_HOURS && !doerIn(plan, castBefore) && !sameDeed(plan, narration);
+            return hour !== undefined && hour > started && clock! - hour <= PUT_OFF_HOURS && !doerIn(plan, castBefore) && !sameDeed(plan, narration);
           });
-          const overtaken = come.filter((truth) => !putOff.includes(truth));
+          const overtaken = [...come.filter((truth) => !putOff.includes(truth)), ...(played ? [played] : [])];
           for (const truth of putOff) next.threadsDue[truth] = clock! + PUT_OFF_HOURS;
           plansPutOff = putOff.length;
           next.threadsPlan = Object.fromEntries(Object.entries(next.threadsPlan).filter(([truth]) => !overtaken.includes(truth)));
           next.threadsDue = Object.fromEntries(Object.entries(next.threadsDue).filter(([truth]) => !overtaken.includes(truth)));
-          overtakenPlans = overtaken.length;
+          overtakenPlans = overtaken.length - (played ? 1 : 0);
+          plansShown = played ? 1 : 0;
           repeated = repeats;
           ignored = harmless;
           const written = summary.trim();
@@ -1313,6 +1340,7 @@ async function narrate(
         // Plans dropped as overtaken, their hour come while their doer was with the PC.
         ...(overtakenPlans > 0 && { plansOvertaken: overtakenPlans }),
         ...(plansPutOff > 0 && { plansPutOff }),
+        ...(due && { planOffered: 1, plansShown }),
       }));
       return messages;
     } catch (cause) {

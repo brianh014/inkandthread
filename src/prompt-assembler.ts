@@ -374,6 +374,7 @@ export function assemblePrompt({
   imageInstructions = "",
   directions = [],
   journalEdits = [],
+  duePlan,
   memoryTimes = {},
   input,
   responseSchema,
@@ -392,6 +393,8 @@ export function assemblePrompt({
   directions?: string[];
   /** Made since the last reply, or before the reply being replaced. */
   journalEdits?: WorldEdit[];
+  /** The hidden plan whose hour this reply reaches while the PC is near. */
+  duePlan?: string;
   /** The Story Time each Scene Memory began at, by its first Message, so the Narrator never guesses when something happened. */
   memoryTimes?: Record<number, string>;
   input: string;
@@ -457,6 +460,11 @@ Avoid melodrama, cliché and overused metaphors, and prefer natural, grounded la
 Keep the prose fresh: give each scene something new to notice, vary how replies open and end, and end on what a person in the scene does, says or now faces. Don't reuse the images, gestures, questions or lines of the replies above. Leave the PC free to answer however they like, so most replies end on something other than a question or a choice between two things. People give as much of themselves as they ask of the PC. Show a feeling and leave it unexplained. Say what is so and leave it there, in narration and speech alike, never against something nobody in the scene supposed ("not X but Y", "X, not Y"). Give each person their own voice, speaking naturally.
 The older replies above are shortened, so fill in every field of the schema. When anyone's clothing or looks change in this response, such as clothes coming off or going on, include update_npc for that NPC with their whole appearance as it is now, or the inventory change for the PC, as their pictures are painted from it.${fillLooseEnds(currentState.looseEnds, messages, journalEdits)}${fillStoryTime(currentState.storyTime, messages)}${summaryNote(summaryDue({ summary, summaryReplies }, narratorReplies(messages)))}${journalNote(journalEdits)}
 ${PACE}${
+  duePlan
+    ? `
+Due now, out of the PC's sight so far: ${JSON.stringify(duePlan)} If the PC or anyone with them would see, hear or be reached by it where they are, show it in this response beside what the PC does, never in place of it, as it looks to someone who doesn't know its cause or who is behind it; otherwise leave it out.`
+    : ""
+}${
   directions.length > 0
     ? `
 The player gave these out-of-character directions when rewriting recent responses, below as JSON strings. They still hold, so keep following them in this response: ${JSON.stringify(directions)}`

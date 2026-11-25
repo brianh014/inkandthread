@@ -98,7 +98,7 @@ function forms(word: string) {
 
 const everyday = (word: string) => forms(word).some((form) => EVERYDAY.has(form));
 // Not by its stem without -er, as a folder isn't a fold.
-const common = (word: string) => everyday(word) || (/er$/i.test(word) ? [word.toLowerCase()] : forms(word)).some((form) => COMMON.has(form));
+export const common = (word: string) => everyday(word) || (/er$/i.test(word) ? [word.toLowerCase()] : forms(word)).some((form) => COMMON.has(form));
 
 /** Every run of four words in the text, in lower case and without punctuation. */
 function runs(text: string) {

@@ -28,7 +28,7 @@ How to move: type every move yourself, never picking a Choice.
 - **Liar.** Tells different people different stories, keeps track of who was told what, and waits to see who finds out. Do people know only what they were told?
   - Played: none
 - **Crosses people.** Breaks promises, steals, insults, betrays a friend, then needs their help. Do people hold to it, and do able enemies act?
-  - Played: none
+  - Played: 2026-11-25, horror.json, 25 Turns
 - **Courts death.** Puts the main character and those around them in mortal danger again and again, and pushes on when hurt. Are Checks asked, does failure cost, can others die, and do wounds last?
   - Played: none
 - **Long way round.** Waits, sleeps, travels and lets days pass between visits, and comes back to places and people left earlier. Does the clock keep, does the world move on, and are places and people as they were left? Suits 45 Turns.

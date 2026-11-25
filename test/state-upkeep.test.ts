@@ -534,3 +534,27 @@ test("an Edit that adds to the response gives State Upkeep only the added words,
   expect(edited.ok).toBe(true);
   expect(JSON.parse(upkeep.prompts[1]!.at(-1)!.content)).toMatchObject({ previous_reply: GIVEN, reply: "A gull cries." });
 });
+
+test("State Upkeep is told who the PC knows and what people know, without their parts of the threads", async () => {
+  const { upkeep } = play([narration("Mara waves from the quay.")], [upkept({ op: "set_known_npc_summary", name: "Mara", summary: "The ferry's pilot." })]);
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: ["Mara"] },
+      summary: "",
+      npcs: [{ name: "Mara", appearance: "a pilot" }],
+      pcKnown: { facts: [], npcs: ["Mara"], summaries: {} },
+      npcKnows: { Mara: ["She held the harbourmaster under.", "Ash waved to her."] },
+      npcParts: { Mara: ["She held the harbourmaster under."] },
+    },
+  });
+
+  expect((await turn(id)).ok).toBe(true);
+
+  const { state } = JSON.parse(upkeep.prompts[0]![1]!.content);
+  expect(state.npc_knows).toEqual({ Mara: ["Ash waved to her."] });
+  expect(state.known_people).toEqual({ Mara: "" });
+  expect(store().latestState(id).pcKnown.summaries).toEqual({ Mara: "The ferry's pilot." });
+});

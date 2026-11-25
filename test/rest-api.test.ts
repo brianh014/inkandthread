@@ -1534,12 +1534,11 @@ test("the Journal holds the summary, what the PC knows, known NPCs and the Full 
 });
 
 test("the Journal says who known NPCs are, and lists the known ones in the scene, then the last seen", async () => {
-  const { app, prompts } = play(
+  const { textProvider, prompts } = scriptedTextProvider(
     narration(
       "They wait.",
       { op: "add_npc", name: "Mara", appearance: "SECRET-LOOKS" },
       { op: "add_known_npc", name: "Mara" },
-      { op: "set_known_npc_summary", name: "Mara", summary: "The ferry's pilot." },
       { op: "add_npc", name: "Tobin", appearance: "red scarf" },
       { op: "add_known_npc", name: "Tobin" },
       { op: "add_npc", name: "Stranger", appearance: "hooded" },
@@ -1547,20 +1546,27 @@ test("the Journal says who known NPCs are, and lists the known ones in the scene
       { op: "add_known_npc", name: "Wren" },
       { op: "set_scene", location: "The docks", visible_cast: ["Stranger", "Mara"] },
     ),
-    narration("Later.", { op: "set_known_npc_summary", name: "Mara", summary: "A smuggler, it turns out." }),
+    narration("Later."),
     narration("Wren arrives.", { op: "set_scene", location: "The ferry", visible_cast: ["Wren"] }),
   );
+  const says = (summary: string) => JSON.stringify({ state_operations: [{ op: "set_known_npc_summary", name: "Mara", summary }] });
+  const review = scriptedTextProvider(says("The ferry's pilot."), says("A smuggler, it turns out."), JSON.stringify({ state_operations: [] }));
+  app = startApp(savesDir, textProvider, undefined, undefined, undefined, undefined, undefined, review.textProvider);
+  await app.patch("/settings", { textModel: "narrator/model" });
   const id = await app.createSave();
 
   await app.post(`/saves/${id}/turns`, { input: "I look." });
 
   const journal = await journalOf(app, id);
+  // Told of the people the PC knows, with no line yet.
+  expect(JSON.parse(review.prompts[0]![1]!.content).state.known_people).toEqual({ Mara: "" });
   expect(journal).toMatchObject({ npcSummaries: { Mara: "The ferry's pilot." }, recentNpcs: ["Mara"] });
   // Oldest first, as the page flips it: Mara, met first but last in a scene, ends the list.
   expect(journal.npcs).toEqual(["Tobin", "Wren", "Mara"]);
   expect(JSON.stringify(journal)).not.toContain("SECRET-LOOKS");
   expect(JSON.stringify(journal)).not.toContain("Stranger");
-  expect(prompts[0]![0]!.content).toContain("set_known_npc_summary");
+  // State Upkeep's to write, as the Narrator knows the secrets.
+  expect(prompts[0]![0]!.content).not.toContain("set_known_npc_summary");
 
   await app.post(`/saves/${id}/turns`, { input: "I ask." });
   expect(await journalOf(app, id)).toMatchObject({ npcSummaries: { Mara: "A smuggler, it turns out." } });
@@ -1694,7 +1700,7 @@ test("the Narrator is told the player reads the summary and known facts, and how
   await app.post(`/saves/${id}/turns`, { input: "I wait." });
 
   const [system] = contents(prompts[0]);
-  expect(system).toContain("The player reads these, the summary and known facts in the Journal");
+  expect(system).toContain("The player reads the summary and known facts in the Journal");
   expect(system).toContain("no Lore Entry or Plot Thread secrets, and no dice, numbers or Checks");
   expect(system).toContain("through add_known_npc, using add_npc first only for an NPC not yet in the state");
 });

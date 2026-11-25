@@ -158,7 +158,8 @@ export class TurnFailed extends Error {
 // world's ten in a third; update_lore_entry corrects one, and a World Change can still remove one.
 // Nor resolves a thread, which was only ever a request to World Moves On: looped resolves ran on past whole replies, 537 in one
 // 30-Turn play, and a move decides by its own answer to each thread's question.
-const RETIRED = ["set_summary", "add_plot_thread", "remove_lore_entry", "resolve_plot_thread"];
+// Nor says who a known person is, which is State Upkeep's, as the Narrator's words told the player a secret.
+const RETIRED = ["set_summary", "add_plot_thread", "remove_lore_entry", "resolve_plot_thread", "set_known_npc_summary"];
 // DeepSeek filled its operations with placeholders, such as resolving a thread named "x", "none" or "", which failed whole Turns,
 // and saved an item named "x" and a known fact that was only a name, such as "Silas Grout", to the Journal.
 const PLACEHOLDER = /^[\s_]*(?:none|nonexistent|unused|placeholder|n\/a|null|\p{L})?[\s_]*$/iu;

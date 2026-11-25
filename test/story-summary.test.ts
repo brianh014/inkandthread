@@ -34,9 +34,13 @@ const story = (replies: number) =>
     { id: index * 2 + 2, role: "narrator" as const, text: `Reply ${index}.` },
   ]).flat();
 const by = (provider?: TextProvider) => ({ provider, narrator: scriptedTextProvider().textProvider });
+const known = { sceneMemories: [{ firstMessage: 1, lastMessage: 2, text: "They met." }], pcKnown: { facts: ["The tap drips."], npcs: [] } };
 const ask = (reply: string | Error, replies: number, state = { summary: "It began.", summaryReplies: 0 }) => {
   const scribe = scriptedTextProvider(reply);
-  return { scribe, written: nextSummary({ ...by(scribe.textProvider), settings: settingsWith() }, "Ash", state, story(replies), new AbortController().signal) };
+  return {
+    scribe,
+    written: nextSummary({ ...by(scribe.textProvider), settings: settingsWith() }, "Ash", { ...known, ...state }, story(replies), new AbortController().signal),
+  };
 };
 const summed = (summary: unknown) => JSON.stringify({ summary });
 
@@ -52,7 +56,8 @@ test("the Scribe is sent the page alone: the summary so far and the Messages it 
 
   expect(await written).toEqual({ text: "Ash came and went.", replies: 7 });
   const sent = JSON.parse(scribe.prompts[0]![1]!.content);
-  expect(Object.keys(sent)).toEqual(["pc_name", "summary", "messages"]);
+  expect(Object.keys(sent)).toEqual(["pc_name", "older_scenes", "pc_knows", "summary", "messages"]);
+  expect(sent).toMatchObject({ older_scenes: ["They met."], pc_knows: ["The tap drips."] });
   expect(sent.messages.map(({ text }: { text: string }) => text)).toEqual([2, 3, 4, 5, 6].flatMap((n) => [`Move ${n}.`, `Reply ${n}.`]));
   expect(scribe.prompts[0]![0]!.content).toContain("under 500 words");
 });
@@ -82,7 +87,7 @@ test("a summary another model refuses is asked of the Narrator", async () => {
   const scribe = scriptedTextProvider(new ContentRefused("policy"));
   const narrator = scriptedTextProvider(summed("It went on."));
   const from = { provider: scribe.textProvider, narrator: narrator.textProvider, settings };
-  expect(await nextSummary(from, "Ash", { summary: "It began.", summaryReplies: 1 }, story(6), new AbortController().signal)).toEqual({
+  expect(await nextSummary(from, "Ash", { ...known, summary: "It began.", summaryReplies: 1 }, story(6), new AbortController().signal)).toEqual({
     text: "It went on.",
     replies: 6,
   });
@@ -90,9 +95,11 @@ test("a summary another model refuses is asked of the Narrator", async () => {
 
 test("no Scribe, or no model for it, is asked for none", async () => {
   const { signal } = new AbortController();
-  expect(await nextSummary({ ...by(undefined), settings: settingsWith() }, "Ash", { summary: "", summaryReplies: 0 }, story(3), signal)).toBeNull();
+  expect(await nextSummary({ ...by(undefined), settings: settingsWith() }, "Ash", { ...known, summary: "", summaryReplies: 0 }, story(3), signal)).toBeNull();
   const scribe = scriptedTextProvider();
-  expect(await nextSummary({ ...by(scribe.textProvider), settings: settingsWith("") }, "Ash", { summary: "", summaryReplies: 0 }, story(3), signal)).toBeNull();
+  expect(
+    await nextSummary({ ...by(scribe.textProvider), settings: settingsWith("") }, "Ash", { ...known, summary: "", summaryReplies: 0 }, story(3), signal),
+  ).toBeNull();
   expect(scribe.prompts).toEqual([]);
 });
 

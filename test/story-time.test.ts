@@ -287,17 +287,21 @@ test("words that name the morning for an afternoon never set the clock back half
   expect(drifted.storyTime?.hours).toBe(11);
 });
 
-test("a count a hair short of midnight rolls the day at words just past it, and one left behind rolls at the next small hour", () => {
-  const night = at({ day: 2, date: "7th of Dry Month", timeOfDay: "late night", hours: 47.79999 });
-  const past = applyOperations(night, [set(0, null, "just past midnight", 0.2)]).next.storyTime;
+test("a night's words past midnight are the next day however far the count is short, and words before it are not", () => {
+  const night = (hours: number, timeOfDay = "late night") => at({ day: 2, date: "7th of Dry Month", timeOfDay, hours });
+  const after = (state: ReturnType<typeof night>, words: string, hours: number, days = 0, date: string | null = null) =>
+    applyOperations(state, [set(days, date, words, hours)]).next.storyTime!;
+  const past = after(night(47.79999), "just past midnight", 0.2);
   expect(past).toMatchObject({ day: 3, dateDue: true });
-  expect(past!.hours).toBeGreaterThanOrEqual(48);
-  // A Save left a day behind by it.
-  const behind = at({ day: 2, date: "7th of Dry Month", timeOfDay: "about half past midnight", hours: 48.55 });
-  const one = applyOperations(behind, [set(0, null, "going on one in the morning", 0.3)]).next.storyTime;
-  expect(one).toMatchObject({ day: 3 });
-  expect(one!.hours).toBeCloseTo(48.85, 2);
-  // Not a count run on past midnight while the words still say evening.
-  const evening = at({ day: 1, date: "Monday, 15th", timeOfDay: "a little after ten at night", hours: 24.2 });
-  expect(applyOperations(evening, [set(0, null, "half past ten at night", 0.2)]).next.storyTime).toMatchObject({ day: 1 });
+  expect(past.hours).toBeGreaterThanOrEqual(48);
+  // And on from there, never back a day.
+  expect(after({ ...night(0), storyTime: past }, "going on one in the morning", 0.5).hours).toBeGreaterThanOrEqual(48);
+  expect(after(night(47), "a quarter past twelve at night", 0.5)).toMatchObject({ day: 3 });
+  expect(after(night(47, "eleven at night"), "six in the morning", 7)).toMatchObject({ day: 3 });
+  // The date it gives is the new day's, once.
+  expect(after(night(47.8), "just past midnight", 0.2, 1, "8th of Dry Month")).toMatchObject({ day: 3, date: "8th of Dry Month" });
+  expect(after(night(47.8), "just past midnight", 0.2, 1, "8th of Dry Month").dateDue).toBeUndefined();
+  // Still the night before.
+  for (const words of ["a few minutes to midnight", "nearly midnight", "not yet midnight"])
+    expect([words, after(night(47.5), words, 0.2).day]).toEqual([words, 2]);
 });

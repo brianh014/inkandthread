@@ -1143,8 +1143,8 @@ export async function pcSheet(context: Context, pc: Save["pc"], inventory: strin
 
 const words = z.string().trim().min(1);
 
-/** The most story hours ahead a World Change's plan may fall due: the player's own words may say tomorrow or next week, which twelve hours brought the same evening. */
-const MAX_CHANGE_HOURS = 14 * 24;
+/** The most story hours ahead a World Change's plan may fall due: the player's own words may say tomorrow, which twelve hours brought the same evening. Not longer, as World Moves On keeps a plan whose hour is ahead. */
+const MAX_CHANGE_HOURS = 72;
 
 /** A World Change's reply: the hidden `WorldUpdate`, and whatever it contradicts in the Journal, which the player reads. */
 const WorldChange = WorldUpdate.extend({

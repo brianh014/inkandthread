@@ -651,10 +651,10 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const [from, to] = [hourOf(before?.timeOfDay ?? ""), hourOf(time_of_day)];
       const crossed = operation.hours_passed !== null && Math.floor(hours / 24) > Math.floor((before?.hours ?? hours) / 24);
       const wordsRoll = from !== undefined && to !== undefined ? to < from : crossed;
-      // Or where the count stands past the day's end and the words are of the small hours, as one a hair short of midnight at "just
-      // past midnight" never rolled, and "one in the morning" then set the clock back a whole day, where it stayed to the end.
-      const smallHours = before?.hours !== undefined && to !== undefined && to < SMALL_HOURS && hours + MIDNIGHT_SLACK >= before.day * 24;
-      const day = Math.max((before?.day ?? 1) + days, wordsRoll || smallHours ? Math.floor((hours + (smallHours ? MIDNIGHT_SLACK : 0)) / 24) + 1 : 0);
+      // A night's words going back past midnight are the next day whatever the count, as one a hair short of it at "just past
+      // midnight" never rolled, and "one in the morning" then set the clock back a whole day, where it stayed to the end.
+      const overnight = before && from !== undefined && to !== undefined && to < from && nightWraps(from, to) ? before.day + 1 : 0;
+      const day = Math.max((before?.day ?? 1) + days, wordsRoll ? Math.floor(hours / 24) + 1 : 0, overnight);
       // Back to a clock time the words give, where far from the count, so it never drifts from what the page says; never to
       // words alone, as "three in the morning" reads as morning's nine.
       const at = clockTimeOf(time_of_day);
@@ -787,10 +787,6 @@ const nightWraps = (from: number, to: number) => from >= 20 && to < 12;
 
 // Hours the count may stray from a clock time the words give before it is set back to it.
 const DRIFT_HOURS = 3;
-// The hours from midnight that are the small ones, and how near its end a count has the day over, as summed pieces fall short.
-const SMALL_HOURS = 5;
-const MIDNIGHT_SLACK = 0.25;
-
 /**
  * How many days on `to` is from `from` by their day of the month, or undefined where either has none, as dates are any
  * world's words. shortcut: within one month only; a jump across a month's end falls back to the hours.
@@ -829,6 +825,8 @@ function clockHours(was: StoryTime | null, day: number, timeOfDay: string, passe
 
 // Checked in order, as "afternoon" holds "noon" and "midnight" holds "night".
 const HOURS: [RegExp, number][] = [
+  // Before it, as "a few minutes to midnight" read as past it would be the next day.
+  [/\b(?:to|before|nearly|almost|close to|close on|towards?|near|not yet|short of) (?:\p{L}+ )?midnight/u, 23.5],
   [/midnight/, 0],
   // Before "night", as a horror opening's "small hours, dark" was read as noon.
   [/small hours/, 2],

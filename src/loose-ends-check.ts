@@ -4,8 +4,8 @@ import { type Prompt, SUMMARY_EVERY } from "./prompt-assembler";
 import type { SaveStore } from "./save-store";
 import { askForJson, jsonSchemaOf, sameApproach, type TextProvider } from "./turn-engine";
 
-/** Below this many open, a pause leaves them to the Turns, as State Upkeep closes what one reply settles. */
-export const CHECK_LOOSE_ENDS = 10;
+/** Below this many open, a pause leaves them to the Turns, as State Upkeep closes what one reply settles; at ten, most plays were never checked. */
+export const CHECK_LOOSE_ENDS = 5;
 /** Below this many, a pause leaves the known facts be. */
 export const CHECK_FACTS = 30;
 /** The most of the open Loose Ends one pause closes, so a long story's list shrinks over several, the first named first. */
@@ -68,16 +68,17 @@ export async function closeLooseEnds(provider: TextProvider, saves: SaveStore, i
   const started = Date.now();
   try {
     // Learned in the last few replies, as a lock-up still in force was dropped as a moment now over four replies after it, but
-    // no longer, so one the replies sent disprove can still go.
+    // no longer, so one the replies sent disprove can still go. Nor a Loose End opened in them, as a short list is mostly those.
     const before = told.at(-RECENT_REPLIES - 1) ?? told[0];
-    const held = facts.length > 0 && before ? saves.snapshot(id, before.id).pcKnown.facts : [];
-    const recent = facts.filter((fact) => !held.includes(fact));
+    const then = before && saves.snapshot(id, before.id);
+    const recent = facts.filter((fact) => !then?.pcKnown.facts.includes(fact));
+    const opened = ends.filter((end) => !then?.looseEnds.includes(end));
     const reply = await askForJson(provider, prompt, Reply, "The Scribe refused to check the Journal.", signal, { call: "looseEnds", reviewer: true });
     const given = reply as { settled?: number[]; outdated?: number[] };
     // The player's own stand, as the Narrator is told they hold as worded.
     const own = saves.playersEdits(id);
     const wrote = (kind: "looseEnd" | "fact") => own.flatMap((edit) => (edit.edit === kind && edit.new ? [edit.new] : []));
-    const closed = settledOf(ends, given.settled ?? [], wrote("looseEnd"));
+    const closed = settledOf(ends, given.settled ?? [], [...wrote("looseEnd"), ...opened]);
     const dropped = settledOf(facts, given.outdated ?? [], [...wrote("fact"), ...recent], MOST_DROPPED, true);
     if (closed.settled.length + dropped.settled.length > 0)
       saves.addWorldChange(id, basedOn, [
@@ -95,6 +96,7 @@ export async function closeLooseEnds(provider: TextProvider, saves: SaveStore, i
       open: looseEnds.length,
       named: closed.named,
       settled: closed.settled.length,
+      opened: opened.length,
       facts: pcKnown.facts.length,
       factsNamed: dropped.named,
       factsDropped: dropped.settled.length,

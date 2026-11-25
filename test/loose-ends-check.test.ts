@@ -42,6 +42,11 @@ test("the pause closes what the Scribe found settled, asks nothing with few open
   expect(edit).toMatchObject({ moved: true, settled: ["Loose end 1."] });
   expect(applyEdit(state, edit).looseEnds).not.toContain("Loose end 1.");
 
+  // Nor one opened in the latest replies.
+  const fresh = savesWith(state, [], { ...state, looseEnds: ends(1) });
+  await closeLooseEnds(scriptedTextProvider(JSON.stringify({ settled: [2, 1] })).textProvider, fresh.saves, "save", signal);
+  expect((fresh.changes as [[WorldEdit]])[0][0]).toMatchObject({ settled: ["Loose end 0."] });
+
   const few = scriptedTextProvider();
   await closeLooseEnds(few.textProvider, savesWith({ ...state, looseEnds: ends(CHECK_LOOSE_ENDS - 1) }).saves, "save", signal);
   expect(few.prompts).toHaveLength(0);

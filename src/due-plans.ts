@@ -49,8 +49,13 @@ export function duePlan(id: string, state: State, pcName: string, pace = USUAL_P
   return { truth: first.truth, plan: first.plan };
 }
 
-/** Whether a reply played a plan out: it names the plan's doer and has two of the deed's own words. */
-export function planShown(plan: string, state: State, narration: string) {
-  const { doer, mentions } = threadPeople(state);
-  return (doer(plan)?.some((name) => mentions(narration, name, "u")) ?? false) && sameDeed(plan, narration);
+/**
+ * Whether a reply asked to bring a plan on did: it names the plan's doer, who wasn't with the PC before it or does the deed by two
+ * of its own words. One seen from outside is told in other words, as a packet handed over was "something pale passed", and a
+ * deed taken for not yet done is told again by the next move, which is worse than one taken for done too soon.
+ */
+export function planShown(plan: string, before: State, narration: string) {
+  const { doer, doerIn, mentions } = threadPeople(before);
+  const onPage = doer(plan)?.some((name) => mentions(narration, name, "u")) ?? false;
+  return onPage && (!doerIn(plan, before.scene.visibleCast) || sameDeed(plan, narration));
 }

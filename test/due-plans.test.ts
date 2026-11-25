@@ -44,11 +44,14 @@ test("a plan is offered to two replies at most, so one the Narrator leaves out g
   expect(offers.map((offer) => offer?.truth)).toEqual([DREM, DREM, undefined]);
 });
 
-test("a plan is shown only by a reply that names its doer and has two of its own words", () => {
+test("a plan is shown by a reply that brings on its doer, or has one already there do it by two of its own words", () => {
   const plan = state.threadsPlan[DREM]!;
-  expect(planShown(plan, state, "Drem wrenched free and thrust a sealed packet at her.")).toBe(true);
+  // Told as it looks, in none of the plan's words.
+  expect(planShown(plan, state, "Drem bent close, and something pale passed from his hand to hers.")).toBe(true);
   expect(planShown(plan, state, "A man thrust a sealed packet at her.")).toBe(false);
-  expect(planShown(plan, state, "Drem sat by his donkey.")).toBe(false);
+  const there = { ...state, scene: { ...state.scene, visibleCast: ["Tamsin", "Drem"] } };
+  expect(planShown(plan, there, "Drem sat by his donkey.")).toBe(false);
+  expect(planShown(plan, there, "Drem wrenched free and thrust a sealed packet at her.")).toBe(true);
 });
 
 let folder: ReturnType<typeof tempFolder>;

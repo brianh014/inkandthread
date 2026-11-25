@@ -1229,7 +1229,7 @@ async function narrate(
           const { doerIn } = threadPeople(next);
           const clock = next.storyTime?.hours;
           // A plan with no hour counts as come, as moves read it as due.
-          const played = due && next.threadsPlan[due.truth] === due.plan && planShown(due.plan, next, narration) ? due.truth : undefined;
+          const played = due && next.threadsPlan[due.truth] === due.plan && planShown(due.plan, state, narration) ? due.truth : undefined;
           const come = Object.keys(next.threadsPlan).filter(
             (truth) =>
               truth !== played &&

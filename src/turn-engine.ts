@@ -188,7 +188,7 @@ type TurnOperation = z.infer<typeof TurnOperation>;
 const NEW_VALUES = ["replacement", "now", "plan", "truth", "content", "keywords", "appearance", "summary"];
 /**
  * The operations without a second of the same operation on the same record, such as a thread updated again, and at most
- * `limit` of them. An update then a resolve of one thread is kept, as the state applier follows it. A rewrite of what an earlier
+ * `limit` of them. A rewrite of what an earlier
  * one wrote goes too, so a record changes once, as a looping reply rewrote one thread 14 times, A to B to C, and lost what it hid.
  * shortcut: records are told apart by their exact words, so a loop that rewords its quote each time gets through; match them as closestThread does if that shows up.
  */
@@ -1328,7 +1328,7 @@ const choiceWords = (text: string) => new Set(text.toLowerCase().match(/\p{L}[\p
  * Whether two Choices take one approach in other words: four words of four letters or more shared, half the shorter's, as a
  * Choice asked for alone offered "pull back the sheet and examine" beside a kept "turn back the sheet and examine".
  */
-const sameApproach = (one: string, other: string) => {
+export const sameApproach = (one: string, other: string) => {
   const [a, b] = [choiceWords(one), choiceWords(other)];
   const shared = [...a].filter((word) => b.has(word)).length;
   return one === other || (shared >= 4 && shared * 2 >= Math.min(a.size, b.size));

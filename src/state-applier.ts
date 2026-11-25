@@ -654,8 +654,10 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const at = clockTimeOf(time_of_day);
       const named = at === undefined ? undefined : (day - 1) * 24 + at;
       // Nor to words half a day behind the count, a morning said for an afternoon, as "a quarter to one in the morning" after six
-      // minutes to twelve set noon back to midnight. Only behind, as half a day ahead may be a sleep.
-      const slipped = named !== undefined && Math.abs(hours - named - 12) <= DRIFT_HOURS;
+      // minutes to twelve set noon back to midnight. Only behind the clock the day began this reply at, as half a day ahead may be a sleep
+      // and hours over-counted on a night's are still set back to its morning.
+      const slipped =
+        named !== undefined && before?.hours !== undefined && day === before.day && named < before.hours && Math.abs(hours - named - 12) <= DRIFT_HOURS;
       const clock = named !== undefined && !slipped && Math.abs(hours - named) > DRIFT_HOURS ? named : hours;
       const newDay = day > (before?.day ?? 1);
       // Never back within a day, as a reply that did so had started the story over from its first morning.
@@ -667,7 +669,9 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       if (!newDay && date === before?.date && ((was !== undefined && now !== undefined && now < was && !wraps) || hoursBack)) return "earlier than now";
       // A new day with no date of its own keeps the old one until a Turn names it, as code can't reckon a world's calendar.
       const dateDue = (newDay || before?.dateDue) && date === before?.date;
-      state.storyTime = { day, date, timeOfDay: withoutDate(time_of_day, date), hours: clock, ...(dateDue && { dateDue: true }) };
+      // Slipped words go too, as the next reply's hours are told by them; those before say less, but nothing wrong.
+      const timeOfDay = slipped ? before!.timeOfDay : withoutDate(time_of_day, date);
+      state.storyTime = { day, date, timeOfDay, hours: clock, ...(dateDue && { dateDue: true }) };
       return;
     }
   }

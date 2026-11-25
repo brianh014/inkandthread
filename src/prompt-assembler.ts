@@ -234,7 +234,7 @@ function journalLines(edits: WorldEdit[]) {
   const { looseEnds, facts } = lists;
   const lines = [
     removed.looseEnds.length > 0 &&
-      `The player took these off looseEnds: ${JSON.stringify(removed.looseEnds)}. They still happened and people still remember them, but no one presses them now: don't bring them up or move them on unless the PC does, don't add them back, and resolve or rewrite any Plot Thread that would push one.`,
+      `The player took these off looseEnds: ${JSON.stringify(removed.looseEnds)}. They still happened and people still remember them, but no one presses them now: don't bring them up or move them on unless the PC does, don't add them back, and rewrite any Plot Thread that would push one.`,
     written(looseEnds).length > 0 &&
       `The player wrote these into looseEnds, so they are open as worded: ${JSON.stringify(written(looseEnds))}.${replaced(looseEnds)}`,
     removed.facts.length > 0 &&

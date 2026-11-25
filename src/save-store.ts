@@ -4,7 +4,7 @@ import { basename, join } from "node:path";
 import { z } from "zod";
 import { type Check, StoredCheck } from "./check-resolver";
 import { errorFields, log } from "./logger";
-import { applyEdit, openingState, type State, StateSections, WorldEdit } from "./state-applier";
+import { playersOwn, applyEdit, openingState, type State, StateSections, WorldEdit } from "./state-applier";
 import { toneName } from "./tones";
 
 /**
@@ -880,6 +880,13 @@ export function saveStore(savesDir: string) {
         if (time) times[messageId] = [time.date, time.timeOfDay].filter(Boolean).join(", ");
       }
       return times;
+    },
+
+    /** Every edit the player made themselves, the Messages' and those since. */
+    playersEdits(id: string) {
+      using db = open(id);
+      const stored = db.query<{ edits: string }, []>("SELECT edits FROM messages WHERE edits IS NOT NULL ORDER BY id").all();
+      return [...stored.map(({ edits }) => parseEdits(edits)), pendingEdits(db)].flatMap(playersOwn);
     },
 
     /** Edits since the latest Message, which the next one stores. */

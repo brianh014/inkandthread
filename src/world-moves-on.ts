@@ -192,7 +192,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     if (change.thread === null && !adds(change)) return "an add without its truth and now";
     if ([change.now, change.plan, change.thread === null ? change.truth : null].some((text) => text !== null && !withinLimit(text, THREAD_WORDS)))
       return `a thread runs past ${THREAD_WORDS} words`;
-    // Held as a Turn's resolve is, as moves removed threads nothing had ended and added none, leaving one stale thread open.
+    // Held to what was played, as moves removed threads nothing had ended and added none, leaving one stale thread open.
     if (change.thread !== null && change.now === null) {
       const people = named(change.thread);
       // Anywhere in what was played, as a thread settled at round 5 was never shown again in the two latest replies.

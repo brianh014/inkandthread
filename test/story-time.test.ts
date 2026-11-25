@@ -273,6 +273,15 @@ test("words that name the morning for an afternoon never set the clock back half
   const move = (hours_passed: number, time_of_day: string) => ({ op: "set_story_time" as const, days_passed: 0, hours_passed, time_of_day, date: null });
   const noon = applyOperations(at("about six minutes to twelve", 11.9), [move(0.75, "about a quarter to one in the morning")]).next;
   expect(noon.storyTime?.hours).toBeCloseTo(12.65);
+  // Nor are the wrong words kept, as the next reply's hours would be told by them.
+  const { next } = applyOperations(noon, [{ op: "set_story_time", days_passed: 0, hours_passed: null, time_of_day: "two in the afternoon", date: null }]);
+  expect(next.storyTime).toMatchObject({ timeOfDay: "two in the afternoon" });
+  expect(next.storyTime!.hours).toBeLessThan(15);
+  // A night whose hours were over-counted is still set back to its morning.
+  const night = applyOperations(at("five in the afternoon", 17), [
+    { op: "set_story_time", days_passed: 1, hours_passed: 24, time_of_day: "six in the morning", date: "7th June" },
+  ]).next;
+  expect(night.storyTime).toMatchObject({ day: 2, hours: 30 });
   // Words a few hours off the count still set it, as it must never drift from what the page says.
   const drifted = applyOperations(at("a while later", 17), [move(0.1, "eleven in the morning")]).next;
   expect(drifted.storyTime?.hours).toBe(11);

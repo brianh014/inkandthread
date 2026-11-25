@@ -2,8 +2,7 @@ import { z } from "zod";
 import { errorType, log } from "./logger";
 import { type Prompt, SUMMARY_EVERY } from "./prompt-assembler";
 import type { SaveStore } from "./save-store";
-import { playersOwn } from "./state-applier";
-import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
+import { askForJson, jsonSchemaOf, sameApproach, type TextProvider } from "./turn-engine";
 
 /** Below this many open, a pause leaves them to the Turns, as State Upkeep closes what one reply settles. */
 export const CHECK_LOOSE_ENDS = 10;
@@ -23,13 +22,15 @@ const OUTDATED = `In outdated, give the number of each known fact that another t
 const numbers = z.array(z.number().int());
 
 /**
- * The entries a reply's numbers name, once each and at most `most` of them, never one the player has just written, or none when
- * it names more than GUESSING of them.
+ * The entries a reply's numbers name, once each and at most `most` of them, never one the player wrote, or none when it names
+ * more than GUESSING of them. With `apart`, never two that say the same, so one of a pair always stays.
  */
-export function settledOf(entries: string[], settled: number[], playersOwn: string[] = [], most = MOST_CLOSED) {
+export function settledOf(entries: string[], settled: number[], playersOwn: string[] = [], most = MOST_CLOSED, apart = false) {
   const named = [...new Set(settled.filter((number) => number >= 1 && number <= entries.length))].map((number) => entries[number - 1]!);
   if (named.length > entries.length * GUESSING) return { named: named.length, settled: [] };
-  return { named: named.length, settled: named.filter((entry) => !playersOwn.includes(entry)).slice(0, Math.ceil(entries.length * most)) };
+  const kept: string[] = [];
+  for (const entry of named) if (!playersOwn.includes(entry) && !(apart && kept.some((other) => sameApproach(entry, other)))) kept.push(entry);
+  return { named: named.length, settled: kept.slice(0, Math.ceil(entries.length * most)) };
 }
 
 /**
@@ -37,7 +38,6 @@ export function settledOf(entries: string[], settled: number[], playersOwn: stri
  * one reply and so never closed one settled scenes before, and a long story kept 86 open; and drops the known facts that repeat
  * another or are no longer so, as 45 rounds left 69 of them. One call, for whichever has grown long. Applies as a hidden World
  * Change to the next Message; any failure changes nothing.
- * shortcut: a fact the player wrote before the latest Message may be dropped as any other; keep their own apart if one goes missing.
  */
 export async function closeLooseEnds(provider: TextProvider, saves: SaveStore, id: string, signal: AbortSignal) {
   const basedOn = saves.latestMessageId(id);
@@ -70,11 +70,11 @@ export async function closeLooseEnds(provider: TextProvider, saves: SaveStore, i
   try {
     const reply = await askForJson(provider, prompt, Reply, "The Scribe refused to check the Journal.", signal, { call: "looseEnds", reviewer: true });
     const given = reply as { settled?: number[]; outdated?: number[] };
-    // Those the player wrote since the last Message, as the Narrator is told they hold as worded.
-    const own = playersOwn(saves.pendingEdits(id));
+    // The player's own stand, as the Narrator is told they hold as worded.
+    const own = saves.playersEdits(id);
     const wrote = (kind: "looseEnd" | "fact") => own.flatMap((edit) => (edit.edit === kind && edit.new ? [edit.new] : []));
     const closed = settledOf(ends, given.settled ?? [], wrote("looseEnd"));
-    const dropped = settledOf(facts, given.outdated ?? [], wrote("fact"), MOST_DROPPED);
+    const dropped = settledOf(facts, given.outdated ?? [], wrote("fact"), MOST_DROPPED, true);
     if (closed.settled.length + dropped.settled.length > 0)
       saves.addWorldChange(id, basedOn, [
         {
@@ -88,15 +88,15 @@ export async function closeLooseEnds(provider: TextProvider, saves: SaveStore, i
       ]);
     log.info("world", "Journal checked", {
       save: id,
-      open: ends.length,
+      open: looseEnds.length,
       named: closed.named,
       settled: closed.settled.length,
-      facts: facts.length,
+      facts: pcKnown.facts.length,
       factsNamed: dropped.named,
       factsDropped: dropped.settled.length,
       ms: Date.now() - started,
     });
   } catch (error) {
-    log.warning("world", "Journal not checked", { save: id, open: ends.length, facts: facts.length, ...errorType(error) });
+    log.warning("world", "Journal not checked", { save: id, open: looseEnds.length, facts: pcKnown.facts.length, ...errorType(error) });
   }
 }

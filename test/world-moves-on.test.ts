@@ -1400,6 +1400,36 @@ test("a move asked again for a faulted now keeps the first reply's sound changes
   expect(log).toMatch(/Faulted nows settled .*"kept":1,"reAsked":1,"replaced":1,"reverted":0/);
 });
 
+test("a move asked again for a faulted now never closes that thread instead", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  const hidden = "The ledger is hidden in the cottage chimney, and the vicar is searching for it.";
+  const barred = "Grout has barred the chapel and burned his spade.";
+  const added = "The lamplighter saw a boat come in without a light and has told no one.";
+  play(
+    narration("Ash walks to the quay.", nextDay()),
+    moved(change(drowned, "Grout will deal with Ash if she presses."), change(hidden, "The vicar has torn up the cottage floor.")),
+    moved(change(drowned, null), change(null, barred, added)),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [drowned, hidden],
+      threadsNow: { [drowned]: "Grout digs a grave.", [hidden]: "The vicar waits for night." },
+      worldBible: [],
+    },
+  });
+
+  for (const input of ["I walk.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+
+  expect(store().latestState(id).plotThreads).toContain(drowned);
+});
+
 test("a now that has the PC told a secret off the page is asked again, naming that thread, and kept out if still so while the old now is the newest reply's", async () => {
   const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
   const hidden = "The ledger is hidden in the cottage chimney, and the vicar is searching for it.";

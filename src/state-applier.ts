@@ -700,14 +700,26 @@ const DAY_PARTS: [RegExp, number][] = [
 // passing pallor, bonds or a garment taken off and put down, as "coat folded over a barrel" redrew one coatless, or carried on
 // an arm, as another man's coat "under his arm" stayed in a constable's looks.
 // Bare feet too, as a man was drawn barefoot in the morning from the night before.
-// shortcut: whole comma clauses by these words; add a word when another passing state sticks.
+// shortcut: by these words; add one when another passing state sticks.
 const PASSING =
-  /\b(?:holding|carrying|carried|clutch(?:ing|ed)|gripp(?:ing|ed)|kneeling|crouching|sitting|seated|lying|leaning|standing (?:at|in|by|on|beside|over|before)|gone (?:out|off|away|into|to|back)|in (?:his|her|their|one) (?:other )?hand|in hand|held (?:high|low|up|out)|rain-\w+|wet|soaked|sodden|drenched|dripping|damp|dusty|dust|mud-\w+|muddied|windblown|caked|crusted|drained|ashen|flushed|(?:wrists|hands|arms|ankles) (?:bound|tied)|(?:bound|tied) (?:before|behind)|manacled|shackled|in irons|(?:taken|pulled|shrugged) off|(?:coat|jacket|cloak|hat|cap|shirt|boots) off|bare-?foot(?:ed)?|folded (?:over|on|across)|left (?:below|behind)|(?:under|over|across) (?:his|her|their|one|an?) arms?|tucked)\b/i;
-/** The looks without their passing clauses, or as written if nothing else is left. */
+  /\b(?:holding|carrying|carried|clutch(?:ing|ed)|gripp(?:ing|ed)|kneeling|crouching|sitting|seated|lying|leaning|standing (?:at|in|by|on|beside|over|before)|gone (?:out|off|away|into|to|back)|in (?:his|her|their|one) (?:other )?hand|in hand|held (?:high|low|up|out)(?! by)|wet|soaked|sodden|drenched|dripping|damp|dusty|dust(?!-)|(?:rain|mud|dust|snow|sand)-(?:stained|caked|covered|streaked|spattered|crusted|soaked|dark)|muddied|windblown|caked|crusted|drained|ashen|flushed|(?:wrists|hands|arms|ankles) (?:bound|tied)|(?:bound|tied) (?:before|behind)|manacled|shackled|in irons|(?:taken|pulled|shrugged) off|(?:coat|jacket|cloak|hat|cap|shirt|boots) off|bare(?:-?foot(?:ed)?| feet)|hood (?:up|down)|rime|folded (?:over|on|across)|left (?:below|behind)|(?:under|over|across) (?:his|her|their|one|an?) arms?|tucked(?! into))\b/i;
+// Dirt on what the next words name, as a "dusty blue officer's coat" lost the whole coat from looks in five plays.
+const SOILED =
+  /\b(an? )?(?:dusty|muddied|(?:mud|dust|snow|sand)-(?:stained|caked|covered|streaked|spattered|crusted))[\s-]+(?!(?:a|an|the|at|with|from|to|through|in|on|of|by|and|now)\b)(\p{L})/giu;
+/**
+ * The looks without what passes: a word of dirt goes alone, and a clause goes from the "and" or "with" before what passes, so the clothes
+ * it opens with stay, but never what follows, which may be held too. As written if nothing else is left.
+ */
 const lasting = (appearance: string) => {
   const kept = appearance
+    .replace(SOILED, (_, article: string | undefined, letter: string) => (article ? article[0] + (/[aeio]/i.test(letter) ? "n " : " ") : "") + letter)
     .split(",")
-    .filter((clause) => !PASSING.test(clause))
+    .flatMap((clause) => {
+      const parts = clause.split(/(?=\s(?:and|with (?:an?|the|his|her|their|wet|damp|rime))\s)/);
+      const passing = parts.findIndex((part) => PASSING.test(part));
+      const left = passing < 0 ? parts : parts.slice(0, passing);
+      return left.length > 0 ? [left.join("")] : [];
+    })
     .join(",")
     .trim();
   return kept || appearance;

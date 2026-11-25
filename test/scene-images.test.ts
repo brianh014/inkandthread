@@ -697,7 +697,7 @@ test("a Duplicate from here keeps the images up to that Message", async () => {
 test("the picture check is given those in view with a portrait whom the prompt left unmarked, and their portrait then goes in", async () => {
   images = scriptedImages(PNG, PNG, PNG);
   script = scriptedTextProvider(newScene("A woman stands by [Kit: a boy in a cap].", "The quay"));
-  const given: { name: string; looks: string }[][] = [];
+  const given: { name: string; looks: string; main?: boolean }[][] = [];
   app = startApp(
     join(folder.path, "Saves"),
     script.textProvider,
@@ -718,7 +718,7 @@ test("the picture check is given those in view with a portrait whom the prompt l
   await settled(id);
 
   expect(given).toHaveLength(1);
-  expect(given[0]!.map(({ name }) => name)).toEqual(["Ash"]);
+  expect(given[0]!.map(({ name, main }) => ({ name, main }))).toEqual([{ name: "Ash", main: true }]);
   expect(given[0]![0]!.looks).toContain("a tall woman of forty");
   const scene = images.payloads.at(-1)!;
   expect(scene.prompt).toContain("the person from image 1");

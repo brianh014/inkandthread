@@ -16,6 +16,10 @@ test("a mark gets the skin, hair and beard of someone's looks that its phrase le
   expect(expandMarks("[Vik: a gaunt bearded man in a grey coat] stops. [Vik] waves.", [vik], pc, ["Vik"]).prompt).toBe(
     "the person from image 1, a gaunt bearded man in a grey coat, fair skin, a ragged blond beard, stops. the same person waves.",
   );
+  // A part said by its feature and one word more isn't said again.
+  expect(expandMarks("[Vik: a fair-skinned man, a blond beard and fair skin] stops.", [vik], pc).prompt).toBe(
+    "a fair-skinned man, a blond beard and fair skin stops.",
+  );
   expect(expandMarks("[Vik: a man with fair skin and a ragged blond beard] stops.", [vik], pc).prompt).toBe(
     "a man with fair skin and a ragged blond beard stops.",
   );
@@ -223,6 +227,30 @@ test("someone's looks keep no caked dirt, passing pallor, bonds or garment taken
   expect(applyOperations(before, [{ op: "update_npc", name: "Price", appearance: carried, portrait: null }]).next.npcs[0]!.appearance).toBe(coat);
   const lasting = `${coat}, hair tied back, a scar left on his cheek, an anchor inked on his arm`;
   expect(applyOperations(before, [{ op: "update_npc", name: "Price", appearance: lasting, portrait: null }]).next.npcs[0]!.appearance).toBe(lasting);
+});
+
+test("a clothing clause keeps its clothes when a word in it passes with the scene", () => {
+  const looksOf = (appearance: string) =>
+    applyOperations({ ...openingState, npcs: [{ name: "Price", appearance: "a man" }] }, [{ op: "update_npc", name: "Price", appearance, portrait: null }]).next
+      .npcs[0]!.appearance;
+  expect(looksOf("a tall man, wearing a dusty blue officer's coat with brass buttons and a sabre at his hip")).toBe(
+    "a tall man, wearing a blue officer's coat with brass buttons and a sabre at his hip",
+  );
+  expect(looksOf("a lanky boy with dusty brown skin and a shaven head, in a dust-caked orange coat")).toBe(
+    "a lanky boy with brown skin and a shaven head, in an orange coat",
+  );
+  // A colour, not dirt.
+  expect(looksOf("a woman, in a dust-grey coat buttoned to the throat")).toBe("a woman, in a dust-grey coat buttoned to the throat");
+  expect(looksOf("a man, in brown trousers tucked into scuffed riding boots, canvas breeches held up by one suspender and bare feet")).toBe(
+    "a man, in brown trousers tucked into scuffed riding boots, canvas breeches held up by one suspender",
+  );
+  // What comes after something held may be held too.
+  expect(looksOf("a man, his sleeves pushed back and a shovel gripped in both hands, holding a lantern and a rope, hood up, rime in his beard")).toBe(
+    "a man, his sleeves pushed back",
+  );
+  expect(looksOf("a girl with wet hair, in a grey cloak with the hood up, a shirt tucked into trousers, mud-brown eyes")).toBe(
+    "a girl, in a grey cloak, a shirt tucked into trousers, mud-brown eyes",
+  );
 });
 
 test("the era is set once, and a later set_era is ignored rather than failing the Turn, so pictures never drift", () => {

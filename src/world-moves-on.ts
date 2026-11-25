@@ -191,8 +191,10 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const shown = latestReplies.join("\n");
   const played = [state.summary, ...earlierReplies, shown].join("\n");
   const pace = storyPace(saves, id, messages, clock);
-  const { named, mentions } = threadPeople(state);
+  const { named, mentions, withDoer } = threadPeople(state);
+  const pcForms = nameForms(saves.read(id).pc.name ?? "");
   const adds = ({ thread, truth, now }: ThreadMove) => thread === null && truth !== null && now !== null;
+  const doersNamed = new Set<string>();
   // Why a change can't be used, named so the log and the request to write it again both say which.
   const fault = (change: ThreadMove, index: number, all: ThreadMove[]) => {
     if (change.thread !== null && !plotThreads.includes(change.thread)) return "a change misquotes a thread";
@@ -218,7 +220,9 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     // Matched to an open thread as a Turn's are, as GLM sent its rewrites as adds carrying the thread's truth, which the cap then cut.
     const changes = sent.map((change) => {
       const thread = closestThread(plotThreads, change.thread ?? change.truth ?? "");
-      return thread === undefined ? change : { ...change, thread, truth: change.thread === null ? null : change.truth };
+      const plan = change.plan && change.now ? withDoer(change.plan, change.now, pcForms) : change.plan;
+      if (plan && plan !== change.plan) doersNamed.add(plan);
+      return { ...change, plan, ...(thread !== undefined && { thread, truth: change.thread === null ? null : change.truth }) };
     });
     const kept = changes.filter((change, index) => fault(change, index, changes) === null);
     // Adds only up to OPEN_THREADS, as the rule says, since an 80-round story's moves added past it to seven that nothing ended,
@@ -256,9 +260,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   let partsAsked = false;
   let partless: { sorted: ReturnType<typeof sorted>; questions: Record<string, string> } | undefined;
   // A now that waits on the PC, as nows said "deal with her if she presses" for 45 rounds and no thread ever moved to its end.
-  const pcNames = nameForms(saves.read(id).pc.name ?? "")
-    .filter(Boolean)
-    .map(RegExp.escape);
+  const pcNames = pcForms.filter(Boolean).map(RegExp.escape);
   const waits = new RegExp(
     String.raw`\b(?:if|should|unless|in case|whenever|until)\s+(?:she|he|they|anyone|someone${pcNames.map((name) => `|${name}`).join("")})\b|\bwait(?:s|ing)?\s+(?:for|on|to see|until)\b`,
     "iu",
@@ -540,9 +542,16 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
     const swapped = (change: ThreadMove) => {
       if (!faulted(change) || !again) return change;
       const other = change.thread === null ? again.kept.filter(adds)[firstAdds.indexOf(change)] : again.kept.find(({ thread }) => thread === change.thread);
-      return other && !faulted(other) ? other : change;
+      // Never one that closes the thread it was asked to fix, as a faulted now is no reason to end it.
+      return other && other.now !== null && !faulted(other) ? other : change;
     };
     const sent = first ? first.kept.map(swapped) : again!.kept;
+    const closes =
+      first && again
+        ? again.kept.filter(
+            ({ thread, now }) => now === null && first!.kept.some((change) => change.thread === thread && change.now !== null && faulted(change)),
+          ).length
+        : 0;
     // A thread's now from before the newest reply, which a still-faulted rewrite never brings back for the faults that misfire.
     const lastReply = messages.findLastIndex(({ role }) => role === "narrator");
     const prior = messages[lastReply - 1];
@@ -562,6 +571,8 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
         ...(nowsSent ? { reAsked: asked.length } : { notAsked: asked.length }),
         replaced: sent.filter((change) => !first!.kept.includes(change)).length,
         reverted: reverted.length,
+        // The re-ask's, not taken.
+        ...(closes > 0 && { closesIgnored: closes }),
         ...(stillFaulted.length > reverted.length && { newerKept: stillFaulted.length - reverted.length }),
         ...(!again && { reAskFailed: true }),
       });
@@ -658,6 +669,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
         },
       ]);
     const withoutParts = partsMissing(kept);
+    const namedPlans = Object.values(plan).filter((text) => doersNamed.has(text)).length;
     const removed = kept.filter(({ now }) => now === null);
     log.info("world", "World moved on", () => ({
       save: id,
@@ -669,6 +681,8 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       plans: Object.keys(plan).length,
       questions: Object.keys(question).length,
       planDue: fell.size,
+      // Plans that named their doer only as he or she, and were given their name.
+      ...(namedPlans > 0 && { plansNamed: namedPlans }),
       ...(marked.size > 0 && { marks: marked.size }),
       // Marks on no place given, naming someone, or already held.
       ...(unmarked > 0 && { marksDropped: unmarked }),

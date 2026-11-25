@@ -473,6 +473,8 @@ type Narrated = {
   pcName: string;
   /** The PC's looks as the story began, which pcAppearance in the state replaces once set. */
   pcTraits: string;
+  /** The PC as the player made them and the story's theme, for the Choices. */
+  about?: ReturnType<typeof aboutPc>;
   /** The state the reply starts from. */
   before: State;
   /** Left out when there's no reviewer to keep the state, as in a test's script. */
@@ -743,11 +745,12 @@ export async function playTurn(
     refusal: "The Narrator refused this message. Edit it and try again.",
     pcName: saves.read(id).pc.name,
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
+    about: aboutPc(saves.read(id)),
     before: state,
     upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines(saves.pendingEdits(id)) },
     offerChoices,
     previous: lastNarration(messages),
-    seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
+    seen: () => playerRead(saves.read(id), messages),
     mustMeet:
       kind === "opening"
         ? (saves.read(id).importantCharacters ?? []).map(({ name }) => name).filter((name) => (saves.read(id).startingHook ?? "").includes(name))
@@ -835,11 +838,12 @@ export async function replaceResponse(
     refusal: "The Narrator refused this, so the response stays as it was.",
     pcName: saves.read(id).pc.name,
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
+    about: aboutPc(saves.read(id)),
     before: state,
     upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines(journalEdits) },
     offerChoices,
     previous: lastNarration(messages),
-    seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
+    seen: () => playerRead(saves.read(id), messages),
     memory,
     due,
     replies,
@@ -916,11 +920,12 @@ export async function editResponse(
     refusal: "The Narrator refused this edit, so the response stays as it was.",
     pcName: saves.read(id).pc.name,
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
+    about: aboutPc(saves.read(id)),
     before: state,
     upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines(journalEdits) },
     offerChoices,
     previous: lastNarration(messages),
-    seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
+    seen: () => playerRead(saves.read(id), messages),
     narration: text,
     memory,
     due,
@@ -952,6 +957,7 @@ async function narrate(
     refusal,
     pcName,
     pcTraits,
+    about,
     before,
     upkeep,
     offerChoices,
@@ -1149,6 +1155,7 @@ async function narrate(
       const timed = JSON.stringify(narrated.next.storyTime) !== JSON.stringify(introducedBefore.state.storyTime);
       const alone = () =>
         writeChoices(textProvider, narration, signal, previous, plainMessage({ role: "player", text: upkeep?.input ?? input }).text, {
+          about,
           facts: narrated.next.pcKnown.facts,
           looseEnds: narrated.next.looseEnds,
           // This reply's own where it wrote them, as the state takes them only once the Turn is saved.
@@ -1378,6 +1385,21 @@ export const sameApproach = (one: string, other: string) => {
   const shared = [...a].filter((word) => b.has(word)).length;
   return one === other || (shared >= 4 && shared * 2 >= Math.min(a.size, b.size));
 };
+// The player's notes on the PC a Choice may be coloured by, never their looks or skills, which say what they can do rather than want.
+const ABOUT_WORDS = 150;
+const aboutPc = ({ pc, theme }: Pick<ReturnType<SaveStore["read"]>, "pc" | "theme">) => ({
+  pc: [pc.background, pc.personality, pc.other]
+    .map((text) => text?.trim())
+    .filter(Boolean)
+    .join(" ")
+    .split(/\s+/)
+    .slice(0, ABOUT_WORDS)
+    .join(" "),
+  theme: theme?.trim() ?? "",
+});
+/** What the player has read or written: their notes on the PC, the Starting Hook and the story. */
+const playerRead = ({ pc, startingHook }: Pick<ReturnType<SaveStore["read"]>, "pc" | "startingHook">, messages: { text: string }[]) =>
+  [...Object.values(pc), startingHook, ...messages.map(({ text }) => text)].filter((text) => typeof text === "string").join("\n");
 /** The people whose line in the Journal the player has written since the last reply, which Upkeep leaves as they wrote it. */
 const ownLines = (edits: WorldEdit[]) => edits.flatMap((edit) => (edit.edit === "npcSummary" ? [edit.name] : []));
 /** The operations without a Journal entry naming a secret, logging the Loose Ends among those dropped. */

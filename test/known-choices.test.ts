@@ -250,3 +250,13 @@ test("the Choices call has a thinking budget, so one still thinking has time to 
   expect(sent.thinkingBudget).toBe(1000);
   expect(sent.thinkingMs).toBeLessThan(UPKEEP_LIMIT.ms / 2);
 });
+
+test("the Choices are told who the PC is and the theme, ahead of the journal, where there are any", async () => {
+  const { textProvider, prompts } = scriptedTextProvider(JSON.stringify({ choices: ["I ask Jory why.", "I go out to the well.", "I sit by the fire."] }));
+  await writeChoices(textProvider, "Jory looks away.", new AbortController().signal, "", "", {
+    facts: [],
+    looseEnds: [],
+    about: { pc: "Quick to care and quicker to leave.", theme: "Romance" },
+  });
+  expect(Object.keys(JSON.parse(prompts[0]![1]!.content)).slice(0, 3)).toEqual(["about", "theme", "journal"]);
+});

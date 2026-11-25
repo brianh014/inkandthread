@@ -129,7 +129,7 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
     "/saves/:id/journal": {
       GET: (req) => {
         // An allowlist, so the World Bible, Plot Threads and NPC appearance text can never reach the player by default.
-        // shortcut: the summary, facts, Loose Ends and Scene Memories are Narrator free text, kept clean only by its prompt, screen them if models leak.
+        // shortcut: the recent summary is Narrator free text, and the rest the Scribe's or a call's sent no secrets, kept clean only by their prompts, screen them if models leak.
         const { summary, recentSummary, pcKnown, looseEnds, sceneMemories, scene, storyTime, status } = saves.latestState(req.params.id);
         // Everyone in the scene, then the last seen. The filter keeps an NPC the PC doesn't know yet hidden.
         const seen = [...new Set([...scene.visibleCast, ...saves.recentCast(req.params.id)])].filter((name) => pcKnown.npcs.includes(name));

@@ -579,7 +579,7 @@ test("a person's line never holds what only someone's knowledge does, nor replac
     opening: {
       inventory: { wearing: [], carrying: [] },
       scene: { location: "The quay", visibleCast: ["Mara"] },
-      summary: "",
+      summary: "It began.",
       npcs: [
         { name: "Mara", appearance: "a pilot" },
         { name: "Tobin", appearance: "a clerk" },

@@ -291,7 +291,6 @@ test("what changes from Turn to Turn stays out of the prompt's start, so the pro
   const learned = JSON.stringify({
     narration: "Rain falls.",
     state_operations: [{ op: "add_item", slot: "carrying", item: "The ferry token" }],
-    summary: "Now.",
   });
   play(learned, narration("Rain stops."));
   const id = seeded(3);
@@ -305,7 +304,6 @@ test("what changes from Turn to Turn stays out of the prompt's start, so the pro
   expect(after!.slice(1, 5)).toEqual(before!.slice(1, 5));
   expect(before![0]!.content).not.toContain("Current state");
   expect(after!.at(-2)!.content).toContain("The ferry token");
-  expect(after!.at(-2)!.content).toContain("Now.");
 });
 
 test("only the newest replies repeat their people", () => {

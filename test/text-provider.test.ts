@@ -349,7 +349,6 @@ test("the schema keeps to what strict schema modes accept, with check first", as
     "narration",
     "state_operations",
     "people",
-    "summary",
     "recent_summary",
     "scene_changed",
     "visual_description",
@@ -1365,7 +1364,13 @@ test("the log shows how each reply went, and none of the story", async () => {
     choices: [{ delta: { content: "" }, finish_reason: "stop", native_finish_reason: "STOP" }],
     usage: { prompt_tokens: 5, completion_tokens: 7 },
   });
-  const reply = { check: null, narration: "The tide rises.", state_operations: [], people: [{ name: "Ada", appearance: "tall" }], summary: "A wet day." };
+  const reply = {
+    check: null,
+    narration: "The tide rises.",
+    state_operations: [],
+    people: [{ name: "Ada", appearance: "tall" }],
+    recent_summary: "A wet day.",
+  };
   play([[delta(JSON.stringify(reply)), finished, "data: [DONE]\n\n"]]);
   const id = await app.createSave();
 
@@ -1375,7 +1380,7 @@ test("the log shows how each reply went, and none of the story", async () => {
     expect(log).toContain(fact);
   }
   expect(log).toContain('"people":1');
-  expect(log).toContain('"summary":10');
+  expect(log).toContain('"summary":false,"recentSummary":true');
   expect(log).toContain('"attempts":1');
   for (const story of ["The tide rises", "A wet day", "I wade forward", "Ada"]) expect(log).not.toContain(story);
 });
@@ -1658,17 +1663,6 @@ test("a speaker label that shortens one known name, by its first words or initia
   expect(withKnownSpeakers(reply, names)).toBe(
     '[Reverend Amos Thorne]: "A sad morning."\n\n[Reverend Amos Thorne]: "Yes."\n\n[Amos]: "Two Amoses."\n\n[Kit]: "Me."\n\n[Voice in the dark]: "Who?"',
   );
-});
-
-test("a summary cut to under two-fifths of the last is not taken, as a reply that did so had started the story again", async () => {
-  const reply = (summary: string) => [delta(JSON.stringify({ check: null, narration: "The tide rises.", state_operations: [], summary })), "data: [DONE]\n\n"];
-  play([reply("one two three four five six seven eight nine ten"), reply("one two three")]);
-  const id = await app.createSave();
-  await streamTurn(id, "I wait.").then(turnEvents);
-
-  const log = await logOf(() => streamTurn(id, "I wait again.").then(turnEvents));
-
-  expect(log).toMatch(/Summary kept .*"was":10,"now":3/);
 });
 
 test("a reply that sets the clock back within the day and adds again whom the PC knew is written again, as it had started the story over", async () => {

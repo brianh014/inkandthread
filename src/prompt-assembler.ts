@@ -12,8 +12,7 @@ export const MEMORY_MESSAGES = 20;
 export const LORE_TOKEN_BUDGET = 6000;
 // Enough for the Narrator to copy the shape, as a list in every reply costs more than it teaches.
 const REPLIES_SHOWING_PEOPLE = 2;
-// Not every Turn, as rewriting the summary was about a third of a Turn's output; rarely enough that it costs little, often
-// enough that the Journal's Story Summary keeps up.
+// Rarely enough that it costs little, often enough that the Journal's Story Summary keeps up.
 export const SUMMARY_EVERY = 5;
 
 // JSON encoding means player text can never close the delimiter early.
@@ -42,7 +41,6 @@ const toPrompt =
     role === "player"
       ? { role: "user", content: playerWords(pc, text) }
       : // The same key order as a new reply, because the Narrator copies what it sees and streaming needs check first.
-        // No summary, as one in each of these would cost far more than it teaches.
         {
           role: "assistant",
           content: JSON.stringify({
@@ -184,8 +182,7 @@ export const chapterTitlePrompt = (memories: string[], recent: Message[]): Promp
 ];
 
 /**
- * The batch, the memory before it and the rules alone, so no hidden text can reach a memory. It gets its own call because a
- * Narrator asked for one beside the summary wrote another summary.
+ * The batch, the memory before it and the rules alone, so no hidden text can reach a memory.
  */
 export const memoryPrompt = (batch: Message[], previous?: string): Prompt => [
   {
@@ -279,20 +276,7 @@ export function journalChange(edits: WorldEdit[]) {
   );
 }
 
-/**
- * The summary is written every few Turns, not every Turn, as rewriting up to 500 words was about a third of a Turn's output,
- * and the Messages since the last one are still in the prompt. The note goes in the tail, as a schema that changed with it
- * would break the provider's cache of the whole prompt. Due by the replies it covers, not by a count of all of them, so one that
- * didn't come is asked for again in the next reply.
- */
-export const summaryDue = ({ summary, summaryReplies }: Pick<State, "summary" | "summaryReplies">, replies: number) =>
-  !summary.trim() || replies + 1 - summaryReplies >= SUMMARY_EVERY;
-
 export const narratorReplies = (messages: Message[]) => messages.filter(({ role }) => role === "narrator").length;
-
-const summaryNote = (due: boolean) =>
-  // recent_summary named too, as with only summary named the Narrator left both empty on two Turns in three.
-  due ? "\nThe summary is due in this Turn." : "\nThe summary is not due in this Turn, so set summary to an empty string, but still set recent_summary.";
 
 /**
  * storyTime with its running hours as the 24-hour time they have reached, as a Narrator that wrote noon as "a quarter past twelve
@@ -354,7 +338,7 @@ export function assemblePrompt({
     threadsQuestion: _questions,
     threadsDue: _due,
     summary,
-    summaryReplies,
+    summaryReplies: _covered,
     recentSummary: _recent,
     sceneMemories,
     directorsNotes: _retired,
@@ -427,11 +411,10 @@ That description is canon, and where the World Brief disagrees with it or with w
 Change the state only through state_operations, naming things exactly as the current state does. Reply only with JSON matching this schema, with its keys in the same order, check first, or null where the schema allows only null: ${responseSchema}
 Before narrating, rate the PC's action in check: name it as the player's move has the PC say or do it, never what someone asked of the PC or where the scene is heading, say what's at stake, then give its difficulty. It is risky when it could fail or go wrong, whether it takes strength, skill, knowledge or nerve, or when it rests on how someone will take what the PC does to them or asks of them, it matters to them, and the PC can't be sure. A risky action gets one difficulty that already accounts for the PC's skills and condition, how they go about it, the situation, and how likely those it touches are to welcome it, which is slim for anything sudden or unasked that they haven't shown they want, and is not narrated until its roll's result comes back, unless it is Easy, which is narrated at once. A skilled PC makes it easier, not certain. Only actions that can't go wrong in the doing, whatever they lead to, such as walking somewhere safe to face what waits there, and ordinary talk, such as telling someone what the PC saw or knows, or asking or answering a question that would cost no one to answer, are None, narrated at once, and so is a Turn where the PC only waits, watches, listens, rests or feels, as what others do is never the PC's action. Never mention dice, numbers or Checks.
 Put each spoken line of the narration on its own line as [Name]: “the words”, with the speaker's name as the state has it, or a short description such as [Voice in the light] for someone not yet named, and nothing else on that line. Put actions and description on separate lines, with no square brackets.
-Older Messages leave this prompt, so in a finished Turn where the note below says it is due, set summary to the whole story so far in under 500 words, covering only what the PC has experienced. Keep what still matters from the current summary, including anyone still in play, and add everything that has happened since it was written. It tells what has happened, so don't end it on what is about to. Lean it on the recent story: give the last few scenes about two thirds of the words, and squeeze everything before them into the last third, as Scene Memories keep the older detail. looseEnds holds what is unresolved, so the summary needn't list it all. To make room, shorten what is finished.
-In every finished Turn, whether or not the summary is due, set recent_summary to what happened in only the last few scenes, in two or three sentences, for the player to catch up on.
+In every finished Turn, set recent_summary to what happened in only the last few scenes, in two or three sentences, for the player to catch up on.
 looseEnds in the current state lists what the PC knows is still unresolved: unanswered questions, promises, plans, invitations and people still missing.
 In every finished Turn, list in people everyone the narration names, other than the PC, even someone only mentioned, by the name the state has for them, ${LOOKS}. Anyone listed joins the state and becomes known to the PC, with no need for add_npc or add_known_npc.
-Record each unnamed NPC the PC comes to know of through add_known_npc, using add_npc first only for an NPC not yet in the state, and never repeat one. The player reads the summary in the Journal, so write it as the PC would, with no Lore Entry or Plot Thread secrets, and no dice, numbers or Checks.
+Record each unnamed NPC the PC comes to know of through add_known_npc, using add_npc first only for an NPC not yet in the state, and never repeat one. The player reads recent_summary in the Journal, so write it as the PC would, with no Lore Entry or Plot Thread secrets, and no dice, numbers or Checks.
 The player reads the inventory and status too, so write them as the PC would, with no Lore Entry or Plot Thread secrets. Keep the inventory realistic for this world: add only what the PC could really wear or carry there, and narrate anything too heavy or bulky being left behind instead of adding it. When the inventory lists nothing the PC wears while they have clothes on, add what they have on, as the story shows it or as they would plausibly wear there, so it can change as they dress and undress. Use remove_item only for an item the state lists, and to move an item between wearing and carrying use remove_item and then add_item. Describe health, injuries and conditions in words with no digits, never as points or percentages: health in at most five words, set again with set_health whenever an injury or condition changes it, and each injury or condition in at most eight. Keep at most three injuries and three conditions, as only the latest three of each are kept. Use remove_status only for an entry the state lists under that kind, and never add_status one it already lists. Keep status short: remove an entry when it passes, and remove the old entry when a new one says much the same.
 The Lore Entries and Plot Threads are secret, except what the PC can plainly see, hear or feel where they are, such as how the people around them look, dress and act, which the narration always shows as the PC takes it in, from the first time they see it, even when its cause is a secret. Let the rest shape the story and reveal it only through play, a piece at a time and only as far as what the PC finds or does draws out: no one tells more than they were asked or knows more than their own part of a secret, and winning someone over gets only what they would give under that pressure, so someone with something to lose gives a part, a lie or a price, and admits only what the PC can already show. When the narration establishes a place, group, custom or past that no Lore Entry covers, add one in that Turn with several keywords so that paraphrases still activate it. At a natural pause in the story, bring a Plot Thread forward or move one on, but never by cutting into a conversation the player is still having. A Plot Thread's now is what its people have done out of sight, and its plan what they mean to do and by when, which has not happened: once storyTime reaches that time it happens, unless play has prevented it, reaching the PC if it would, even when their move would pass over that time. Where the PC is somewhere a Plot Thread's now would show, it shows in passing, as it would look to someone who doesn't know its cause. Keep them true to the story, as what has happened in play beats any Lore Entry or Plot Thread: as soon as one is out of date, or disagrees with the narration or the known facts, fix it in that Turn with update_lore_entry, giving its title and its whole new keywords and content, or update_plot_thread, copying the thread's truth exactly and giving its whole new now, with a new truth only when play has revealed part of it, holding what play established and never a time or what anyone means to do, which are its now and plan.
 Keep the scene in the state current. Whenever the PC reaches a new location or the NPCs they can see change, use set_scene with a short name for the location, repeated exactly while they stay there, and visible_cast listing the NPCs in view by their names in the state, using add_npc first for a new one. An NPC's appearance is used to paint them, so give it ${LOOKS}, and use update_npc whenever their looks change for longer than a moment: clothing, hair, scars, wounds, tattoos, makeup and the like, but never a passing expression, pose or position. The PC's physicalTraits are how they looked when the story began, and pcAppearance in the state, once set, is how they look now and replaces them. When the PC's body or face changes for longer than a moment in the same way, or the story first shows looks their description lacks, use set_pc_appearance with all of how their body and face look now, keeping what hasn't changed, in at most 40 words with no name and never clothing, which comes from what they wear. If two NPCs in the state turn out to be one person, such as a description and the name they later gave, use merge_npc with name for the one to drop and into for the one to keep, then use only the kept name. The player reads the location as a caption, so write it as the PC would, with no Lore Entry or Plot Thread secrets, and no dice, numbers or Checks.
@@ -456,7 +439,8 @@ People know only what they have seen, heard or been told themselves, and only fr
 Carry on from the last reply: anything left unfinished, such as an action, a question or a person waiting, stays in play even if the player doesn't mention it.
 Avoid melodrama, cliché and overused metaphors, and prefer natural, grounded language: the concrete thing over the abstract quality. Tell things in order with strong verbs and conjunctions, rather than participle phrases. Never use em-dashes.${toneLine(tone)}
 Keep the prose fresh: give each scene something new to notice, vary how replies open and end, and end on what a person in the scene does, says or now faces. Don't reuse the images, gestures, questions or lines of the replies above. Leave the PC free to answer however they like, so most replies end on something other than a question or a choice between two things. People give as much of themselves as they ask of the PC. Show a feeling and leave it unexplained. Say what is so and leave it there, in narration and speech alike, never against something nobody in the scene supposed ("not X but Y", "X, not Y"). Give each person their own voice, speaking naturally.
-The older replies above are shortened, so fill in every field of the schema. When anyone's clothing or looks change in this response, such as clothes coming off or going on, include update_npc for that NPC with their whole appearance as it is now, or the inventory change for the PC, as their pictures are painted from it.${fillStoryTime(currentState.storyTime, messages)}${summaryNote(summaryDue({ summary, summaryReplies }, narratorReplies(messages)))}${journalNote(journalEdits)}
+The older replies above are shortened, so fill in every field of the schema. When anyone's clothing or looks change in this response, such as clothes coming off or going on, include update_npc for that NPC with their whole appearance as it is now, or the inventory change for the PC, as their pictures are painted from it.${fillStoryTime(currentState.storyTime, messages)}
+Set recent_summary in this response.${journalNote(journalEdits)}
 ${PACE}${
   duePlan
     ? `
@@ -481,7 +465,7 @@ Right now, from the current state: ${JSON.stringify({ inventory, scene, looks_in
 export function replacementInstruction(rewrite?: { narration: string; feedback: string }, drawAgain = false, mayRate = false): Prompt {
   const replacing: Prompt[number] = {
     role: "system",
-    content: `This is a new response to the player's last action, replacing an earlier one that no longer counts. The state above is from before that action, so include every state operation this response needs and, if the summary is due, one that covers this response.${mayRate ? "" : " Reply with a finished Turn, and do not request a check."}${
+    content: `This is a new response to the player's last action, replacing an earlier one that no longer counts. The state above is from before that action, so include every state operation this response needs and a recent_summary that covers this response.${mayRate ? "" : " Reply with a finished Turn, and do not request a check."}${
       drawAgain ? " The earlier response had a picture, which went with it, so set scene_changed to true and write visual_description for this response." : ""
     }${
       rewrite
@@ -506,7 +490,7 @@ export function editInstruction(text: string, added?: string): Prompt[number] {
       : "The state above already holds the response as first written, and the player only added the words in added_words, so include only the state operations and people those words need";
   return {
     role: "system",
-    content: `The player has edited the response to their last action themselves. Their edited response is below as JSON, and it is now exactly what happened: never refuse it, correct it or add to it. Set narration to the edited response, copied exactly, and write no narration of your own. ${needs} and, if the summary is due, one that covers it. Where it disagrees with a Lore Entry or Plot Thread, fix that in this Turn. Set check to null, scene_changed to false and visual_description to null. Edited response: ${JSON.stringify(added === undefined ? { edited_response: text } : { edited_response: text, added_words: added })}`,
+    content: `The player has edited the response to their last action themselves. Their edited response is below as JSON, and it is now exactly what happened: never refuse it, correct it or add to it. Set narration to the edited response, copied exactly, and write no narration of your own. ${needs} and a recent_summary that covers it. Where it disagrees with a Lore Entry or Plot Thread, fix that in this Turn. Set check to null, scene_changed to false and visual_description to null. Edited response: ${JSON.stringify(added === undefined ? { edited_response: text } : { edited_response: text, added_words: added })}`,
   };
 }
 

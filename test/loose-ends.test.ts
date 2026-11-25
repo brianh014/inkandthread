@@ -322,7 +322,7 @@ test("an Edit is told of the player's Journal edits", async () => {
 
 test("a stale Regenerate makes no World Change, and a fresh one settles against the state before the response", async () => {
   const ADDED = `${SECRET} a fact from the response.`;
-  play(narration("One."), narration("Two.", { summary: ADDED }), settled(), narration("Two again."));
+  play(narration("One."), narration("Two.", { recent_summary: ADDED }), settled(), narration("Two again."));
   const id = createSave(MISSING);
   await turn(id);
   await turn(id);

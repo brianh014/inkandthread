@@ -19,7 +19,6 @@ import {
   replacementInstruction,
   resultInstruction,
   narratorReplies,
-  summaryDue,
   SET_SCENE_NOTE,
   worldSigns,
 } from "./prompt-assembler";
@@ -46,6 +45,7 @@ import { countWords, withinLimit } from "./limits";
 import { knownChoices, secretWords, unreadIn, withoutUnread, writeChoices } from "./known-choices";
 import { estimateTokens, wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
+import { nextSummary } from "./story-summary";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 import { foldKnows } from "./knowledge-folds";
@@ -153,7 +153,7 @@ export class TurnFailed extends Error {
   }
 }
 
-// set_summary was offered once, and a model that still sends it, such as one with no schema mode, only repeats the summary field.
+// set_summary was offered once, and a model that still sends it, such as one with no schema mode, would write what the Scribe does.
 // A Turn no longer adds a Plot Thread, which is World Moves On's: Turns added threads that restated what the PC knew or were
 // the PC's own goals. A model that still sends one has it dropped, not the reply.
 // Nor removes a Lore Entry, as the removes were filler in run-on lists, and deleted live entries in two plays and nine of a
@@ -216,7 +216,7 @@ export function withoutLoop(operations: TurnOperation[], limit: number) {
 }
 /**
  * A reply stopped as it ran on, closed after its last whole operation, when its narration came before its operations, as the
- * runaways were models repeating operations after a whole narration. What follows them, such as the summary, is lost.
+ * runaways were models repeating operations after a whole narration. What follows them, such as recent_summary, is lost.
  * shortcut: a "}," inside an operation's text would cut there; the cut reply then fails to parse and is written again, as before.
  */
 export function closedAtLastOperation(reply: string) {
@@ -231,7 +231,6 @@ const FinishedTurn = z.object({
   narration: z.string().trim().min(1),
   state_operations: z.preprocess(usableOperations, z.array(TurnOperation).default([])),
   people: z.array(Person).catch([]),
-  summary: z.string().catch(""),
   recent_summary: z.string().nullish().catch(""),
   scene_changed: z.boolean().nullish(),
   visual_description: z.string().nullish(),
@@ -311,7 +310,6 @@ const ResponseShape = z.object({
     .describe(
       "everyone the narration names or gives a spoken line to, other than the PC, even someone only mentioned, each with their name and appearance. Someone new never gets a name, or a first name, that the PC or anyone in the state already has, as people are matched by name",
     ),
-  summary: z.string(),
   recent_summary: z.string(),
   scene_changed: z.boolean().nullable(),
   // The length beside the field too, as the Narrator writes the people's looks itself and a rule mid-prompt gets ignored.
@@ -405,7 +403,8 @@ const isNoteAboutTurn = (narration: string) => {
 // A reply once left a bare "state_operations:[]" line in its narration, which was saved as the story. The fields come after the
 // narration, so such a line starts a tail that isn't story, and the narration ends before it. A line that starts with a field
 // whose name no prose has, as "state_operations has more ops" did, needs no colon.
-const FIELDS = [...Object.keys(ResponseShape.shape), "choices"];
+// With what some models still send.
+const FIELDS = [...Object.keys(ResponseShape.shape), "choices", "summary"];
 const FIELD_LINE = new RegExp(String.raw`^\s*"?(?:(?:${FIELDS.join("|")})"?\s*:|(?:${FIELDS.filter((field) => field.includes("_")).join("|")})\b)`, "m");
 // A reply also once ended its narration with its JSON's closing brace and a tool-call tag, as "}</arg_value>".
 const JSON_TAIL = /\s*\}?(?:\s*<\/\w+>)*\s*$/;
@@ -494,8 +493,7 @@ type Narrated = {
   narration?: string;
   /** The Scene Memory this Turn adds, if one is due and came back. */
   memory: Promise<SceneMemory | null>;
-  /** The Narrator's replies before this one, which say whether the summary is due and how many a new one covers. */
-  replies: number;
+  summary: ReturnType<typeof nextSummary>;
   /** The clock's hours a few replies back, to tell whether the story time has stood still. */
   clockBack?: number;
   /**
@@ -517,13 +515,14 @@ type Narrated = {
   times: FollowUpTimes;
 };
 
-/** The prompt for a Turn's reply, and the Scene Memory due alongside it. Settings are read once, so the whole prompt comes from one copy. */
+/** The prompt for a Turn's reply, and the Scene Memory and summary due alongside it. Settings are read once, so the whole prompt comes from one copy. */
 function turnPrompt(
   saves: SaveStore,
   settings: SettingsStore,
   id: string,
   signal: AbortSignal,
   textProvider: TextProvider,
+  reviewProvider: TextProvider | undefined,
   {
     state,
     messages,
@@ -590,7 +589,7 @@ function turnPrompt(
     prompt,
     due,
     memory: nextMemory(textProvider, messages, state.sceneMemories, memoryStart, current.textRecentMessages, signal),
-    replies: narratorReplies(messages),
+    summary: nextSummary(reviewProvider, settings, save.pc.name, state, messages, signal),
     clockBack: clockBack(saves, id, messages),
     // The player's moves before this one, so the Choices offer none again, as the same safe beat was offered three times in nine rounds.
     recentMoves: messages
@@ -729,7 +728,7 @@ export async function playTurn(
   const basedOn = saves.latestMessageId(id);
   const state = saves.latestState(id);
   const messages = saves.messages(id);
-  const { prompt, due, memory, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, due, memory, summary, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, reviewProvider, {
     state,
     messages,
     input,
@@ -759,8 +758,8 @@ export async function playTurn(
         ? (saves.read(id).importantCharacters ?? []).map(({ name }) => name).filter((name) => (saves.read(id).startingHook ?? "").includes(name))
         : [],
     memory,
+    summary,
     due,
-    replies,
     clockBack,
     recentMoves,
     // The PC attempts nothing in a Continue, so there is nothing to roll for.
@@ -773,7 +772,7 @@ export async function playTurn(
   });
   // Only now, as a Turn that failed or was stopped brought nothing on.
   if (due) planOffered(id, due, replyBefore(messages));
-  if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies + 1)) {
+  if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), narratorReplies(messages) + 1)) {
     // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
     // Lore and the folds beside the move, by the Scribe, as Upkeep is, so the next Turn waits on them all at most one MOVE_LIMIT, never one after the other.
     const mover = new AbortController();
@@ -821,7 +820,7 @@ export async function replaceResponse(
   const taken = saves.latestState(id);
   // The old picture goes with its response, so the new one always gets its own, whatever the Narrator decides.
   const hadPicture = !!sceneImage || images.sceneDrawing(id, messageId);
-  const { prompt, due, memory, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, due, memory, summary, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, reviewProvider, {
     state,
     messages,
     input,
@@ -848,8 +847,8 @@ export async function replaceResponse(
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     memory,
+    summary,
     due,
-    replies,
     clockBack,
     recentMoves,
     rollCheck: mayRate ? (request) => resolveCheck(request, dice, nearMissMargin) : undefined,
@@ -906,7 +905,7 @@ export async function editResponse(
   const taken = saves.latestState(id);
   const state = added === undefined ? turn.state : taken;
   if (added !== undefined) log.info("turn", "Edit adds to the response", { save: id, message: messageId });
-  const { prompt, due, memory, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
+  const { prompt, due, memory, summary, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, reviewProvider, {
     state,
     messages,
     input,
@@ -931,8 +930,8 @@ export async function editResponse(
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     narration: text,
     memory,
+    summary,
     due,
-    replies,
     clockBack,
     recentMoves,
     ...(added !== undefined && { upkeepReads: { narration: added, previous: replaced } }),
@@ -969,8 +968,8 @@ async function narrate(
     mustMeet = [],
     narration: edited,
     memory: pendingMemory,
+    summary: pendingSummary,
     due,
-    replies,
     clockBack,
     recentMoves,
     upkeepReads,
@@ -1061,7 +1060,7 @@ async function narrate(
         continue;
       }
       if (!check && rollCheck) ratedNone = true;
-      const { people, summary, recent_summary, scene_changed, visual_description, chapter_ends } = response;
+      const { people, recent_summary, scene_changed, visual_description, chapter_ends } = response;
       // Kept without the loop, not written again, as DeepSeek's whole narration was lost to a retry eight times in one 30-round play.
       const operationLimit = MAX_OPERATIONS * (kind === "opening" ? 2 : 1);
       let state_operations = withoutLoop(response.state_operations, operationLimit);
@@ -1158,8 +1157,8 @@ async function narrate(
           about,
           facts: narrated.next.pcKnown.facts,
           looseEnds: narrated.next.looseEnds,
-          // This reply's own where it wrote them, as the state takes them only once the Turn is saved.
-          summary: cutShort(summary.trim(), narrated.next.summary) ? narrated.next.summary : summary.trim() || narrated.next.summary,
+          summary: narrated.next.summary,
+          // This reply's own where it wrote one, as the state takes it only once the Turn is saved.
           recentSummary: recent_summary?.trim() || narrated.next.recentSummary,
           storyTime: narrated.next.storyTime,
           moves: recentMoves,
@@ -1228,7 +1227,7 @@ async function narrate(
       if (dropped) log.warning("turn", "Picture dropped without set_scene", { attempt, generation });
       let upkeepRefused = 0;
       let upkeepDropped: Refusal[] = [];
-      const memory = await pendingMemory;
+      const [memory, summary] = await Promise.all([pendingMemory, pendingSummary]);
       let moved = false;
       let location = "";
       let npcs: Scene["npcs"] = [];
@@ -1294,12 +1293,9 @@ async function narrate(
           plansShown = played ? 1 : 0;
           repeated = repeats;
           ignored = harmless;
-          const written = summary.trim();
-          // Empty on a Turn the summary isn't due. One written anyway is taken too, and moves on when the next is due.
-          if (cutShort(written, next.summary)) log.warning("turn", "Summary kept", { was: countWords(next.summary), now: countWords(written) });
-          else if (written) {
-            next.summary = written;
-            next.summaryReplies = replies + 1;
+          if (summary) {
+            next.summary = summary.text;
+            next.summaryReplies = summary.replies;
           }
           if (recent_summary?.trim()) next.recentSummary = recent_summary.trim();
           if (memory) next.sceneMemories.push(memory);
@@ -1358,9 +1354,8 @@ async function narrate(
         attempts: attempt,
         check: check ? { difficulty: check.difficulty, roll: check.roll, outcome: check.outcome, degree: check.degree } : false,
         narration: narration.length,
-        summary: summary.trim().length,
-        // As the prompt asked, so a due summary that didn't come shows beside summary 0.
-        summaryDue: summaryDue(before, replies),
+        summary: !!summary,
+        recentSummary: !!recent_summary?.trim(),
         ...(memory && { memoryFirst: memory.firstMessage, memoryLast: memory.lastMessage, memoryLength: memory.text.length }),
         people: people.length,
         operations,
@@ -1445,12 +1440,6 @@ function journalRead<Operation extends StateOperation>(operations: Operation[], 
   if (dropped > 0) log.info("turn", "Loose Ends with unknown words dropped", { dropped, kept: ends(kept) });
   return kept;
 }
-
-/**
- * Whether a summary is cut below two-fifths of the last, as replies that started the story again cut it to 36-39% (bench logs),
- * while sound ones, shortening one past its 500 words, kept half. Such a one is never taken.
- */
-const cutShort = (written: string, last: string) => written !== "" && countWords(written) * 5 < countWords(last) * 2;
 
 /** The most facts and Loose Ends State Upkeep may add to one reply's Journal, and twice as many to an opening's, which tells a whole world. */
 const MOST_NOTES = { add_known_fact: 2, add_loose_end: 1 } as const;

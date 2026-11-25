@@ -78,7 +78,7 @@ A second AI call that checks a new world, or a World Change before it is applied
 _Avoid_: Critic, judge, validator
 
 **Scribe**:
-The AI that keeps the story's record and reviews the world: State Upkeep after every reply, the Review of a new world and of each World Change, and, at each pause when the world moves on, new Lore, the folding of What an NPC Knows and the closing of settled Loose Ends and dropping of outdated known facts. It is the Narrator's model unless the player chooses another in Settings. The stored settings keep their old `review` names.
+The AI that keeps the story's record and reviews the world: State Upkeep after every reply, the summary every fifth, the Review of a new world and of each World Change, and, at each pause when the world moves on, new Lore, the folding of What an NPC Knows and the closing of settled Loose Ends and dropping of outdated known facts. It is the Narrator's model unless the player chooses another in Settings. The stored settings keep their old `review` names.
 _Avoid_: Reviewer, Review model, Lore Keeper (Lore is the World Bible's)
 
 **State Upkeep**:
@@ -136,7 +136,7 @@ About 100 words on what happened in a batch of 20 older Messages, written by the
 _Avoid_: Summary (that is the one rolling account of the whole story), Scene (that is a place and situation in the story)
 
 **Story Summary**:
-The one rolling account of the whole story so far, under 500 words, which the Narrator rewrites every fifth reply, leaning on the latest scenes, and reads on every Turn. The player reads and edits it in the Journal, beside the **Recent summary** of the last few scenes, which is written every Turn. Code and prompts call it the summary.
+The one rolling account of the whole story so far, under 500 words, which the Scribe rewrites every fifth reply from the story's own text, leaning on the latest scenes, and the Narrator reads on every Turn. The player reads and edits it in the Journal, beside the **Recent summary** of the last few scenes, which the Narrator writes every Turn. Code and prompts call it the summary.
 _Avoid_: Scene Memory (that covers one batch of older Messages)
 
 **World Overview**:

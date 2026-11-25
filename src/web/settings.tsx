@@ -920,8 +920,9 @@ export function ReviewSettings({
     <fieldset>
       <legend>Scribe</legend>
       <p className="muted">
-        After every reply, the Scribe keeps the story's record straight: where you are, who's there, what you wear and carry, what people learn, and the time.
-        It also reviews a new world, and any change to it, for contradictions and plot holes. Its calls are small, so a smart model costs little.
+        After every reply, the Scribe keeps the story's record straight: where you are, who's there, what you wear and carry, what people learn, the story so
+        far, and the time. It also reviews a new world, and any change to it, for contradictions and plot holes. Its calls are small, so a smart model costs
+        little.
       </p>
       <label className="toggle">
         <input type="checkbox" checked={draft.reviewOtherModel} onChange={(e) => set({ reviewOtherModel: e.target.checked })} />

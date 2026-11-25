@@ -382,11 +382,6 @@ test("a picture prompt names what each person rides, sits on or holds, as the im
   expect(prompt).toContain("name whatever it rests on, such as what each person rides, sits on or holds");
 });
 
-test("the summary has room to keep what still matters, most of it for the recent story", () => {
-  expect(promptFor()).toContain("under 500 words");
-  expect(promptFor()).toContain("give the last few scenes about two thirds of the words");
-});
-
 test("the last instruction asks for fresh prose, natural speech and none of the player's words back", () => {
   const prompt = promptFor();
 

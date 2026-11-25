@@ -130,7 +130,11 @@ test("a picture without set_scene is retried, so it never takes the last place's
 
 test("with State Upkeep, a picture without set_scene is placed by it, without writing the reply again", async () => {
   const unplaced = turn({ scene_changed: true, visual_description: "A ridge at dusk" });
-  const upkeep = scriptedTextProvider(JSON.stringify({ state_operations: [] }), JSON.stringify({ state_operations: moveTo("The ridge") }));
+  const upkeep = scriptedTextProvider(
+    JSON.stringify({ state_operations: [] }),
+    JSON.stringify({ summary: "It rained." }),
+    JSON.stringify({ state_operations: moveTo("The ridge") }),
+  );
   images = scriptedImages(png(1), png(2));
   script = scriptedTextProvider(newScene(), unplaced);
   app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter, undefined, undefined, upkeep.textProvider);

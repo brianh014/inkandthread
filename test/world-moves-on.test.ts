@@ -284,7 +284,7 @@ test("a move is told what the PC knows of each thread's people, so no plan calls
 
 test("a move reads every reply since the last in full, as with only the last two it never saw someone shown and sent off between moves", async () => {
   const told = play(
-    narration("Ash enters the archive.", { summary: "Ash entered the archive." }),
+    narration("Ash enters the archive."),
     narration("Ash finds the ledger, and Kit takes the cart out of town."),
     narration("Ash reads the ledger."),
     narration("Ash hides the ledger.", nextDay()),
@@ -296,7 +296,6 @@ test("a move reads every reply since the last in full, as with only the last two
   expect((await turn(id, "I sleep.")).ok).toBe(true);
 
   const sent = JSON.parse(told.prompts[4]!.at(-1)!.content);
-  expect(sent.summary).toBe("Ash entered the archive.");
   expect(sent.earlier_replies).toEqual([]);
   expect(sent.latest_replies).toHaveLength(4);
   expect(sent.latest_replies[1]).toContain("Kit takes the cart");

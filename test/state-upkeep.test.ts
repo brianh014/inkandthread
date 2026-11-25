@@ -286,13 +286,12 @@ test("State Upkeep is told a few lines of talk take minutes, as six a reply made
   expect(upkeep.prompts[0]![0]!.content).not.toContain("0.1 for a few lines");
 });
 
-test("State Upkeep keeps the Journal the Narrator left, only from the reply, never twice, and no more than it may", async () => {
+test("State Upkeep keeps the Journal, never twice, and no more than it may", async () => {
   play(
     [narration("Kit shows Ash four round bruises on the drowned man's neck and says the sexton locked the crypt.")],
     [
       upkept(
         { op: "add_known_fact", fact: "The drowned man has four round bruises on his neck." },
-        { op: "add_known_fact", fact: "The vicar ordered smuggling through the harbour." },
         { op: "add_known_fact", fact: "Four round bruises mark the neck of the drowned man." },
         { op: "add_known_fact", fact: "The sexton locked the crypt." },
         { op: "add_known_fact", fact: "Kit shows the bruises." },
@@ -308,7 +307,7 @@ test("State Upkeep keeps the Journal the Narrator left, only from the reply, nev
   expect(store().latestState(id).pcKnown.facts).toEqual(["The drowned man has four round bruises on his neck.", "The sexton locked the crypt."]);
   expect(store().latestState(id).looseEnds).toEqual(["Why the sexton locked the crypt."]);
   expect(log).toContain("Upkeep's Journal entries dropped {");
-  expect(log).toContain('"ungrounded":1,"secret":0,"repeated":1,"overMost":2');
+  expect(log).toContain('"secret":0,"repeated":1,"overMost":2');
 });
 
 test("an Upkeep note carries nothing only someone's secret knowledge holds, though its other words are in the reply", () => {
@@ -317,15 +316,7 @@ test("an Upkeep note carries nothing only someone's secret knowledge holds, thou
   const told = "The vicar's housekeeper pours tea above the harbour.";
   expect(groundedNotes([secret], state, told)).toEqual([]);
   // Once the player has read of it, it is no secret.
-  expect(groundedNotes([secret], state, told, `${told} They spoke of smuggling he ordered.`)).toEqual([secret]);
-});
-
-test("a short Upkeep note, one in a script without capitals and one the reply words in another form are kept", () => {
-  const notes = ["Mara is dead.", "明美は死んだ。", "The sexton carries bruised knuckles."].map((fact) => ({ op: "add_known_fact" as const, fact }));
-  expect(groundedNotes([notes[0]!], openingState, "Mara is dead.")).toEqual([notes[0]!]);
-  expect(groundedNotes([notes[0]!], openingState, "The rain goes on.")).toEqual([]);
-  expect(groundedNotes([notes[1]!], openingState, "明美は死んだ。")).toEqual([notes[1]!]);
-  expect(groundedNotes([notes[2]!], openingState, "The sexton's bruised hands shook.")).toEqual([notes[2]!]);
+  expect(groundedNotes([secret], state, `${told} They spoke of smuggling he ordered.`)).toEqual([secret]);
 });
 
 test("an Upkeep note that takes the place of a fact the same reply removes is no repeat of it", () => {
@@ -341,11 +332,8 @@ test("an Upkeep note that takes the place of a fact the same reply removes is no
 });
 
 test("State Upkeep is sent the Loose Ends and resolves one the reply settled, as long stories kept a dozen stale", async () => {
-  const { upkeep } = play(
-    [narration("Ash finds the key under the mat.", { op: "add_loose_end", loose_end: "Find the key to the boathouse" })],
-    [upkept({ op: "resolve_loose_end", loose_end: "Find the key to the boathouse" })],
-  );
-  const id = createSave();
+  const { upkeep } = play([narration("Ash finds the key under the mat.")], [upkept({ op: "resolve_loose_end", loose_end: "Find the key to the boathouse" })]);
+  const id = store().create({ worldBrief: "A drowned city", pc: { name: "Ash" }, opening: { looseEnds: ["Find the key to the boathouse"] } });
 
   expect((await turn(id)).ok).toBe(true);
 

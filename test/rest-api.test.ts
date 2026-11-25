@@ -229,7 +229,6 @@ test("state operations update status and PC-known information across Turns", asy
       { op: "set_health", health: "hurt" },
       { op: "add_status", kind: "injuries", text: "cut forearm" },
       { op: "add_status", kind: "conditions", text: "soaked" },
-      { op: "add_known_fact", fact: "The tide gate is broken" },
       { op: "add_npc", name: "Mara", appearance: "grey coat" },
       { op: "add_known_npc", name: "Mara" },
     ),
@@ -242,7 +241,7 @@ test("state operations update status and PC-known information across Turns", asy
 
   expect(await snapshotAt(app, id, 4)).toMatchObject({
     status: { health: "hurt", injuries: ["cut forearm"], conditions: [] },
-    pcKnown: { facts: ["The tide gate is broken"], npcs: ["Mara"] },
+    pcKnown: { facts: [], npcs: ["Mara"] },
   });
 });
 
@@ -257,7 +256,6 @@ test.each([
     narration(
       "Setup.",
       { op: "add_status", kind: "conditions", text: "soaked" },
-      { op: "add_known_fact", fact: "The gate is broken" },
       { op: "add_npc", name: "Mara", appearance: "grey coat" },
       { op: "add_known_npc", name: "Mara" },
     ),
@@ -276,21 +274,10 @@ test.each([
   expect(JSON.stringify(prompts[4])).not.toContain("towering");
 });
 
-test("repeating a known fact or NPC is harmless, and adding an NPC who exists gives them new looks, so the response stands with no retry", async () => {
+test("repeating a known NPC is harmless, and adding an NPC who exists gives them new looks, so the response stands with no retry", async () => {
   const { app, prompts } = play(
-    narration(
-      "Setup.",
-      { op: "add_known_fact", fact: "The gate is broken" },
-      { op: "add_npc", name: "Mara", appearance: "grey coat" },
-      { op: "add_known_npc", name: "Mara" },
-    ),
-    narration(
-      "Again.",
-      { op: "add_known_fact", fact: "The gate is broken" },
-      { op: "add_known_npc", name: "Mara" },
-      { op: "add_known_fact", fact: "Bees sing" },
-      { op: "add_npc", name: "Mara", appearance: "a stranger" },
-    ),
+    narration("Setup.", { op: "add_npc", name: "Mara", appearance: "grey coat" }, { op: "add_known_npc", name: "Mara" }),
+    narration("Again.", { op: "add_known_npc", name: "Mara" }, { op: "add_npc", name: "Mara", appearance: "a stranger" }),
     narration("Three."),
   );
   const id = await app.createSave();
@@ -299,7 +286,7 @@ test("repeating a known fact or NPC is harmless, and adding an NPC who exists gi
   expect((await app.post(`/saves/${id}/turns`, { input: "Two." })).status).toBe(201);
 
   expect(prompts).toHaveLength(2);
-  expect(await snapshotAt(app, id, 4)).toMatchObject({ pcKnown: { facts: ["The gate is broken", "Bees sing"], npcs: ["Mara"] } });
+  expect(await snapshotAt(app, id, 4)).toMatchObject({ pcKnown: { npcs: ["Mara"] } });
   // Mara now has the second add's looks, as update_npc would give her, which the next prompt shows.
   await app.post(`/saves/${id}/turns`, { input: "Three." });
   expect(JSON.stringify(prompts[2])).toContain("a stranger");
@@ -1505,7 +1492,6 @@ test("the Journal holds the summary, what the PC knows, known NPCs and the Full 
       "Mara waves.\n\n  [Mara]: “Come in.”",
       { op: "add_npc", name: "Mara", appearance: "grey coat" },
       { op: "add_known_npc", name: "Mara" },
-      { op: "add_known_fact", fact: "The ferry stopped running." },
       withSummary("Ash reached the docks."),
     ),
   );
@@ -1518,7 +1504,7 @@ test("the Journal holds the summary, what the PC knows, known NPCs and the Full 
     storyTime: null,
     summary: "Ash reached the docks.",
     recentSummary: "",
-    facts: ["The ferry stopped running."],
+    facts: [],
     looseEnds: [],
     sceneMemories: [],
     npcs: ["Mara"],
@@ -1633,7 +1619,6 @@ test("the Journal never reveals secrets or Checks", async () => {
       { op: "add_npc", name: "MARKER-UNKNOWN-NPC", appearance: "MARKER-UNKNOWN-APPEARANCE" },
       { op: "add_npc", name: "Mara", appearance: "MARKER-KNOWN-APPEARANCE" },
       { op: "add_known_npc", name: "Mara" },
-      { op: "add_known_fact", fact: "The horn means a ship." },
       withSummary("Ash heard a horn."),
     ),
   );
@@ -1651,20 +1636,8 @@ test("the Journal never reveals secrets or Checks", async () => {
 
 test("after a Revert, the Journal matches the restored Snapshot", async () => {
   const { app } = play(
-    narration(
-      "Mara waves.",
-      { op: "add_npc", name: "Mara", appearance: "grey coat" },
-      { op: "add_known_npc", name: "Mara" },
-      { op: "add_known_fact", fact: "first-fact" },
-      withSummary("first-summary"),
-    ),
-    narration(
-      "Tobin nods.",
-      { op: "add_npc", name: "Tobin", appearance: "red scarf" },
-      { op: "add_known_npc", name: "Tobin" },
-      { op: "add_known_fact", fact: "second-fact" },
-      withSummary("second-summary"),
-    ),
+    narration("Mara waves.", { op: "add_npc", name: "Mara", appearance: "grey coat" }, { op: "add_known_npc", name: "Mara" }, withSummary("first-summary")),
+    narration("Tobin nods.", { op: "add_npc", name: "Tobin", appearance: "red scarf" }, { op: "add_known_npc", name: "Tobin" }, withSummary("second-summary")),
   );
   const id = await app.createSave();
   await app.post(`/saves/${id}/turns`, { input: "One." });
@@ -1673,7 +1646,7 @@ test("after a Revert, the Journal matches the restored Snapshot", async () => {
   await app.post(`/saves/${id}/messages/2/revert`, {});
 
   const { pcKnown } = (await snapshotAt(app, id, 2)) as State;
-  expect(pcKnown).toEqual({ facts: ["first-fact"], npcs: ["Mara"] });
+  expect(pcKnown).toEqual({ facts: [], npcs: ["Mara"] });
   expect(await journalOf(app, id)).toEqual({
     status: UNHURT,
     storyTime: null,
@@ -1693,14 +1666,14 @@ test("after a Revert, the Journal matches the restored Snapshot", async () => {
   });
 });
 
-test("the Narrator is told the player reads the summary and known facts, and how to record what the PC learns", async () => {
+test("the Narrator is told the player reads the summary, and how to record whom the PC learns of", async () => {
   const { app, prompts } = play(narration("Rain."));
   const id = await app.createSave();
 
   await app.post(`/saves/${id}/turns`, { input: "I wait." });
 
   const [system] = contents(prompts[0]);
-  expect(system).toContain("The player reads the summary and known facts in the Journal");
+  expect(system).toContain("The player reads the summary in the Journal");
   expect(system).toContain("no Lore Entry or Plot Thread secrets, and no dice, numbers or Checks");
   expect(system).toContain("through add_known_npc, using add_npc first only for an NPC not yet in the state");
 });
@@ -1785,7 +1758,7 @@ test("inventory and status never reveal secrets or Checks", async () => {
       "A horn sounds.",
       { op: "add_lore_entry", title: "MARKER-LORE-TITLE", keywords: ["MARKER-KEYWORD"], content: "MARKER-LORE-TEXT" },
       { op: "add_npc", name: "MARKER-NPC", appearance: "MARKER-APPEARANCE" },
-      { op: "add_known_fact", fact: "MARKER-FACT" },
+      { op: "npc_learns", name: "MARKER-NPC", fact: "MARKER-FACT" },
       withSummary("MARKER-SUMMARY"),
       { op: "add_item", slot: "carrying", item: "lantern" },
       { op: "set_health", health: "winded" },
@@ -1852,10 +1825,7 @@ test("a Rewrite's direction holds for the next responses, survives a Regenerate,
 
 test("Regenerate replaces the latest Narrator response and its state, leaving nothing stale", async () => {
   const { app, prompts } = play(
-    narration("You find a lantern.", { op: "add_item", slot: "carrying", item: "lantern" }, withSummary("Found a lantern."), {
-      op: "add_known_fact",
-      fact: "Lanterns float.",
-    }),
+    narration("You find a lantern.", { op: "add_item", slot: "carrying", item: "lantern" }, withSummary("Found a lantern.")),
     narration("You find a rope.", { op: "add_item", slot: "carrying", item: "rope" }, withSummary("Found a rope.")),
     narration("You climb."),
   );
@@ -1868,7 +1838,7 @@ test("Regenerate replaces the latest Narrator response and its state, leaving no
   expect(await response.json()).toEqual({ messages: [{ id: 3, role: "narrator", text: "You find a rope." }] });
   expect(await messageTexts(app, id)).toEqual(["I search the crate.", "You find a rope."]);
   expect(await inventory(app, id)).toEqual({ wearing: [], carrying: ["rope"] });
-  expect(await journal(app, id)).toMatchObject({ summary: "Found a rope.", facts: [] });
+  expect(await journal(app, id)).toMatchObject({ summary: "Found a rope." });
   expect((await app.get(`/saves/${id}/messages/2/snapshot`)).status).toBe(404);
   // The replacement starts from before the Turn, so neither the old response nor its summary reaches the Narrator.
   expect(JSON.stringify(prompts[1])).not.toContain("lantern");
@@ -1882,10 +1852,7 @@ test("Regenerate replaces the latest Narrator response and its state, leaving no
 });
 
 test("Rewrite regenerates the response with the player's feedback, delimited and out of character", async () => {
-  const { app, prompts } = play(
-    narration("Ashley smiles.", { op: "add_known_fact", fact: "Ashley is pleased." }),
-    narration("Ashley glares.", { op: "add_known_fact", fact: "Ashley is angry." }),
-  );
+  const { app, prompts } = play(narration("Ashley smiles.", withSummary("Ashley is pleased.")), narration("Ashley glares.", withSummary("Ashley is angry.")));
   const id = await app.createSave();
   await app.post(`/saves/${id}/turns`, { input: "I hand over the spanners." });
 
@@ -1894,7 +1861,7 @@ test("Rewrite regenerates the response with the player's feedback, delimited and
 
   expect(response.status).toBe(201);
   expect(await messageTexts(app, id)).toEqual(["I hand over the spanners.", "Ashley glares."]);
-  expect(await journal(app, id)).toMatchObject({ facts: ["Ashley is angry."] });
+  expect(await journal(app, id)).toMatchObject({ summary: "Ashley is angry." });
   const [instruction, last] = prompts[1]!.slice(-2);
   expect(instruction!.role).toBe("system");
   expect(instruction!.content).toContain(JSON.stringify({ rejected_response: "Ashley smiles." }));
@@ -1920,10 +1887,11 @@ const editTo = (app: ReturnType<typeof startApp>, id: string, messageId: number,
 test("Edit keeps the player's words and the Message, and brings the state in line from before the response", async () => {
   const edited = "[Ashley]: “Get out.”\nAshley throws the lantern at you.";
   const { app, prompts } = play(
-    narration("Ashley smiles.", { op: "add_known_fact", fact: "Ashley is pleased." }, { op: "add_item", slot: "carrying", item: "lantern" }),
+    narration("Ashley smiles.", withSummary("Ashley is pleased."), { op: "add_item", slot: "carrying", item: "lantern" }),
     JSON.stringify({
       narration: "Something else entirely.",
-      state_operations: [{ op: "add_known_fact", fact: "Ashley is angry." }],
+      state_operations: [],
+      summary: "Ashley is angry.",
       people: [{ name: "Ashley", appearance: "a tall woman in overalls" }],
     }),
   );
@@ -1936,7 +1904,7 @@ test("Edit keeps the player's words and the Message, and brings the state in lin
   // The same id, so its pictures stay with it, and the Narrator's own narration never replaces the player's.
   expect(await response.json()).toEqual({ messages: [{ id: 2, role: "narrator", text: edited }] });
   expect(await messageTexts(app, id)).toEqual(["I hand over the spanners.", edited]);
-  expect(await journal(app, id)).toMatchObject({ facts: ["Ashley is angry."], npcs: ["Ashley"] });
+  expect(await journal(app, id)).toMatchObject({ summary: "Ashley is angry.", npcs: ["Ashley"] });
   expect(await inventory(app, id)).toMatchObject({ carrying: [] });
   const last = prompts[1]!.at(-1)!;
   expect(last.content).toContain(JSON.stringify({ edited_response: edited }));
@@ -1945,14 +1913,14 @@ test("Edit keeps the player's words and the Message, and brings the state in lin
 });
 
 test("Edit needs words, and a refused Edit leaves the response as it was", async () => {
-  const { app } = play(narration("The tide rises.", { op: "add_known_fact", fact: "The tide is high." }), new ContentRefused("policy"));
+  const { app } = play(narration("The tide rises.", withSummary("The tide is high.")), new ContentRefused("policy"));
   const id = await app.createSave();
   await app.post(`/saves/${id}/turns`, { input: "I wait." });
 
   expect((await editTo(app, id, 2, "   ")).status).toBe(400);
   expect((await editTo(app, id, 2, "The tide falls.")).status).toBe(422);
   expect(await messageTexts(app, id)).toEqual(["I wait.", "The tide rises."]);
-  expect(await journal(app, id)).toMatchObject({ facts: ["The tide is high."] });
+  expect(await journal(app, id)).toMatchObject({ summary: "The tide is high." });
 });
 
 test("only the latest response can be edited", async () => {

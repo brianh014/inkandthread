@@ -129,24 +129,3 @@ test("someone of the hidden world the page never names doesn't become known to t
   expect((await turn(id)).status).toBe(201);
   expect(store().latestState(id).pcKnown.npcs).toEqual(["Ossery"]);
 });
-
-test("a fact said again in one reply is recorded once, and no different one is lost", async () => {
-  const promise = "Lise will send the base a truthful acknowledgment tonight saying we are four and the food is good.";
-  const again = "Lise will send the base a truthful acknowledgment tonight saying that we are four and the food is good.";
-  const other = "The store locker is short four tins of ration beef.";
-  play(narration("One.", ...[promise, again, other].map((fact) => ({ op: "add_known_fact", fact }))));
-  const id = store().create({ worldBrief: "A station", pc: { name: "Ash" }, opening: {} });
-
-  await turn(id);
-  expect(store().latestState(id).pcKnown.facts).toEqual([again, other]);
-});
-
-test("a reply adds at most five known facts, the first, as a looping one wrote one eleven ways", async () => {
-  const facts = ["The tide turned.", "Grout left.", "Kit wept.", "The bell rang.", "Price drank.", "Nell slept.", "Thorne prayed."];
-  play(narration("One.", ...facts.map((fact) => ({ op: "add_known_fact", fact }))));
-  const id = store().create({ worldBrief: "A harbour", pc: { name: "Ash" }, opening: {} });
-
-  await turn(id);
-
-  expect(store().latestState(id).pcKnown.facts).toEqual(facts.slice(0, 5));
-});

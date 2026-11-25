@@ -138,8 +138,6 @@ function storyChanges(people: string[]) {
     // Everyone a reply meets is in the scene, as a real Narrator's set_scene would say, so they show under Recent Characters.
     { op: "set_scene", location: "The old sea wall", visible_cast: people },
     ...people.map((name) => ({ op: "npc_learns", name, fact: pick(FACTS) })),
-    { op: "add_known_fact", fact: pick(FACTS) },
-    { op: "add_loose_end", loose_end: pick(LOOSE_ENDS) },
     { op: "set_health", health: pick(HEALTH) },
     { op: "add_status", kind: "conditions", text: pick(CONDITIONS) },
     { op: "add_status", kind: "injuries", text: pick(INJURIES) },
@@ -210,12 +208,13 @@ export const fakeTextProvider: TextProvider = async (prompt, { schema, onText, o
   // A World or World Change review, State Upkeep or the Loose Ends check finds nothing, as sampled edits would name parts the world doesn't have.
   if (sampled && /^You (review|keep a story's state|keep the Loose Ends)/.test(prompt[0]?.content ?? ""))
     for (const [key, value] of Object.entries(sampled)) sampled[key] = Array.isArray(value) ? [] : null;
-  // But it says who the people the PC knows are, as the Journal shows it.
+  // But it says who the people the PC knows are, and gives the Turn's fact and Loose End, as the Journal shows them.
   if (sampled && /^You keep a story's state/.test(prompt[0]?.content ?? "")) {
     const { state } = JSON.parse(prompt.at(-1)?.content ?? "{}") as { state?: { known_people?: Record<string, string> } };
     sampled.state_operations = Object.entries(state?.known_people ?? {})
       .filter(([, line]) => !line)
-      .map(([name], index) => ({ op: "set_known_npc_summary", name, summary: WHO[(turn * 3 + index) % WHO.length] }));
+      .map(([name], index) => ({ op: "set_known_npc_summary", name, summary: WHO[(turn * 3 + index) % WHO.length] }) as object)
+      .concat({ op: "add_known_fact", fact: FACTS[turn % FACTS.length] }, { op: "add_loose_end", loose_end: LOOSE_ENDS[turn % LOOSE_ENDS.length] });
   }
   // World Moves On rewrites each thread's now and keeps its truth, as sampled words would quote no thread.
   if (sampled && /^You plot the hidden side/.test(prompt[0]?.content ?? "")) {

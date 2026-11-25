@@ -51,7 +51,7 @@ import { applyWorldChange } from "./world-creation";
 import { foldKnows } from "./knowledge-folds";
 import { closeLooseEnds } from "./loose-ends-check";
 import { growLore } from "./lore-growth";
-import { deedWords, forgetUnread, MOVE_LIMIT, moveDue, moveSoon, sameDeed, moveWorldOn, storyPace, turnThreadChanges } from "./world-moves-on";
+import { forgetUnread, MOVE_LIMIT, moveDue, moveSoon, sameDeed, moveWorldOn, storyPace, turnThreadChanges } from "./world-moves-on";
 import { threadPeople } from "./thread-people";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
@@ -161,7 +161,17 @@ export class TurnFailed extends Error {
 // Nor resolves a thread, which was only ever a request to World Moves On: looped resolves ran on past whole replies, 537 in one
 // 30-Turn play, and a move decides by its own answer to each thread's question.
 // Nor says who a known person is, which is State Upkeep's, as the Narrator's words told the player a secret.
-const RETIRED = ["set_summary", "add_plot_thread", "remove_lore_entry", "resolve_plot_thread", "set_known_npc_summary"];
+const RETIRED = [
+  "set_summary",
+  "add_plot_thread",
+  "remove_lore_entry",
+  "resolve_plot_thread",
+  "set_known_npc_summary",
+  // Nor writes the Journal's facts and Loose Ends, for the same reason: of twelve entries the page never showed, all were the Narrator's.
+  "add_known_fact",
+  "update_known_fact",
+  "add_loose_end",
+];
 // DeepSeek filled its operations with placeholders, such as resolving a thread named "x", "none" or "", which failed whole Turns,
 // and saved an item named "x" and a known fact that was only a name, such as "Silas Grout", to the Journal.
 const PLACEHOLDER = /^[\s_]*(?:none|nonexistent|unused|placeholder|n\/a|null|\p{L})?[\s_]*$/iu;
@@ -1116,10 +1126,7 @@ async function narrate(
       );
       const unread = new Set(told.filter((name) => !before.pcKnown.npcs.includes(name) && hidden(name))).size;
       if (unread > 0) log.info("turn", "People the page never names kept out of the Journal", { attempt, generation, count: unread });
-      // Before the state is made, so State Upkeep and the Choices read only what is kept.
-      const once = withoutRepeatedFacts(state_operations, before.pcKnown.facts, move === OPENING_INPUT || input === OPENING_INPUT);
-      if (once.repeated + once.overMost > 0) log.info("turn", "Known facts dropped", { attempt, generation, repeated: once.repeated, overMost: once.overMost });
-      state_operations = once.operations;
+      const opening = move === OPENING_INPUT || input === OPENING_INPUT;
       // Checked before State Upkeep, so a reply that will be written again costs no call.
       const introducedBefore = introduce(before, people, pcName, state_operations, hidden);
       const narrated = applyOperations(introducedBefore.state, introducedBefore.operations, pcTraits);
@@ -1212,7 +1219,7 @@ async function narrate(
                 timed,
               ).then((ops) => {
                 if (!ops) return ops;
-                const told = groundedNotes(ops, narrated.next, `${move}\n${upkeepReads?.narration ?? narration}`, read);
+                const told = groundedNotes(ops, narrated.next, read, opening);
                 return withoutRelearned(seen ? journalRead(told, narrated.next, read) : told, state_operations, narrated.next);
               })
             : undefined,
@@ -1353,7 +1360,9 @@ async function narrate(
       // Why, as the count alone hid State Upkeep repeating what NPCs learned.
       if (upkeepDropped.length > 0) log.info("turn", "Upkeep operations dropped", { reason: refusalText(upkeepDropped) });
       const operations = state_operations.map(({ op }) => op);
-      counted?.({ difficulty: check?.difficulty, operations });
+      // With what State Upkeep does in its place.
+      const inPlace = (upkept ?? []).map(({ op }) => op).filter((op) => RETIRED.includes(op));
+      counted?.({ difficulty: check?.difficulty, operations: [...operations, ...inPlace] });
       // Counts only, so that the log never repeats the story: a Check's action is the player's words, so it's left out.
       log.info("turn", "Turn committed", () => ({
         kind,
@@ -1414,35 +1423,6 @@ const withoutFieldNotes = (text: string) => {
         .replace(/[\s"{},:]+$/, "")
         .trim();
 };
-// Of 638 replies six added more than five facts, and those wrote one fact eleven ways; an opening tells the world.
-// shortcut: the first ones stand, so a loop's rewordings may fill them; raise it if true facts are lost.
-const MOST_FACTS = { turn: 5, opening: 8 };
-/**
- * A reply's operations with each known fact it adds given once, the last time it says it but in its first place, and none past the most it may
- * add, unless it takes facts out too, as a correction may be a remove and an add. Those already known don't count.
- */
-const withoutRepeatedFacts = <Operation extends StateOperation>(operations: Operation[], known: string[], opening: boolean) => {
-  const facts: Extract<StateOperation, { op: "add_known_fact" }>[] = [];
-  let repeated = 0;
-  let overMost = 0;
-  const most = operations.some(({ op }) => op === "remove_known_fact" || op === "update_known_fact")
-    ? Number.POSITIVE_INFINITY
-    : opening
-      ? MOST_FACTS.opening
-      : MOST_FACTS.turn;
-  for (const operation of operations) {
-    if (operation.op !== "add_known_fact") continue;
-    const again = facts.findIndex((fact) => alike(fact.fact, operation.fact));
-    if (again >= 0) {
-      facts[again] = operation;
-      repeated++;
-    } else facts.push(operation);
-  }
-  const fresh = facts.filter(({ fact }) => !known.includes(fact));
-  const keep = new Set<StateOperation>([...facts.filter((each) => !fresh.includes(each)), ...fresh.slice(0, most)]);
-  overMost = facts.length - keep.size;
-  return { operations: operations.filter((operation) => operation.op !== "add_known_fact" || keep.has(operation)), repeated, overMost };
-};
 // The player's notes on the PC a Choice may be coloured by, what they want first.
 // shortcut: its first words only, and a script without spaces isn't cut; raise it, or cut by characters, if notes that matter are lost.
 const ABOUT_WORDS = 300;
@@ -1482,20 +1462,14 @@ function journalRead<Operation extends StateOperation>(operations: Operation[], 
  */
 const cutShort = (written: string, last: string) => written !== "" && countWords(written) * 5 < countWords(last) * 2;
 
-/** The most facts and Loose Ends State Upkeep may add to one reply's Journal. */
+/** The most facts and Loose Ends State Upkeep may add to one reply's Journal, and twice as many to an opening's, which tells a whole world. */
 const MOST_NOTES = { add_known_fact: 2, add_loose_end: 1 } as const;
-/** A Journal entry's own words, by which its reply bears it out: its long plain ones, or for a short entry any of three letters. */
-const noteWords = (note: string) => {
-  const long = deedWords(note);
-  return long.length > 0 ? long : [...new Set(note.match(/\p{L}{3,}/gu) ?? [])];
-};
 /**
- * State Upkeep's operations with only the Journal entries its reply bears out, by two of the entry's own words, and holding
- * nothing the player has read nowhere that someone knows, as Upkeep also reads what people know in secret, and none that says
- * again what the Journal holds once these operations are done. One in a script without capitals has no words to tell by and is kept.
- * shortcut: by words, so a true note in other words is lost; compare by meaning if the Journal still misses much.
+ * State Upkeep's operations with only the Journal entries holding nothing the player has read nowhere that someone knows, as Upkeep
+ * also reads what people know, and none that says again what the Journal holds once these operations are done. Never by whether its
+ * reply has its words, which lost a third of them, nearly all true: what Upkeep is sent, no thread or lore, is what keeps them to the page.
  */
-export function groundedNotes<Operation extends StateOperation>(upkept: Operation[], { pcKnown, looseEnds, npcKnows }: State, told: string, read = told) {
+export function groundedNotes<Operation extends StateOperation>(upkept: Operation[], { pcKnown, looseEnds, npcKnows }: State, read: string, opening = false) {
   const given: StateOperation[] = upkept;
   const gone = new Set(
     given.flatMap((each) =>
@@ -1510,8 +1484,8 @@ export function groundedNotes<Operation extends StateOperation>(upkept: Operatio
     add_loose_end: looseEnds.filter((end) => !gone.has(end)),
   };
   const added = { add_known_fact: 0, add_loose_end: 0 };
-  const dropped = { ungrounded: 0, secret: 0, repeated: 0, overMost: 0 };
-  const [untold, unread] = [unreadIn(told), unreadIn(read)];
+  const dropped = { secret: 0, repeated: 0, overMost: 0 };
+  const unread = unreadIn(read);
   const known = Object.values(npcKnows).flat().join("\n");
   const kept = upkept.filter((operation) => {
     // What only someone's knowledge holds never reaches the player in a line on a person either.
@@ -1522,12 +1496,9 @@ export function groundedNotes<Operation extends StateOperation>(upkept: Operatio
     if (operation.op !== "add_known_fact" && operation.op !== "add_loose_end") return true;
     const { op } = operation;
     const note = operation.op === "add_known_fact" ? operation.fact : operation.loose_end;
-    const words = noteWords(note);
-    const borne = words.filter((word) => !untold(word)).length;
-    if (/[\p{Lu}\p{Ll}]/u.test(note) && borne < Math.max(1, Math.min(2, words.length))) dropped.ungrounded++;
-    else if (secretWords(note, known, read, unread).length > 0) dropped.secret++;
+    if (secretWords(note, known, read, unread).length > 0) dropped.secret++;
     else if (held[op].some((other) => sameApproach(note, other))) dropped.repeated++;
-    else if (added[op] >= MOST_NOTES[op]) dropped.overMost++;
+    else if (added[op] >= MOST_NOTES[op] * (opening ? 2 : 1)) dropped.overMost++;
     else {
       held[op].push(note);
       added[op]++;

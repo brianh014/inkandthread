@@ -45,7 +45,7 @@ function play(...replies: (string | Error | Promise<string>)[]) {
 
 const THIEF = "A thief plans to rob the library at the next high tide.";
 const store = () => saveStore(savesDir);
-const createSave = () =>
+const createSave = (facts: string[] = []) =>
   store().create({
     worldBrief: "A drowned city",
     pc: { name: "Ash" },
@@ -55,6 +55,7 @@ const createSave = () =>
       summary: "",
       worldRules: ["The city has one boat."],
       plotThreads: [THIEF],
+      pcKnown: { facts, npcs: [] },
       worldBible: [
         { title: "The thief", keywords: ["thief"], content: "The thief is the librarian's own son.", alwaysOn: false },
         { title: "Gulls", keywords: ["gull"], content: "Gulls nest on the dome.", alwaysOn: false },
@@ -270,14 +271,12 @@ test("a move is told what the PC knows of each thread's people, so no plan calls
     narration(
       "Ash learns Kit now sleeps above the bakery.",
       { op: "add_npc", name: "Kit", appearance: "a boy in a cap" },
-      { op: "add_known_fact", fact: "Kit sleeps above the bakery now." },
-      { op: "add_known_fact", fact: "The tide turns at noon." },
       { op: "update_plot_thread", thread: THIEF, truth: null, now: "Kit watches the library stacks.", plan: null },
       nextDay(),
     ),
     moved(),
   );
-  const id = createSave();
+  const id = createSave(["Kit sleeps above the bakery now.", "The tide turns at noon."]);
   expect((await turn(id, "I listen.")).ok).toBe(true);
 
   expect(JSON.parse(told.prompts[1]!.at(-1)!.content).plot_threads[0].pc_knows).toEqual(["Kit sleeps above the bakery now."]);

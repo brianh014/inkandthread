@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { promptStyle } from "../src/graph-builder";
-import { chestUp, expandMarks, markNames, portraitsDue, restyledBy } from "../src/image-pipeline";
+import { chestUp, expandMarks, flashlights, markNames, portraitsDue, restyledBy } from "../src/image-pipeline";
 import { assemblePrompt, IN_ITS_WORLD_AND_STYLE, REQUESTED_IMAGE_PROMPT } from "../src/prompt-assembler";
 import { applyOperations, openingState } from "../src/state-applier";
 
@@ -235,6 +235,8 @@ test("a clothing clause keeps its clothes when a word in it passes with the scen
   expect(looksOf("a lanky boy with dusty brown skin and a shaven head, in a dust-caked orange coat")).toBe(
     "a lanky boy with brown skin and a shaven head, in an orange coat",
   );
+  // Half of a compound says more than dirt.
+  expect(looksOf("a man, dusty-haired and lean, blue eyes")).toBe("a man, dusty-haired and lean, blue eyes");
   // A colour, not dirt.
   expect(looksOf("a woman, in a dust-grey coat buttoned to the throat")).toBe("a woman, in a dust-grey coat buttoned to the throat");
   expect(looksOf("a man, in brown trousers tucked into scuffed riding boots, canvas breeches held up by one suspender and bare feet")).toBe(
@@ -290,7 +292,13 @@ test("a person named again beside others is told by their image", () => {
 test("an injury told as someone else's isn't the PC's", () => {
   const before = { ...openingState, npcs: [{ name: "Barra", appearance: "a woman" }] };
   const injured = (text: string) => applyOperations(before, [{ op: "add_status", kind: "injuries", text }]);
-  for (const text of ["Barra has a crossbow bolt through the thigh", "Barra is bleeding from the thigh", "Crossbow bolt through Barra's left thigh"])
+  for (const text of [
+    "Barra has a crossbow bolt through the thigh",
+    "Barra is bleeding from the thigh",
+    "Crossbow bolt through Barra's left thigh",
+    "Bolt through Barra's thigh",
+    "Cut across Barra's cheek",
+  ])
     expect([injured(text).next.status.injuries, injured(text).refused]).toEqual([[], []]);
   // Taken back with no Turn lost to it.
   const back = applyOperations(before, [
@@ -300,6 +308,7 @@ test("an injury told as someone else's isn't the PC's", () => {
   expect(back.refused).toEqual([]);
   expect(applyOperations(before, [{ op: "add_status", kind: "conditions", text: "Barra has you pinned" }]).next.status.conditions).toHaveLength(1);
   for (const text of [
+    "palm cut on Barra's blade",
     "split knuckles on Barra's face",
     "fingers crushed in Barra's hand",
     "a bite from Barra's dog",
@@ -342,4 +351,29 @@ test("someone known and heard from out of view is due no portrait again each Tur
 
   expect(portraitsDue(known, known, ["Owen Price"])).toEqual([]);
   expect(portraitsDue(known, { ...known, scene: { location: "The loft", visibleCast: ["Owen Price"] } })).toEqual([voice]);
+});
+
+test("a PC built like an NPC is still given new looks, by the words they had and the player's", () => {
+  const own = "a lean man in his thirties with cropped hair, stubble and broad shoulders";
+  const before = { ...openingState, npcs: [{ name: "Tam", appearance: `${own}, a bandaged scar` }] };
+  const looks = [{ op: "set_pc_appearance" as const, appearance: `${own}, a bandaged eye` }];
+  expect(applyOperations({ ...before, pcAppearance: own }, looks).next.pcAppearance).toContain("eye");
+  expect(applyOperations(before, looks, own).next.pcAppearance).toContain("eye");
+});
+
+test("an electric torch is told to the image model as a flashlight, and one that burns as a torch", () => {
+  for (const [era, written, drawn] of [
+    ["", "a woman with a head torch on her brow", "a woman with a headlamp on her brow"],
+    ["", "Torch beams cross the yard, a pen torch in her hand", "Flashlight beams cross the yard, a pen flashlight in her hand"],
+    ["Antarctic research station, 1978", "holding a torch low. Torchlight rakes the drift", "holding a flashlight low. Flashlight beam rakes the drift"],
+    ["present day rural Italy", "two torches on the floor", "two flashlights on the floor"],
+    // Stays, as it burns, the era has no other, or it isn't a torch.
+    ["present-day southern Italy", "a burning torch held at his side", "a burning torch held at his side"],
+    ["present-day southern Italy", "torches in iron brackets", "torches in iron brackets"],
+    ["early modern Levant", "a torch in his hand", "a torch in his hand"],
+    ["1890s northern England", "a torch in his hand", "a torch in his hand"],
+    ["", "a torch in his hand", "a torch in his hand"],
+    ["1978", "a blowtorch on the bench", "a blowtorch on the bench"],
+  ] as const)
+    expect([era, flashlights(written, era)]).toEqual([era, drawn]);
 });

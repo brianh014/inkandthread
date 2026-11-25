@@ -205,8 +205,8 @@ export const fakeTextProvider: TextProvider = async (prompt, { schema, onText, o
   if (sampled && title && typeof sampled.text === "string")
     sampled.text = `A book cover with large bold title text reading "${title}" across the top. Rain on a harbour at dusk.`;
   // A picture's review hands its prompt back as it was, as a sampled one would replace the scene with filler words.
-  const reviewed = prompt.at(-1)?.content.match(/^\{"prompt":(".*")\}$/s)?.[1];
-  if (sampled && reviewed && typeof sampled.prompt === "string") sampled.prompt = JSON.parse(reviewed);
+  const reviewed = parsed(prompt.at(-1)?.content ?? "")?.prompt;
+  if (sampled && typeof reviewed === "string" && typeof sampled.prompt === "string") sampled.prompt = reviewed;
   // A World or World Change review, State Upkeep or the Loose Ends check finds nothing, as sampled edits would name parts the world doesn't have.
   if (sampled && /^You (review|keep a story's state|keep the Loose Ends)/.test(prompt[0]?.content ?? ""))
     for (const [key, value] of Object.entries(sampled)) sampled[key] = Array.isArray(value) ? [] : null;

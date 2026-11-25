@@ -747,7 +747,7 @@ export async function playTurn(
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     about: aboutPc(saves.read(id)),
     before: state,
-    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines(saves.pendingEdits(id)) },
+    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines([...saves.playersEdits(id), ...saves.pendingEdits(id)]) },
     offerChoices,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
@@ -840,7 +840,7 @@ export async function replaceResponse(
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     about: aboutPc(saves.read(id)),
     before: state,
-    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines(journalEdits) },
+    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines([...saves.playersEdits(id), ...journalEdits]) },
     offerChoices,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
@@ -873,7 +873,7 @@ export async function replaceResponse(
       if (hadPicture) log.info("turn", "Replaced Turn's Scene Image forced", { message: replacement });
       if (hadPicture && !scene.description && sceneImage) log.warning("turn", "Replacement drawn from the old image's prompt", { message: replacement });
       images.sceneChanged(id, replacement, hadPicture ? { ...scene, changed: true, description } : scene);
-      images.takenBack(id, taken);
+      images.takenBack(id, taken, state);
     },
     times,
   });
@@ -922,7 +922,7 @@ export async function editResponse(
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     about: aboutPc(saves.read(id)),
     before: state,
-    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines(journalEdits) },
+    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines([...saves.playersEdits(id), ...journalEdits]) },
     offerChoices,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
@@ -937,7 +937,7 @@ export async function editResponse(
     // Only portraits for anyone new, as the Scene Image stays.
     committed: (edited, scene) => {
       images.sceneChanged(id, edited, { ...scene, changed: false });
-      images.takenBack(id, taken);
+      images.takenBack(id, taken, state);
     },
     times,
   });
@@ -1122,7 +1122,7 @@ async function narrate(
       state_operations = once.operations;
       // Checked before State Upkeep, so a reply that will be written again costs no call.
       const introducedBefore = introduce(before, people, pcName, state_operations, hidden);
-      const narrated = applyOperations(introducedBefore.state, introducedBefore.operations);
+      const narrated = applyOperations(introducedBefore.state, introducedBefore.operations, pcTraits);
       const clashesBefore = attempt < MAX_ATTEMPTS ? introducedBefore.refused : [];
       if (clashesBefore.length > 0 || narrated.refused.length > 0) throw new InvalidResponse(undefined, { cause: [...clashesBefore, ...narrated.refused] });
       // Both together, as a reply that did so had started the story over, while either alone was a sound reply's slip.
@@ -1251,13 +1251,13 @@ async function narrate(
         check,
         (state) => {
           const introduced = introduce(state, people, pcName, state_operations, hidden);
-          const { next: told, refused, ignored: harmless, repeats } = applyOperations(introduced.state, introduced.operations);
+          const { next: told, refused, ignored: harmless, repeats } = applyOperations(introduced.state, introduced.operations, pcTraits);
           // Dropping one would leave narration that disagrees with the state, so the whole Turn is invalid.
           // A shared name is kept on the last attempt, as losing the Turn costs more.
           const clashes = attempt < MAX_ATTEMPTS ? introduced.refused : [];
           if (clashes.length > 0 || refused.length > 0) throw new InvalidResponse(undefined, { cause: [...clashes, ...refused] });
           // After the Narrator's own, which it corrects. One the state code refuses is only dropped, as the reply already stands.
-          const kept = applyOperations(told, upkept ?? []);
+          const kept = applyOperations(told, upkept ?? [], pcTraits);
           upkeepDropped = [...kept.refused, ...kept.ignored];
           upkeepRefused = upkeepDropped.length;
           const next = kept.next;
@@ -1399,10 +1399,14 @@ const NAMES_A_FIELD = new RegExp(String.raw`\b(?:${FIELDS.filter((field) => fiel
  * A picture's prompt up to a field of the reply it names, as a JSON tail is, or nothing where it is the Narrator's notes on them.
  * shortcut: notes are told by "I", "my", "null" or "JSON" beside a field's name; add a word when others are drawn.
  */
-const withoutFieldNotes = (prompt: string) => {
+const withoutFieldNotes = (text: string) => {
+  // Its own field's name is a label, not a note, and a placeholder of no letters is no prompt.
+  const prompt = /\p{L}/u.test(text) ? text.replace(/^[\s"{]*visual_description"?\s*:\s*"?/i, "") : "";
   const at = prompt.search(NAMES_A_FIELD);
   if (at < 0) return prompt;
-  return /\b(?:I|my|null|JSON)\b/.test(prompt)
+  // A JSON tail's "null" is no note.
+  const tail = /^\w+"\s*:/.test(prompt.slice(at));
+  return !tail && /\b(?:I|my|null|JSON)\b/.test(prompt)
     ? ""
     : prompt
         .slice(0, at)
@@ -1451,7 +1455,7 @@ const aboutPc = ({ pc, theme }: Pick<ReturnType<SaveStore["read"]>, "pc" | "them
     .join(" "),
   theme: theme?.trim() ?? "",
 });
-/** The people whose line in the Journal the player has written since the last reply, which Upkeep leaves as they wrote it. */
+/** The people whose line in the Journal the player has written, which Upkeep leaves as they wrote it. */
 const ownLines = (edits: WorldEdit[]) => edits.flatMap((edit) => (edit.edit === "npcSummary" ? [edit.name] : []));
 /** The operations without a Journal entry naming a secret, logging the Loose Ends among those dropped. */
 function journalRead<Operation extends StateOperation>(operations: Operation[], state: State, read: string) {

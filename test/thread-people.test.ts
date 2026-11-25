@@ -52,6 +52,7 @@ test("a plan that names its doer only as he or she is given the name the now wri
     worldBible: [
       { title: "Arne Vik", keywords: ["Arne", "Vik"], content: "A gaunt man of forty, a geologist.", alwaysOn: false },
       { title: "Salt Chapel", keywords: ["Salt Chapel"], content: "A chapel on the marsh.", alwaysOn: false },
+      { title: "Salt Road", keywords: ["Salt Road"], content: "A road a man built.", alwaysOn: false },
     ],
   });
   const now = "Vik came back before first light, and Thorne saw him.";
@@ -71,6 +72,7 @@ test("a plan that names its doer only as he or she is given the name the now wri
     ["At dusk he burns the ledger.", "Salt Chapel is barred; Thorne sleeps inside."],
     ["At six she burns it.", "Mara Vell's lamp is lit."],
     ["At six he burns it.", "Thorne Hall is dark."],
+    ["At dusk he will burn it.", "Salt merchants have left."],
     ["By the time she returns he will burn the ledger.", "Mara Vell has the key."],
     ["The one he hired will burn the ledger.", "Thorne is at home."],
     ["At six he tells Thorne the truth.", "Thorne suspects Vik."],

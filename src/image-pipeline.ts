@@ -270,6 +270,27 @@ The title is the only writing anywhere on the cover: no author name, subtitle, t
 Theme: ${theme}
 The world: ${opening(world, COVER_WORLD_WORDS)}${people.length > 0 ? `\nShow these people on the cover, the first in front as its hero, each looking as described: ${people.map((looks) => `(${opening(looks, COVER_PERSON_WORDS)})`).join(" ")}` : ""}`;
 
+const ELECTRIC_ERA = /\b(?:19[2-9]\d|20\d\d)s?\b|\bpresent[- ]day\b|\bcontemporary\b|(?<!\bearly[- ])\bmodern\b(?!\s+era\b)/i;
+const BURNS = /\b(?:flam(?:e|es|ing)|burn(?:s|ing)?|fire\w*|blaz\w+|smok\w+|sconces?|brackets?|lit torch(?:es)?)\b/i;
+/**
+ * An Image Prompt with an electric torch called a flashlight, as an image model draws a torch burning: one its own words make
+ * electric anywhere, a bare one only in an era that has them, and not where anything in the prompt burns.
+ * shortcut: so a torch by a fire stays a torch; tell them apart by their own words if it shows.
+ */
+export function flashlights(prompt: string, era = "") {
+  const cased = (found: string, word: string) => (/^\p{Lu}/u.test(found) ? word[0]!.toUpperCase() + word.slice(1) : word);
+  const electric = prompt
+    .replace(/\bhead[- ]?torch(es)?\b/gi, (found, many?: string) => cased(found, many ? "headlamps" : "headlamp"))
+    .replace(/\b(?:(hand|pen|pocket)|electric|battery)[- ]torch(es)?\b/gi, (found, kind?: string, many?: string) =>
+      cased(found, [kind?.toLowerCase(), many ? "flashlights" : "flashlight"].filter(Boolean).join(" ")),
+    )
+    .replace(/\btorch[- ]?beam(s)?\b/gi, (found, many?: string) => cased(found, many ? "flashlight beams" : "flashlight beam"));
+  if (!ELECTRIC_ERA.test(era) || BURNS.test(electric)) return electric;
+  return electric
+    .replace(/\btorch[- ]?light\b/gi, (found) => cased(found, "flashlight beam"))
+    .replace(/\btorch(es)?\b/gi, (found, many?: string) => cased(found, many ? "flashlights" : "flashlight"));
+}
+
 /** `text` with each of `names` taken out, as a name in an image prompt gets lettered into the picture. */
 export const unnamed = (names: string[], text: string) => names.filter(Boolean).reduce((words, name) => words.replaceAll(name, "someone"), text.trim());
 
@@ -346,12 +367,21 @@ export function imagePipeline(
   reviewPicture: PictureReviewer = async (description) => description,
 ) {
   /** Waits to be called, so a held image can start drawing as soon as its prompt is written. */
-  const writer = (ask: PictureAsk) => (signal: AbortSignal) => {
+  const writer = (ask: PictureAsk) => async (signal: AbortSignal) => {
     const style = promptStyle(settings.read());
     const template = ask.kind === "cover" ? coverPrompt(ask) : portraitPrompt(ask.looks, style);
     const styled = { ...ask, artStyle: artStyleFor(ask.artStyle, drawingFamily(settings.read())) };
     // The Art Style first, as the text model would have put it.
-    return writePicture(styled, style, [styled.artStyle.trim(), template, ask.nudge?.trim()].filter(Boolean).join("\n"), signal);
+    const written = await writePicture(styled, style, [styled.artStyle.trim(), template, ask.nudge?.trim()].filter(Boolean).join("\n"), signal);
+    // Never a cover's, as its title is lettered from the prompt.
+    return ask.kind === "cover" ? written : electricTorches(written, ask.era);
+  };
+
+  const electricTorches = (written: string, era?: string) => {
+    const prompt = flashlights(written, era);
+    if (prompt !== written)
+      log.verbose("images", "Torches named as flashlights", () => ({ words: prompt.match(/\b(?:flashlights?|headlamps?)\b/gi)?.length ?? 0 }));
+    return prompt;
   };
 
   const work = new Map<string, Work>();
@@ -464,7 +494,8 @@ export function imagePipeline(
     const description = await reviewPicture(marked, style, signal, cast, moment);
     // Twice, as who is pictured decides which portraits go in, and those decide how each mark is written.
     const { pictured } = expandMarks(description, npcs, pcName);
-    const { prompt } = expandMarks(description, npcs, pcName, referenced(id, pictured));
+    const { prompt: expanded } = expandMarks(description, npcs, pcName, referenced(id, pictured));
+    const prompt = electricTorches(expanded, saves.latestState(id).era);
     const bytes = await adapter(scenePayload(id, prompt, pictured), signal);
     // Counted before storing, as the player has paid for it whether or not its Message is still there.
     session++;
@@ -762,16 +793,21 @@ export function imagePipeline(
       if (settings.read().updatePortraits && ready()) for (const person of people) updatePortrait(id, person, wearing);
     },
 
-    /** Draws again the portraits updated from looks that a Rewrite, Regenerate, Edit or Revert has taken back, those before it being `before`. */
-    takenBack(id: string, before: State) {
+    /**
+     * Draws again the portraits updated from looks that a Rewrite, Regenerate, Edit or Revert has taken back, those before it being
+     * `before`. With `started`, the state the replaced reply began from, only of those whose looks that reply had changed, as what
+     * the new one changes is its own to draw.
+     */
+    takenBack(id: string, before: State, started?: State) {
       const after = saves.latestState(id);
+      const changed = started && new Set(restyledBy(started, before).map((person) => person?.name ?? null));
       const updated = new Set(
         saves
           .portraits(id)
           .filter(({ id: ref }) => drawnFrom.has(redrawKey(id, { kind: "portrait", ref })))
           .map(({ npc }) => npc),
       );
-      const people = restyledBy(before, after).filter((person) => updated.has(person?.name ?? null));
+      const people = restyledBy(before, after).filter((person) => updated.has(person?.name ?? null) && (changed?.has(person?.name ?? null) ?? true));
       if (people.length > 0) log.info("images", "Portraits' looks taken back", { save: id, count: people.length });
       pipeline.restyled(id, people, after.inventory.wearing);
     },

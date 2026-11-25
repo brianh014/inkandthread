@@ -462,7 +462,7 @@ function namedThread(state: State, text: string, { became }: ThreadsSoFar) {
 }
 
 /** Changes `state` and returns nothing, or returns why `operation` is disproved, having changed nothing. The reason goes to the Server Log, so it never quotes the operation. */
-function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = { became: new Map() }): string | undefined {
+function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = { became: new Map() }, pcTraits = ""): string | undefined {
   switch (operation.op) {
     case "add_item": {
       // Worn or carried, the same thing held twice was the same notebook three times and a shawl both worn and carried. A fuller
@@ -609,7 +609,7 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       return;
     }
     case "set_pc_appearance":
-      if (looksOfAnother(state, operation.appearance)) return SOMEONE_ELSE;
+      if (looksOfAnother(state, operation.appearance, pcTraits)) return SOMEONE_ELSE;
       state.pcAppearance = operation.appearance;
       return;
     case "set_era":
@@ -622,7 +622,9 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const before = state.storyTime;
       // A new day only where the hours or the words reach one, as a ten-yard walk from a quarter to six to a quarter past was given
       // a day and the next date, and a date once moved on never comes back. Not a date the clock is waiting on, nor a clock it lacks.
-      const wentBack = (hourOf(time_of_day) ?? 24) < (hourOf(before?.timeOfDay ?? "") ?? 0);
+      const [from, to] = [hourOf(before?.timeOfDay ?? ""), hourOf(time_of_day)];
+      // Not from a late hour to only "night", as "nearly midnight" to "late at night" goes nowhere back.
+      const wentBack = from !== undefined && to !== undefined && to < from && !(from >= 20 && to >= 20 && clockTimeOf(time_of_day) === undefined);
       // Two days or more that the dates agree with is meant, never that slip, as a reply going on to "Saturday came in grey" two
       // days later gave five hours with it and the story stayed on Thursday.
       const reached =
@@ -648,7 +650,6 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       // the story stayed on Monday to the end.
       // Only where the words go back past midnight, or, naming no hour, where this reply's own hours crossed it, as hours
       // over-counted on talk would put an afternoon on the next day.
-      const [from, to] = [hourOf(before?.timeOfDay ?? ""), hourOf(time_of_day)];
       const crossed = operation.hours_passed !== null && Math.floor(hours / 24) > Math.floor((before?.hours ?? hours) / 24);
       const wordsRoll = from !== undefined && to !== undefined ? to < from : crossed;
       // A night's words going back past midnight are the next day whatever the count, as one a hair short of it at "just past
@@ -675,7 +676,7 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       // From night on, the small hours and the next morning come after, as "past midnight" refused them all for five rounds.
       const wraps = was !== undefined && was >= NIGHT && now !== undefined && (now >= NIGHT || now <= MORNING);
       // By the hours too, as clock times such as "3 pm" to "9 am" have no part of the day in words to compare.
-      const hoursBack = from !== undefined && to !== undefined && to < from && !nightWraps(from, to);
+      const hoursBack = wentBack && !nightWraps(from!, to!);
       if (!newDay && date === before?.date && ((was !== undefined && now !== undefined && now < was && !wraps) || hoursBack)) return "earlier than now";
       // A new day with no date of its own keeps the old one until a Turn names it, as code can't reckon a world's calendar.
       const dateDue = (newDay || before?.dateDue) && date === before?.date;
@@ -714,10 +715,10 @@ const DAY_PARTS: [RegExp, number][] = [
 const PASSING =
   /\b(?:holding|carrying|carried|clutch(?:ing|ed)|gripp(?:ing|ed)|kneeling|crouching|sitting|seated|lying|leaning|standing (?:at|in|by|on|beside|over|before)|gone (?:out|off|away|into|to|back)|in (?:his|her|their|one) (?:other )?hand|in hand|held (?:high|low|up|out)(?! by)|soaked|sodden|drenched|dripping|damp|rain-\w+|mud-(?!brown|colou?red)\w+|windblown|caked|crusted|drained|ashen|flushed|(?:wrists|hands|arms|ankles) (?:bound|tied)|(?:bound|tied) (?:before|behind)|manacled|shackled|in irons|(?:taken|pulled|shrugged) off|(?:coat|jacket|cloak|hat|cap|shirt|boots) off|bare-?foot(?:ed)?|folded (?:over|on|across)|left (?:below|behind)|(?:under|over|across) (?:his|her|their|one|an?) arms?|tucked(?! into (?:[\w'-]+ ){0,3}(?:boots|trousers|breeches|skirts?|pants|jeans)\b))\b/i;
 // Dirt, wet and how a garment sits for now, which say nothing of what comes before them, so only they go.
-const FOR_NOW = /\b(?:wet|dusty|dust(?!-(?:gr[ae]y|brown|colou?red))|muddied|bare feet|hood (?:up|down)|rime)\b/i;
+const FOR_NOW = /\b(?:wet|dusty(?!-)|dust(?!-(?:gr[ae]y|brown|colou?red))|muddied|bare feet|hood (?:up|down)|rime)\b/i;
 // Dirt on what the next words name, as a "dusty blue officer's coat" lost the whole coat from looks in five plays.
 const SOILED =
-  /((?:^|,\s*|\b(?:an?|his|her|their|the|in|over|under|wearing|with|of|from)\s))(?:dusty|muddied|(?:mud|dust|snow|sand)-(?!colou?red)\w+ed)[\s-]+(?!(?:a|an|the|at|with|from|to|through|in|on|of|by|and|now|up|down|after)\b)(\p{L})/giu;
+  /((?:^|,\s*|\b(?:an?|his|her|their|the|in|over|under|wearing|with|of|from)\s))(?:dusty|muddied|(?:mud|dust|snow|sand)-(?!colou?red)\w+ed)\s+(?!(?:a|an|the|at|with|from|to|through|in|on|of|by|and|now|up|down|after)\b)(\p{L})/giu;
 /**
  * The looks without what passes: a word of dirt on its own, then what a clause says of now from its "and" or "with", so the
  * clothes it opens with stay, and the whole of a clause that has something held, put off or bound, as both sides of its "and"
@@ -744,6 +745,8 @@ const lasting = (appearance: string) => {
 };
 
 const OTHERS_BODY = "someone else's body";
+const BODY_PART =
+  "(?:arm|forearm|elbow|wrist|hand|finger|thumb|palm|shoulder|chest|side|ribs?|back|belly|stomach|hip|thigh|leg|knee|shin|calf|ankle|foot|neck|throat|head|scalp|face|brow|forehead|cheek|jaw|chin|nose|ear|eye)s?";
 /**
  * Whether an injury is another's: an NPC who "has" or "is" it, or whose body a weapon or wound is in, as "Barra has a crossbow
  * bolt through the thigh" stood as the PC's. Never one that speaks of the PC too. shortcut: by these forms only, and a PC who
@@ -755,7 +758,7 @@ const othersBody = (state: State, kind: string, text: string) =>
   state.npcs.some(({ name }) =>
     nameForms(name).some((form) =>
       new RegExp(
-        String.raw`^(?:The\s+)?${RegExp.escape(form)}\s+(?:has|is)\b|^(?:\p{L}+\s+){0,2}(?:bolt|arrow|bullet|ball|blade|knife|wound|cut|gash|burn)s?\s+(?:in|through|on|to|across)\s+${RegExp.escape(form)}['’]s\s`,
+        String.raw`^(?:The\s+)?${RegExp.escape(form)}\s+(?:has|is)\b|^(?:\p{L}+\s+){0,2}(?i:bolt|arrow|bullet|ball|blade|knife|wound|cut|gash|burn)s?\s+(?:in|through|on|to|across)\s+${RegExp.escape(form)}['’]s\s+(?:\p{L}+\s+){0,2}${BODY_PART}\b`,
         "u",
       ).test(text),
     ),
@@ -772,10 +775,13 @@ const ANYONES = new Set(
  * the constable's walrus moustache and coat and their portrait was drawn so. shortcut: by words, so a PC dressed and built as an
  * NPC is refused too; give the PC their own words if one shows.
  */
-function looksOfAnother(state: State, appearance: string) {
-  const words = new Set((appearance.toLowerCase().match(/\p{L}{4,}/gu) ?? []).filter((word) => !ANYONES.has(word)));
+function looksOfAnother(state: State, appearance: string, pcTraits: string) {
+  const wordsOf = (looks: string): string[] => looks.toLowerCase().match(/\p{L}{4,}/gu) ?? [];
+  // Never the words the PC has already, as one built like an NPC could never be given a new look.
+  const own = new Set([...ANYONES, ...wordsOf(state.pcAppearance || pcTraits)]);
+  const words = new Set(wordsOf(appearance).filter((word) => !own.has(word)));
   return state.npcs.some((npc) => {
-    const theirs = new Set(npc.appearance.toLowerCase().match(/\p{L}{4,}/gu) ?? []);
+    const theirs = new Set(wordsOf(npc.appearance));
     const shared = [...words].filter((word) => theirs.has(word)).length;
     return shared >= 5 && shared >= words.size * 0.6;
   });
@@ -887,7 +893,8 @@ const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }
   IGNORABLE.includes(op) || reason === "already there" || reason === SOMEONE_ELSE || reason === OTHERS_BODY || reason === "matches no thread";
 
 /** Applies operations in order, so each is judged against the ones before it. */
-export function applyOperations(state: State, operations: StateOperation[]) {
+/** `pcTraits` is how the player described the PC, whose own words are never someone else's looks. */
+export function applyOperations(state: State, operations: StateOperation[], pcTraits = "") {
   const next = structuredClone(state);
   let repeats = 0;
   const threads: ThreadsSoFar = {
@@ -896,7 +903,7 @@ export function applyOperations(state: State, operations: StateOperation[]) {
   };
   const refusals = operations.flatMap(({ ...operation }) => {
     if (isRepeat(next, operation)) repeats++;
-    const reason = apply(next, operation, threads);
+    const reason = apply(next, operation, threads, pcTraits);
     return reason ? [{ op: operation.op, reason }] : [];
   });
   return { next, refused: refusals.filter((refusal) => !isHarmless(refusal)), ignored: refusals.filter(isHarmless), repeats };

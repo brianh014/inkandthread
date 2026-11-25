@@ -758,3 +758,18 @@ test("a picture prompt of no words, such as a placeholder of underscores, draws 
   expect(images.payloads.filter(({ prompt }) => prompt.includes("____"))).toHaveLength(0);
   expect((await imagesOf(id)).images).toEqual([]);
 });
+
+test("a prompt is kept after its own field's name and before a JSON tail with a null in it", async () => {
+  for (const written of ["visual_description: A lit quay at dusk.", 'A lit quay at dusk.", "chapter_ends": null, "recent_summary": "It rained."']) {
+    images = scriptedImages(PNG, PNG);
+    script = scriptedTextProvider(newScene(written, "The quay"));
+    app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter);
+    await enableImages();
+    const id = await app.createSave();
+
+    await playTurn(id);
+    await settled(id);
+
+    expect(images.payloads.map(({ prompt }) => prompt)).toContain("A lit quay at dusk.");
+  }
+});

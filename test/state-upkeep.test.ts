@@ -564,9 +564,10 @@ test("a person's line never holds what only someone's knowledge does, nor replac
   const summary = (name: string, text: string) => ({ op: "set_known_npc_summary", name, summary: text });
   const { upkeep } = play(
     // The edit's own settling fails, which the Turn plays on past.
-    [narration("Mara waves from the quay."), new Error("down"), narration("Mara smiles.")],
+    [narration("Mara waves from the quay."), new Error("down"), narration("Mara smiles."), narration("Mara nods.")],
     [
       upkept(summary("Mara", "The pilot who buried the ledger."), summary("Tobin", "A clerk."), summary("constructor", "Nobody.")),
+      upkept(summary("Mara", "A smuggler.")),
       upkept(summary("Mara", "A smuggler.")),
     ],
   );
@@ -591,6 +592,9 @@ test("a person's line never holds what only someone's knowledge does, nor replac
   expect(store().latestState(id).pcKnown.summaries).toEqual({ Tobin: "A clerk." });
 
   store().addEdit(id, { edit: "npcSummary", name: "Mara", text: "My sister-in-law, whom I trust." });
-  expect((await turn(id)).ok).toBe(true);
-  expect(store().latestState(id).pcKnown.summaries!.Mara).toBe("My sister-in-law, whom I trust.");
+  // Nor a Turn later.
+  for (let played = 0; played < 2; played++) {
+    expect((await turn(id)).ok).toBe(true);
+    expect(store().latestState(id).pcKnown.summaries!.Mara).toBe("My sister-in-law, whom I trust.");
+  }
 });

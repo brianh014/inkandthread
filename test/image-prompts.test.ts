@@ -407,4 +407,11 @@ test("an NPC's looks given the PC whole are refused, though theirs were kept wit
   const own = "a strong, rawboned woman in her forties with a weathered pale face and short ash-blonde hair";
   const met = applyOperations({ ...openingState, pcAppearance: own }, [{ op: "add_npc", name: "Halvorsen", appearance: given }]).next;
   expect(applyOperations(met, [{ op: "set_pc_appearance", appearance: given }], own).next.pcAppearance).toBe(own);
+  // And one's kept as written, while a PC who only shares some of theirs keeps their own.
+  const raw = { ...openingState, pcAppearance: own, npcs: [{ name: "Halvorsen", appearance: given }] };
+  expect(applyOperations(raw, [{ op: "set_pc_appearance", appearance: given }], own).next.pcAppearance).toBe(own);
+  const sailor = { name: "Olsen", appearance: "a broad bearded sailor with a broken nose, scarred cheek, cropped greying temples and weathered forehead" };
+  const hurt =
+    "a slight woman with a broken nose, scarred cheek, cropped temples and weathered forehead, left shoulder caked in dried blood, knuckles split from gripping rope";
+  expect(applyOperations({ ...raw, npcs: [sailor] }, [{ op: "set_pc_appearance", appearance: hurt }], own).next.pcAppearance).toBe(hurt);
 });

@@ -219,7 +219,7 @@ test("an Update's portrait prompt keeps the hair and beard of their looks it lea
   );
 });
 
-test("an edit says the skin where facial hair has gone, and not otherwise", async () => {
+test("an edit says the skin where facial hair has gone, dark skin with any beard, and not otherwise", async () => {
   const looks = "a heavy-set man of fifty with dark brown skin, clean-shaven";
   const reply = JSON.stringify({
     keep: "The same man with his face preserved.",
@@ -235,7 +235,15 @@ test("an edit says the skin where facial hair has gone, and not otherwise", asyn
     keep: "The same man with his face preserved.",
     changes: "He wears a sweater. Standing in front of a plain neutral background.",
   });
-  expect(await write({ ...portrait, looks: bearded, was: "A heavy-set man with a black beard." }, "prose", kept).written).toContain("dark brown skin");
+  expect(await write({ ...portrait, looks: bearded, was: "A heavy-set man with a black beard." }, "prose", kept).written).toContain(
+    "With dark brown skin and a grey-shot black beard.",
+  );
+  const named = "a tall dark-skinned man of fifty with a black beard";
+  expect(await write({ ...portrait, looks: named, was: "A tall man with a black beard." }, "prose", kept).written).toContain(
+    "With dark skin and a black beard.",
+  );
+  for (const other of ["a man with fair skin under a black beard", "a woman with dark brown skin and no beard"])
+    expect(await write({ ...portrait, looks: other, was: "A tall person." }, "prose", kept).written).not.toMatch(/(?:fair|brown) skin/);
 });
 
 test("a prompt the text model can't write fails with a reason to show, and nothing is drawn from a template", async () => {

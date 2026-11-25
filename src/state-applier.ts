@@ -790,13 +790,15 @@ function looksOfAnother(state: State, appearance: string, pcTraits: string) {
   const wordsOf = (looks: string): string[] => looks.toLowerCase().match(/\p{L}{4,}/gu) ?? [];
   // Never the words the PC has already, as one built like an NPC could never be given a new look.
   const own = new Set([...wordsOf(state.pcAppearance), ...wordsOf(pcTraits)]);
-  // Without what passes, as theirs are kept, or a frosted man's looks given the PC whole matched too little of his own.
-  const words = new Set(wordsOf(lasting(appearance)).filter((word) => !ANYONES.has(word)));
-  return state.npcs.some((npc) => {
-    const theirs = new Set(wordsOf(npc.appearance));
+  const telling = (looks: string) => new Set(wordsOf(looks).filter((word) => !ANYONES.has(word)));
+  const matches = (looks: string, npc: string, most: number) => {
+    const [words, theirs] = [telling(looks), telling(npc)];
     const shared = [...words].filter((word) => theirs.has(word) && !own.has(word)).length;
-    return shared >= 5 && shared >= words.size * 0.6;
-  });
+    return shared >= 5 && shared >= words.size * 0.6 && shared >= theirs.size * most;
+  };
+  // Without what passes too, as theirs are kept, where that is nearly all of theirs, as a frosted man's looks given the PC whole
+  // matched too little of what was kept of his.
+  return state.npcs.some((npc) => matches(appearance, npc.appearance, 0) || matches(lasting(appearance), lasting(npc.appearance), 0.8));
 }
 
 /**

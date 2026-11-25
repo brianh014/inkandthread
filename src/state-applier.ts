@@ -415,6 +415,12 @@ export function alike(a: string, b: string) {
   return shared >= 3 && shared / new Set([...one, ...two]).size >= 0.7 && namesOf(a) === namesOf(b) && denies(a) === denies(b);
 }
 
+/** How much of `part` a fact says, by the share of its words it holds, or 0 for one of few words, which tell little. */
+function saysOf(fact: string, part: string) {
+  const [words, theirs] = [wordsOf(fact), wordsOf(part)];
+  return theirs.size < 5 ? 0 : [...theirs].filter((word) => words.has(word)).length / theirs.size;
+}
+
 /**
  * `fact` added to what someone knows as the newest, in place of all it says again in other words, and so in their parts, as
  * the newer has it as it now stands and a part reworded must stay one.
@@ -1040,10 +1046,25 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       for (const [name, parts] of Object.entries(edit.knows ?? {})) {
         const key = findPerson(state.npcs, name)?.name ?? name;
         const knew = own(npcKnows, key);
-        const known = parts.map(knownOnly).filter((part) => part && !knew.includes(part));
-        // A part given again in other words replaces the old, as a move that reads more of the story restated parts every time.
-        let next = { knows: knew, parts: own(npcParts, key) };
-        for (const part of known) next = relearn(next.knows, next.parts, part);
+        const held = own(npcParts, key);
+        // Nor one an old part says whole, and a part that mostly says an old one replaces it, as a move restated parts every time and
+        // four copies of one secret, each a little different, stood in a person's list.
+        const known = parts
+          .map(knownOnly)
+          .filter(
+            (part) => part && !knew.includes(part) && !held.some((old) => denies(old) === denies(part) && saysOf(old, part) >= 0.85 && saysOf(part, old) < 0.6),
+          );
+        let next = { knows: knew, parts: held };
+        for (const part of known) {
+          const stale = next.parts.filter((old) => old !== part && saysOf(part, old) >= 0.6);
+          next = relearn(
+            next.knows.filter((fact) => !stale.includes(fact)),
+            next.parts.filter((fact) => !stale.includes(fact)),
+            part,
+          );
+          // In place of a part, so a part itself.
+          if (stale.length > 0 && !next.parts.includes(part)) next = { ...next, parts: [...next.parts, part] };
+        }
         const theirs = partTakers.has(name) && known.length > 0 ? [...next.parts, ...known.filter((part) => !next.parts.includes(part))] : next.parts;
         // shortcut: the last few parts only, so a long story's turnover of threads can't fill the cap with them; keep more if old secrets go missing.
         if (theirs !== own(npcParts, key)) npcParts[key] = theirs.slice(-MAX_PARTS);

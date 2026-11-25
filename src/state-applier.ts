@@ -284,7 +284,7 @@ export const FOLD_NPC_KNOWS = 12;
 /** The most an NPC's list keeps, dropping the oldest, only reached when folding fails. */
 export const MAX_NPC_KNOWS = 20;
 // Of those, how many may be parts of threads, which the cap keeps.
-const MAX_PARTS = 4;
+const MAX_PARTS = 6;
 
 // Saying what someone doesn't know, which an NPC's list read as what they do, and which goes stale once they learn it.
 // Any verb of knowing or learning denied, or with nothing or no one as what is known, as "has not heard of", "heard nothing of"

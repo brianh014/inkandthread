@@ -143,7 +143,7 @@ export async function upkeepOperations(
           pc_name: pcName,
           known_facts: state.pcKnown.facts,
           // Only those the replies could show learning, as everyone's was about a fifth of the prompt.
-          // Without the parts of the threads they hold, so less here tells Upkeep a secret. shortcut: parts past the latest four, and
+          // Without the parts of the threads they hold, so less here tells Upkeep a secret. shortcut: parts past the latest few, and
           // a Save's from before they were kept, still go; check its notes by meaning if one leaks.
           npc_knows: withoutParts(knowsOfPresent(state, said), state),
           // As the Narrator seldom resolves one, and long stories ended with a dozen that play had long settled.

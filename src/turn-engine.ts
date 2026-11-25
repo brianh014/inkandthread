@@ -51,7 +51,7 @@ import { applyWorldChange } from "./world-creation";
 import { foldKnows } from "./knowledge-folds";
 import { closeLooseEnds } from "./loose-ends-check";
 import { growLore } from "./lore-growth";
-import { deedWords, forgetUnread, MOVE_LIMIT, moveDue, moveSoon, sameDeed, moveWorldOn, storyPace, turnThreadChanges } from "./world-moves-on";
+import { deedWords, forgetUnread, MOVE_LIMIT, moveDue, moveSoon, openingMoved, sameDeed, moveWorldOn, storyPace, turnThreadChanges } from "./world-moves-on";
 import { threadPeople } from "./thread-people";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
@@ -626,7 +626,7 @@ export async function worldMoved(id: string, signal: AbortSignal) {
 }
 
 /** Stops the Save's move of the world still running, as it could only fail once its reply is reverted, and the next Turn would wait for it. */
-export function stopMoves(id: string) {
+export function stopMoves(id: string, reason = "reverted") {
   forgetUnread(id);
   const mover = movers.get(id);
   if (!mover) return;
@@ -635,7 +635,12 @@ export function stopMoves(id: string) {
   moving.delete(id);
   // Taken as made when it began, so the next Turn makes it instead.
   moveSoon(id);
-  log.info("world", "World Moves On stopped", { save: id, reason: "reverted" });
+  log.info("world", "World Moves On stopped", { save: id, reason });
+}
+
+/** The next Turn moves the world where the story is left with no plans, as after a Revert to the opening or a first move that failed. */
+export function plansSoon(saves: SaveStore, id: string) {
+  if (Object.keys(saves.latestState(id).threadsPlan).length === 0) moveSoon(id);
 }
 
 /**
@@ -711,7 +716,7 @@ export async function playTurn(
     images: ImagePipeline;
     usage?: UsageStore;
     reviewProvider?: TextProvider;
-    /** Whether the world moves on at natural pauses. See `moveWorldOn`. */
+    /** Whether the world moves on after the opening and at natural pauses. See `moveWorldOn`. */
     moveWorld?: boolean;
     offerChoices?: boolean;
   },
@@ -773,7 +778,10 @@ export async function playTurn(
   // After the opening too, for its first plans alone, as the first five replies of every story had none, and two nights in seven
   // plays were slept through before the visit the story began with was planned. The player reads the opening meanwhile.
   const opening = moveWorld && kind === "opening";
-  if (opening) log.info("world", "World move due", { save: id, opening });
+  if (opening) {
+    log.info("world", "World move due", { save: id, opening });
+    openingMoved(id, saves.latestState(id));
+  }
   if (opening || (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies + 1))) {
     // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
     // Lore and the folds beside the move, by the Scribe, as Upkeep is, so the next Turn waits on them all at most one MOVE_LIMIT, never one after the other.
@@ -787,7 +795,12 @@ export async function playTurn(
       !opening && reviewProvider && foldKnows(reviewProvider, saves, id, limit),
       !opening && reviewProvider && closeLooseEnds(reviewProvider, saves, id, limit),
     ])
-      .then(() => undefined)
+      // One stopped has asked for the next move itself. Never throws, as the Save may be gone by now.
+      .then(() => {
+        try {
+          if (opening && !mover.signal.aborted) plansSoon(saves, id);
+        } catch {}
+      })
       .finally(() => movers.get(id) === mover && movers.delete(id))
       // Only its own, as work queued after it, such as World Changes made again after a Revert, must still be waited for.
       .finally(() => moving.get(id) === move && moving.delete(id));
@@ -817,6 +830,8 @@ export async function replaceResponse(
   emit: TurnEvents = () => {},
 ) {
   const times = { started: Date.now() };
+  // Its first move reads what is replaced, so it isn't waited for, only to be dropped.
+  if (saves.turnToReplace(id, messageId, true).input === OPENING_INPUT) stopMoves(id, "the opening is replaced");
   await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.turnToReplace(id, messageId, true).state);
   const { input, narration, check, state, messages, sceneImage, journalEdits, movesDropped } = saves.turnToReplace(id, messageId, true);
   const taken = saves.latestState(id);

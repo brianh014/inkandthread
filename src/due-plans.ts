@@ -7,10 +7,12 @@ import { clockOf, nameForms, type State } from "./state-applier";
 import { threadPeople } from "./thread-people";
 import { deedWords, echoes } from "./world-moves-on";
 
-/** Story hours a reply is taken to pass until the story's own pace is known. */
+/** Story hours a reply is taken to pass at the least, as at a pace of 0.05 a plan's hour fell inside a reply that took 0.2. */
 const USUAL_PACE = 0.1;
-/** How far from its hour a plan may be brought on: ahead, as a pace of travel is no pace for talk, and after, where no move has told it yet. */
+/** The furthest ahead of its hour a plan is brought on, as a pace of travel is no pace for talk. */
 const NEAR_HOURS = 0.5;
+/** Added to the reach, as 43.75 and 0.05 came to a hair under the 43.8 a plan was due. */
+const ROUNDING = 0.01;
 /** The most replies one plan is offered to, so one the Narrator leaves out goes to the next move of the world. */
 const MOST_OFFERS = 2;
 // The words of a place that tell nothing of which, as "carries the lie north" put a far well at a north rock.
@@ -40,8 +42,18 @@ const names = (plan: string, person: string) =>
     }),
   );
 
+// Where a plan turns from its deed to what that is for, whose people it isn't near, as a knife buried far off "meaning to meet Vane".
+// shortcut: by the words moves use most; add to them if a far plan is offered for a name after another.
+const PURPOSE = /\b(?:meaning|hoping|intending|so that|in order)\b/;
+/** What a person shown with no name is called, such as the "rider" of "Rider on the crest". */
+const calledBy = (person: string) => {
+  if (!/\s\p{Ll}/u.test(person)) return undefined;
+  const word = person.split(/\s(?:of|on|at|in|by|with|from|who|near|behind)\s/)[0]!.match(/\p{L}+$/u)?.[0];
+  return word && word.length >= 4 && !common(word) ? word : undefined;
+};
+
 /**
- * The open plan to bring on in the coming reply, whose hour it reaches: one that names the PC or someone with them, or else the
+ * The open plan to bring on in the coming reply, whose hour it reaches or has passed with no move to tell it: one that names the PC or someone with them, or else the
  * PC's place, as a far deed offered brought its news from nowhere. One at most, so events never crowd in. `again` is for a reply
  * that replaces one, whose own offer was counted.
  */
@@ -51,12 +63,18 @@ export function duePlan(id: string, state: State, pcName: string, pace = USUAL_P
   const most = MOST_OFFERS + (again ? 1 : 0);
   const company = [...state.scene.visibleCast, pcName].filter(Boolean);
   const place = (state.scene.location.match(/\p{L}{4,}/gu) ?? []).filter((word) => !common(word) && !ANY_PLACE.has(word.toLowerCase()));
-  const nearness = (plan: string) => (company.some((person) => names(plan, person)) ? 2 : place.some((word) => wholeWord(word, "iu").test(plan)) ? 1 : 0);
+  const nearness = (plan: string) => {
+    const deed = plan.split(PURPOSE)[0]!;
+    const shown = (word: string | undefined) => word !== undefined && wholeWord(word, "iu").test(deed);
+    if (company.some((person) => names(deed, person) || shown(calledBy(person)))) return 2;
+    return place.some(shown) ? 1 : 0;
+  };
+  const reach = clock + Math.min(Math.max(pace, USUAL_PACE), NEAR_HOURS) + ROUNDING;
   const [first] = Object.entries(state.threadsPlan)
     .flatMap(([truth, plan]) => {
       const due = state.threadsDue[truth];
       const near = nearness(plan);
-      const coming = due !== undefined && due > clock - NEAR_HOURS && due <= clock + Math.min(pace, NEAR_HOURS);
+      const coming = due !== undefined && due <= reach;
       return coming && near > 0 && (offered.get(id)?.get(plan) ?? 0) < most ? [{ plan, near, due }] : [];
     })
     .toSorted((a, b) => b.near - a.near || a.due - b.due);

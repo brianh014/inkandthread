@@ -28,10 +28,12 @@ const state: State = {
 
 test("the plan brought on is one near the PC whose hour this reply reaches, never a far one", () => {
   expect(duePlan("near", state, "Wren")).toBe(PLAN);
-  // Not before its hour is in reach, nor long after it.
+  // Not before its hour is in reach, but after it while no move has told it.
   expect(duePlan("early", { ...state, storyTime: at(18.6) }, "Wren")).toBeUndefined();
   expect(duePlan("pace", { ...state, storyTime: at(18.6) }, "Wren", 0.5)).toBe(PLAN);
-  expect(duePlan("late", { ...state, storyTime: at(19.6) }, "Wren")).toBeUndefined();
+  expect(duePlan("late", { ...state, storyTime: at(29) }, "Wren")).toBe(PLAN);
+  // Nor missed by a rounding, or by a pace shorter than a reply may take.
+  expect(duePlan("rounding", { ...state, storyTime: at(18.949999999999974) }, "Wren", 0.05)).toBe(PLAN);
   // Someone with the PC, the PC by name, or the PC's place makes it near, and otherwise none is sent.
   const alone = { ...state, scene: { location: "the north pillar", visibleCast: [] } };
   const plan = (text: string, hours = 18.95, pace = 0.1) =>
@@ -40,6 +42,11 @@ test("the plan brought on is one near the PC whose hour this reply reaches, neve
   expect(plan("At seven Drem will tell Mara.")).toContain("Mara");
   expect(plan("At seven Drem will tell Mrs Vell.")).toContain("Vell");
   expect(plan("At seven Drem will climb the pillar.")).toContain("pillar");
+  // By what someone in view with no name is called.
+  const watched = { ...alone, scene: { ...alone.scene, visibleCast: ["Rider on the crest"] }, storyTime: at(19) };
+  expect(duePlan("called", { ...watched, threadsPlan: { [DREM]: "At seven the rider will demand the satchel." } }, "Wren")).toContain("rider");
+  // Never by whom a far deed is meant for.
+  expect(plan("At seven Ossery will bury his knife, meaning to meet Mara.")).toBeUndefined();
   // Never by a surname shared, a direction or any room, nor hours ahead at a pace of travel.
   expect(plan("At seven Jon Vell will burn the papers in Harrow.")).toBeUndefined();
   expect(plan("At seven Drem will carry the lie north.")).toBeUndefined();

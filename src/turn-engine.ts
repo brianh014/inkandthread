@@ -750,7 +750,7 @@ export async function playTurn(
     upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines(saves.pendingEdits(id)) },
     offerChoices,
     previous: lastNarration(messages),
-    seen: () => playerRead(saves.read(id), messages),
+    seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     mustMeet:
       kind === "opening"
         ? (saves.read(id).importantCharacters ?? []).map(({ name }) => name).filter((name) => (saves.read(id).startingHook ?? "").includes(name))
@@ -843,7 +843,7 @@ export async function replaceResponse(
     upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines(journalEdits) },
     offerChoices,
     previous: lastNarration(messages),
-    seen: () => playerRead(saves.read(id), messages),
+    seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     memory,
     due,
     replies,
@@ -925,7 +925,7 @@ export async function editResponse(
     upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines(journalEdits) },
     offerChoices,
     previous: lastNarration(messages),
-    seen: () => playerRead(saves.read(id), messages),
+    seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     narration: text,
     memory,
     due,
@@ -1174,7 +1174,9 @@ async function narrate(
           },
         }).then((written) =>
           // Held to what the PC knows, as a Choice may still build on a word only the secrets hold.
-          written && upkeep && seen !== undefined ? knownChoices(written, narrated.next, seen(), narration, upkeep.settings.read().storyInLog) : written,
+          written && upkeep && seen !== undefined
+            ? knownChoices(written, narrated.next, [seen(), about?.pc ?? "", about?.theme ?? ""].join(" "), narration, upkeep.settings.read().storyInLog)
+            : written,
         );
       // Merged with what each ask kept, up to two asks, as taking one set or the other offered two Choices when each had lost one to a leak.
       const refilled = async (kept: string[]) => {
@@ -1385,10 +1387,11 @@ export const sameApproach = (one: string, other: string) => {
   const shared = [...a].filter((word) => b.has(word)).length;
   return one === other || (shared >= 4 && shared * 2 >= Math.min(a.size, b.size));
 };
-// The player's notes on the PC a Choice may be coloured by, never their looks or skills, which say what they can do rather than want.
-const ABOUT_WORDS = 150;
+// The player's notes on the PC a Choice may be coloured by, what they want first.
+// shortcut: its first words only, and a script without spaces isn't cut; raise it, or cut by characters, if notes that matter are lost.
+const ABOUT_WORDS = 300;
 const aboutPc = ({ pc, theme }: Pick<ReturnType<SaveStore["read"]>, "pc" | "theme">) => ({
-  pc: [pc.background, pc.personality, pc.other]
+  pc: [pc.personality, pc.other, pc.background]
     .map((text) => text?.trim())
     .filter(Boolean)
     .join(" ")
@@ -1397,9 +1400,6 @@ const aboutPc = ({ pc, theme }: Pick<ReturnType<SaveStore["read"]>, "pc" | "them
     .join(" "),
   theme: theme?.trim() ?? "",
 });
-/** What the player has read or written: their notes on the PC, the Starting Hook and the story. */
-const playerRead = ({ pc, startingHook }: Pick<ReturnType<SaveStore["read"]>, "pc" | "startingHook">, messages: { text: string }[]) =>
-  [...Object.values(pc), startingHook, ...messages.map(({ text }) => text)].filter((text) => typeof text === "string").join("\n");
 /** The people whose line in the Journal the player has written since the last reply, which Upkeep leaves as they wrote it. */
 const ownLines = (edits: WorldEdit[]) => edits.flatMap((edit) => (edit.edit === "npcSummary" ? [edit.name] : []));
 /** The operations without a Journal entry naming a secret, logging the Loose Ends among those dropped. */

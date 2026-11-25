@@ -747,7 +747,7 @@ export async function playTurn(
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     about: aboutPc(saves.read(id)),
     before: state,
-    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines([...saves.playersEdits(id), ...saves.pendingEdits(id)], state) },
+    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines([...saves.playersEdits(id), ...saves.pendingEdits(id)]) },
     offerChoices,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
@@ -840,7 +840,7 @@ export async function replaceResponse(
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     about: aboutPc(saves.read(id)),
     before: state,
-    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines([...saves.playersEdits(id), ...journalEdits], state) },
+    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines([...saves.playersEdits(id), ...journalEdits]) },
     offerChoices,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
@@ -922,7 +922,7 @@ export async function editResponse(
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     about: aboutPc(saves.read(id)),
     before: state,
-    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines([...saves.playersEdits(id), ...journalEdits], state) },
+    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines([...saves.playersEdits(id), ...journalEdits]) },
     offerChoices,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
@@ -1457,11 +1457,13 @@ const aboutPc = ({ pc, theme }: Pick<ReturnType<SaveStore["read"]>, "pc" | "them
   theme: theme?.trim() ?? "",
 });
 /** The people whose line in the Journal the player has written, which Upkeep leaves as they wrote it. */
-const ownLines = (edits: WorldEdit[], { pcKnown }: State) => {
+const ownLines = (edits: WorldEdit[]) => {
   const lines = edits.flatMap((edit) => (edit.edit === "npcSummary" ? [edit] : []));
-  // By the line too, as a person renamed or merged takes it along.
-  const kept = Object.entries(pcKnown.summaries ?? {}).filter(([, line]) => lines.some(({ text }) => text === line));
-  return [...lines, ...kept.map(([name]) => ({ name }))].map(({ name }) => name);
+  // By the line too, as a person renamed or merged takes it along, in this very reply or before.
+  return ({ pcKnown }: State) => [
+    ...lines.map(({ name }) => name),
+    ...Object.entries(pcKnown.summaries ?? {}).flatMap(([name, line]) => (lines.some(({ text }) => text === line) ? [name] : [])),
+  ];
 };
 /** The operations without a Journal entry naming a secret, logging the Loose Ends among those dropped. */
 function journalRead<Operation extends StateOperation>(operations: Operation[], state: State, read: string) {

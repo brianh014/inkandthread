@@ -601,11 +601,13 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       ),
     );
     const knows: Record<string, string[]> = {};
+    const pcForms = nameForms(saves.read(id).pc.name);
+    // Never the PC, who was kept as someone with a hidden part in 4 plays of 23.
     for (const { name, knows: part } of kept.flatMap(({ now, knows }) => (now === null ? [] : knows)))
-      if (/\p{L}/u.test(name) && /\p{L}/u.test(part)) knows[name] = [...(knows[name] ?? []), part];
+      if (/\p{L}/u.test(name) && /\p{L}/u.test(part) && !pcForms.includes(name)) knows[name] = [...(knows[name] ?? []), part];
     const parts = Object.fromEntries(
       kept.flatMap(({ thread, truth, now, knows }) => {
-        const names = knows.filter(({ name, knows }) => /\p{L}/u.test(name) && /\p{L}/u.test(knows)).map(({ name }) => name);
+        const names = knows.filter(({ name, knows }) => /\p{L}/u.test(name) && /\p{L}/u.test(knows) && !pcForms.includes(name)).map(({ name }) => name);
         return now === null || names.length === 0 ? [] : [[thread ?? truth!, names] as const];
       }),
     );

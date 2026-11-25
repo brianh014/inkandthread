@@ -90,7 +90,7 @@ export type Upkeep = {
   /** The player's move as they gave it: a Continue's marker, the Opening's or a Rewrite's original input. */
   input: string;
   /** The people whose line the player has just written, which stands. */
-  held?: string[];
+  held?: (state: State) => string[];
   /** The PC's looks as the player wrote them, which stand until the story sets others. */
   traits?: string;
 };
@@ -117,7 +117,7 @@ const MOST_WITHOUT = 3;
  * Turn keeps the Narrator's own state then, and the log gets the failure's type only.
  */
 export async function upkeepOperations(
-  { provider, settings, input, held = [], traits = "" }: Upkeep,
+  { provider, settings, input, held = () => [], traits = "" }: Upkeep,
   pcName: string,
   state: State,
   check: Check | undefined,
@@ -131,7 +131,7 @@ export async function upkeepOperations(
   const model = modelName(reviewerSettings(settings).read());
   if (!model) return undefined;
   const said = [previous, input, reply].join("\n");
-  const known = knownPeople(state, said, held);
+  const known = knownPeople(state, said, held(state));
   const prompt: Prompt = [
     { role: "system", content: timed ? RULES.withoutTime : RULES.withTime },
     {

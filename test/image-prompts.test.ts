@@ -235,6 +235,14 @@ test("a clothing clause keeps its clothes when a word in it passes with the scen
   expect(looksOf("a lanky boy with dusty brown skin and a shaven head, in a dust-caked orange coat")).toBe(
     "a lanky boy with brown skin and a shaven head, in an orange coat",
   );
+  // Held for now, and what its "and" joins to it worn.
+  expect(looksOf("a lad, a grey jersey beneath and a knitted cap crushed in his hands, a loaded crossbow laid across her saddlebow")).toBe(
+    "a lad, a grey jersey beneath",
+  );
+  expect(looksOf("a lad, wearing a knitted cap crushed in his hands and a patched blue jacket over a jersey")).toBe(
+    "a lad, a patched blue jacket over a jersey",
+  );
+  expect(looksOf("a woman, grease on her hands, rings on both hands")).toBe("a woman, grease on her hands, rings on both hands");
   // Half of a compound says more than dirt.
   expect(looksOf("a man, dusty-haired and lean, blue eyes")).toBe("a man, dusty-haired and lean, blue eyes");
   // A colour, not dirt.
@@ -389,4 +397,14 @@ test("an electric torch is told to the image model as a flashlight, and one that
     ["early 21st-century London", "a firearm at his belt, a torch raised", "a firearm at his belt, a flashlight raised"],
   ] as const)
     expect([era, flashlights(written, era)]).toEqual([era, drawn]);
+});
+
+test("a person is never something the PC wears or carries, at no cost to the Turn", () => {
+  const before = { ...openingState, npcs: [{ name: "Ossery", appearance: "a man" }] };
+  const { next, refused } = applyOperations(before, [
+    { op: "add_item", slot: "wearing", item: "Ossery" },
+    { op: "add_item", slot: "carrying", item: "Ossery's letter" },
+    { op: "remove_item", item: "ossery" },
+  ]);
+  expect([next.inventory, refused]).toEqual([{ ...openingState.inventory, carrying: [...openingState.inventory.carrying, "Ossery's letter"] }, []]);
 });

@@ -657,7 +657,8 @@ test("a re-ask for a missing part keeps the part it gives, though another now ha
       nextDay(),
     ),
     moved(change(drowned, "Grout digs a grave."), elsewhere),
-    moved({ ...change(drowned, "Grout digs a grave."), knows: [part] }, elsewhere),
+    // Never the PC, who is no one with a hidden part.
+    moved({ ...change(drowned, "Grout digs a grave."), knows: [part, { name: "Ash", knows: "Ash met the ferryman." }] }, elsewhere),
     narration("Ash waits."),
   );
   const id = store().create({
@@ -669,7 +670,7 @@ test("a re-ask for a missing part keeps the part it gives, though another now ha
   for (const input of ["I meet him.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
 
   expect(told.prompts).toHaveLength(4);
-  expect(store().latestState(id).npcKnows["Silas Grout"]).toEqual([part.knows]);
+  expect(store().latestState(id).npcKnows).toEqual({ "Silas Grout": [part.knows] });
 });
 
 test("a missing part is not asked again past half the move's time, as two such re-asks were cut off at its end", async () => {

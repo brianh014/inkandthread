@@ -111,13 +111,14 @@ const LOOSE_ENDS = [
   "Who rings the bell at night?",
   "What does the harbourmaster owe?",
 ];
+// In words no FACT holds, as a line on a person naming what only someone knows is dropped.
 const WHO = [
-  "A dockhand who owes the harbourmaster money",
-  "A widow who keeps the lamp shop by the quay",
-  "A sailor stranded since the storm",
+  "A dockhand with a limp",
+  "A widow who sells lamps by the quay",
+  "A sailor stranded a long way from home",
   "A clerk at the customs house",
-  "A priest who rarely leaves the chapel",
-  "A smuggler posing as a net mender",
+  "A priest with a kind face",
+  "A net mender with quick hands",
 ];
 const CONDITIONS = ["Soaked to the skin", "Tired from the long walk", "Uneasy", "Hungry"];
 const INJURIES = ["A grazed hand", "A bruised shoulder", "A twisted ankle"];

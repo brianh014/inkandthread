@@ -1559,7 +1559,7 @@ test("the Journal says who known NPCs are, and lists the known ones in the scene
 
   const journal = await journalOf(app, id);
   // Told of the people the PC knows, with no line yet.
-  expect(JSON.parse(review.prompts[0]![1]!.content).state.known_people).toEqual({ Mara: "" });
+  expect(JSON.parse(review.prompts[0]![1]!.content).state.known_people).toEqual({ Mara: "", Tobin: "", Wren: "" });
   expect(journal).toMatchObject({ npcSummaries: { Mara: "The ferry's pilot." }, recentNpcs: ["Mara"] });
   // Oldest first, as the page flips it: Mara, met first but last in a scene, ends the list.
   expect(journal.npcs).toEqual(["Tobin", "Wren", "Mara"]);

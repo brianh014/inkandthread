@@ -200,6 +200,11 @@ test("a review's mark on a person keeps the words the prompt has of them, and wh
   expect(await reviewed("[Mara Vukas: A slight woman in her early thirties with olive skin, kneeling at the lip].")).toContain(
     "[Mara Vukas: A slight woman in her early thirties] with olive skin, kneeling at the lip.",
   );
+  // Its comma isn't the prompt's, and a mark never ends half way through a phrase.
+  expect(await reviewed("[Mara Vukas: A slight woman in her early thirties, olive-skinned, kneeling at the lip].")).toContain(
+    "[Mara Vukas: A slight woman in her early thirties], olive-skinned, kneeling at the lip.",
+  );
+  expect(await reviewed("[Mara Vukas: A slight woman in her early forties].")).toBe(bare);
   // Described anew from the start is still refused.
   expect(await reviewed("[Mara Vukas: A grey old woman kneeling at the lip].")).toBe(bare);
 });

@@ -1002,14 +1002,19 @@ const withoutStrayQuote = (prompt: string) => prompt.replace(/["“”\s]+\}/g, 
  */
 const asWritten = (reviewed: string, original: string[], cast: string[], description: string) =>
   reviewed.replace(/\[([^:\]]+):\s*([^\]]+)\]/g, (mark, name: string, phrase: string) => {
-    const has = (words: string) => description.toLowerCase().includes(words.toLowerCase());
-    if (original.includes(mark) || !cast.includes(name.trim()) || has(phrase.trim())) return mark;
+    const plain = (words: string) => words.toLowerCase().replace(/[,;.]/g, "");
+    const has = (words: string) => plain(description).includes(plain(words));
+    if (original.includes(mark) || !cast.includes(name.trim()) || description.toLowerCase().includes(phrase.trim().toLowerCase())) return mark;
     const words = phrase.trim().split(/\s+/);
+    // Only where the words that follow start something of their own, as "a man in a dark" before "green cloak" is half a phrase.
+    const ends = (kept: number) => /[,;]$/.test(words[kept - 1]!) || /^(?:with|in|on|at|who|wearing|and|\p{L}+ing)$/iu.test(words[kept] ?? "with");
     let kept = words.length;
-    while (kept > 0 && !has(words.slice(0, kept).join(" "))) kept--;
-    // Never ending mid-phrase, as "looking down at a".
-    while (kept > 0 && /^(?:an?|the|at|in|on|of|to|by|with|and|his|her|their|its|from|over|under|into)$/i.test(words[kept - 1]!)) kept--;
-    return kept >= 4 ? `[${name}: ${words.slice(0, kept).join(" ").replace(/[,;]$/, "")}] ${words.slice(kept).join(" ")}` : mark;
+    while (kept > 0 && !(has(words.slice(0, kept).join(" ")) && ends(kept))) kept--;
+    const opening = words.slice(0, kept).join(" ").replace(/[,;]$/, "");
+    // The mark must hold the prompt's own words, punctuation and all.
+    return kept >= 4 && description.toLowerCase().includes(opening.toLowerCase())
+      ? `[${name}: ${opening}]${/[,;]$/.test(words[kept - 1]!) ? "," : ""} ${words.slice(kept).join(" ")}`
+      : mark;
   });
 const keepsMarks = (original: string[], reviewed: string[], cast: string[] = [], description = "") => {
   const left = [...original];

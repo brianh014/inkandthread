@@ -127,6 +127,11 @@ export function pcLooks({ name, physicalTraits = "" }: Save["pc"], wearing: stri
   return [traits, dressed].filter(Boolean).join(", ");
 }
 
+const sameWords = (one: string, other: string) => {
+  const said = (text: string) => (text.toLowerCase().match(/\p{L}+/gu) ?? []).filter((word) => !["a", "an", "the"].includes(word)).join(" ");
+  return said(one) !== "" && said(one) === said(other);
+};
+
 const FEATURE = /\b(?:skin|skinned|complexion|hair|haired|beard|bearded|mo?ustached?|bald|freckles|freckled)\b/i;
 const FILLER = new Set(["a", "an", "the", "his", "her", "their", "of"]);
 
@@ -767,9 +772,11 @@ export function imagePipeline(
         // No words too, as a reply cut where it ran on never wrote its picture's prompt, and a placeholder of underscores drew a
         // motorcycle.
         const wordless = !/\p{L}/u.test(scene.description);
-        if (drawScenes && scene.changed && (fragment || wordless))
-          log.info("images", "Scene picture skipped", { save: id, message: messageId, words: fragment ? 1 : 0 });
-        if (drawScenes && scene.changed && !wordless && !fragment) {
+        // Nor the place's own name, as "the camp" alone drew a forest campsite in a desert story; in lower case, as a fragment is told.
+        const placeOnly = /^\p{Ll}/u.test(scene.description.trim()) && sameWords(scene.description, scene.location);
+        if (drawScenes && scene.changed && (fragment || wordless || placeOnly))
+          log.info("images", "Scene picture skipped", { save: id, message: messageId, words: scene.description.match(/\p{L}+/gu)?.length ?? 0 });
+        if (drawScenes && scene.changed && !wordless && !fragment && !placeOnly) {
           if (jobs.waiting) dropped(id, jobs.waiting, "a newer scene");
           jobs.waiting = queued(id, {
             kind: "scene",

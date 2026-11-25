@@ -786,3 +786,16 @@ test("a prompt is kept after its own field's name and before a JSON tail with a 
     expect(images.payloads.map(({ prompt }) => prompt)).toContain("A lit quay at dusk.");
   }
 });
+
+test("a picture prompt that is only the place's name draws nothing", async () => {
+  images = scriptedImages(PNG);
+  script = scriptedTextProvider(newScene("the camp", "The camp"));
+  app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter);
+  await enableImages();
+  const id = await app.createSave();
+
+  await playTurn(id);
+  await settled(id);
+
+  expect(images.payloads.map(({ prompt }) => prompt)).not.toContain("the camp");
+});

@@ -43,25 +43,13 @@ test("a Lore Entry can be rewritten, by the Narrator, and stays keyword-activate
   expect(next.worldBible).toEqual([{ title: "Ellis", keywords: ["Ellis", "Crane"], content: "Ellis died in April.", alwaysOn: false }]);
 });
 
-test("rewriting a Lore Entry that isn't there adds it, and removing one that isn't there changes nothing, so neither costs the Turn", () => {
+test("rewriting a Lore Entry that isn't there adds it, and an always-on one is never rewritten", () => {
   const rewrite: StateOperation = { op: "update_lore_entry", title: "New", keywords: ["new"], content: "Fresh." };
 
   expect(run(withState({}), rewrite).worldBible).toEqual([{ title: "New", keywords: ["new"], content: "Fresh.", alwaysOn: false }]);
-  expect(run(withState({}), { op: "remove_lore_entry", title: "Gone" }).worldBible).toEqual([]);
-});
-
-test("the Narrator can remove a Lore Entry, but neither rewrite nor remove an always-on one", () => {
   const pinned = entry("Canon", ["canon"], { alwaysOn: true });
-  const state = withState({ worldBible: [pinned, entry("Stale", ["stale"])] });
-
-  const next = run(
-    state,
-    { op: "remove_lore_entry", title: "Stale" },
-    { op: "update_lore_entry", title: "Canon", keywords: ["other"], content: "Changed." },
-    { op: "remove_lore_entry", title: "Canon" },
-  );
-
-  expect(next.worldBible).toEqual([pinned]);
+  const changed: StateOperation = { op: "update_lore_entry", title: "Canon", keywords: ["other"], content: "Changed." };
+  expect(run(withState({ worldBible: [pinned] }), changed).worldBible).toEqual([pinned]);
 });
 
 for (const [name, list, operation] of [
@@ -113,7 +101,6 @@ test("a Plot Thread's rewrite changes its now and keeps its truth, unless it ame
   });
   expect(revealed.plotThreads).toEqual(["Pell killed Crane on the magistrate's orders, and the PC knows it."]);
   expect(revealed.threadsNow).toEqual({ "Pell killed Crane on the magistrate's orders, and the PC knows it.": "Pell flees north." });
-  expect(run(revealed, { op: "resolve_plot_thread", thread: revealed.plotThreads[0]! }).threadsNow).toEqual({});
 });
 
 test("a Turn's rewrite of a thread not in the list adds none, even at a full list, and costs no Turn", () => {
@@ -150,14 +137,6 @@ test("a miscopied Plot Thread is matched to the closest one, so a full list stil
   expect(next.threadsNow).toEqual({ [THREADS[0]!]: "The lighthouse is watched now." });
 });
 
-test("a miscopied Plot Thread can be resolved", () => {
-  const state = withState({ plotThreads: [...THREADS] });
-
-  expect(run(state, { op: "resolve_plot_thread", thread: "A plague ship drifts toward the harbor; no one aboard is seen alive." }).plotThreads).toEqual(
-    THREADS.slice(0, 2),
-  );
-});
-
 test("a thread sharing only a name with one in the list, or matching two equally, is no match", () => {
   const state = withState({ plotThreads: fullOf(...THREADS, "Greyport smugglers fear the lighthouse.", "Greyport smugglers fear the Guild.") });
   const { next, ignored } = applyOperations(state, [
@@ -172,49 +151,15 @@ test("a thread sharing only a name with one in the list, or matching two equally
   expect(next.plotThreads).toEqual(state.plotThreads);
 });
 
-test("a Plot Thread this reply already resolved or rewrote is never matched to another that shares its words", () => {
-  const twins = ["Greyport smugglers fear the lighthouse keeper.", "Greyport smugglers fear the lighthouse keeper's daughter."];
-  const state = withState({ plotThreads: [...twins] });
-
-  const next = run(
-    state,
-    { op: "resolve_plot_thread", thread: twins[0]! },
-    { op: "resolve_plot_thread", thread: "Greyport smugglers fear the lighthouse keeper" },
-  );
-
-  expect(next.plotThreads).toEqual(twins.slice(1));
-});
-
-test("resolving a thread by its old words after amending its truth in the same reply resolves the amended thread", () => {
-  const next = run(
-    withState({ plotThreads: [...THREADS] }),
-    { op: "update_plot_thread", thread: THREADS[0]!, now: "Watched.", truth: "The lighthouse is watched now." },
-    { op: "resolve_plot_thread", thread: THREADS[0]! },
-  );
-
-  expect(next.plotThreads).toEqual(THREADS.slice(1));
-});
-
-test("rewriting a thread this reply already resolved doesn't bring it back", () => {
-  const next = run(
-    withState({ plotThreads: [...THREADS] }),
-    { op: "resolve_plot_thread", thread: THREADS[0]! },
-    { op: "update_plot_thread", thread: THREADS[0]!, now: "The lighthouse is watched now.", truth: null },
-  );
-
-  expect(next.plotThreads).toEqual(THREADS.slice(1));
-  expect(next.threadsNow).toEqual({});
-});
-
 test("a thread whose truth is amended and amended back still matches a paraphrase", () => {
   const next = run(
     withState({ plotThreads: [...THREADS] }),
     { op: "update_plot_thread", thread: THREADS[2]!, now: "Quiet.", truth: "Gone quiet." },
     { op: "update_plot_thread", thread: "Gone quiet.", now: "Quiet.", truth: THREADS[2]! },
-    { op: "resolve_plot_thread", thread: "A plague ship drifts toward the harbor; no one aboard is seen alive." },
+    { op: "update_plot_thread", thread: "A plague ship drifts toward the harbor; no one aboard is seen alive.", now: "Closer.", truth: null },
   );
 
-  expect(next.plotThreads).toEqual(THREADS.slice(0, 2));
+  expect(next.threadsNow).toEqual({ [THREADS[2]!]: "Closer." });
 });
 
 test("a miscopied Plot Thread is matched only among those the Narrator was shown", () => {
@@ -410,8 +355,8 @@ test("the Narrator is told to keep its records true to play", () => {
   const prompt = promptFor();
 
   expect(prompt).toContain("what has happened in play beats any Lore Entry or Plot Thread");
-  for (const op of ["update_lore_entry", "remove_lore_entry", "update_plot_thread", "update_known_fact", "remove_known_fact", "merge_npc"])
-    expect(prompt).toContain(op);
+  expect(prompt).not.toContain("remove_lore_entry");
+  for (const op of ["update_lore_entry", "update_plot_thread", "update_known_fact", "remove_known_fact", "merge_npc"]) expect(prompt).toContain(op);
 });
 
 test("the Narrator tells what the PC says in narration, never as a line under someone else's name", () => {

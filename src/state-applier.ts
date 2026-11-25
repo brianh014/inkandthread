@@ -204,14 +204,12 @@ export const StateOperation = z.discriminatedUnion("op", [
     keywords: z.array(nonEmpty).min(1),
     content: nonEmpty,
   }),
-  z.object({ op: z.literal("remove_lore_entry"), title: nonEmpty }),
   z.object({
     op: z.literal("update_plot_thread"),
     thread: nonEmpty,
     now: nonEmpty,
     truth: nonEmpty.nullable().default(null),
   }),
-  z.object({ op: z.literal("resolve_plot_thread"), thread: nonEmpty }),
   z.object({ op: z.literal("set_pc_appearance"), appearance: nonEmpty }),
   z.object({ op: z.literal("set_era"), era: nonEmpty }),
   z.object({ op: z.literal("set_story_time"), ...StoryTimeMove.shape }),
@@ -444,23 +442,23 @@ function mergeNpcKnows(state: State, name: string, into: string) {
   state.npcKnows = { ...knows, [into]: capped(merged.knows, merged.parts) };
 }
 
-/** What this reply made of each Plot Thread's truth it changed, its amended truth or null once resolved. */
-type ThreadsSoFar = { became: Map<string, string | null>; held?: Set<string> };
+/** The truth this reply amended each Plot Thread's to. */
+type ThreadsSoFar = { became: Map<string, string>; held?: Set<string> };
 
 /**
  * The open thread `text` names, followed to what this reply made of it, so that a thread already changed is never matched
- * to another that shares its words. `resolved` when this reply closed it.
+ * to another that shares its words.
  */
 function namedThread(state: State, text: string, { became }: ThreadsSoFar) {
   // Only those the prompt showed, as a Save from before the limit can hold more.
   const shown = state.plotThreads.slice(0, MAX_PLOT_THREADS);
   // Once each, as a thread in two lists would tie with itself and match nothing.
   const named = closestThread([...new Set([...shown, ...became.keys()])], text);
-  if (named === undefined || shown.includes(named)) return { thread: named };
-  let now: string | null | undefined = named;
+  if (named === undefined || shown.includes(named)) return named;
+  let now: string | undefined = named;
   // A few steps at most, in case a reply rewrites a thread back and forth.
-  for (let step = 0; typeof now === "string" && !shown.includes(now) && became.has(now) && step < MAX_PLOT_THREADS; step++) now = became.get(now);
-  return now === null ? { resolved: true } : { thread: now };
+  for (let step = 0; now !== undefined && !shown.includes(now) && became.has(now) && step < MAX_PLOT_THREADS; step++) now = became.get(now);
+  return now;
 }
 
 /** Changes `state` and returns nothing, or returns why `operation` is disproved, having changed nothing. The reason goes to the Server Log, so it never quotes the operation. */
@@ -588,13 +586,8 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       else state.worldBible.push({ title, keywords, content, alwaysOn: false });
       return;
     }
-    case "remove_lore_entry":
-      state.worldBible = state.worldBible.filter(({ title, alwaysOn }) => alwaysOn || title !== operation.title);
-      return;
     case "update_plot_thread": {
-      const { thread, resolved } = namedThread(state, operation.thread, threads);
-      // Closed earlier in this reply, so a rewrite mustn't open it again.
-      if (resolved) return;
+      const thread = namedThread(state, operation.thread, threads);
       // Not added, as a Turn adds no thread: World Moves On does. A DeepSeek Turn's unmatched rewrites took three threads to six.
       if (thread === undefined) return "matches no thread";
       const truth = operation.truth ?? thread;
@@ -611,24 +604,6 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       if (parts) state.threadParts = { ...otherParts, [truth]: parts };
       replaceOnce(state.plotThreads, thread, truth);
       if (thread !== truth) threads.became.set(thread, truth);
-      return;
-    }
-    case "resolve_plot_thread": {
-      const { thread, resolved } = namedThread(state, operation.thread, threads);
-      if (resolved) return;
-      // Ignored, not refused, as DeepSeek resolved threads long gone, which failed whole Turns.
-      if (thread === undefined || !take(state.plotThreads, thread)) return "matches no thread";
-      const { [thread]: _gone, ...open } = state.threadsNow;
-      state.threadsNow = open;
-      const { [thread]: _plan, ...openPlans } = state.threadsPlan;
-      state.threadsPlan = openPlans;
-      const { [thread]: _question, ...openQuestions } = state.threadsQuestion;
-      state.threadsQuestion = openQuestions;
-      const { [thread]: _due, ...openDue } = state.threadsDue;
-      state.threadsDue = openDue;
-      const { [thread]: _parts, ...openParts } = state.threadParts;
-      state.threadParts = openParts;
-      threads.became.set(thread, null);
       return;
     }
     case "set_pc_appearance":
@@ -678,7 +653,12 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       // words alone, as "three in the morning" reads as morning's nine.
       const at = clockTimeOf(time_of_day);
       const named = at === undefined ? undefined : (day - 1) * 24 + at;
-      const clock = named !== undefined && Math.abs(hours - named) > DRIFT_HOURS ? named : hours;
+      // Nor to words half a day behind the count, a morning said for an afternoon, as "a quarter to one in the morning" after six
+      // minutes to twelve set noon back to midnight. Only behind the clock the day began this reply at, as half a day ahead may be a sleep
+      // and hours over-counted on a night's are still set back to its morning.
+      const slipped =
+        named !== undefined && before?.hours !== undefined && day === before.day && named < before.hours && Math.abs(hours - named - 12) <= DRIFT_HOURS;
+      const clock = named !== undefined && !slipped && Math.abs(hours - named) > DRIFT_HOURS ? named : hours;
       const newDay = day > (before?.day ?? 1);
       // Never back within a day, as a reply that did so had started the story over from its first morning.
       const [was, now] = [dayPart(before?.timeOfDay), dayPart(time_of_day)];
@@ -689,7 +669,9 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       if (!newDay && date === before?.date && ((was !== undefined && now !== undefined && now < was && !wraps) || hoursBack)) return "earlier than now";
       // A new day with no date of its own keeps the old one until a Turn names it, as code can't reckon a world's calendar.
       const dateDue = (newDay || before?.dateDue) && date === before?.date;
-      state.storyTime = { day, date, timeOfDay: withoutDate(time_of_day, date), hours: clock, ...(dateDue && { dateDue: true }) };
+      // Slipped words go too, as the next reply's hours are told by them; those before say less, but nothing wrong.
+      const timeOfDay = slipped ? before!.timeOfDay : withoutDate(time_of_day, date);
+      state.storyTime = { day, date, timeOfDay, hours: clock, ...(dateDue && { dateDue: true }) };
       return;
     }
   }
@@ -945,6 +927,8 @@ export const WorldEdit = z.discriminatedUnion("edit", [
     folded: z.record(z.string(), z.object({ knew: z.array(z.string()), into: z.string() })).optional(),
     // The Scribe's at a pause: the Loose Ends the story has settled.
     settled: z.array(z.string()).optional(),
+    // The Scribe's at a pause: the known facts that repeat another, are no longer true or tell of a moment now over.
+    outdated: z.array(z.string()).optional(),
   }),
   // Whole lists, as a World Change rewrites what the player says is wrong rather than one item at a time.
   z.object({ edit: z.literal("inventory"), wearing: z.array(z.string()), carrying: z.array(z.string()) }),
@@ -1035,7 +1019,9 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       );
       const settled = new Set(edit.settled);
       const looseEnds = state.looseEnds.filter((looseEnd) => !settled.has(looseEnd));
-      return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, npcKnows, npcParts, threadParts, looseEnds };
+      const outdated = new Set(edit.outdated);
+      const pcKnown = { ...state.pcKnown, facts: state.pcKnown.facts.filter((fact) => !outdated.has(fact)) };
+      return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, npcKnows, npcParts, threadParts, looseEnds, pcKnown };
     }
     case "inventory":
       return { ...state, inventory: { wearing: edit.wearing, carrying: edit.carrying } };

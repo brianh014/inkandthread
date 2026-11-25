@@ -89,6 +89,9 @@ test("a person named without a mark is marked, so their portrait goes in and the
     "the person from image 1, a short man, waves at the person from image 2. Hesper's boat bobs. Ashore, an old man naps by the same person. Keep each face.",
   );
   expect(markNames("Vane nods", npcs, pc)).toBe("[Vane] nods");
+  // A lowercase description is no name, as marking "boatman" alone broke the phrase around it.
+  expect(markNames("A thick-set older boatman waits", [{ name: "boatman", appearance: "" }], pc)).toBe("A thick-set older boatman waits");
+  expect(markNames("明美 waits by kit", [{ name: "明美", appearance: "" }], "kit")).toBe("[明美] waits by [kit]");
   // An article, a title or a place in someone's name is no name of its own.
   const titled = [
     { name: "The Ferryman", appearance: "" },

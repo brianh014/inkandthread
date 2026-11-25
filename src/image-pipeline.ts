@@ -17,6 +17,8 @@ export type Scene = {
   description: string;
   location: string;
   npcs: Npc[];
+  /** Those of `npcs` in view, all of them when not given. */
+  inView?: string[];
   wearing: string[];
   portraits: Npc[];
   restyled?: (Npc | null)[];
@@ -47,7 +49,7 @@ export type EarlyImage = { prompt: string; bytes?: Uint8Array<ArrayBuffer> };
  */
 type Work = { running?: Job & { controller: AbortController }; queue: Job[]; waiting?: Job; drained?: Promise<void> };
 /** What one image of a moment is drawn from, with `description` as the prompt before its marks are expanded. */
-type Moment = Pick<Scene, "description" | "npcs" | "wearing">;
+type Moment = Pick<Scene, "description" | "npcs" | "inView" | "wearing">;
 
 // Sent as the negative prompt, because a Scene Image must not show the player a Check's numbers or dice either.
 const AVOID = "text, captions, letters, numbers, dice";
@@ -214,7 +216,9 @@ const NOT_A_NAME = new Set([
  * sentence is left alone, and so is a possessive, as "Ash's boat" doesn't put Ash in the picture.
  */
 export function markNames(text: string, npcs: Npc[], pcName: string) {
-  const names = [pcName, ...npcs.map(({ name }) => name)].filter(Boolean);
+  // Never an NPC whose name is only a lowercase description, such as "boatman", as marking that word alone broke the phrase it stood in.
+  const description = (name: string) => /^\p{Ll}/u.test(name) && !/\p{Lu}/u.test(name);
+  const names = [pcName, ...npcs.map(({ name }) => name).filter((name) => !description(name))].filter(Boolean);
   // A first or last name alone, as Narrators shorten names: the last only when no lowercase word, such as "of", joins it to a place.
   // shortcut: titles and articles are listed, so a capitalised word starting a sentence isn't taken for a person; add any that misfire.
   const parts = names
@@ -318,7 +322,13 @@ const reference = (role: Role, image: { bytes: Uint8Array; mediaType: string } |
 /** Writes a Cover's or portrait's Image Prompt for the image model's family. `template` is a plain one, which tests draw from in place of a text model. */
 export type PictureWriter = (ask: PictureAsk, style: PromptStyle, template: string, signal: AbortSignal) => Promise<string>;
 /** Checks a moment's Image Prompt makes sense before it is drawn, and gives it back, changed or not. */
-export type PictureReviewer = (description: string, style: PromptStyle, signal: AbortSignal) => Promise<string>;
+export type PictureReviewer = (
+  description: string,
+  style: PromptStyle,
+  signal: AbortSignal,
+  /** Those in view whose portrait can be sent and whom the prompt doesn't mark. */
+  cast?: { name: string; looks: string }[],
+) => Promise<string>;
 
 export function imagePipeline(
   saves: SaveStore,
@@ -418,10 +428,27 @@ export function imagePipeline(
     return { prompt, negative_prompt: AVOID, aspect_ratio: "16:9", reference_images, style_preset: "" };
   };
 
-  async function drawMoment(id: string, { description: written, npcs }: Moment, signal: AbortSignal) {
-    const pcName = saves.read(id).pc.name;
+  async function drawMoment(id: string, { description: written, npcs, inView, wearing }: Moment, signal: AbortSignal) {
+    const { pc } = saves.read(id);
+    const pcName = pc.name;
+    const style = promptStyle(settings.read());
     // Before the review, which keeps every mark.
-    const description = await reviewPicture(markNames(written, npcs, pcName), promptStyle(settings.read()), signal);
+    const marked = markNames(written, npcs, pcName);
+    const { pictured: shown } = expandMarks(marked, npcs, pcName);
+    const unmarked = [null, ...npcs.map(({ name }) => name).filter((name) => inView?.includes(name) ?? true)].filter((person) => !shown.includes(person));
+    // Only those with a portrait to send, as a mark does nothing else, and only prose has marks.
+    const cast =
+      style === "prose"
+        ? // Beside those already marked, whose portraits take the model's places first.
+          referenced(id, [...shown, ...unmarked])
+            .filter((person) => unmarked.includes(person))
+            .map((person) =>
+              person === null
+                ? { name: pcName, looks: pcLooks(pcNow(pc, saves.latestState(id)), wearing) }
+                : { name: person, looks: npcs.find(({ name }) => name === person)!.appearance },
+            )
+        : [];
+    const description = await reviewPicture(marked, style, signal, cast);
     // Twice, as who is pictured decides which portraits go in, and those decide how each mark is written.
     const { pictured } = expandMarks(description, npcs, pcName);
     const { prompt } = expandMarks(description, npcs, pcName, referenced(id, pictured));

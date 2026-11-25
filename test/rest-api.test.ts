@@ -1448,7 +1448,7 @@ test("a Lore Entry and a Plot Thread the Narrator corrects go forward corrected,
   expect(contents(prompts[3]).join()).toContain("old-thread");
 });
 
-test("a Turn's resolve leaves the Plot Thread for World Moves On to close, and resolving one that isn't there is ignored, not refused", async () => {
+test("a Turn that resolves a Plot Thread leaves it open, as only World Moves On closes one, and isn't refused", async () => {
   // DeepSeek resolved threads named "x" or long gone, which failed five Turns of a 30-round play.
   const unknown = narration("Done.", { op: "resolve_plot_thread", thread: "unknown-thread" });
   const { app, prompts } = play(narration("A rumour."), narration("Found.", { op: "resolve_plot_thread", thread: "the-missing-heir" }), unknown);

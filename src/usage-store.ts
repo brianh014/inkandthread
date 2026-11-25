@@ -44,9 +44,10 @@ const COUNTED: Record<string, string[]> = {
   facts: ["add_known_fact", "update_known_fact"],
   loose_opened: ["add_loose_end"],
   loose_closed: ["resolve_loose_end"],
-  threads_added: ["add_plot_thread"],
+  // A Turn adds and ends none now, but a file from before has these columns, which an insert must fill.
+  threads_added: [],
   threads_moved: ["update_plot_thread"],
-  threads_resolved: ["resolve_plot_thread"],
+  threads_resolved: [],
 };
 const DIFFICULTIES = { Easy: "easy", Moderate: "moderate", Hard: "hard", "Very Hard": "very_hard" } as const;
 
@@ -65,9 +66,7 @@ export type NarratorRow = {
   facts: number;
   looseOpened: number;
   looseClosed: number;
-  threadsAdded: number;
   threadsMoved: number;
-  threadsResolved: number;
   sinceCheck: number;
   sinceTime: number;
   /** Whether this is the model the story last played with, the only row whose counts since still mean anything. */
@@ -193,8 +192,8 @@ export function usageStore(path = ":memory:") {
       return (
         db
           .query(`SELECT save, model, turns, checks, easy, moderate, hard, very_hard AS veryHard, unchanged, time_moved AS timeMoved, scenes, facts,
-          loose_opened AS looseOpened, loose_closed AS looseClosed, threads_added AS threadsAdded, threads_moved AS threadsMoved,
-          threads_resolved AS threadsResolved, since_check AS sinceCheck, since_time AS sinceTime, last = max(last) OVER (PARTITION BY save) AS latest
+          loose_opened AS looseOpened, loose_closed AS looseClosed, threads_moved AS threadsMoved,
+          since_check AS sinceCheck, since_time AS sinceTime, last = max(last) OVER (PARTITION BY save) AS latest
           FROM narrator ORDER BY sum(turns) OVER (PARTITION BY save) DESC, save, last DESC`)
           .all() as (Omit<NarratorRow, "latest"> & { latest: number })[]
       ).map((row) => ({ ...row, latest: row.latest === 1 }));

@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { UPKEEP_LIMIT } from "../src/state-upkeep";
 import { knownChoices, unknownWords, withoutUnread, writeChoices } from "../src/known-choices";
 import { openingState, type State } from "../src/state-applier";
 import { scriptedTextProvider } from "./support";
@@ -170,6 +171,14 @@ test("Choices asked for alone are sent the PC's Journal, so they build on what t
   expect(JSON.parse(prompts[0]!.at(-1)!.content)).toMatchObject({ journal: { facts: ["Jory works the lead strings."], loose_ends: ["Who paid Jory?"] } });
   // The story time too, as facts never retire and Choices offered to wait for an event the story had already held.
   expect(JSON.parse(prompts[0]!.at(-1)!.content).story_time).toEqual({ day: 3, date: "3rd of Thaw", timeOfDay: "dusk" });
+  // And the clock, as the words lag it.
+  const clocked = scriptedTextProvider(JSON.stringify({ choices: ["Ask Jory.", "Ride on now.", "Wait here."] }));
+  await writeChoices(clocked.textProvider, "Jory looks away.", new AbortController().signal, "", "", {
+    facts: [],
+    looseEnds: [],
+    storyTime: { day: 3, date: "3rd of Thaw", timeOfDay: "early evening", hours: 18.7 },
+  });
+  expect(JSON.parse(clocked.prompts[0]!.at(-1)!.content).story_time).toEqual({ day: 3, date: "3rd of Thaw", timeOfDay: "early evening", clock: "18:42" });
   // The journal first and the replies last, so the provider's cache reaches past the journal, which mostly grows at its end.
   expect(Object.keys(JSON.parse(prompts[0]!.at(-1)!.content))).toEqual(["journal", "story_time", "previous_reply", "player_move", "reply"]);
   expect(prompts[0]![0]!.content).toContain("the story time now");
@@ -177,6 +186,19 @@ test("Choices asked for alone are sent the PC's Journal, so they build on what t
   expect(prompts[0]![0]!.content.match(/nor an ask someone refused, stopped or put off unless something new gives reason to ask again/g)).toHaveLength(2);
   // A failed move comes back only a different way, as a failed Check offered the same attempt again.
   expect(prompts[0]![0]!.content.match(/one that failed may be tried a different way/g)).toHaveLength(2);
+});
+
+test("Choices asked for alone are sent the story so far, its summary by the Journal and the recent one by the replies", async () => {
+  const { textProvider, prompts } = scriptedTextProvider(JSON.stringify({ choices: ["Ask Jory.", "Ride on now.", "Wait here."] }));
+  await writeChoices(textProvider, "Jory looks away.", new AbortController().signal, "", "", {
+    facts: [],
+    looseEnds: [],
+    summary: "The ledger was taken.",
+    recentSummary: "Jory lied.",
+  });
+  const sent = JSON.parse(prompts[0]!.at(-1)!.content);
+  expect(sent).toMatchObject({ summary: "The ledger was taken.", recent_summary: "Jory lied." });
+  expect(Object.keys(sent)).toEqual(["journal", "summary", "recent_summary", "previous_reply", "player_move", "reply"]);
 });
 
 test("a Choice built on what the PC hasn't learned is dropped, not reworded, and the others are kept", () => {
@@ -212,5 +234,19 @@ test("Choices asked for alone get no date the clock has passed midnight beyond, 
     looseEnds: [],
     storyTime: { day: 4, date: "3rd of Thaw", timeOfDay: "the small hours", hours: 75, dateDue: true },
   });
-  expect(JSON.parse(prompts[0]!.at(-1)!.content).story_time).toEqual({ day: 4, timeOfDay: "the small hours" });
+  expect(JSON.parse(prompts[0]!.at(-1)!.content).story_time).toEqual({ day: 4, timeOfDay: "the small hours", clock: "03:00" });
+});
+
+test("the Choices call has a thinking budget, so one still thinking has time to be asked again without it", async () => {
+  let sent: { thinkingBudget?: number; thinkingMs?: number } = {};
+  await writeChoices(
+    async (_prompt, request) => {
+      sent = request;
+      return JSON.stringify({ choices: ["Ask Jory.", "Ride on now.", "Wait here."] });
+    },
+    "Jory looks away.",
+    new AbortController().signal,
+  );
+  expect(sent.thinkingBudget).toBe(1000);
+  expect(sent.thinkingMs).toBeLessThan(UPKEEP_LIMIT.ms / 2);
 });

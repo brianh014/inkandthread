@@ -693,3 +693,34 @@ test("a Duplicate from here keeps the images up to that Message", async () => {
   expect((await imagesOf(copy)).images).toEqual([{ messageId: 2, caption: "One", redraws: 0 }]);
   expect(await imageBytes(copy, 2)).toEqual(png(1));
 });
+
+test("the picture check is given those in view with a portrait whom the prompt left unmarked, and their portrait then goes in", async () => {
+  images = scriptedImages(PNG, PNG, PNG);
+  script = scriptedTextProvider(newScene("A woman stands by [Kit: a boy in a cap].", "The quay"));
+  const given: { name: string; looks: string }[][] = [];
+  app = startApp(
+    join(folder.path, "Saves"),
+    script.textProvider,
+    undefined,
+    undefined,
+    images.imageAdapter,
+    undefined,
+    async (description, _style, _signal, cast = []) => {
+      given.push(cast);
+      return description.replace("A woman", "[Ash: A woman]");
+    },
+  );
+  await enableImages();
+  const created = await app.post("/saves", { worldBrief: "A drowned city", pc: { name: "Ash", physicalTraits: "a tall woman of forty" } });
+  const { id } = (await created.json()) as { id: string };
+
+  await playTurn(id);
+  await settled(id);
+
+  expect(given).toHaveLength(1);
+  expect(given[0]!.map(({ name }) => name)).toEqual(["Ash"]);
+  expect(given[0]![0]!.looks).toContain("a tall woman of forty");
+  const scene = images.payloads.at(-1)!;
+  expect(scene.prompt).toContain("the person from image 1");
+  expect(scene.reference_images).toHaveLength(1);
+});

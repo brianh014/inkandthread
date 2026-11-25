@@ -75,3 +75,20 @@ test("a call that mustn't be hurried fails at its thinking budget, and a reviewe
   );
   expect(line).toContain("Unusable reviewer reply");
 });
+
+test("a call told of a try that thought past the limit has its next try think not at all, as a level less thought past the time left", async () => {
+  const { provider, tries } = scripted(new ThoughtTooLong("thought too long"), JSON.stringify({ text: "short" }));
+  let heard = 0;
+
+  const reply = await askForJson(provider, [{ role: "user", content: "Hi" }], Reply, "refused", new AbortController().signal, {
+    call: "test",
+    onOverthought: () => heard++,
+  });
+
+  expect(reply).toEqual({ text: "short" });
+  expect(heard).toBe(1);
+  expect(tries.map(({ lessThinking, thinkingOff }) => [lessThinking, thinkingOff])).toEqual([
+    [0, false],
+    [1, true],
+  ]);
+});

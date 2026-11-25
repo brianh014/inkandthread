@@ -381,7 +381,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             tells the Narrator to stop pressing it: it still happened. When many are open, the AI clears a few the story has moved past.
           </li>
           <li>
-            <b>What your PC knows</b>: the facts your PC has learned so far. Add, change or remove them, and the Narrator takes what you write as true.
+            <b>What your PC knows</b>: the facts your PC has learned so far. Add, change or remove them, and the Narrator takes what you write as true. When
+            there are many, the AI clears a few that repeat another or are no longer so.
           </li>
           <li>
             <b>Characters</b>: everyone your PC has met, with what your PC knows of them. {tool(RenameIcon, "Rename")} changes a name everywhere in the story.

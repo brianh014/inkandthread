@@ -747,7 +747,7 @@ export async function playTurn(
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     about: aboutPc(saves.read(id)),
     before: state,
-    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines([...saves.playersEdits(id), ...saves.pendingEdits(id)]) },
+    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines([...saves.playersEdits(id), ...saves.pendingEdits(id)], state) },
     offerChoices,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
@@ -840,7 +840,7 @@ export async function replaceResponse(
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     about: aboutPc(saves.read(id)),
     before: state,
-    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines([...saves.playersEdits(id), ...journalEdits]) },
+    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines([...saves.playersEdits(id), ...journalEdits], state) },
     offerChoices,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
@@ -922,7 +922,7 @@ export async function editResponse(
     pcTraits: saves.read(id).pc.physicalTraits ?? "",
     about: aboutPc(saves.read(id)),
     before: state,
-    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines([...saves.playersEdits(id), ...journalEdits]) },
+    upkeep: reviewProvider && { provider: reviewProvider, settings, input, held: ownLines([...saves.playersEdits(id), ...journalEdits], state) },
     offerChoices,
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
@@ -1402,6 +1402,7 @@ const NAMES_A_FIELD = new RegExp(String.raw`\b(?:${FIELDS.filter((field) => fiel
 const withoutFieldNotes = (text: string) => {
   // Its own field's name is a label, not a note, and a placeholder of no letters is no prompt.
   const prompt = /\p{L}/u.test(text) ? text.replace(/^[\s"{]*visual_description"?\s*:\s*"?/i, "") : "";
+  if (prompt !== text && /^(?:null|none|I|my|JSON)\b/.test(prompt)) return "";
   const at = prompt.search(NAMES_A_FIELD);
   if (at < 0) return prompt;
   // A JSON tail's "null" is no note.
@@ -1456,7 +1457,12 @@ const aboutPc = ({ pc, theme }: Pick<ReturnType<SaveStore["read"]>, "pc" | "them
   theme: theme?.trim() ?? "",
 });
 /** The people whose line in the Journal the player has written, which Upkeep leaves as they wrote it. */
-const ownLines = (edits: WorldEdit[]) => edits.flatMap((edit) => (edit.edit === "npcSummary" ? [edit.name] : []));
+const ownLines = (edits: WorldEdit[], { pcKnown }: State) => {
+  const lines = edits.flatMap((edit) => (edit.edit === "npcSummary" ? [edit] : []));
+  // By the line too, as a person renamed or merged takes it along.
+  const kept = Object.entries(pcKnown.summaries ?? {}).filter(([, line]) => lines.some(({ text }) => text === line));
+  return [...lines, ...kept.map(([name]) => ({ name }))].map(({ name }) => name);
+};
 /** The operations without a Journal entry naming a secret, logging the Loose Ends among those dropped. */
 function journalRead<Operation extends StateOperation>(operations: Operation[], state: State, read: string) {
   const kept = withoutUnread(operations, state, read);

@@ -7,8 +7,6 @@ const ONLY_HE =
   /^((?:(?:At|By|Before|After|Within|In|Towards?|Around|About|Just \p{Ll}+) (?:[^\p{Lu},]* )?(?:light|dark|dusk|dawn|noon|midnight|nightfall|daybreak|morning|evening|o'clock|hours?|minutes|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|[\d:]*\d),? )?)(he|she|He|She)(?= )/u;
 const SEX = /\b(?:woman|girl|lady|man|boy|gentleman)\b/i;
 const FEMALE = /woman|girl|lady/i;
-// A Lore Entry that opens by calling its subject one, as "A road a man built" is a road.
-const OPENS_AS_ONE = /^an?\s+(?:(?!(?:an?|the|of|by|for|where|that)\b)[\p{L}'-]+,?\s+){0,4}?(?:woman|girl|lady|man|boy|gentleman)\b/iu;
 
 /**
  * Who each thread names, for the checks on ending one: each person or place is all the names it goes by, so a thread naming
@@ -59,9 +57,10 @@ export function threadPeople(state: Pick<State, "npcs" | "worldBible">) {
   // Those a name alone tells for a person: the people in the state, and whoever their Lore Entry calls a man or a woman.
   const told = [
     ...state.npcs.map(({ name, appearance }) => ({ forms: nameForms(name), looks: appearance })),
+    // By its title and keywords alone, as part of "Salt Road" is a merchant's "Salt".
     ...state.worldBible
-      .filter(({ alwaysOn, content }) => !alwaysOn && OPENS_AS_ONE.test(content))
-      .map(({ title, content }) => ({ forms: nameForms(title), looks: content })),
+      .filter(({ alwaysOn }) => !alwaysOn)
+      .map(({ title, keywords, content }) => ({ forms: [title, ...keywords.filter((word) => /^\p{Lu}/u.test(word))], looks: content })),
   ].flatMap(({ forms, looks }) => {
     const sex = looks.match(SEX)?.[0];
     return sex ? [{ forms, she: FEMALE.test(sex) }] : [];

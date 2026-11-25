@@ -270,8 +270,10 @@ The title is the only writing anywhere on the cover: no author name, subtitle, t
 Theme: ${theme}
 The world: ${opening(world, COVER_WORLD_WORDS)}${people.length > 0 ? `\nShow these people on the cover, the first in front as its hero, each looking as described: ${people.map((looks) => `(${opening(looks, COVER_PERSON_WORDS)})`).join(" ")}` : ""}`;
 
-const ELECTRIC_ERA = /\b(?:19[2-9]\d|20\d\d)s?\b|\bpresent[- ]day\b|\bcontemporary\b|(?<!\bearly[- ])\bmodern\b(?!\s+era\b)/i;
-const BURNS = /\b(?:flam(?:e|es|ing)|burn(?:s|ing)?|fire\w*|blaz\w+|smok\w+|sconces?|brackets?|lit torch(?:es)?)\b/i;
+const ELECTRIC_ERA =
+  /\b(?:19[2-9]\d|20\d\d)s?\b(?!\s*BCE?\b)|\b(?:present|modern)[- ]day\b|\bcontemporary\b|\b(?:mid|late)[- ](?:20th|twentieth)[- ]century\b|\b(?:21st|twenty-first)[- ]century\b/i;
+const BURNS =
+  /\b(?:flames?|flaming|burns?|burning|fires?|fire(?:light|lit|side|place)|blaz(?:e|es|ing)|smok(?:e|es|ing)|gutter(?:s|ing)|flicker(?:s|ing)?|sconces?|brackets?|lit torch(?:es)?)\b/i;
 /**
  * An Image Prompt with an electric torch called a flashlight, as an image model draws a torch burning: one its own words make
  * electric anywhere, a bare one only in an era that has them, and not where anything in the prompt burns.
@@ -287,8 +289,10 @@ export function flashlights(prompt: string, era = "") {
     .replace(/\btorch[- ]?beam(s)?\b/gi, (found, many?: string) => cased(found, many ? "flashlight beams" : "flashlight beam"));
   if (!ELECTRIC_ERA.test(era) || BURNS.test(electric)) return electric;
   return electric
-    .replace(/\btorch[- ]?light\b/gi, (found) => cased(found, "flashlight beam"))
-    .replace(/\btorch(es)?\b/gi, (found, many?: string) => cased(found, many ? "flashlights" : "flashlight"));
+    .replace(/\btorchlight\b(?!\s+(?:procession|parade|march))/gi, (found) => cased(found, "flashlight beam"))
+    .replace(/(?<!\b(?:welding|cutting|soldering|butane|propane|gas|tiki|bamboo|olympic|blow)[- ])\btorch(es)?\b(?![- ]?lit\b)/gi, (found, many?: string) =>
+      cased(found, many ? "flashlights" : "flashlight"),
+    );
 }
 
 /** `text` with each of `names` taken out, as a name in an image prompt gets lettered into the picture. */
@@ -379,8 +383,8 @@ export function imagePipeline(
 
   const electricTorches = (written: string, era?: string) => {
     const prompt = flashlights(written, era);
-    if (prompt !== written)
-      log.verbose("images", "Torches named as flashlights", () => ({ words: prompt.match(/\b(?:flashlights?|headlamps?)\b/gi)?.length ?? 0 }));
+    const torches = (text: string) => text.match(/torch/gi)?.length ?? 0;
+    if (prompt !== written) log.info("images", "Torches named as flashlights", { count: torches(written) - torches(prompt) });
     return prompt;
   };
 

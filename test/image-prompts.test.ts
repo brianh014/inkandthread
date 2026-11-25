@@ -298,6 +298,8 @@ test("an injury told as someone else's isn't the PC's", () => {
     "Crossbow bolt through Barra's left thigh",
     "Bolt through Barra's thigh",
     "Cut across Barra's cheek",
+    "Crossbow bolt through Barra's torso",
+    "Gash on Barra's temple",
   ])
     expect([injured(text).next.status.injuries, injured(text).refused]).toEqual([[], []]);
   // Taken back with no Turn lost to it.
@@ -359,6 +361,11 @@ test("a PC built like an NPC is still given new looks, by the words they had and
   const looks = [{ op: "set_pc_appearance" as const, appearance: `${own}, a bandaged eye` }];
   expect(applyOperations({ ...before, pcAppearance: own }, looks).next.pcAppearance).toContain("eye");
   expect(applyOperations(before, looks, own).next.pcAppearance).toContain("eye");
+  // Back out of a disguise, and into clothes like theirs.
+  expect(applyOperations({ ...before, pcAppearance: "a bent old beggar in rags" }, looks, own).next.pcAppearance).toContain("eye");
+  const dressed = { op: "set_pc_appearance" as const, appearance: `${own}, now in a constable's uniform with brass buttons, helmet and polished belt` };
+  const constable = { ...before, npcs: [{ name: "Tam", appearance: "a man in a constable's uniform with brass buttons, helmet and polished belt" }] };
+  expect(applyOperations(constable, [dressed], own).next.pcAppearance).toContain("helmet");
 });
 
 test("an electric torch is told to the image model as a flashlight, and one that burns as a torch", () => {
@@ -374,6 +381,12 @@ test("an electric torch is told to the image model as a flashlight, and one that
     ["1890s northern England", "a torch in his hand", "a torch in his hand"],
     ["", "a torch in his hand", "a torch in his hand"],
     ["1978", "a blowtorch on the bench", "a blowtorch on the bench"],
+    ["1978", "a welding torch, a torch-lit hall", "a welding torch, a torch-lit hall"],
+    ["circa 2000 BC Mesopotamia", "a torch in his hand", "a torch in his hand"],
+    ["pre-modern Japan", "a torch in his hand", "a torch in his hand"],
+    // Words that only look like fire.
+    ["late 20th century Britain", "a woman in a blazer, a torch in her hand", "a woman in a blazer, a flashlight in her hand"],
+    ["early 21st-century London", "a firearm at his belt, a torch raised", "a firearm at his belt, a flashlight raised"],
   ] as const)
     expect([era, flashlights(written, era)]).toEqual([era, drawn]);
 });

@@ -50,7 +50,7 @@ test("a plan that names its doer only as he or she is given the name the now wri
     ],
     // Someone never met, known only by their Lore Entry.
     worldBible: [
-      { title: "Arne Vik", keywords: ["Arne", "Vik"], content: "A gaunt man of forty, a geologist.", alwaysOn: false },
+      { title: "Arne Vik", keywords: ["Arne", "Vik"], content: "The station geologist, a big fair-bearded man of forty.", alwaysOn: false },
       { title: "Salt Chapel", keywords: ["Salt Chapel"], content: "A chapel on the marsh.", alwaysOn: false },
       { title: "Salt Road", keywords: ["Salt Road"], content: "A road a man built.", alwaysOn: false },
     ],

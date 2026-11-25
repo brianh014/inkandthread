@@ -746,7 +746,7 @@ const lasting = (appearance: string) => {
 
 const OTHERS_BODY = "someone else's body";
 const BODY_PART =
-  "(?:arm|forearm|elbow|wrist|hand|finger|thumb|palm|shoulder|chest|side|ribs?|back|belly|stomach|hip|thigh|leg|knee|shin|calf|ankle|foot|neck|throat|head|scalp|face|brow|forehead|cheek|jaw|chin|nose|ear|eye)s?";
+  "(?:(?:arm|forearm|elbow|wrist|hand|finger|thumb|knuckle|palm|shoulder|collarbone|chest|breast|torso|trunk|side|flank|rib|back|spine|belly|abdomen|stomach|gut|groin|waist|hip|thigh|leg|knee|shin|ankle|heel|toe|neck|throat|head|skull|scalp|temple|face|brow|forehead|cheek|cheekbone|jaw|chin|nose|mouth|lip|ear|eye|eyelid)s?|foot|feet|calf|calves)";
 /**
  * Whether an injury is another's: an NPC who "has" or "is" it, or whose body a weapon or wound is in, as "Barra has a crossbow
  * bolt through the thigh" stood as the PC's. Never one that speaks of the PC too. shortcut: by these forms only, and a PC who
@@ -778,11 +778,11 @@ const ANYONES = new Set(
 function looksOfAnother(state: State, appearance: string, pcTraits: string) {
   const wordsOf = (looks: string): string[] => looks.toLowerCase().match(/\p{L}{4,}/gu) ?? [];
   // Never the words the PC has already, as one built like an NPC could never be given a new look.
-  const own = new Set([...ANYONES, ...wordsOf(state.pcAppearance || pcTraits)]);
-  const words = new Set(wordsOf(appearance).filter((word) => !own.has(word)));
+  const own = new Set([...wordsOf(state.pcAppearance), ...wordsOf(pcTraits)]);
+  const words = new Set(wordsOf(appearance).filter((word) => !ANYONES.has(word)));
   return state.npcs.some((npc) => {
     const theirs = new Set(wordsOf(npc.appearance));
-    const shared = [...words].filter((word) => theirs.has(word)).length;
+    const shared = [...words].filter((word) => theirs.has(word) && !own.has(word)).length;
     return shared >= 5 && shared >= words.size * 0.6;
   });
 }

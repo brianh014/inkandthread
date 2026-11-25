@@ -548,8 +548,6 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
     }
     // A repeat is already true, so it costs nothing, and refusing one would throw away a whole response.
     case "add_known_fact":
-      // Nor one held in other words, as a reply caught in a loop wrote one promise six ways.
-      if (state.pcKnown.facts.some((fact) => fact === operation.fact || alike(fact, operation.fact))) return "already there";
       addOnce(state.pcKnown.facts, operation.fact);
       return;
     case "update_known_fact":
@@ -735,23 +733,6 @@ const lasting = (appearance: string) => {
     .trim();
   return kept || appearance;
 };
-
-// What a person's looks are told by: the words for it, and what in new looks says it has changed.
-const LASTING_LOOKS: [RegExp, RegExp][] = [
-  [/\bhair(?:ed)?\b/i, /\bhair|\bbald|\bshav|\bshorn|\bcropped/i],
-  [/\beyes?\b/i, /\beye|\bblind/i],
-  [/\b(?:skin|complexion)\b/i, /\bskin|\bcomplexion|\bpale|\btanned/i],
-];
-/**
- * New looks with what the old ones said of hair, eyes and skin where the new say nothing of it, as a reply's "frostbite scars on two
- * fingers" dropped the hair and eyes and the PC was drawn as someone else. shortcut: by clauses, so a whole sentence of hair is
- * kept whole; split finer if one reads badly.
- */
-export function keptLooks(was: string, now: string) {
-  const clauses = was.split(/,|;|\s+and\s+|\s+with\s+|\.\s+/).map((clause) => clause.trim().replace(/^(?:a|an|the|her|his|their)\s+/i, ""));
-  const lost = LASTING_LOOKS.flatMap(([said, changed]) => (changed.test(now) ? [] : clauses.filter((clause) => said.test(clause)).slice(0, 1)));
-  return lost.length === 0 ? now : [now.replace(/[.\s]+$/, ""), ...lost].join(", ");
-}
 
 const SOMEONE_ELSE = "someone else's looks";
 // What most people's looks say, which tells no one apart.

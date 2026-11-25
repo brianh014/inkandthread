@@ -10,12 +10,13 @@ const ends = (count: number) => Array.from({ length: count }, (_, at) => `Loose 
 const signal = new AbortController().signal;
 
 /** Just what the check reads and writes of a Save. */
-const savesWith = (state: State, playersEdits: WorldEdit[] = []) => {
+const savesWith = (state: State, playersEdits: WorldEdit[] = [], before = state) => {
   const changes: WorldEdit[][] = [];
   const saves = {
     latestMessageId: () => 7,
     latestState: () => state,
-    messages: () => [{ id: 7, role: "narrator", text: "Ash keeps the promise." }],
+    messages: () => Array.from({ length: 11 }, (_, at) => ({ id: at - 3, role: "narrator", text: "Ash keeps the promise." })),
+    snapshot: () => before,
     playersEdits: () => playersEdits,
     addWorldChange: (_id: string, _on: number, edits: WorldEdit[]) => changes.push(edits),
   };
@@ -76,6 +77,12 @@ test("a pause drops at most a tenth of a long list of known facts, in the same c
   const own = savesWith(pair, [{ edit: "fact", old: null, new: "Fact 1." }]);
   await closeLooseEnds(scriptedTextProvider(JSON.stringify({ outdated: [1, 2, 4] })).textProvider, own.saves, "save", signal);
   expect((own.changes as [[WorldEdit]])[0][0]).toMatchObject({ outdated: [said] });
+
+  // Nor one the PC learned in the latest replies, which may still be in force.
+  const earlier = { ...state, pcKnown: { ...state.pcKnown, facts: facts.slice(0, 4) } };
+  const recent = savesWith(state, [], earlier);
+  await closeLooseEnds(scriptedTextProvider(JSON.stringify({ outdated: [2, 6] })).textProvider, recent.saves, "save", signal);
+  expect((recent.changes as [[WorldEdit]])[0][0]).toMatchObject({ outdated: ["Fact 1."] });
 
   const few = scriptedTextProvider();
   await closeLooseEnds(few.textProvider, savesWith({ ...state, pcKnown: { ...state.pcKnown, facts: facts.slice(1) } }).saves, "save", signal);

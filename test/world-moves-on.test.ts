@@ -768,6 +768,36 @@ test("a thread keeps the question it began with, and a plan whose hour the clock
   expect(due).not.toHaveProperty("plan");
 });
 
+test("a move logs how many of its plans come to the PC's place or people", async () => {
+  const [TIDE, BELLS] = ["The harbourmaster floods the lower town.", "The sexton rings for the dead."];
+  play(
+    narration("Ash watches the harbourmaster.", nextDay()),
+    moved(
+      { ...change(TIDE, "He oils the gate."), plan: "The harbourmaster will come down to the quay.", plan_in_hours: 2 },
+      { ...change(BELLS, "He oils the rope."), plan: "The sexton will ring at dusk.", plan_in_hours: 2 },
+    ),
+    narration("Ash goes home."),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [TIDE, BELLS],
+      worldBible: [],
+    },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I watch.", "I go home."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(log).toMatch(/World moved on .*"plans":2,"plansNear":1/);
+});
+
 /** A Save whose thread has a plan due at `due` on a clock at 8, and Kit in the story, off the page. */
 const planned = (due: number, plan = "The thief will rob the library stacks for the ledger.") =>
   store().create({

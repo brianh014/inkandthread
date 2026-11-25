@@ -45,11 +45,12 @@ export async function closeLooseEnds(provider: TextProvider, saves: SaveStore, i
   const ends = looseEnds.length >= CHECK_LOOSE_ENDS ? looseEnds : [];
   const facts = pcKnown.facts.length >= CHECK_FACTS ? pcKnown.facts : [];
   if (ends.length + facts.length === 0) return;
-  const replies = saves
-    .messages(id)
-    .filter(({ role }) => role === "narrator")
-    .map(({ text }) => text)
-    .slice(-2 * SUMMARY_EVERY);
+  const told = saves.messages(id).filter(({ role }) => role === "narrator");
+  const replies = told.map(({ text }) => text).slice(-2 * SUMMARY_EVERY);
+  // Known since before these replies, as a lock-up still in force was dropped as a moment now over four replies after it.
+  const before = told.at(-2 * SUMMARY_EVERY - 1);
+  const held = before ? saves.snapshot(id, before.id).pcKnown.facts : [];
+  const recent = facts.filter((fact) => !held.includes(fact));
   const Reply = z.object({ ...(facts.length > 0 && { outdated: numbers }), ...(ends.length > 0 && { settled: numbers }) });
   const numbered = (entries: string[]) => entries.map((text, at) => ({ number: at + 1, text }));
   const rules = [RULES, ...(facts.length > 0 ? [OUTDATED] : []), ...(ends.length > 0 ? [SETTLED] : [])].join("\n");
@@ -74,7 +75,7 @@ export async function closeLooseEnds(provider: TextProvider, saves: SaveStore, i
     const own = saves.playersEdits(id);
     const wrote = (kind: "looseEnd" | "fact") => own.flatMap((edit) => (edit.edit === kind && edit.new ? [edit.new] : []));
     const closed = settledOf(ends, given.settled ?? [], wrote("looseEnd"));
-    const dropped = settledOf(facts, given.outdated ?? [], wrote("fact"), MOST_DROPPED, true);
+    const dropped = settledOf(facts, given.outdated ?? [], [...wrote("fact"), ...recent], MOST_DROPPED, true);
     if (closed.settled.length + dropped.settled.length > 0)
       saves.addWorldChange(id, basedOn, [
         {
@@ -94,6 +95,7 @@ export async function closeLooseEnds(provider: TextProvider, saves: SaveStore, i
       facts: pcKnown.facts.length,
       factsNamed: dropped.named,
       factsDropped: dropped.settled.length,
+      factsRecent: recent.length,
       ms: Date.now() - started,
     });
   } catch (error) {

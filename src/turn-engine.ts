@@ -33,6 +33,7 @@ import {
   findPerson,
   givenName,
   introduce,
+  keptLooks,
   MAX_PLOT_THREADS,
   nameForms,
   Person,
@@ -1105,6 +1106,15 @@ async function narrate(
       if (spoken === LONG_SPEECH) log.warning("turn", "Long speech kept", { attempt, generation });
       if (looping)
         log.warning("turn", "Looping operations dropped", { attempt, generation, sent: response.state_operations.length, kept: state_operations.length });
+      const once = withoutRepeatedFacts(state_operations);
+      if (once.length < state_operations.length)
+        log.info("turn", "Known facts said again in one reply dropped", { attempt, generation, count: state_operations.length - once.length });
+      // Looks whole, as a reply giving only what it noticed lost the PC's hair and eyes.
+      const wholeLooks = <Operation extends StateOperation>(operations: Operation[], was: string) =>
+        operations.map((operation) =>
+          operation.op === "set_pc_appearance" ? { ...operation, appearance: keptLooks(was.trim() || pcTraits, operation.appearance) } : operation,
+        );
+      state_operations = wholeLooks(once, before.pcAppearance);
       const story = seen?.() ?? "";
       // With the move, as the player has read their own words, and the Messages don't hold it yet.
       const read = `${story}\n${move}\n${narration}`;
@@ -1195,7 +1205,7 @@ async function narrate(
           "upkeep",
           upkeep
             ? upkeepOperations(
-                upkeep,
+                { ...upkeep, traits: pcTraits },
                 pcName,
                 narrated.next,
                 check,
@@ -1203,8 +1213,9 @@ async function narrate(
                 upkeepReads?.narration ?? narration,
                 signal,
                 timed,
-              ).then((ops) => {
-                if (!ops) return ops;
+              ).then((given) => {
+                if (!given) return given;
+                const ops = wholeLooks(given, narrated.next.pcAppearance);
                 const told = groundedNotes(ops, narrated.next, `${move}\n${upkeepReads?.narration ?? narration}`, read);
                 return withoutRelearned(seen ? journalRead(told, narrated.next, read) : told, state_operations, narrated.next);
               })
@@ -1386,6 +1397,29 @@ export const sameApproach = (one: string, other: string) => {
   const [a, b] = [choiceWords(one), choiceWords(other)];
   const shared = [...a].filter((word) => b.has(word)).length;
   return one === other || (shared >= 4 && shared * 2 >= Math.min(a.size, b.size));
+};
+/** Whether two facts of one reply say the same: most of the shorter's words shared, and the same names and denial. */
+const saysAgain = (one: string, other: string) => {
+  const [a, b] = [choiceWords(one), choiceWords(other)];
+  const shared = [...a].filter((word) => b.has(word)).length;
+  const names = (text: string) => new Set(text.match(/(?<=\s)\p{Lu}\p{L}+/gu) ?? []);
+  const [fewer, more] = [names(one), names(other)].toSorted((x, y) => x.size - y.size);
+  return (
+    shared >= 4 &&
+    shared >= 0.75 * Math.min(a.size, b.size) &&
+    [...fewer!].every((name) => more!.has(name)) &&
+    /\bnot?\b|n't\b|\bnever\b/i.test(one) === /\bnot?\b|n't\b|\bnever\b/i.test(other)
+  );
+};
+/** A reply's operations with each known fact it adds given once, the first, as a looping reply wrote one six ways. */
+const withoutRepeatedFacts = <Operation extends StateOperation>(operations: Operation[]) => {
+  const facts: string[] = [];
+  return operations.filter((operation) => {
+    if (operation.op !== "add_known_fact") return true;
+    if (facts.some((fact) => saysAgain(fact, operation.fact))) return false;
+    facts.push(operation.fact);
+    return true;
+  });
 };
 // The player's notes on the PC a Choice may be coloured by, what they want first.
 // shortcut: its first words only, and a script without spaces isn't cut; raise it, or cut by characters, if notes that matter are lost.

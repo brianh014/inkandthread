@@ -129,3 +129,19 @@ test("someone of the hidden world the page never names doesn't become known to t
   expect((await turn(id)).status).toBe(201);
   expect(store().latestState(id).pcKnown.npcs).toEqual(["Ossery"]);
 });
+
+test("a fact said again in one reply, or held in other words, is recorded once", async () => {
+  const promise = "I promised Lise that Pavel hears the message at first light, and Okafor before him.";
+  const again = "I promised Lise that Pavel hears the message at first light, and Okafor before him, and Lise holds me to it.";
+  const other = "The store locker is short four tins of ration beef.";
+  play(
+    narration("One.", ...[promise, again, other].map((fact) => ({ op: "add_known_fact", fact }))),
+    narration("Two.", { op: "add_known_fact", fact: "The store locker is short of four tins of ration beef." }),
+  );
+  const id = store().create({ worldBrief: "A station", pc: { name: "Ash" }, opening: {} });
+
+  await turn(id);
+  expect(store().latestState(id).pcKnown.facts).toEqual([promise, other]);
+  await turn(id);
+  expect(store().latestState(id).pcKnown.facts).toEqual([promise, other]);
+});

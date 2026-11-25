@@ -539,7 +539,7 @@ test("State Upkeep is told who the PC knows and what people know, without their 
   const { upkeep } = play([narration("Mara waves from the quay.")], [upkept({ op: "set_known_npc_summary", name: "Mara", summary: "The ferry's pilot." })]);
   const id = store().create({
     worldBrief: "A drowned city",
-    pc: { name: "Ash" },
+    pc: { name: "Ash", physicalTraits: "A tall woman with red hair." },
     opening: {
       inventory: { wearing: [], carrying: [] },
       scene: { location: "The quay", visibleCast: ["Mara"] },
@@ -556,6 +556,7 @@ test("State Upkeep is told who the PC knows and what people know, without their 
   const { state } = JSON.parse(upkeep.prompts[0]![1]!.content);
   expect(state.npc_knows).toEqual({ Mara: ["Ash waved to her."] });
   expect(state.known_people).toEqual({ Mara: "" });
+  expect(state.pc_appearance).toBe("A tall woman with red hair.");
   expect(store().latestState(id).pcKnown.summaries).toEqual({ Mara: "The ferry's pilot." });
 });
 

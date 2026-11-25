@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { promptStyle } from "../src/graph-builder";
 import { chestUp, expandMarks, markNames, portraitsDue, restyledBy } from "../src/image-pipeline";
 import { assemblePrompt, IN_ITS_WORLD_AND_STYLE, REQUESTED_IMAGE_PROMPT } from "../src/prompt-assembler";
-import { applyOperations, openingState } from "../src/state-applier";
+import { applyOperations, openingState, keptLooks } from "../src/state-applier";
 
 const npcs = [
   { name: "Hesper", appearance: "a tall woman in oilskins" },
@@ -272,6 +272,16 @@ test("looks given the PC that are an NPC's are left out", () => {
   const own = "a tall woman in her thirties with long dark brown hair, brown eyes and olive skin and a scar on her cheek";
   expect(applyOperations(mara, [{ op: "set_pc_appearance", appearance: own }]).next.pcAppearance).toBe(own);
   expect(set("a tall woman with red hair cropped short and a scar").next.pcAppearance).toContain("scar");
+});
+
+test("new looks keep the hair, eyes and skin they say nothing of", () => {
+  const was =
+    "A strong, rawboned woman in her forties with a weathered pale face, short ash-blonde hair, pale blue eyes and frostbite scars on two fingertips.";
+  expect(keptLooks(was, "A rawboned woman of forty-two with frostbite scars on two fingers.")).toBe(
+    "A rawboned woman of forty-two with frostbite scars on two fingers, short ash-blonde hair, pale blue eyes",
+  );
+  expect(keptLooks(was, "A rawboned woman, head shaved, pale blue eyes")).toBe("A rawboned woman, head shaved, pale blue eyes");
+  expect(keptLooks("", "A rawboned woman")).toBe("A rawboned woman");
 });
 
 test("the era is set once, and a later set_era is ignored rather than failing the Turn, so pictures never drift", () => {

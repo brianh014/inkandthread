@@ -116,7 +116,7 @@ export const storyPace = (saves: SaveStore, id: string, messages: { id: number; 
 export const deedWords = (plan: string) => [...new Set(plan.match(/(?<!\p{L})\p{Ll}\p{L}{4,}/gu) ?? [])].filter((word) => !EVERYDAY.has(word));
 
 /** How many of these words a text has. */
-const echoes = (words: string[], text: string) => words.filter((word) => wholeWord(word, "iu").test(text)).length;
+export const echoes = (words: string[], text: string) => words.filter((word) => wholeWord(word, "iu").test(text)).length;
 
 /**
  * Whether a plan is an old one's deed again, by two of the old one's deed words, as "search the chimney at seven" came back as

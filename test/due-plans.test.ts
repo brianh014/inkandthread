@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import { duePlan, planShown } from "../src/due-plans";
+import { duePlan, forgetOffers, planOffered, planShown } from "../src/due-plans";
 import { saveStore } from "../src/save-store";
 import { openingState, type State } from "../src/state-applier";
 import { logOf, narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 const DREM = "The wells mean to buy Tamsin.";
 const OSSERY = "Ossery cut the skins.";
+const PLAN = "At seven Drem will thrust the sealed packet into Tamsin's hand.";
 const at = (hours: number) => ({ day: 1, date: "1st of Thaw", timeOfDay: "evening", hours });
 const state: State = {
   ...openingState,
@@ -18,7 +19,7 @@ const state: State = {
   plotThreads: [OSSERY, DREM],
   threadsPlan: {
     [OSSERY]: "At seven Ossery will bury the coin under his floor stone.",
-    [DREM]: "At seven Drem will thrust the sealed packet into Tamsin's hand.",
+    [DREM]: PLAN,
   },
   threadsDue: { [OSSERY]: 19, [DREM]: 19 },
   scene: { location: "the mouth of the gap", visibleCast: ["Tamsin"] },
@@ -26,32 +27,46 @@ const state: State = {
 };
 
 test("the plan brought on is one near the PC whose hour this reply reaches, never a far one", () => {
-  expect(duePlan("near", state, "Wren")?.truth).toBe(DREM);
+  expect(duePlan("near", state, "Wren")).toBe(PLAN);
   // Not before its hour is in reach, nor long after it.
-  expect(duePlan("early", { ...state, storyTime: at(18.5) }, "Wren")).toBeUndefined();
-  expect(duePlan("pace", { ...state, storyTime: at(18.5) }, "Wren", 0.5)?.truth).toBe(DREM);
+  expect(duePlan("early", { ...state, storyTime: at(18.6) }, "Wren")).toBeUndefined();
+  expect(duePlan("pace", { ...state, storyTime: at(18.6) }, "Wren", 0.5)).toBe(PLAN);
   expect(duePlan("late", { ...state, storyTime: at(19.6) }, "Wren")).toBeUndefined();
-  // Someone with the PC, the PC by name, or the PC's place makes it near, and otherwise none is sent. A direction is no place.
-  const alone = { ...state, scene: { location: "the north rock", visibleCast: [] } };
-  expect(duePlan("alone", alone, "Wren")).toBeUndefined();
-  expect(duePlan("direction", { ...alone, threadsPlan: { [DREM]: "At seven Drem will carry the lie north." } }, "Wren")).toBeUndefined();
-  expect(duePlan("named", { ...alone, threadsPlan: { [DREM]: "At seven Drem will call Wren out." } }, "Wren")?.truth).toBe(DREM);
-  expect(duePlan("place", { ...alone, threadsPlan: { [DREM]: "At seven Drem will carry it north, and climb the rock." } }, "Wren")?.truth).toBe(DREM);
+  // Someone with the PC, the PC by name, or the PC's place makes it near, and otherwise none is sent.
+  const alone = { ...state, scene: { location: "the north pillar", visibleCast: [] } };
+  const plan = (text: string, hours = 18.95, pace = 0.1) =>
+    duePlan("alone", { ...alone, storyTime: at(hours), threadsPlan: { [DREM]: text } }, "Mara Vell", pace);
+  expect(plan(PLAN)).toBeUndefined();
+  expect(plan("At seven Drem will tell Mara.")).toContain("Mara");
+  expect(plan("At seven Drem will tell Mrs Vell.")).toContain("Vell");
+  expect(plan("At seven Drem will climb the pillar.")).toContain("pillar");
+  // Never by a surname shared, a direction or any room, nor hours ahead at a pace of travel.
+  expect(plan("At seven Jon Vell will burn the papers in Harrow.")).toBeUndefined();
+  expect(plan("At seven Drem will carry the lie north.")).toBeUndefined();
+  expect(plan("At seven Drem will tell Mara.", 13, 6)).toBeUndefined();
 });
 
-test("a plan is offered to two replies at most, so one the Narrator leaves out goes to the next move", () => {
-  const offers = [1, 2, 3].map(() => duePlan("twice", state, "Wren"));
-  expect(offers.map((offer) => offer?.truth)).toEqual([DREM, DREM, undefined]);
+test("a plan is offered to two committed Turns at most, a replacement aside, and afresh once a Revert takes them", () => {
+  planOffered("twice", PLAN);
+  expect(duePlan("twice", state, "Wren")).toBe(PLAN);
+  planOffered("twice", PLAN);
+  expect(duePlan("twice", state, "Wren")).toBeUndefined();
+  expect(duePlan("twice", state, "Wren", 0.1, true)).toBe(PLAN);
+  forgetOffers("twice");
+  expect(duePlan("twice", state, "Wren")).toBe(PLAN);
 });
 
-test("a plan is shown by a reply that brings on its doer, or has one already there do it by two of its own words", () => {
-  const plan = state.threadsPlan[DREM]!;
-  // Told as it looks, in none of the plan's words.
-  expect(planShown(plan, state, "Drem bent close, and something pale passed from his hand to hers.")).toBe(true);
-  expect(planShown(plan, state, "A man thrust a sealed packet at her.")).toBe(false);
+test("a plan is shown by its doer coming into view or speaking, or by the deed told, and never by a mention of them", () => {
   const there = { ...state, scene: { ...state.scene, visibleCast: ["Tamsin", "Drem"] } };
-  expect(planShown(plan, there, "Drem sat by his donkey.")).toBe(false);
-  expect(planShown(plan, there, "Drem wrenched free and thrust a sealed packet at her.")).toBe(true);
+  const seen = (narration: string, after = state, before = state) => planShown(PLAN, before, after, narration);
+  // Told as it looks, in none of the plan's words.
+  expect(seen("Drem bent close, and something pale passed from his hand to hers.", there)).toBe(true);
+  expect(seen("[Drem]: “To Kesh, whole.”")).toBe(true);
+  expect(seen("[Tamsin]: “Has Drem been by?”")).toBe(false);
+  // Someone the PC doesn't know may do it unnamed.
+  expect(seen("A hooded man thrust a sealed packet at her.")).toBe(true);
+  expect(seen("Drem sat by his donkey.", there, there)).toBe(false);
+  expect(seen("Drem wrenched free and thrust a sealed packet at her.", there, there)).toBe(true);
 });
 
 let folder: ReturnType<typeof tempFolder>;

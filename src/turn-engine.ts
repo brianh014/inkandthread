@@ -39,7 +39,7 @@ import {
   type State,
   StateOperation,
 } from "./state-applier";
-import { duePlan, planShown } from "./due-plans";
+import { duePlan, forgetOffers, planOffered, planShown } from "./due-plans";
 import { countWords, withinLimit } from "./limits";
 import { knownChoices, secretWords, unreadIn, withoutUnread, writeChoices } from "./known-choices";
 import { estimateTokens, wholeWord } from "./lore-activation";
@@ -498,7 +498,7 @@ type Narrated = {
   /** The player's moves before this one, which no Choice offers again. */
   recentMoves?: string[];
   /** The hidden plan the reply was asked to bring on, which goes once it has. */
-  due?: { truth: string; plan: string };
+  due?: string;
   /** Left out when no new roll is allowed, which makes a Check request an invalid reply. */
   rollCheck?: (request: z.infer<typeof CheckRequest>) => Check;
   commit: (narration: string, check: Check | undefined, advance: (state: State) => State, choices: string[] | undefined) => Reply[];
@@ -524,10 +524,13 @@ function turnPrompt(
     journalEdits,
     picture,
     written = false,
+    replacing = written,
   }: Pick<Parameters<typeof assemblePrompt>[0], "state" | "messages" | "input" | "directions" | "journalEdits"> & {
     picture: boolean;
     /** Whether the player has written the reply, which nothing can be brought on in. */
     written?: boolean;
+    /** Whether it takes another reply's place, whose own offer of a plan was counted. */
+    replacing?: boolean;
   },
 ) {
   const current = settings.read();
@@ -535,8 +538,9 @@ function turnPrompt(
   if (signs > 0) log.info("turn", "World Change sign sent", { save: id, signs });
   const memoryStart = saves.memoryStart(id);
   const save = saves.read(id);
-  const due = written || input === OPENING_INPUT ? undefined : duePlan(id, state, save.pc.name, storyPace(saves, id, messages, clockOf(state.storyTime)));
-  if (due) log.info("world", "Due plan offered", { save: id, thread: state.plotThreads.indexOf(due.truth) });
+  // Found for a reply the player writes too, as one that still tells the deed has played it.
+  const due = input === OPENING_INPUT ? undefined : duePlan(id, state, save.pc.name, storyPace(saves, id, messages, clockOf(state.storyTime)), replacing);
+  if (due && !written) log.info("world", "Due plan offered", { save: id, thread: state.plotThreads.findIndex((truth) => state.threadsPlan[truth] === due) });
   const prompt = assemblePrompt({
     save: withArtStyleFor(save, current),
     state,
@@ -547,7 +551,7 @@ function turnPrompt(
     imageInstructions: current.imageInstructions,
     directions,
     journalEdits,
-    duePlan: due?.plan,
+    duePlan: written ? undefined : due,
     memoryTimes: saves.storyTimesAt(
       id,
       state.sceneMemories.map(({ firstMessage }) => firstMessage),
@@ -621,6 +625,7 @@ export async function worldMoved(id: string, signal: AbortSignal) {
 /** Stops the Save's move of the world still running, as it could only fail once its reply is reverted, and the next Turn would wait for it. */
 export function stopMoves(id: string) {
   forgetUnread(id);
+  forgetOffers(id);
   const mover = movers.get(id);
   if (!mover) return;
   mover.abort();
@@ -760,6 +765,8 @@ export async function playTurn(
     counted: kind === "turn" && !isContinueInput(input) ? (turn) => usage?.turn(id, model, turn) : undefined,
     times,
   });
+  // Only now, as a Turn that failed or was stopped brought nothing on.
+  if (due) planOffered(id, due);
   if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies + 1)) {
     // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
     // Lore and the folds beside the move, by the Scribe, as Upkeep is, so the next Turn waits on them all at most one MOVE_LIMIT, never one after the other.
@@ -815,6 +822,7 @@ export async function replaceResponse(
     directions: saves.directions(id, messageId),
     journalEdits,
     picture: images.ready(),
+    replacing: true,
   });
   const kind = feedback === undefined ? "regenerate" : "rewrite";
   // As in playTurn: nothing is attempted in the opening or a Continue.
@@ -1229,7 +1237,9 @@ async function narrate(
           const { doerIn } = threadPeople(next);
           const clock = next.storyTime?.hours;
           // A plan with no hour counts as come, as moves read it as due.
-          const played = due && next.threadsPlan[due.truth] === due.plan && planShown(due.plan, state, narration) ? due.truth : undefined;
+          // By its words, as the reply that plays it is the likeliest to amend its thread's truth.
+          const dueThread = due === undefined ? undefined : Object.keys(next.threadsPlan).find((truth) => next.threadsPlan[truth] === due);
+          const played = due !== undefined && dueThread !== undefined && planShown(due, state, next, narration) ? dueThread : undefined;
           const come = Object.keys(next.threadsPlan).filter(
             (truth) =>
               truth !== played &&

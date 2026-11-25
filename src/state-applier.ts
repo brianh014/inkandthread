@@ -732,7 +732,7 @@ const SOILED =
 const DIRT = String.raw`(?:ash(?:es)?|soot|dust|mud|sand|snow|frost|sweat|rain)(?![-\w])`;
 // Only the dirt and a body part or edge it is told on, as any more took a garment with it, and never a colour, as ash blonde.
 const DIRTIED = new RegExp(
-  String.raw`\s+(?:and\s+)?(?:grey|greyed|gray|grayed|white|whitened|black|blackened|dark|darkened|stiff|smudged|smeared|streaked|dusted|grimed|powdered) with ${DIRT}(?!\s(?:blonde?|brown|gr[ae]y|white|black)\b)(?:\s+and\s+(?:${DIRT}|(?:grape )?must|water|grease|oil|blood|grime)\b)?(?:\s(?:at|on|across|from|up to|to|around|along)\s(?:the|his|her|their|one|both)\s(?:(?:left|right)\s)?(?:tips?|ends?|roots|parting|temples?|brow|collar|neck|shoulders?|chest|sleeves?|elbows?|wrists?|cuffs?|hem|waist|thighs?|knees?|ankles|toes?|heels?|nails|edges?|road)\b)*`,
+  String.raw`\s+(?:and\s+)?(?:grey|greyed|gray|grayed|white|whitened|black|blackened|dark|darkened|stiff|smudged|smeared|streaked|dusted|grimed|powdered) with ${DIRT}(?!\s(?:blonde?|brown|gr[ae]y|white|black)\b)(?:\s+and\s+(?:${DIRT}|(?:grape )?must|water|grease|oil|blood|grime)(?![-\w]))?(?:\s(?:at|on|across|from|up to|to|around|along)\s(?:the|his|her|their|one|both)\s(?:(?:left|right)\s)?(?:tips?|ends?|roots|parting|temples?|brow|collar|neck|shoulders?|chest|sleeves?|elbows?|wrists?|cuffs?|hem|waist|thighs?|knees?|ankles|toes?|heels?|nails|edges?|road)\b)*`,
   "gi",
 );
 /**

@@ -744,3 +744,17 @@ test("a picture prompt that is the Narrator's notes on its own fields draws noth
 
   expect(images.payloads.map(({ prompt }) => prompt).join(" ")).not.toContain("visual_description");
 });
+
+test("a picture prompt of no words, such as a placeholder of underscores, draws nothing", async () => {
+  images = scriptedImages(PNG, PNG);
+  script = scriptedTextProvider(newScene("______________", "The quay"));
+  app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter);
+  await enableImages();
+  const id = await app.createSave();
+
+  await playTurn(id);
+  await settled(id);
+
+  expect(images.payloads.filter(({ prompt }) => prompt.includes("____"))).toHaveLength(0);
+  expect((await imagesOf(id)).images).toEqual([]);
+});

@@ -729,10 +729,12 @@ export function imagePipeline(
         // A lone word, such as one object named alone, was drawn as that thing with no place or people.
         // shortcut: only a lone word in lower case, the fragment a reply sent, as tests draw from one capitalised word; count words if a real one shows.
         const fragment = /^\p{Ll}\S*$/u.test(scene.description.trim());
-        // No words too, as a reply cut where it ran on never wrote its picture's prompt.
-        if (drawScenes && scene.changed && (fragment || !scene.description.trim()))
+        // No words too, as a reply cut where it ran on never wrote its picture's prompt, and a placeholder of underscores drew a
+        // motorcycle.
+        const wordless = !/\p{L}/u.test(scene.description);
+        if (drawScenes && scene.changed && (fragment || wordless))
           log.info("images", "Scene picture skipped", { save: id, message: messageId, words: fragment ? 1 : 0 });
-        if (drawScenes && scene.changed && scene.description && !fragment) {
+        if (drawScenes && scene.changed && !wordless && !fragment) {
           if (jobs.waiting) dropped(id, jobs.waiting, "a newer scene");
           jobs.waiting = queued(id, {
             kind: "scene",

@@ -32,7 +32,7 @@ export type ServerOptions = {
   textProvider: TextProvider;
   /** Reviews the world and World Changes, sent with the reviewer's settings. Without one, as in tests with a scripted Narrator, nothing is reviewed. */
   reviewProvider?: TextProvider;
-  /** Whether the world moves on after the opening and at natural pauses (`moveWorldOn`): on in the app and the bench, off in tests, whose scripted Narrator would answer it. */
+  /** Whether the world moves on at natural pauses (`moveWorldOn`): on in the app and the bench, off in tests, whose scripted Narrator would answer it. */
   moveWorld?: boolean;
   /** Whether each Turn writes Choices: on in the app and the bench, off in tests, whose scripted Narrator would answer them. */
   offerChoices?: boolean;

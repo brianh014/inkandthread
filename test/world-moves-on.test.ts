@@ -369,41 +369,6 @@ test("the world first moves after the opening, so the first Turn has plans, set 
   expect(told.prompts[2]!.map(({ content }) => content).join("\n")).toContain("try the dome's lock");
 });
 
-test("a Revert to the opening, or a first move that failed, has the next Turn move the world", async () => {
-  const told = play(
-    narration("Ash wakes."),
-    new Error("down"),
-    narration("Ash walks."),
-    openingMove(),
-    narration("Ash sits."),
-    narration("Ash stands."),
-    openingMove(),
-    narration("Ash leaves."),
-  );
-  const id = createSave();
-  expect(await post(`/saves/${id}/opening`)).toBe(201);
-  for (const input of ["I walk.", "I sit."]) expect((await turn(id, input)).ok).toBe(true);
-  expect(told.prompts).toHaveLength(5);
-  expect(Object.keys(store().latestState(id).threadsPlan)).toEqual([THIEF]);
-
-  expect(await post(`/saves/${id}/messages/2/revert`)).toBe(200);
-  expect(store().latestState(id).threadsPlan).toEqual({});
-  for (const input of ["I stand.", "I leave."]) expect((await turn(id, input)).ok).toBe(true);
-
-  expect(told.prompts).toHaveLength(8);
-  expect(Object.keys(store().latestState(id).threadsPlan)).toEqual([THIEF]);
-});
-
-test("an opening written again doesn't wait for its first move, which is dropped", async () => {
-  const told = play(narration("Ash wakes."), new Promise<string>(() => {}), narration("Ash wakes again."));
-  const id = createSave();
-  expect(await post(`/saves/${id}/opening`)).toBe(201);
-
-  expect(await post(`/saves/${id}/messages/2/regenerate`)).toBe(201);
-
-  expect(told.prompts).toHaveLength(3);
-});
-
 test("an opening written again drops the plans made from it, and the next Turn moves the world", async () => {
   const told = play(narration("Ash wakes."), openingMove(), narration("Ash wakes again."), narration("Ash sits."), openingMove(), narration("Ash stands."));
   const id = createSave();

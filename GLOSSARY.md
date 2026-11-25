@@ -86,7 +86,7 @@ A second AI call after each reply, the Scribe's, that brings the scene, cast, in
 _Avoid_: State sync, bookkeeping call
 
 **World Moves On**:
-A Narrator call after the opening and at a natural pause (a Turn moving story time on by hours, a new day, a plan falling due a few replies after the last move, or every fifth reply), run after the Turn is saved while the player reads, that rewrites each Plot Thread's now by what its people did out of the PC's sight, leaving its truth as it is, true to the Lore Entries it names, removes one play has brought to an end, and adds one while fewer than three remain. The next Turn waits for it. It changes only the hidden Plot Threads, so the player never sees it, only its results in play.
+A Narrator call at a natural pause (a Turn moving story time on by hours, a new day, a plan falling due a few replies after the last move, or every fifth reply), run after the Turn is saved while the player reads, that rewrites each Plot Thread's now by what its people did out of the PC's sight, leaving its truth as it is, true to the Lore Entries it names, removes one play has brought to an end, and adds one while fewer than three remain. The next Turn waits for it. It changes only the hidden Plot Threads, so the player never sees it, only its results in play.
 _Avoid_: Off-screen turn, world tick
 
 **Command**:

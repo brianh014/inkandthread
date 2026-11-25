@@ -49,8 +49,8 @@ const PC_KNOWS = 6;
  */
 const movedAt = new Map<string, number>();
 /**
- * How many replies each Save's coming move reads in full: those since the last, at most MOVE_EVERY, and a failed move's. Set by moveDue or
- * openingMoved, which every move follows. shortcut: in memory like movedAt, so after a restart a first move reads MOVE_EVERY; keep it with movedAt if stored.
+ * How many replies each Save's coming move reads in full: those since the last, at most MOVE_EVERY, and a failed move's. Set by moveDue, which every
+ * move follows. shortcut: in memory like movedAt, so after a restart a first move reads MOVE_EVERY; keep it with movedAt if stored.
  */
 const repliesSince = new Map<string, number>();
 /** How many replies each Save's last move would have read, when it failed, so the next reads those too. */
@@ -62,16 +62,8 @@ export const forgetUnread = (id: string) => unread.delete(id);
 /** The next Turn moves the world, as the move a replaced response read was dropped. */
 export const moveSoon = (id: string) => movedAt.set(id, Number.NEGATIVE_INFINITY);
 
-/** The move after the opening, taken as made, as moveDue takes its own: it reads that one reply, and the next counts from it. */
-export function openingMoved(id: string, after: State) {
-  const clock = clockOf(after.storyTime);
-  movedAt.set(id, 1);
-  if (clock !== undefined) movedClock.set(id, clock);
-  repliesSince.set(id, 1);
-}
-
 /**
- * Due at a natural pause, after the opening's own move (openingMoved): a Turn moving story time on by hours or to a new day, or every few replies since the last move. Due
+ * Due at a natural pause: a Turn moving story time on by hours or to a new day, or every few replies since the last move. Due
  * with no threads open too, as a move is what adds them, and a Turn no longer can. A move due is taken as made.
  */
 export function moveDue(id: string, before: State, after: State, replies: number) {
@@ -212,8 +204,6 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const shown = latestReplies.join("\n");
   const played = [state.summary, ...earlierReplies, shown].join("\n");
   const pace = storyPace(saves, id, messages, clock);
-  // Only while too few replies have passed to have one, as a later story with none may take days a reply.
-  const firstPace = replies.length <= 3 ? FIRST_PACE : undefined;
   const { named, mentions, withDoer } = threadPeople(state);
   const pcForms = nameForms(saves.read(id).pc.name ?? "");
   const adds = ({ thread, truth, now }: ThreadMove) => thread === null && truth !== null && now !== null;
@@ -521,7 +511,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
         latest_replies: latestReplies,
         story_time: withClock(state.storyTime),
         // Without it plans were set hours out in a story that took minutes a reply, and none came on the page in 25 Turns.
-        ...((pace ?? firstPace) !== undefined && { hours_per_reply: pace ?? firstPace }),
+        hours_per_reply: pace ?? FIRST_PACE,
         location: state.scene.location,
         // Without it a move retold the scene in play as what its people did, such as someone "standing in her room now".
         visible_cast: state.scene.visibleCast,

@@ -6,7 +6,7 @@ import { WorldChanging } from "./live-turns";
 import { NoteNotFound, StaleTurn } from "./save-store";
 import { VisibleEdit } from "./state-applier";
 import { toneName } from "./tones";
-import { afterMoves, askForChapterTitle, plansSoon, stopMoves, TurnFailed, worldMoved } from "./turn-engine";
+import { afterMoves, askForChapterTitle, stopMoves, TurnFailed, worldMoved } from "./turn-engine";
 import { readable } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 import { NamedPc } from "./world-routes";
@@ -273,9 +273,7 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
     "/saves/:id/duplicate": {
       POST: async (req) => {
         const { fromMessage } = await parseBody(req, DuplicateRequest);
-        const id = saves.duplicate(req.params.id, fromMessage);
-        plansSoon(saves, id);
-        return Response.json({ id }, { status: 201 });
+        return Response.json({ id: saves.duplicate(req.params.id, fromMessage) }, { status: 201 });
       },
     },
 
@@ -319,10 +317,7 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         if (saves.revertPreview(id, messageId).worldChanges > 0) turns.assertIdle(id);
         const before = saves.latestState(id);
         const { asked, ...deleted } = saves.revert(id, messageId);
-        if (deleted.messages > 0) {
-          stopMoves(id);
-          plansSoon(saves, id);
-        }
+        if (deleted.messages > 0) stopMoves(id);
         images.forget(id, messageId, "revert");
         options.usage?.reverted(id);
         // Once each, as the same words given twice made one change twice, at a minute's wait. The last time they were given, as

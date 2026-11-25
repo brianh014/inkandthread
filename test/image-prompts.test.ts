@@ -274,6 +274,28 @@ test("looks given the PC that are an NPC's are left out", () => {
   expect(set("a tall woman with red hair cropped short and a scar").next.pcAppearance).toContain("scar");
 });
 
+test("a person named again beside others is told by their image", () => {
+  const npcs = [
+    { name: "Vane", appearance: "a tall man" },
+    { name: "Jory", appearance: "a boy" },
+  ];
+  expect(expandMarks("[Vane: a tall man] rides beside [Jory: a boy], and [Vane] listens while [Jory] talks.", npcs, "Wren", ["Vane", "Jory"]).prompt).toBe(
+    "the person from image 1, a tall man, rides beside the person from image 2, a boy, and the same person from image 1 listens while the same person from image 2 talks.",
+  );
+  expect(expandMarks("[Vane: a tall man] turns, and [Vane] sighs.", npcs, "Wren", ["Vane"]).prompt).toBe(
+    "the person from image 1, a tall man, turns, and the same person sighs.",
+  );
+});
+
+test("an injury told as someone else's isn't the PC's", () => {
+  const before = { ...openingState, npcs: [{ name: "Barra", appearance: "a woman" }] };
+  const injured = (text: string) => applyOperations(before, [{ op: "add_status", kind: "injuries", text }]);
+  for (const text of ["Barra has a crossbow bolt through the thigh", "Barra is bleeding from the thigh", "Crossbow bolt through Barra's left thigh"])
+    expect([injured(text).next.status.injuries, injured(text).refused]).toEqual([[], []]);
+  for (const text of ["a bite from Barra's dog", "cut thumb, bound by Barra", "bruised by Barra's grip"])
+    expect(injured(text).next.status.injuries).toEqual([text]);
+});
+
 test("the era is set once, and a later set_era is ignored rather than failing the Turn, so pictures never drift", () => {
   const first = applyOperations(openingState, [{ op: "set_era", era: "early medieval Arabia" }]);
   const again = applyOperations(first.next, [{ op: "set_era", era: "1870s American West" }]);

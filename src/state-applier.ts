@@ -489,6 +489,7 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       return;
     case "add_status":
       if (hasNumber(operation.text)) return "has a number";
+      if (othersBody(state, operation.text)) return OTHERS_BODY;
       if (!addOnce(state.status[operation.kind], operation.text)) return "already there";
       // The oldest goes, as Narrators often forget to remove what has passed.
       state.status[operation.kind] = state.status[operation.kind].slice(-MAX_STATUS);
@@ -734,6 +735,20 @@ const lasting = (appearance: string) => {
   return kept || appearance;
 };
 
+const OTHERS_BODY = "someone else's body";
+/**
+ * Whether a status is another's: an NPC who "has" or "is" it, or whose part of the body it is on, as "Barra has a crossbow bolt
+ * through the thigh" stood as the PC's injury. shortcut: by these forms only; add one when another's wound shows.
+ */
+const othersBody = (state: State, text: string) =>
+  state.npcs.some(({ name }) =>
+    nameForms(name).some((form) =>
+      new RegExp(
+        String.raw`^(?:the\s+)?${RegExp.escape(form)}\s+(?:has|is|was)\b|\b(?:in|into|through|on|to|across)\s+${RegExp.escape(form)}['’]s\s+(?:\p{L}+\s+)?(?:thigh|leg|arm|hand|head|face|side|shoulder|chest|back|foot|belly|stomach|neck|knee|ribs?|wrist|fingers?|thumb|eyes?)\b`,
+        "iu",
+      ).test(text),
+    ),
+  );
 const SOMEONE_ELSE = "someone else's looks";
 // What most people's looks say, which tells no one apart.
 const ANYONES = new Set(
@@ -857,7 +872,7 @@ const isRepeat = ({ pcKnown, looseEnds }: State, operation: StateOperation) =>
 // None of these contradict the narration, so they aren't worth a whole response. Someone nameless is added once they're named.
 const IGNORABLE: StateOperation["op"][] = ["resolve_loose_end", "add_known_npc", "set_known_npc_summary", "set_story_time", "npc_learns"];
 const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }) =>
-  IGNORABLE.includes(op) || reason === "already there" || reason === SOMEONE_ELSE || reason === "matches no thread";
+  IGNORABLE.includes(op) || reason === "already there" || reason === SOMEONE_ELSE || reason === OTHERS_BODY || reason === "matches no thread";
 
 /** Applies operations in order, so each is judged against the ones before it. */
 export function applyOperations(state: State, operations: StateOperation[]) {

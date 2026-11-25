@@ -171,7 +171,9 @@ export function expandMarks(text: string, npcs: Npc[], pcName: string, reference
       // A described mark after a bare one keeps its words, as "the same person" there drew someone else in their place.
       const firstDescribed = !!brief && !described.has(person);
       if (brief) described.add(person);
-      if (pictured.includes(person) && !firstDescribed) return "the same person";
+      // By their image where there is one, as "the same person" four times over, for four people, drew strangers.
+      const again = referenced.indexOf(person) + 1;
+      if (pictured.includes(person) && !firstDescribed) return again && pictured.length > 1 ? `the same person from image ${again}` : "the same person";
       const first = !pictured.includes(person);
       if (first) pictured.push(person);
       const looks = [brief, ...(first && npc ? missingFeatures(npc.appearance, brief) : [])].filter(Boolean).join(", ");

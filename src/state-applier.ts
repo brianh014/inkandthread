@@ -702,23 +702,31 @@ const DAY_PARTS: [RegExp, number][] = [
 // Bare feet too, as a man was drawn barefoot in the morning from the night before.
 // shortcut: by these words; add one when another passing state sticks.
 const PASSING =
-  /\b(?:holding|carrying|carried|clutch(?:ing|ed)|gripp(?:ing|ed)|kneeling|crouching|sitting|seated|lying|leaning|standing (?:at|in|by|on|beside|over|before)|gone (?:out|off|away|into|to|back)|in (?:his|her|their|one) (?:other )?hand|in hand|held (?:high|low|up|out)(?! by)|wet|soaked|sodden|drenched|dripping|damp|dusty|dust(?!-)|(?:rain|mud|dust|snow|sand)-(?:stained|caked|covered|streaked|spattered|crusted|soaked|dark)|muddied|windblown|caked|crusted|drained|ashen|flushed|(?:wrists|hands|arms|ankles) (?:bound|tied)|(?:bound|tied) (?:before|behind)|manacled|shackled|in irons|(?:taken|pulled|shrugged) off|(?:coat|jacket|cloak|hat|cap|shirt|boots) off|bare(?:-?foot(?:ed)?| feet)|hood (?:up|down)|rime|folded (?:over|on|across)|left (?:below|behind)|(?:under|over|across) (?:his|her|their|one|an?) arms?|tucked(?! into))\b/i;
+  /\b(?:holding|carrying|carried|clutch(?:ing|ed)|gripp(?:ing|ed)|kneeling|crouching|sitting|seated|lying|leaning|standing (?:at|in|by|on|beside|over|before)|gone (?:out|off|away|into|to|back)|in (?:his|her|their|one) (?:other )?hand|in hand|held (?:high|low|up|out)(?! by)|soaked|sodden|drenched|dripping|damp|rain-\w+|mud-(?!brown|colou?red)\w+|windblown|caked|crusted|drained|ashen|flushed|(?:wrists|hands|arms|ankles) (?:bound|tied)|(?:bound|tied) (?:before|behind)|manacled|shackled|in irons|(?:taken|pulled|shrugged) off|(?:coat|jacket|cloak|hat|cap|shirt|boots) off|bare-?foot(?:ed)?|folded (?:over|on|across)|left (?:below|behind)|(?:under|over|across) (?:his|her|their|one|an?) arms?|tucked(?! into (?:[\w'-]+ ){0,3}(?:boots|trousers|breeches|skirts?|pants|jeans)\b))\b/i;
+// Dirt, wet and how a garment sits for now, which say nothing of what comes before them, so only they go.
+const FOR_NOW = /\b(?:wet|dusty|dust(?!-(?:gr[ae]y|brown|colou?red))|muddied|bare feet|hood (?:up|down)|rime)\b/i;
 // Dirt on what the next words name, as a "dusty blue officer's coat" lost the whole coat from looks in five plays.
 const SOILED =
-  /\b(an? )?(?:dusty|muddied|(?:mud|dust|snow|sand)-(?:stained|caked|covered|streaked|spattered|crusted))[\s-]+(?!(?:a|an|the|at|with|from|to|through|in|on|of|by|and|now)\b)(\p{L})/giu;
+  /((?:^|,\s*|\b(?:an?|his|her|their|the|in|over|under|wearing|with|of|from)\s))(?:dusty|muddied|(?:mud|dust|snow|sand)-(?!colou?red)\w+ed)[\s-]+(?!(?:a|an|the|at|with|from|to|through|in|on|of|by|and|now|up|down|after)\b)(\p{L})/giu;
 /**
- * The looks without what passes: a word of dirt goes alone, and a clause goes from the "and" or "with" before what passes, so the clothes
- * it opens with stay, but never what follows, which may be held too. As written if nothing else is left.
+ * The looks without what passes: a word of dirt on its own, then what a clause says of now from its "and" or "with", so the
+ * clothes it opens with stay, and the whole of a clause that has something held, put off or bound, as both sides of its "and"
+ * may be. As written if nothing else is left.
  */
 const lasting = (appearance: string) => {
   const kept = appearance
-    .replace(SOILED, (_, article: string | undefined, letter: string) => (article ? article[0] + (/[aeio]/i.test(letter) ? "n " : " ") : "") + letter)
+    .replace(
+      SOILED,
+      (_, before: string, letter: string) =>
+        // Its article still fits the word that now follows it.
+        (/^an?\s$/i.test(before) ? (/[aeio]/i.test(letter) ? before[0] + "n " : before[0] + " ") : before) + letter,
+    )
     .split(",")
     .flatMap((clause) => {
-      const parts = clause.split(/(?=\s(?:and|with (?:an?|the|his|her|their|wet|damp|rime))\s)/);
-      const passing = parts.findIndex((part) => PASSING.test(part));
-      const left = passing < 0 ? parts : parts.slice(0, passing);
-      return left.length > 0 ? [left.join("")] : [];
+      if (PASSING.test(clause)) return [];
+      const parts = clause.split(/(?=\s(?:and|with (?:an?|the|his|her|their|wet|rime|bare|hood))\s)/);
+      const at = parts.findIndex((part) => FOR_NOW.test(part));
+      return at === 0 ? [] : [parts.slice(0, at < 0 ? parts.length : at).join("")];
     })
     .join(",")
     .trim();

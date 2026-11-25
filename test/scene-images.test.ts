@@ -697,7 +697,8 @@ test("a Duplicate from here keeps the images up to that Message", async () => {
 test("the picture check is given those in view with a portrait whom the prompt left unmarked, and their portrait then goes in", async () => {
   images = scriptedImages(PNG, PNG, PNG);
   script = scriptedTextProvider(newScene("A woman stands by [Kit: a boy in a cap].", "The quay"));
-  const given: { name: string; looks: string; main?: boolean }[][] = [];
+  const given: { name: string; looks: string }[][] = [];
+  const moments: string[] = [];
   app = startApp(
     join(folder.path, "Saves"),
     script.textProvider,
@@ -705,8 +706,9 @@ test("the picture check is given those in view with a portrait whom the prompt l
     undefined,
     images.imageAdapter,
     undefined,
-    async (description, _style, _signal, cast = []) => {
+    async (description, _style, _signal, cast = [], moment = "") => {
       given.push(cast);
+      moments.push(moment);
       return description.replace("A woman", "[Ash: A woman]");
     },
   );
@@ -718,8 +720,13 @@ test("the picture check is given those in view with a portrait whom the prompt l
   await settled(id);
 
   expect(given).toHaveLength(1);
-  expect(given[0]!.map(({ name, main }) => ({ name, main }))).toEqual([{ name: "Ash", main: true }]);
+  expect(given[0]!.map(({ name }) => name)).toEqual(["Ash"]);
   expect(given[0]![0]!.looks).toContain("a tall woman of forty");
+  expect(moments).toEqual([
+    ((await app.get(`/saves/${id}/messages`).then((r) => r.json())) as { messages: { role: string; text: string }[] }).messages.findLast(
+      ({ role }) => role === "narrator",
+    )!.text,
+  ]);
   const scene = images.payloads.at(-1)!;
   expect(scene.prompt).toContain("the person from image 1");
   expect(scene.reference_images).toHaveLength(1);

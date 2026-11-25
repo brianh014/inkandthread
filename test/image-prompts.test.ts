@@ -16,10 +16,6 @@ test("a mark gets the skin, hair and beard of someone's looks that its phrase le
   expect(expandMarks("[Vik: a gaunt bearded man in a grey coat] stops. [Vik] waves.", [vik], pc, ["Vik"]).prompt).toBe(
     "the person from image 1, a gaunt bearded man in a grey coat, fair skin, a ragged blond beard, stops. the same person waves.",
   );
-  // A part said by its feature and one word more isn't said again.
-  expect(expandMarks("[Vik: a fair-skinned man, a blond beard and fair skin] stops.", [vik], pc).prompt).toBe(
-    "a fair-skinned man, a blond beard and fair skin stops.",
-  );
   expect(expandMarks("[Vik: a man with fair skin and a ragged blond beard] stops.", [vik], pc).prompt).toBe(
     "a man with fair skin and a ragged blond beard stops.",
   );
@@ -244,13 +240,22 @@ test("a clothing clause keeps its clothes when a word in it passes with the scen
   expect(looksOf("a man, in brown trousers tucked into scuffed riding boots, canvas breeches held up by one suspender and bare feet")).toBe(
     "a man, in brown trousers tucked into scuffed riding boots, canvas breeches held up by one suspender",
   );
-  // What comes after something held may be held too.
-  expect(looksOf("a man, his sleeves pushed back and a shovel gripped in both hands, holding a lantern and a rope, hood up, rime in his beard")).toBe(
-    "a man, his sleeves pushed back",
+  expect(looksOf("a girl with wet hair, in a grey cloak with hood up, a black beard with rime in it, mud-brown eyes")).toBe(
+    "a girl, in a grey cloak, a black beard, mud-brown eyes",
   );
-  expect(looksOf("a girl with wet hair, in a grey cloak with the hood up, a shirt tucked into trousers, mud-brown eyes")).toBe(
-    "a girl, in a grey cloak, a shirt tucked into trousers, mud-brown eyes",
-  );
+  // Both sides of an "and" may be held, so the clause goes whole, and so do dirt that follows its garment and all other dirt.
+  for (const passing of [
+    "his hat and gloves under his arm",
+    "a sword and shield in hand",
+    "a lantern and a rope held high",
+    "skirts muddied up to the knee",
+    "boots dusty after the road",
+    "boots grey with road dust",
+    "rain-darkened coat",
+    "hands tucked into his armpits",
+    "hood up",
+  ])
+    expect([passing, looksOf(`a man, a scar on his cheek, ${passing}`)]).toEqual([passing, "a man, a scar on his cheek"]);
 });
 
 test("the era is set once, and a later set_era is ignored rather than failing the Turn, so pictures never drift", () => {

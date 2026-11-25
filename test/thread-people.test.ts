@@ -49,7 +49,10 @@ test("a plan that names its doer only as he or she is given the name the now wri
       { name: "Mara Vell", appearance: "a woman of thirty" },
     ],
     // Someone never met, known only by their Lore Entry.
-    worldBible: [{ title: "Arne Vik", keywords: ["Arne Vik", "Vik"], content: "A geologist.", alwaysOn: false }],
+    worldBible: [
+      { title: "Arne Vik", keywords: ["Arne", "Vik"], content: "A gaunt man of forty, a geologist.", alwaysOn: false },
+      { title: "Salt Chapel", keywords: ["Salt Chapel"], content: "A chapel on the marsh.", alwaysOn: false },
+    ],
   });
   const now = "Vik came back before first light, and Thorne saw him.";
   const named = withDoer("At 03:06 he leaves the hut with the knife.", now);
@@ -65,6 +68,12 @@ test("a plan that names its doer only as he or she is given the name the now wri
     ["At six he burns the page.", "Thorne's lamp is lit."],
     ["At six he burns the page.", "Thorneybrook burns."],
     ["At six he burns the page.", "The lamp is lit and Thorne sleeps."],
+    ["At dusk he burns the ledger.", "Salt Chapel is barred; Thorne sleeps inside."],
+    ["At six she burns it.", "Mara Vell's lamp is lit."],
+    ["At six he burns it.", "Thorne Hall is dark."],
+    ["By the time she returns he will burn the ledger.", "Mara Vell has the key."],
+    ["The one he hired will burn the ledger.", "Thorne is at home."],
+    ["At six he tells Thorne the truth.", "Thorne suspects Vik."],
     ["At dusk the widow tells what she knows.", "Mara Vell has the key."],
   ] as const)
     expect(withDoer(plan, opening)).toBe(plan);

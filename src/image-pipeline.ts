@@ -138,13 +138,7 @@ export function missingFeatures(looks: string, phrase: string) {
     .split(/,|;|\s+with\s+/)
     .flatMap((part) => part.split(/\s+and\s+/))
     .map((part) => part.trim())
-    .filter((part) => {
-      const feature = part.match(FEATURE)?.[0];
-      if (!feature) return false;
-      const words = part.split(/\s+/).filter((word) => !FILLER.has(word.toLowerCase()));
-      // Said by its feature and one word more, as "a close-trimmed black beard" after "a black beard" wrote the beard twice.
-      return !words.every(said) && !(said(feature) && words.some((word) => word.toLowerCase() !== feature.toLowerCase() && said(word)));
-    });
+    .filter((part) => FEATURE.test(part) && part.split(/\s+/).some((word) => !FILLER.has(word.toLowerCase()) && !said(word)));
 }
 
 /**
@@ -332,8 +326,10 @@ export type PictureReviewer = (
   description: string,
   style: PromptStyle,
   signal: AbortSignal,
-  /** Those in view whose portrait can be sent and whom the prompt doesn't mark, or everyone it doesn't, with the PC as main. */
-  cast?: { name: string; looks: string; main?: boolean }[],
+  /** Those in view whose portrait can be sent and whom the prompt doesn't mark. */
+  cast?: { name: string; looks: string }[],
+  /** The story's words the picture is of, to tell them by. */
+  moment?: string,
 ) => Promise<string>;
 
 export function imagePipeline(
@@ -434,7 +430,7 @@ export function imagePipeline(
     return { prompt, negative_prompt: AVOID, aspect_ratio: "16:9", reference_images, style_preset: "" };
   };
 
-  async function drawMoment(id: string, { description: written, npcs, inView, wearing }: Moment, signal: AbortSignal) {
+  async function drawMoment(id: string, messageId: number, { description: written, npcs, inView, wearing }: Moment, signal: AbortSignal) {
     const { pc } = saves.read(id);
     const pcName = pc.name;
     const style = promptStyle(settings.read());
@@ -442,18 +438,20 @@ export function imagePipeline(
     const marked = markNames(written, npcs, pcName);
     const { pictured: shown } = expandMarks(marked, npcs, pcName);
     const unmarked = [null, ...npcs.map(({ name }) => name).filter((name) => inView?.includes(name) ?? true)].filter((person) => !shown.includes(person));
-    // Only those with a portrait to send, as a mark does nothing else, and only prose has marks. Beside those already marked,
-    // whose portraits take the model's places first.
-    const sent = style === "prose" ? referenced(id, [...shown, ...unmarked]).filter((person) => unmarked.includes(person)) : [];
-    // All in view where the PC is among them, as whoever the prompt gives no looks can be told as the PC only once the rest are
-    // told: "a second figure in a heavy sweater" and "a woman inside" were drawn as strangers.
-    const whole = !!inView && sent.includes(null);
-    const cast = (whole ? unmarked : sent).map((person) =>
-      person === null
-        ? { name: pcName, looks: pcLooks(pcNow(pc, saves.latestState(id)), wearing), ...(whole && { main: true }) }
-        : { name: person, looks: npcs.find(({ name }) => name === person)!.appearance },
-    );
-    const description = await reviewPicture(marked, style, signal, cast);
+    // Only those with a portrait to send, as a mark does nothing else, and only prose has marks.
+    const cast =
+      style === "prose"
+        ? // Beside those already marked, whose portraits take the model's places first.
+          referenced(id, [...shown, ...unmarked])
+            .filter((person) => unmarked.includes(person))
+            .map((person) =>
+              person === null
+                ? { name: pcName, looks: pcLooks(pcNow(pc, saves.latestState(id)), wearing) }
+                : { name: person, looks: npcs.find(({ name }) => name === person)!.appearance },
+            )
+        : [];
+    const moment = cast.length > 0 ? saves.messages(id).find((message) => message.id === messageId)?.text : undefined;
+    const description = await reviewPicture(marked, style, signal, cast, moment);
     // Twice, as who is pictured decides which portraits go in, and those decide how each mark is written.
     const { pictured } = expandMarks(description, npcs, pcName);
     const { prompt } = expandMarks(description, npcs, pcName, referenced(id, pictured));
@@ -464,7 +462,7 @@ export function imagePipeline(
   }
 
   async function drawScene(id: string, messageId: number, scene: Scene, signal: AbortSignal) {
-    const { prompt, pictured, bytes } = await drawMoment(id, scene, signal);
+    const { prompt, pictured, bytes } = await drawMoment(id, messageId, scene, signal);
     saves.addSceneImage(id, messageId, scene.location, bytes, prompt, pictured);
     log.info("images", "Image drawn", about(id, { kind: "scene", messageId }));
   }
@@ -654,7 +652,7 @@ export function imagePipeline(
         try {
           const { text: description, title } = await write(signal);
           step = "drawing it";
-          const { prompt, pictured, bytes } = await drawMoment(id, { ...moment, description }, signal);
+          const { prompt, pictured, bytes } = await drawMoment(id, messageId, { ...moment, description }, signal);
           saves.addRequestedImage(id, messageId, words || title.trim().slice(0, 80) || "The current scene", bytes, prompt, pictured);
           log.info("images", "Image drawn", about(id, { kind: "requested", messageId }));
         } catch (error) {

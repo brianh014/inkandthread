@@ -106,31 +106,21 @@ test("a review may mark someone in view the prompt left unmarked, and no one els
   const cast = [{ name: "Mara Vukas", looks: "a tall woman of forty" }];
 
   const log = await logOf(async () => {
-    const reviewed = await reviewScenePrompt({ textProvider: script.textProvider, settings }, bare, "prose", new AbortController().signal, cast);
+    const reviewed = await reviewScenePrompt(
+      { textProvider: script.textProvider, settings },
+      bare,
+      "prose",
+      new AbortController().signal,
+      cast,
+      "Mara kneels by the fire.",
+    );
     expect(reviewed).toBe(marked);
   }, "info");
 
   expect(script.prompts).toHaveLength(3);
   expect(script.prompts[0]![0]!.content).toContain("Never add anyone's name outside a mark");
-  expect(JSON.parse(script.prompts[0]![1]!.content)).toEqual({ prompt: bare, cast });
+  expect(JSON.parse(script.prompts[0]![1]!.content)).toEqual({ prompt: bare, cast, moment: "Mara kneels by the fire." });
   expect(log).toContain('"unmarked":1,"marked":1');
-});
-
-test("a review is told that whoever is pictured with no looks may be the PC, only where the PC is given as main", async () => {
-  const settings = settingsStore(join(folder.path, "settings.json"));
-  const asked = async (cast: { name: string; looks: string; main?: boolean }[]) => {
-    const script = scriptedTextProvider(checked("A second figure stands by the door."));
-    await reviewScenePrompt(
-      { textProvider: script.textProvider, settings },
-      "A second figure stands by the door.",
-      "prose",
-      new AbortController().signal,
-      cast,
-    );
-    return script.prompts[0]![0]!.content;
-  };
-  expect(await asked([{ name: "Ash", looks: "a tall woman", main: true }])).toContain("with no looks of their own is main");
-  expect(await asked([{ name: "Kit", looks: "a boy" }])).not.toContain("main,");
 });
 
 test("a failed review draws the prompt as written", async () => {

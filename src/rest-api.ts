@@ -96,7 +96,7 @@ export function startServer(given: ServerOptions) {
     adapters,
     settings,
     options.writePicture ?? ((ask, style, _template, signal) => writePicturePrompt(options, ask, style, signal)),
-    options.reviewPicture ?? ((description, style, signal, cast) => reviewScenePrompt(options, description, style, signal, cast)),
+    options.reviewPicture ?? ((description, style, signal, cast, moment) => reviewScenePrompt(options, description, style, signal, cast, moment)),
   );
 
   // What goes on without the request that started it.

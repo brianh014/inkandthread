@@ -383,7 +383,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   );
   const Move = plotThreads.length === 0 ? ThreadMove : ThreadMove.extend({ thread: z.string().min(1).meta({ enum: plotThreads }).nullable() });
   // What each thread turns on that play has yet to answer, asked of every thread, as left to a null now or a list of the settled
-  // no move removed one in 58 bench moves, one answered at round 5. A null is a remove, in place of any rewrite of that thread,
+  // no move removed one in 58 bench moves, one answered at round 5. An answer is a remove, in place of a rewrite of that thread with no plan,
   // held by the same faults; a thread missing from it stays.
   // Asked against the thread's own question, kept from when it began, as a question rewritten each move followed play and none closed.
   // How play answered it rather than a yes or no, as no move of 60 answered a bare boolean while play had settled questions. The
@@ -396,11 +396,18 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const Left = plotThreads.every((truth) => threadsQuestion[truth])
     ? Answered
     : Answered.extend({ question: z.preprocess((question) => question ?? null, z.string().trim().min(1).nullable()) });
+  // Those a reply both answered and gave a deed to come, over all its tries, for the log.
+  const answeredOn = new Set<string>();
   const movesOf = ({ left, plot_threads }: { left: z.infer<typeof Left>[]; plot_threads: ThreadMove[] }) => {
     // Never a thread with no question yet, as one was closed by an answer to nothing.
-    const closed = [
+    const answered = [
       ...new Set(left.map(({ thread, answer }) => (answer && closestThread(plotThreads, thread)) || "").filter((thread) => threadsQuestion[thread])),
     ];
+    // Nor one given a deed to come, as replies told how things stand as the answer, 58 of 129 in 404 moves, and lost its rewrite or
+    // the thread itself, a romance's among them.
+    const planned = plot_threads.flatMap(({ thread, now, plan }) => (thread && now && plan ? [closestThread(plotThreads, thread)] : []));
+    for (const thread of answered) if (planned.includes(thread)) answeredOn.add(thread);
+    const closed = answered.filter((thread) => !planned.includes(thread));
     const rest = plot_threads.filter(({ thread }) => thread === null || !closed.includes(closestThread(plotThreads, thread) ?? ""));
     return [
       ...rest,
@@ -713,6 +720,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       ...(kept.some(({ thread, truth }) => thread !== null && truth !== null) && {
         truthsIgnored: kept.filter(({ thread, truth }) => thread !== null && truth !== null).length,
       }),
+      ...(answeredOn.size > 0 && { answeredOn: answeredOn.size }),
       dropped: countOf(faults),
       ...(nowFaults(kept).length > 0 && { nowsKept: countOf(nowFaults(kept)) }),
       ...(reverted.length > 0 && { nowsReverted: reverted.length }),

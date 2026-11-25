@@ -770,11 +770,7 @@ export async function playTurn(
   });
   // Only now, as a Turn that failed or was stopped brought nothing on.
   if (due) planOffered(id, due, replyBefore(messages));
-  // After the opening too, for its first plans alone, as the first five replies of every story had none, and two nights in seven
-  // plays were slept through before the visit the story began with was planned. The player reads the opening meanwhile.
-  const opening = moveWorld && kind === "opening";
-  if (opening) log.info("world", "World move due", { save: id, opening });
-  if (opening || (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies + 1))) {
+  if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies + 1)) {
     // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
     // Lore and the folds beside the move, by the Scribe, as Upkeep is, so the next Turn waits on them all at most one MOVE_LIMIT, never one after the other.
     const mover = new AbortController();
@@ -783,9 +779,9 @@ export async function playTurn(
     // Settled both, as a move that threw let the next Turn start while the Lore was still being written, which then came too late.
     const move = Promise.allSettled([
       moveWorldOn(textProvider, settings, saves, id, limit),
-      !opening && reviewProvider && growLore(reviewProvider, saves, id, limit),
-      !opening && reviewProvider && foldKnows(reviewProvider, saves, id, limit),
-      !opening && reviewProvider && closeLooseEnds(reviewProvider, saves, id, limit),
+      reviewProvider && growLore(reviewProvider, saves, id, limit),
+      reviewProvider && foldKnows(reviewProvider, saves, id, limit),
+      reviewProvider && closeLooseEnds(reviewProvider, saves, id, limit),
     ])
       .then(() => undefined)
       .finally(() => movers.get(id) === mover && movers.delete(id))

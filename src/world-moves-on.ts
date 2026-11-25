@@ -102,8 +102,6 @@ export function moveDue(id: string, before: State, after: State, replies: number
 
 /** The replies a move measures the story's pace over. */
 const PACE_REPLIES = 10;
-/** What a reply takes until the story has a pace of its own, the median over the first five replies of 23 plays, as a plan set with none was hours out. */
-const FIRST_PACE = 0.1;
 /** The story hours a reply usually takes, undefined until there are three to tell by. The median, as a night's sleep isn't the pace. */
 export function hoursPerReply(clock: (number | undefined)[]) {
   const steps = clock
@@ -511,7 +509,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
         latest_replies: latestReplies,
         story_time: withClock(state.storyTime),
         // Without it plans were set hours out in a story that took minutes a reply, and none came on the page in 25 Turns.
-        hours_per_reply: pace ?? FIRST_PACE,
+        ...(pace !== undefined && { hours_per_reply: pace }),
         location: state.scene.location,
         // Without it a move retold the scene in play as what its people did, such as someone "standing in her room now".
         visible_cast: state.scene.visibleCast,

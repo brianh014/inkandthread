@@ -91,7 +91,7 @@ The prompts in `src/prompt-assembler.ts` and `src/world-creation.ts` go into eve
 - The user's real play logs to `logs/inkandthread.log` (and `.1`) in the repo root. When the player has Story in log on, it holds the prompts and replies with their story text, and reading it to diagnose a problem needs no asking, whatever the story. Never quote adult text from it back.
 - `--watch` restarts the server on every code change, and an unfinished world in the New Story wizard lives only in server memory, so it is lost then: generate it again.
 - `bench/LOOP.md` is the bench loop: run, a blind judge, fix, run again, alternating models, until the score plateaus, unattended if the player asks for it.
-- `bench/LIVE.md` is live plays: an agent plays stories Turn by Turn (`bun bench live` and `bun bench do`) and another audits them, for how good they are to play and what breaks, graded by the rubric for the record only. Use it to find issues and try different kinds of stories; the bench judges whether a change is better.
+- `bench/LIVE.md` is live plays: an agent plays stories Turn by Turn (`bun bench live` and `bun bench do`) and another audits them, for how good they are to play and what breaks, graded by the rubric for the record only. Use it to find faults and to see whether a story is worth reading: a steered player goes where seeded Choices never do, types moves, and shows where the story is predictable. Use the bench to judge whether a change is better, and for what only a long play shows, such as the Journal growing. Never compare their scores or mistake counts, as the stories, lengths and briefs differ; the auditor finds most of the faults, so check each cause before acting on it.
 
 #### Making a bench world
 

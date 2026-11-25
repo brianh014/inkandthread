@@ -353,6 +353,8 @@ export function imagePipeline(
   const failures = new Map<string, string>();
   // shortcut: kept in memory like the jobs, so a restart forgets which portraits are out of date, keep it in the Save if that bites.
   const outOfDate = new Set<string>();
+  /** Portraits whose looks changed again while they were being updated. */
+  const changedSince = new Set<string>();
   // shortcut: in memory and one per Save, so a restart or a second failure loses it, and that picture was never drawn anyway.
   const requestFailures = new Map<string, { error: string; words: string }>();
   let session = 0;
@@ -554,7 +556,10 @@ export function imagePipeline(
     const looks = npc ? chestUp(npc.appearance) : pc.physicalTraits?.trim() && pcLooks(pc, wearing);
     if (!looks) return;
     const ask = { kind: "portrait" as const, looks, theme, world: worldBrief, artStyle, era: state.era };
-    if (pipeline.redraw(id, { kind: "portrait", ref: portrait.id }, portrait.messageId, ask)) {
+    const target = { kind: "portrait" as const, ref: portrait.id };
+    // Already drawing from looks since changed, such as a reply's the player has rewritten: again when the Scene next moves.
+    if (isRedrawing(id, redrawKey(id, target))) changedSince.add(redrawKey(id, target));
+    if (pipeline.redraw(id, target, portrait.messageId, ask)) {
       log.info("images", "Portrait updated to new looks", about(id, { kind: "portrait", messageId: portrait.messageId }));
     }
   }
@@ -615,7 +620,8 @@ export function imagePipeline(
           const bytes = await adapter(redrawPayload(id, target, messageId, written, keepFace || fromOriginal), signal);
           session++;
           saves.replaceImage(id, target, written, bytes);
-          outOfDate.delete(key);
+          if (changedSince.delete(key)) outOfDate.add(key);
+          else outOfDate.delete(key);
           log.info("images", "Image drawn", about(id, { kind, messageId }));
         } catch (error) {
           if (!signal.aborted && !(error instanceof SaveNotFound)) {

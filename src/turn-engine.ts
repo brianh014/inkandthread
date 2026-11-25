@@ -809,6 +809,7 @@ export async function replaceResponse(
   const times = { started: Date.now() };
   await settleJournal(saves, { textProvider, settings, images, reviewProvider }, id, signal, () => saves.turnToReplace(id, messageId, true).state);
   const { input, narration, check, state, messages, sceneImage, journalEdits, movesDropped } = saves.turnToReplace(id, messageId, true);
+  const taken = saves.latestState(id);
   // The old picture goes with its response, so the new one always gets its own, whatever the Narrator decides.
   const hadPicture = !!sceneImage || images.sceneDrawing(id, messageId);
   const { prompt, due, memory, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
@@ -860,11 +861,14 @@ export async function replaceResponse(
     },
     committed: (replacement, scene) => {
       images.forget(id, messageId - 1, kind);
+      // With those whose looks the replaced reply gave or took away, as a portrait drawn from them outlived a Rewrite.
+      const people = [...restyledBy(taken, saves.latestState(id)), ...(scene.restyled ?? [])];
+      const restyled = [...new Map(people.map((person) => [person?.name ?? null, person])).values()];
       // shortcut: a Narrator that writes no prompt gets the old one, which shows the old moment and draws with no portraits. Retry the reply if real models do this.
       const description = scene.description || (sceneImage?.prompt ?? "");
       if (hadPicture) log.info("turn", "Replaced Turn's Scene Image forced", { message: replacement });
       if (hadPicture && !scene.description && sceneImage) log.warning("turn", "Replacement drawn from the old image's prompt", { message: replacement });
-      images.sceneChanged(id, replacement, hadPicture ? { ...scene, changed: true, description } : scene);
+      images.sceneChanged(id, replacement, { ...scene, restyled, ...(hadPicture && { changed: true, description }) });
     },
     times,
   });

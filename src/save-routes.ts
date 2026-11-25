@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { knownPortraits } from "./gallery-routes";
 import { ArtStyleRequest, imageResponse, NoFields, parseBody, routes, type ServerContext, someWords } from "./http";
+import { restyledBy } from "./image-pipeline";
 import { errorType, log } from "./logger";
 import { WorldChanging } from "./live-turns";
 import { NoteNotFound, StaleTurn } from "./save-store";
@@ -315,9 +316,12 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         // and while the last Revert's are made, as this one would leave them to fail after their call was paid for.
         if (turns.isRemaking(id)) throw new WorldChanging();
         if (saves.revertPreview(id, messageId).worldChanges > 0) turns.assertIdle(id);
+        const before = saves.latestState(id);
         const { asked, ...deleted } = saves.revert(id, messageId);
         if (deleted.messages > 0) stopMoves(id);
         images.forget(id, messageId, "revert");
+        const after = saves.latestState(id);
+        images.restyled(id, restyledBy(before, after), after.inventory.wearing);
         options.usage?.reverted(id);
         // Once each, as the same words given twice made one change twice, at a minute's wait. The last time they were given, as
         // a change made, undone and made again must end up made.

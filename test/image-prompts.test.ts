@@ -258,6 +258,15 @@ test("a clothing clause keeps its clothes when a word in it passes with the scen
     expect([passing, looksOf(`a man, a scar on his cheek, ${passing}`)]).toEqual([passing, "a man, a scar on his cheek"]);
 });
 
+test("looks given the PC that are an NPC's are left out", () => {
+  const price = "a broad man in his fifties with a grey walrus moustache and a red face, in a dark blue constable's coat";
+  const before = { ...openingState, npcs: [{ name: "Price", appearance: price }], pcAppearance: "a tall woman with red hair" };
+  const set = (appearance: string) => applyOperations(before, [{ op: "set_pc_appearance", appearance }]);
+  const taken = set("a broad man in his fifties with a red face, a grey walrus moustache, in a dark blue constable's coat buttoned wrong");
+  expect([taken.next.pcAppearance, taken.refused, taken.ignored.length]).toEqual(["a tall woman with red hair", [], 1]);
+  expect(set("a tall woman with red hair cropped short and a scar").next.pcAppearance).toContain("scar");
+});
+
 test("the era is set once, and a later set_era is ignored rather than failing the Turn, so pictures never drift", () => {
   const first = applyOperations(openingState, [{ op: "set_era", era: "early medieval Arabia" }]);
   const again = applyOperations(first.next, [{ op: "set_era", era: "1870s American West" }]);

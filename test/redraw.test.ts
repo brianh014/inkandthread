@@ -574,6 +574,34 @@ test("with Update portraits on, a Turn that changes the PC's looks draws their p
   expect(drawn.payloads.at(-1)!.reference_images.map(({ role }) => role)).toEqual(["pc"]);
 });
 
+test("a portrait drawn from looks a Rewrite or a Revert takes back is drawn again as they were", async () => {
+  await play(
+    [turn("A wet street", scene("The ferry")), pcLooksNow("Short, hair shorn close, a scar on the chin"), quiet(), pcLooksNow("Bald, a scar on the chin")],
+    png(1),
+    png(2),
+    png(3),
+    png(4),
+    png(5),
+    png(6),
+  );
+  await app.patch("/settings", { updatePortraits: true });
+  const id = await newSave();
+  await playTurn(id);
+  await playTurn(id);
+  const { messages } = (await (await app.get(`/saves/${id}/messages`)).json()) as { messages: { id: number }[] };
+
+  expect((await app.post(`/saves/${id}/messages/${messages.at(-1)!.id}/rewrite`, { feedback: "Leave their hair." })).status).toBe(201);
+  expect(find(await settled(id), "portrait")).toMatchObject({ redraws: 2 });
+  expect(drawn.payloads.at(-1)!.prompt).not.toContain("shorn close");
+
+  await playTurn(id);
+  const last = ((await (await app.get(`/saves/${id}/messages`)).json()) as { messages: { id: number; role: string }[] }).messages;
+  const back = last.filter(({ role }) => role === "narrator").at(-2)!.id;
+  expect((await app.post(`/saves/${id}/messages/${back}/revert`, {})).status).toBe(200);
+  expect(find(await settled(id), "portrait")).toMatchObject({ redraws: 4 });
+  expect(drawn.payloads.at(-1)!.prompt).not.toContain("Bald");
+});
+
 test("a PC with no looks gets a portrait once the story gives them some and the Scene moves", async () => {
   await play([turn("A wet street", scene("The ferry")), pcLooksNow("Tall and wiry, with red hair", scene("The quay"))], png(1), png(2));
   const id = ((await (await app.post("/saves", { worldBrief: "A drowned city", pc: { name: "Ash" } })).json()) as { id: string }).id;

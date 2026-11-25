@@ -607,6 +607,7 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       return;
     }
     case "set_pc_appearance":
+      if (looksOfAnother(state, operation.appearance)) return SOMEONE_ELSE;
       state.pcAppearance = operation.appearance;
       return;
     case "set_era":
@@ -733,6 +734,21 @@ const lasting = (appearance: string) => {
   return kept || appearance;
 };
 
+const SOMEONE_ELSE = "someone else's looks";
+/**
+ * Whether looks given the PC are an NPC's, by six or more of their words and most of them, as a reply gave the PC the constable's
+ * grey moustache and coat and their portrait was drawn so. shortcut: by words, so a twin's are refused too; give the PC their own
+ * words if one shows.
+ */
+function looksOfAnother(state: State, appearance: string) {
+  const words = new Set(appearance.toLowerCase().match(/\p{L}{4,}/gu) ?? []);
+  return state.npcs.some((npc) => {
+    const theirs = new Set(npc.appearance.toLowerCase().match(/\p{L}{4,}/gu) ?? []);
+    const shared = [...words].filter((word) => theirs.has(word)).length;
+    return shared >= 6 && shared >= words.size * 0.6;
+  });
+}
+
 /**
  * Whether going from one hour back to an earlier one is the night running on past midnight: from night, about eight on, to the
  * next morning, as the words' own check has it, so evening to mid-morning is still a story starting over.
@@ -835,7 +851,7 @@ const isRepeat = ({ pcKnown, looseEnds }: State, operation: StateOperation) =>
 // None of these contradict the narration, so they aren't worth a whole response. Someone nameless is added once they're named.
 const IGNORABLE: StateOperation["op"][] = ["resolve_loose_end", "add_known_npc", "set_known_npc_summary", "set_story_time", "npc_learns"];
 const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }) =>
-  IGNORABLE.includes(op) || reason === "already there" || reason === "matches no thread";
+  IGNORABLE.includes(op) || reason === "already there" || reason === SOMEONE_ELSE || reason === "matches no thread";
 
 /** Applies operations in order, so each is judged against the ones before it. */
 export function applyOperations(state: State, operations: StateOperation[]) {

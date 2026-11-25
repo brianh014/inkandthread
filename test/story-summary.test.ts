@@ -5,6 +5,7 @@ import { startServer } from "../src/rest-api";
 import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
 import { nextSummary, summaryDue } from "../src/story-summary";
+import { ContentRefused, type TextProvider } from "../src/turn-engine";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
 
 let folder: ReturnType<typeof tempFolder>;
@@ -32,9 +33,10 @@ const story = (replies: number) =>
     { id: index * 2 + 1, role: "player" as const, text: index === 0 ? OPENING_INPUT : `Move ${index}.` },
     { id: index * 2 + 2, role: "narrator" as const, text: `Reply ${index}.` },
   ]).flat();
+const by = (provider?: TextProvider) => ({ provider, narrator: scriptedTextProvider().textProvider });
 const ask = (reply: string | Error, replies: number, state = { summary: "It began.", summaryReplies: 0 }) => {
   const scribe = scriptedTextProvider(reply);
-  return { scribe, written: nextSummary(scribe.textProvider, settingsWith(), "Ash", state, story(replies), new AbortController().signal) };
+  return { scribe, written: nextSummary({ ...by(scribe.textProvider), settings: settingsWith() }, "Ash", state, story(replies), new AbortController().signal) };
 };
 const summed = (summary: unknown) => JSON.stringify({ summary });
 
@@ -55,9 +57,10 @@ test("the Scribe is sent the page alone: the summary so far and the Messages it 
   expect(scribe.prompts[0]![0]!.content).toContain("under 500 words");
 });
 
-test("a Save left long without one is sent its latest replies, and an opening's marker never goes", async () => {
-  const long = ask(summed("So it went."), 30, { summary: "", summaryReplies: 0 });
-  await long.written;
+test("a story left long without one catches up oldest first, an older Save is sent its latest, and an opening's marker never goes", async () => {
+  expect(await ask(summed("So it went."), 30, { summary: "So far.", summaryReplies: 4 }).written).toEqual({ text: "So it went.", replies: 14 });
+  const long = ask(summed("So it went."), 30);
+  expect(await long.written).toEqual({ text: "So it went.", replies: 30 });
   const sent = JSON.parse(long.scribe.prompts[0]![1]!.content).messages;
   expect(sent.filter(({ role }: { role: string }) => role === "narrator")).toHaveLength(2 * SUMMARY_EVERY);
 
@@ -73,11 +76,23 @@ test("a summary that is missing, blank or cut to a fraction of the last is not t
   for (const bad of [summed("  "), summed(7), summed(null), new Error("down")]) expect(await ask(bad, 6).written).toBeNull();
 });
 
+test("a summary another model refuses is asked of the Narrator", async () => {
+  const settings = settingsWith();
+  settings.update({ reviewOtherModel: true, reviewModel: "scribe/model" });
+  const scribe = scriptedTextProvider(new ContentRefused("policy"));
+  const narrator = scriptedTextProvider(summed("It went on."));
+  const from = { provider: scribe.textProvider, narrator: narrator.textProvider, settings };
+  expect(await nextSummary(from, "Ash", { summary: "It began.", summaryReplies: 1 }, story(6), new AbortController().signal)).toEqual({
+    text: "It went on.",
+    replies: 6,
+  });
+});
+
 test("no Scribe, or no model for it, is asked for none", async () => {
   const { signal } = new AbortController();
-  expect(await nextSummary(undefined, settingsWith(), "Ash", { summary: "", summaryReplies: 0 }, story(3), signal)).toBeNull();
+  expect(await nextSummary({ ...by(undefined), settings: settingsWith() }, "Ash", { summary: "", summaryReplies: 0 }, story(3), signal)).toBeNull();
   const scribe = scriptedTextProvider();
-  expect(await nextSummary(scribe.textProvider, settingsWith(""), "Ash", { summary: "", summaryReplies: 0 }, story(3), signal)).toBeNull();
+  expect(await nextSummary({ ...by(scribe.textProvider), settings: settingsWith("") }, "Ash", { summary: "", summaryReplies: 0 }, story(3), signal)).toBeNull();
   expect(scribe.prompts).toEqual([]);
 });
 

@@ -732,7 +732,7 @@ const SOILED =
 const DIRT = String.raw`(?:ash(?:es)?|soot|dust|mud|sand|snow|frost|sweat|rain)(?![-\w])`;
 // Never where the next words may be what the dirt describes, as ash blonde hair is no dirt.
 const DIRTIED = new RegExp(
-  String.raw`\s+(?:and\s+)?(?:grey|greyed|gray|grayed|white|whitened|black|blackened|dark|darkened|stiff|smudged|smeared|streaked|dusted|grimed|powdered) with ${DIRT}(?:\s+and\s+(?:${DIRT}|(?:grape )?must|water|grease|oil|blood|grime))?(?:\s(?:at|on|across|from|up to)\s(?:(?!\s(?:and|with|in|over|under|above|wearing)\s)[^,;.])*)?(?=\s*(?:[,;.]|$)|\s(?:and|with|in|over|under|above|below|wearing)\s)`,
+  String.raw`\s+(?:and\s+)?(?:grey|greyed|gray|grayed|white|whitened|black|blackened|dark|darkened|stiff|smudged|smeared|streaked|dusted|grimed|powdered) with ${DIRT}(?:\s+and\s+(?:${DIRT}|(?:grape )?must|water|grease|oil|blood|grime))?(?:\s(?:all\s+)?(?:at|on|across|from|up to|to|around|along|near|beneath|round|over(?=\sthe\s))\s(?:(?!\s(?:and|with|in|over|under|above|below|wearing)\s)[^,;.])*)?(?=\s*(?:[,;.]|$)|\s(?:and|with|in|over|under|above|below|wearing)\s)`,
   "gi",
 );
 /**

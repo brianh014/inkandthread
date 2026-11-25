@@ -328,6 +328,8 @@ test("a known fact may be reworded in the words it already has, and one refused 
   const update = (replacement: string) => ({ op: "update_known_fact" as const, fact, replacement });
   const moved = update("Bram is behind the smuggling and left for the quay.");
   expect(groundedNotes([moved], state, "Bram runs contraband to the quay.")).toEqual([moved]);
+  // One the Journal doesn't hold would be added, so its words are no one's yet.
+  expect(groundedNotes([moved], { ...state, pcKnown: { ...state.pcKnown, facts: [] } }, "Bram runs contraband to the quay.")).toEqual([]);
   const note = { op: "add_known_fact" as const, fact: "Bram carried something heavy toward the quay." };
   const secret = update("Bram carried the oilskin, something heavy, toward the quay.");
   expect(groundedNotes([secret, note], state, "Bram carries something heavy to the quay.")).toEqual([note]);

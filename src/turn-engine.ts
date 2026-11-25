@@ -45,7 +45,7 @@ import { countWords, withinLimit } from "./limits";
 import { knownChoices, secretWords, unreadIn, withoutUnread, writeChoices } from "./known-choices";
 import { estimateTokens, wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
-import { nextSummary } from "./story-summary";
+import { inTime, nextSummary } from "./story-summary";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 import { foldKnows } from "./knowledge-folds";
@@ -493,7 +493,8 @@ type Narrated = {
   narration?: string;
   /** The Scene Memory this Turn adds, if one is due and came back. */
   memory: Promise<SceneMemory | null>;
-  summary: ReturnType<typeof nextSummary>;
+  /** Asked for once the Narrator has been, so a server that answers one request at a time never holds the reply back for it. */
+  summary: () => ReturnType<typeof nextSummary>;
   /** The clock's hours a few replies back, to tell whether the story time has stood still. */
   clockBack?: number;
   /**
@@ -589,7 +590,7 @@ function turnPrompt(
     prompt,
     due,
     memory: nextMemory(textProvider, messages, state.sceneMemories, memoryStart, current.textRecentMessages, signal),
-    summary: nextSummary(reviewProvider, settings, save.pc.name, state, messages, signal),
+    summary: () => nextSummary({ provider: reviewProvider, narrator: textProvider, settings }, save.pc.name, state, messages, signal),
     clockBack: clockBack(saves, id, messages),
     // The player's moves before this one, so the Choices offer none again, as the same safe beat was offered three times in nine rounds.
     recentMoves: messages
@@ -968,7 +969,7 @@ async function narrate(
     mustMeet = [],
     narration: edited,
     memory: pendingMemory,
-    summary: pendingSummary,
+    summary: askForSummary,
     due,
     clockBack,
     recentMoves,
@@ -995,6 +996,7 @@ async function narrate(
   let why: Prompt = [];
   // The PC's lines refused so far, as a retry gave one to someone else nearly word for word.
   const refusedLines: string[] = [];
+  let pendingSummary: ReturnType<typeof askForSummary> | undefined;
   for (let attempt = 1; ; attempt++) {
     // Without a reason the player sees text vanish, which looks like a glitch.
     if (narrationSent > 0) emit("restart", { reason: retry });
@@ -1030,7 +1032,7 @@ async function narrate(
       narrationSent = narration.length;
     };
     try {
-      const reply: string = await askNarrator(
+      const asked = askNarrator(
         textProvider,
         [...prompt, ...(check ? [resultInstruction(check)] : []), ...(unplacedBefore ? [SET_SCENE_NOTE] : []), ...why],
         {
@@ -1051,6 +1053,8 @@ async function narrate(
         log.warning("turn", "Run-on reply kept", { attempt, generation, sent: withoutThinking(partial).length, kept: closed.length });
         return closed;
       });
+      pendingSummary ??= askForSummary();
+      const reply: string = await asked;
       const response = parseReply<z.infer<typeof NarratorResponse | typeof EditedTurn>>(reply, edited === undefined ? NarratorResponse : EditedTurn);
       if (response.check) {
         if (check || !rollCheck || ratedNone) throw new InvalidResponse();
@@ -1206,8 +1210,10 @@ async function narrate(
                 if (!ops) return ops;
                 // An opening by what Upkeep is told one is, as an Edit of one gives no opening's move.
                 const opening = !(upkeepReads?.previous ?? previous);
-                const told = groundedNotes(ops, { ...narrated.next, npcKnows: before.npcKnows }, read, opening);
-                return withoutRelearned(seen ? journalRead(told, narrated.next, read) : told, state_operations, narrated.next);
+                // Secrets first, as a fact reworded and then dropped for one had already taken another note's place.
+                const open = seen ? journalRead(ops, narrated.next, read) : ops;
+                const told = groundedNotes(open, { ...narrated.next, npcKnows: before.npcKnows }, read, opening);
+                return withoutRelearned(told, state_operations, narrated.next);
               })
             : undefined,
         ),
@@ -1227,7 +1233,8 @@ async function narrate(
       if (dropped) log.warning("turn", "Picture dropped without set_scene", { attempt, generation });
       let upkeepRefused = 0;
       let upkeepDropped: Refusal[] = [];
-      const [memory, summary] = await Promise.all([pendingMemory, pendingSummary]);
+      const memory = await pendingMemory;
+      const summary = pendingSummary ? await inTime(pendingSummary) : null;
       let moved = false;
       let location = "";
       let npcs: Scene["npcs"] = [];
@@ -1456,8 +1463,11 @@ export function groundedNotes<Operation extends StateOperation>(upkept: Operatio
     // What only someone's knowledge holds never reaches the player in a line on a person or a fact reworded either.
     const reworded = operation.op === "set_known_npc_summary" ? operation.summary : operation.op === "update_known_fact" ? operation.replacement : "";
     const words = secretWords(reworded, known, read, unread);
-    // But the player has the words of the fact it rewords.
-    return words.length === 0 || (operation.op === "update_known_fact" && words.every((word) => !unreadIn(operation.fact)(word)));
+    // But the player has the words of the fact it rewords, if the Journal holds it, as one it doesn't hold is added.
+    return (
+      words.length === 0 ||
+      (operation.op === "update_known_fact" && pcKnown.facts.includes(operation.fact) && words.every((word) => !unreadIn(operation.fact)(word)))
+    );
   });
   const given: StateOperation[] = told;
   const gone = new Set(

@@ -139,8 +139,8 @@ Every Turn is a fresh, stateless LLM call (see [ADR 0002](docs/adr/0002-stateles
 Lore Entry activation:
 
 * Always-on entries include `world_rules` and active Plot Threads
-* Each finished Turn replaces the rolling summary with its `summary`, and a blank one leaves it as it was
-* The current state carries every Loose End on every Turn, so they don't depend on the summary. If the list is empty once the story has begun, the prompt asks the Narrator to fill it from the summary, known facts and recent Messages, which is how a Save from before Loose Ends gets them
+* Every few replies the Scribe rewrites the rolling summary from the story's own text, beside the Turn, and one that doesn't come is asked for again at the next
+* The current state carries every Loose End on every Turn, so they don't depend on the summary
 * Scene Memories fade older story without losing it, so the Narrator's memory runs from full Messages, to Scene Memories, to the summary. Every Scene Memory goes in the first system message on every Turn, oldest first, with no keywords or retrieval
 * The Message window is every Message after the last one a Scene Memory covers, so a Message can't leave the prompt uncovered. Once it reaches 100 Messages, the Turn asks for a Scene Memory of its oldest 20 in about 100 words, in the nullable `scene_memory` field. The server records the Message range, and a reply can't choose it. A missed memory costs nothing: the Turn commits, the window keeps those Messages, and the next Turn asks again. Only a finished Turn writes one. A Save from before Scene Memories starts its window at its latest 100 Messages, and older ones stay with the summary. After a Revert to before that point, the latest 100 Messages stand in until a memory is written. `scripts/backfill-scene-memories.ts` is a one-off that writes the memories such a Save lacks, on a copy of it, from each batch and the memory rules alone
 * A story keeps at most eight Plot Threads, and when eight are open the prompt says so beside them. A thread a Turn changes is matched to the closest open one the prompt showed when it isn't copied exactly, sharing at least half the longer one's words with no tie, and a reply's changes are followed through it, so a thread it rewrote or resolved is never matched to another. A Turn's add or rewrite on a full list is tried again after the rest of the reply, and dropped without costing the Turn if there's still no room, a World Change or new world that would go past eight is unusable, and a Save from before the limit sends only its first eight. The Narrator brings a thread forward at a natural pause of its own choosing, never by cutting into a conversation the player is still having
@@ -151,7 +151,7 @@ Lore Entry activation:
 
 **Structured Output Protocol:** Force function calling / JSON Schema output mode on supporting models, falling back to validating the JSON and retrying on models without it. Narration streams as it arrives. The Narrator's response is one of:
 
-* **A finished Turn:** narration, state operations, PC-known updates, `people`, `summary`, `scene_changed` and `visual_description`
+* **A finished Turn:** narration, state operations, PC-known updates, `people`, `recent_summary`, `scene_changed` and `visual_description`
 * **A Check request:** the action being attempted and its difficulty
 
 System prompt must explicitly instruct the Narrator: *"Evaluate player action against `world_rules`. If an action violates world constraints, describe the failure in-character rather than fulfilling it."*

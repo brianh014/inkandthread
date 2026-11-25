@@ -1380,7 +1380,7 @@ test("the log shows how each reply went, and none of the story", async () => {
     expect(log).toContain(fact);
   }
   expect(log).toContain('"people":1');
-  expect(log).toContain('"summary":false,"recentSummary":true');
+  expect(log).toContain('"recentSummary":true');
   expect(log).toContain('"attempts":1');
   for (const story of ["The tide rises", "A wet day", "I wade forward", "Ada"]) expect(log).not.toContain(story);
 });

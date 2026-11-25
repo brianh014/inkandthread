@@ -732,7 +732,7 @@ const SOILED =
 const DIRT = String.raw`(?:ash(?:es)?|soot|dust|mud|sand|snow|frost|sweat|rain)(?![-\w])`;
 // Never where the next words may be what the dirt describes, as ash blonde hair is no dirt.
 const DIRTIED = new RegExp(
-  String.raw`\s+(?:and\s+)?(?:grey|greyed|gray|grayed|white|whitened|black|blackened|dark|darkened|stiff|smudged|smeared|streaked|dusted|grimed|powdered) with ${DIRT}(?:\s+and\s+(?:${DIRT}|(?:grape )?must|water|grease|oil|blood|grime))?(?:\s(?:all\s+)?(?:at|on|across|from|up to|to|around|along|near|beneath|round|over(?=\sthe\s))\s(?:(?!\s(?:and|with|in|over|under|above|below|wearing)\s)[^,;.])*)?(?=\s*(?:[,;.]|$)|\s(?:and|with|in|over|under|above|below|wearing)\s)`,
+  String.raw`\s+(?:and\s+)?(?:grey|greyed|gray|grayed|white|whitened|black|blackened|dark|darkened|stiff|smudged|smeared|streaked|dusted|grimed|powdered) with ${DIRT}(?:\s+and\s+(?:${DIRT}|(?:grape )?must|water|grease|oil|blood|grime))?(?:\s(?:at|on|across|from|up to|to|around|along|near|round)\s(?:the|his|her|their|its)\s[\w'-]+(?:\s(?!(?:and|with|in|over|under|above|below|beneath|wearing)\s)[\w'-]+)?)?(?=\s*(?:[,;.]|$)|\s(?:and|with|in|over|under|above|below|beneath|wearing)\s)`,
   "gi",
 );
 /**
@@ -1034,6 +1034,8 @@ export const WorldEdit = z.discriminatedUnion("edit", [
     settled: z.array(z.string()).optional(),
     // The Scribe's at a pause: the known facts that repeat another, are no longer true or tell of a moment now over.
     outdated: z.array(z.string()).optional(),
+    // The Scribe's: the story's summary, and how many replies it covers, never the newest.
+    story: z.object({ summary: z.string(), replies: z.number().int().nonnegative() }).optional(),
   }),
   // Whole lists, as a World Change rewrites what the player says is wrong rather than one item at a time.
   z.object({ edit: z.literal("inventory"), wearing: z.array(z.string()), carrying: z.array(z.string()) }),
@@ -1126,7 +1128,8 @@ export function applyEdit(state: State, edit: WorldEdit): State {
       const looseEnds = state.looseEnds.filter((looseEnd) => !settled.has(looseEnd));
       const outdated = new Set(edit.outdated);
       const pcKnown = { ...state.pcKnown, facts: state.pcKnown.facts.filter((fact) => !outdated.has(fact)) };
-      return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, npcKnows, npcParts, threadParts, looseEnds, pcKnown };
+      const told = edit.story && { summary: edit.story.summary, summaryReplies: edit.story.replies };
+      return { ...state, ...merged, threadsNow, threadsPlan, threadsQuestion, threadsDue, npcKnows, npcParts, threadParts, looseEnds, pcKnown, ...told };
     }
     case "inventory":
       return { ...state, inventory: { wearing: edit.wearing, carrying: edit.carrying } };

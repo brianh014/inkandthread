@@ -139,7 +139,7 @@ Every Turn is a fresh, stateless LLM call (see [ADR 0002](docs/adr/0002-stateles
 Lore Entry activation:
 
 * Always-on entries include `world_rules` and active Plot Threads
-* Every few replies the Scribe rewrites the rolling summary from the story's own text, beside the Turn, and one that doesn't come is asked for again at the next
+* Every few replies the Scribe rewrites the rolling summary from the story's own text, after the Turn, and one that doesn't come is asked for again at the next
 * The current state carries every Loose End on every Turn, so they don't depend on the summary
 * Scene Memories fade older story without losing it, so the Narrator's memory runs from full Messages, to Scene Memories, to the summary. Every Scene Memory goes in the first system message on every Turn, oldest first, with no keywords or retrieval
 * The Message window is every Message after the last one a Scene Memory covers, so a Message can't leave the prompt uncovered. Once it reaches 100 Messages, the Turn asks for a Scene Memory of its oldest 20 in about 100 words, in the nullable `scene_memory` field. The server records the Message range, and a reply can't choose it. A missed memory costs nothing: the Turn commits, the window keeps those Messages, and the next Turn asks again. Only a finished Turn writes one. A Save from before Scene Memories starts its window at its latest 100 Messages, and older ones stay with the summary. After a Revert to before that point, the latest 100 Messages stand in until a memory is written. `scripts/backfill-scene-memories.ts` is a one-off that writes the memories such a Save lacks, on a copy of it, from each batch and the memory rules alone

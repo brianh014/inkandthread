@@ -136,7 +136,7 @@ About 100 words on what happened in a batch of 20 older Messages, written by the
 _Avoid_: Summary (that is the one rolling account of the whole story), Scene (that is a place and situation in the story)
 
 **Story Summary**:
-The one rolling account of the whole story so far, under 500 words, which the Scribe rewrites every fifth reply from the story's own text, leaning on the latest scenes, and the Narrator reads on every Turn. The player reads and edits it in the Journal, beside the **Recent summary** of the last few scenes, which the Narrator writes every Turn. Code and prompts call it the summary.
+The one rolling account of the whole story so far, under 500 words, which the Scribe rewrites every fifth reply, after the Turn, from the story's own text up to the reply before the newest, leaning on the latest scenes, and the Narrator reads on every Turn. The player reads and edits it in the Journal, beside the **Recent summary** of the last few scenes, which the Narrator writes every Turn. Code and prompts call it the summary.
 _Avoid_: Scene Memory (that covers one batch of older Messages)
 
 **World Overview**:

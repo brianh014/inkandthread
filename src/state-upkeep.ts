@@ -76,7 +76,7 @@ const upkeepThinkingMs = () => UPKEEP_LIMIT.ms / 3;
  * shortcut: in memory and shared by every Save; key it by model if that misfires.
  */
 export const slowReviewer = { steps: 0 };
-export function reviewTimedOut(during: "State Upkeep" | "fix" | "summary", settings: TextSettings) {
+export function reviewTimedOut(during: "State Upkeep" | "fix", settings: TextSettings) {
   const thinking = reviewerSettings(settings).read().textThinking;
   // Already at Low, a step lower changes nothing, so neither is taken nor logged.
   if (slowReviewer.steps >= 2 || lowerThinking(thinking, slowReviewer.steps) === lowerThinking(thinking, slowReviewer.steps + 1)) return;

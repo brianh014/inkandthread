@@ -45,7 +45,7 @@ import { countWords, withinLimit } from "./limits";
 import { knownChoices, secretWords, unreadIn, withoutUnread, writeChoices } from "./known-choices";
 import { estimateTokens, wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
-import { inTime, nextSummary } from "./story-summary";
+import { keepSummary, summaryDue } from "./story-summary";
 import { readable, withoutStrayMarks } from "./web/chat-style";
 import { applyWorldChange } from "./world-creation";
 import { foldKnows } from "./knowledge-folds";
@@ -493,8 +493,6 @@ type Narrated = {
   narration?: string;
   /** The Scene Memory this Turn adds, if one is due and came back. */
   memory: Promise<SceneMemory | null>;
-  /** Asked for once the Narrator has been, so a server that answers one request at a time never holds the reply back for it. */
-  summary: () => ReturnType<typeof nextSummary>;
   /** The clock's hours a few replies back, to tell whether the story time has stood still. */
   clockBack?: number;
   /**
@@ -516,14 +514,13 @@ type Narrated = {
   times: FollowUpTimes;
 };
 
-/** The prompt for a Turn's reply, and the Scene Memory and summary due alongside it. Settings are read once, so the whole prompt comes from one copy. */
+/** The prompt for a Turn's reply, and the Scene Memory due alongside it. Settings are read once, so the whole prompt comes from one copy. */
 function turnPrompt(
   saves: SaveStore,
   settings: SettingsStore,
   id: string,
   signal: AbortSignal,
   textProvider: TextProvider,
-  reviewProvider: TextProvider | undefined,
   {
     state,
     messages,
@@ -590,7 +587,6 @@ function turnPrompt(
     prompt,
     due,
     memory: nextMemory(textProvider, messages, state.sceneMemories, memoryStart, current.textRecentMessages, signal),
-    summary: () => nextSummary({ provider: reviewProvider, narrator: textProvider, settings }, save.pc.name, state, messages, signal),
     clockBack: clockBack(saves, id, messages),
     // The player's moves before this one, so the Choices offer none again, as the same safe beat was offered three times in nine rounds.
     recentMoves: messages
@@ -729,7 +725,7 @@ export async function playTurn(
   const basedOn = saves.latestMessageId(id);
   const state = saves.latestState(id);
   const messages = saves.messages(id);
-  const { prompt, due, memory, summary, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, reviewProvider, {
+  const { prompt, due, memory, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -759,7 +755,6 @@ export async function playTurn(
         ? (saves.read(id).importantCharacters ?? []).map(({ name }) => name).filter((name) => (saves.read(id).startingHook ?? "").includes(name))
         : [],
     memory,
-    summary,
     due,
     clockBack,
     recentMoves,
@@ -773,7 +768,10 @@ export async function playTurn(
   });
   // Only now, as a Turn that failed or was stopped brought nothing on.
   if (due) planOffered(id, due, replyBefore(messages));
-  if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), narratorReplies(messages) + 1)) {
+  const replies = narratorReplies(messages) + 1;
+  // Off the player's path, as the Turn waited for a slow one. shortcut: after a move of the world rather than beside it, so the next Turn may wait on both.
+  const summarise = moveWorld && reviewProvider && summaryDue(saves.latestState(id), replies - 1) ? reviewProvider : undefined;
+  if (moveWorld && kind === "turn" && moveDue(id, state, saves.latestState(id), replies)) {
     // Not awaited, as it runs while the player reads; its own signal, as the Turn's request has ended.
     // Lore and the folds beside the move, by the Scribe, as Upkeep is, so the next Turn waits on them all at most one MOVE_LIMIT, never one after the other.
     const mover = new AbortController();
@@ -792,6 +790,7 @@ export async function playTurn(
       .finally(() => moving.get(id) === move && moving.delete(id));
     moving.set(id, move);
   }
+  if (summarise) void afterMoves(id, () => keepSummary({ provider: summarise, narrator: textProvider, settings }, saves, id));
   followedUp(id, kind, images, times);
   return played;
 }
@@ -821,7 +820,7 @@ export async function replaceResponse(
   const taken = saves.latestState(id);
   // The old picture goes with its response, so the new one always gets its own, whatever the Narrator decides.
   const hadPicture = !!sceneImage || images.sceneDrawing(id, messageId);
-  const { prompt, due, memory, summary, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, reviewProvider, {
+  const { prompt, due, memory, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -848,7 +847,6 @@ export async function replaceResponse(
     previous: lastNarration(messages),
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     memory,
-    summary,
     due,
     clockBack,
     recentMoves,
@@ -906,7 +904,7 @@ export async function editResponse(
   const taken = saves.latestState(id);
   const state = added === undefined ? turn.state : taken;
   if (added !== undefined) log.info("turn", "Edit adds to the response", { save: id, message: messageId });
-  const { prompt, due, memory, summary, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, reviewProvider, {
+  const { prompt, due, memory, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
     messages,
     input,
@@ -931,7 +929,6 @@ export async function editResponse(
     seen: () => [saves.read(id).startingHook ?? "", ...messages.map(({ text }) => text)].join("\n"),
     narration: text,
     memory,
-    summary,
     due,
     clockBack,
     recentMoves,
@@ -969,7 +966,6 @@ async function narrate(
     mustMeet = [],
     narration: edited,
     memory: pendingMemory,
-    summary: askForSummary,
     due,
     clockBack,
     recentMoves,
@@ -996,7 +992,6 @@ async function narrate(
   let why: Prompt = [];
   // The PC's lines refused so far, as a retry gave one to someone else nearly word for word.
   const refusedLines: string[] = [];
-  let pendingSummary: ReturnType<typeof askForSummary> | undefined;
   for (let attempt = 1; ; attempt++) {
     // Without a reason the player sees text vanish, which looks like a glitch.
     if (narrationSent > 0) emit("restart", { reason: retry });
@@ -1032,7 +1027,7 @@ async function narrate(
       narrationSent = narration.length;
     };
     try {
-      const asked = askNarrator(
+      const reply: string = await askNarrator(
         textProvider,
         [...prompt, ...(check ? [resultInstruction(check)] : []), ...(unplacedBefore ? [SET_SCENE_NOTE] : []), ...why],
         {
@@ -1053,8 +1048,6 @@ async function narrate(
         log.warning("turn", "Run-on reply kept", { attempt, generation, sent: withoutThinking(partial).length, kept: closed.length });
         return closed;
       });
-      pendingSummary ??= askForSummary();
-      const reply: string = await asked;
       const response = parseReply<z.infer<typeof NarratorResponse | typeof EditedTurn>>(reply, edited === undefined ? NarratorResponse : EditedTurn);
       if (response.check) {
         if (check || !rollCheck || ratedNone) throw new InvalidResponse();
@@ -1234,7 +1227,6 @@ async function narrate(
       let upkeepRefused = 0;
       let upkeepDropped: Refusal[] = [];
       const memory = await pendingMemory;
-      const summary = pendingSummary ? await inTime(pendingSummary) : null;
       let moved = false;
       let location = "";
       let npcs: Scene["npcs"] = [];
@@ -1300,10 +1292,6 @@ async function narrate(
           plansShown = played ? 1 : 0;
           repeated = repeats;
           ignored = harmless;
-          if (summary) {
-            next.summary = summary.text;
-            next.summaryReplies = summary.replies;
-          }
           if (recent_summary?.trim()) next.recentSummary = recent_summary.trim();
           if (memory) next.sceneMemories.push(memory);
           next.chapterReady = !!chapter_ends;
@@ -1361,7 +1349,6 @@ async function narrate(
         attempts: attempt,
         check: check ? { difficulty: check.difficulty, roll: check.roll, outcome: check.outcome, degree: check.degree } : false,
         narration: narration.length,
-        summary: !!summary,
         recentSummary: !!recent_summary?.trim(),
         ...(memory && { memoryFirst: memory.firstMessage, memoryLast: memory.lastMessage, memoryLength: memory.text.length }),
         people: people.length,

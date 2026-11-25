@@ -125,7 +125,7 @@ export function pcLooks({ name, physicalTraits = "" }: Save["pc"], wearing: stri
   return [traits, dressed].filter(Boolean).join(", ");
 }
 
-const FEATURE = /\b(?:skin|skinned|complexion|hair|haired|beard|bearded|moustache|moustached|bald|freckles|freckled)\b/i;
+const FEATURE = /\b(?:skin|skinned|complexion|hair|haired|beard|bearded|mo?ustached?|bald|freckles|freckled)\b/i;
 const FILLER = new Set(["a", "an", "the", "his", "her", "their", "of"]);
 
 /**
@@ -353,6 +353,8 @@ export function imagePipeline(
   const failures = new Map<string, string>();
   // shortcut: kept in memory like the jobs, so a restart forgets which portraits are out of date, keep it in the Save if that bites.
   const outOfDate = new Set<string>();
+  /** The looks each portrait's last update was drawn from. shortcut: in memory, so a restart forgets them; store them if a portrait is left from looks taken back. */
+  const drawnFrom = new Map<string, string>();
   /** Portraits whose looks changed again while they were being updated. */
   const changedSince = new Set<string>();
   // shortcut: in memory and one per Save, so a restart or a second failure loses it, and that picture was never drawn anyway.
@@ -557,9 +559,20 @@ export function imagePipeline(
     if (!looks) return;
     const ask = { kind: "portrait" as const, looks, theme, world: worldBrief, artStyle, era: state.era };
     const target = { kind: "portrait" as const, ref: portrait.id };
-    // Already drawing from looks since changed, such as a reply's the player has rewritten: again when the Scene next moves.
-    if (isRedrawing(id, redrawKey(id, target))) changedSince.add(redrawKey(id, target));
+    const key = redrawKey(id, target);
+    const same = drawnFrom.get(key) === looks;
+    if (isRedrawing(id, key)) {
+      // Already drawing from looks since changed, such as a reply's the player has rewritten: again when the Scene next moves.
+      if (same) changedSince.delete(key);
+      else {
+        changedSince.add(key);
+        log.info("images", "Portrait update put off", about(id, { kind: "portrait", messageId: portrait.messageId }));
+      }
+      return;
+    }
+    if (same && !outOfDate.has(key)) return;
     if (pipeline.redraw(id, target, portrait.messageId, ask)) {
+      drawnFrom.set(key, looks);
       log.info("images", "Portrait updated to new looks", about(id, { kind: "portrait", messageId: portrait.messageId }));
     }
   }
@@ -627,6 +640,7 @@ export function imagePipeline(
           if (!signal.aborted && !(error instanceof SaveNotFound)) {
             failures.set(key, shownFailure(error));
             if (keepFace && target.kind === "portrait") outOfDate.add(key);
+            changedSince.delete(key);
           }
           throw error;
         }
@@ -738,6 +752,20 @@ export function imagePipeline(
     restyled(id: string, people: (Npc | null)[], wearing: string[]) {
       // Only when images are on, as a Redraw draws whatever the Settings say, and nobody asked for this one.
       if (settings.read().updatePortraits && ready()) for (const person of people) updatePortrait(id, person, wearing);
+    },
+
+    /** Draws again the portraits updated from looks that a Rewrite, Regenerate, Edit or Revert has taken back, those before it being `before`. */
+    takenBack(id: string, before: State) {
+      const after = saves.latestState(id);
+      const updated = new Set(
+        saves
+          .portraits(id)
+          .filter(({ id: ref }) => drawnFrom.has(redrawKey(id, { kind: "portrait", ref })))
+          .map(({ npc }) => npc),
+      );
+      const people = restyledBy(before, after).filter((person) => updated.has(person?.name ?? null));
+      if (people.length > 0) log.info("images", "Portraits' looks taken back", { save: id, count: people.length });
+      pipeline.restyled(id, people, after.inventory.wearing);
     },
 
     /** Whether `messageId`'s Scene Image is still on the way. */

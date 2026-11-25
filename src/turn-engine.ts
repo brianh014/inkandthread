@@ -861,14 +861,12 @@ export async function replaceResponse(
     },
     committed: (replacement, scene) => {
       images.forget(id, messageId - 1, kind);
-      // With those whose looks the replaced reply gave or took away, as a portrait drawn from them outlived a Rewrite.
-      const people = [...restyledBy(taken, saves.latestState(id)), ...(scene.restyled ?? [])];
-      const restyled = [...new Map(people.map((person) => [person?.name ?? null, person])).values()];
       // shortcut: a Narrator that writes no prompt gets the old one, which shows the old moment and draws with no portraits. Retry the reply if real models do this.
       const description = scene.description || (sceneImage?.prompt ?? "");
       if (hadPicture) log.info("turn", "Replaced Turn's Scene Image forced", { message: replacement });
       if (hadPicture && !scene.description && sceneImage) log.warning("turn", "Replacement drawn from the old image's prompt", { message: replacement });
-      images.sceneChanged(id, replacement, { ...scene, restyled, ...(hadPicture && { changed: true, description }) });
+      images.sceneChanged(id, replacement, hadPicture ? { ...scene, changed: true, description } : scene);
+      images.takenBack(id, taken);
     },
     times,
   });
@@ -895,7 +893,8 @@ export async function editResponse(
   const replaced = saves.messages(id).find((message) => message.id === messageId)?.text ?? "";
   // Nothing added is no Edit that adds, as one saved unchanged sent the Narrator and State Upkeep empty words to record.
   const added = (replaced && text.includes(replaced) ? text.split(replaced).join("\n").trim() : undefined) || undefined;
-  const state = added === undefined ? turn.state : saves.latestState(id);
+  const taken = saves.latestState(id);
+  const state = added === undefined ? turn.state : taken;
   if (added !== undefined) log.info("turn", "Edit adds to the response", { save: id, message: messageId });
   const { prompt, due, memory, replies, clockBack, recentMoves } = turnPrompt(saves, settings, id, signal, textProvider, {
     state,
@@ -928,7 +927,10 @@ export async function editResponse(
     ...(added !== undefined && { upkeepReads: { narration: added, previous: replaced } }),
     commit: (narration, _check, advance, choices) => saves.editTurn(id, messageId, narration, advance, choices, added !== undefined),
     // Only portraits for anyone new, as the Scene Image stays.
-    committed: (edited, scene) => images.sceneChanged(id, edited, { ...scene, changed: false }),
+    committed: (edited, scene) => {
+      images.sceneChanged(id, edited, { ...scene, changed: false });
+      images.takenBack(id, taken);
+    },
     times,
   });
   followedUp(id, "edit", images, times);

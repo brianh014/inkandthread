@@ -735,17 +735,23 @@ const lasting = (appearance: string) => {
 };
 
 const SOMEONE_ELSE = "someone else's looks";
+// What most people's looks say, which tells no one apart.
+const ANYONES = new Set(
+  "with that this hair eyes face skin years about over under wearing woman young tall short long slim dark pale light brown black grey gray white blue green".split(
+    " ",
+  ),
+);
 /**
- * Whether looks given the PC are an NPC's, by six or more of their words and most of them, as a reply gave the PC the constable's
- * grey moustache and coat and their portrait was drawn so. shortcut: by words, so a twin's are refused too; give the PC their own
- * words if one shows.
+ * Whether looks given the PC are an NPC's, by five or more words that tell someone apart and most of those, as a reply gave the PC
+ * the constable's walrus moustache and coat and their portrait was drawn so. shortcut: by words, so a PC dressed and built as an
+ * NPC is refused too; give the PC their own words if one shows.
  */
 function looksOfAnother(state: State, appearance: string) {
-  const words = new Set(appearance.toLowerCase().match(/\p{L}{4,}/gu) ?? []);
+  const words = new Set((appearance.toLowerCase().match(/\p{L}{4,}/gu) ?? []).filter((word) => !ANYONES.has(word)));
   return state.npcs.some((npc) => {
     const theirs = new Set(npc.appearance.toLowerCase().match(/\p{L}{4,}/gu) ?? []);
     const shared = [...words].filter((word) => theirs.has(word)).length;
-    return shared >= 6 && shared >= words.size * 0.6;
+    return shared >= 5 && shared >= words.size * 0.6;
   });
 }
 

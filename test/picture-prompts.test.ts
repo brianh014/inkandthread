@@ -205,6 +205,8 @@ test("an edit says the skin where facial hair has gone, and not otherwise", asyn
     changes: "He is clean-shaven. Standing in front of a plain neutral background.",
   });
   expect(await write({ ...portrait, looks, was: "A heavy-set man with a black beard." }, "prose", reply).written).toContain("With dark brown skin.");
+  const off = "a heavy-set man of fifty with dark brown skin, his beard shaved off";
+  expect(await write({ ...portrait, looks: off, was: "A heavy-set man with a black mustache." }, "prose", reply).written).toContain("With dark brown skin");
   expect(await write({ ...portrait, looks, was: "A heavy-set man." }, "prose", reply).written).not.toContain("brown skin");
 });
 

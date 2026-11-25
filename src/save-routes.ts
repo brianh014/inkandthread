@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { knownPortraits } from "./gallery-routes";
 import { ArtStyleRequest, imageResponse, NoFields, parseBody, routes, type ServerContext, someWords } from "./http";
-import { restyledBy } from "./image-pipeline";
 import { errorType, log } from "./logger";
 import { WorldChanging } from "./live-turns";
 import { NoteNotFound, StaleTurn } from "./save-store";
@@ -320,13 +319,13 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
         const { asked, ...deleted } = saves.revert(id, messageId);
         if (deleted.messages > 0) stopMoves(id);
         images.forget(id, messageId, "revert");
-        const after = saves.latestState(id);
-        images.restyled(id, restyledBy(before, after), after.inventory.wearing);
         options.usage?.reverted(id);
         // Once each, as the same words given twice made one change twice, at a minute's wait. The last time they were given, as
         // a change made, undone and made again must end up made.
         const changes = asked.filter((change, at) => asked.lastIndexOf(change) === at);
-        if (changes.length > 0) {
+        // Once any World Changes are made again, as one may give the looks back.
+        if (changes.length === 0) images.takenBack(id, before);
+        else {
           // After any move of the world, which rewrites the threads a change must see, and before the next Turn, which waits
           // on them, so the Revert answers at once and the player's words go out again: a wait of a minute was refreshed away.
           // Made again from the player's words, in order, on the world the Revert went back to, each failure its own, and on
@@ -344,6 +343,7 @@ export function saveRoutes({ options, saves, turns, images }: ServerContext) {
               }
             }
             log.info("world", "World Changes made again after a Revert", { made: changes.length - failed, failed });
+            images.takenBack(id, before);
           });
           turns.remake(
             id,

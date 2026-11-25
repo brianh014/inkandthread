@@ -264,6 +264,13 @@ test("looks given the PC that are an NPC's are left out", () => {
   const set = (appearance: string) => applyOperations(before, [{ op: "set_pc_appearance", appearance }]);
   const taken = set("a broad man in his fifties with a red face, a grey walrus moustache, in a dark blue constable's coat buttoned wrong");
   expect([taken.next.pcAppearance, taken.refused, taken.ignored.length]).toEqual(["a tall woman with red hair", [], 1]);
+  // A PC only alike keeps their own.
+  const mara = {
+    ...openingState,
+    npcs: [{ name: "Mara", appearance: "a tall woman in her forties with long dark hair, brown eyes and pale skin, in a green coat" }],
+  };
+  const own = "a tall woman in her thirties with long dark brown hair, brown eyes and olive skin and a scar on her cheek";
+  expect(applyOperations(mara, [{ op: "set_pc_appearance", appearance: own }]).next.pcAppearance).toBe(own);
   expect(set("a tall woman with red hair cropped short and a scar").next.pcAppearance).toContain("scar");
 });
 

@@ -985,7 +985,9 @@ const refuseGarbled = (prompt: string, context: z.RefinementCtx) => {
 // What an Update's edit leaves out of the face, as the hair and beard: "never describe their face" left a beard out, and the edit shaved it.
 const SKIN = /\b(?:skin|skinned|complexion|freckles|freckled)\b/i;
 
-const FACIAL_HAIR = /\b(?:beard|bearded|moustache|moustached|goatee|whiskers)\b/i;
+const SHAVEN =
+  /\b(?:no|without an?|without) (?:\p{L}+ )?(?:beard|mo?ustache|whiskers|goatee)\b|\b(?:beard|mo?ustache|whiskers|goatee) (?:\p{L}+ ){0,2}(?:shaved|shaven|gone)\b/giu;
+const FACIAL_HAIR = /\b(?:bearded|beard|mo?ustached?|goatee|whiskers)\b/i;
 
 // The scene rules' limits, and a review may keep one already over them, as it changes only what fails.
 const SCENE_WORDS: Record<PromptStyle, number> = { prose: 150, keywords: 80 };
@@ -1101,7 +1103,7 @@ ${imageInstructions(context)}`,
     if (!edit) return (await askForJson(context.textProvider, prompt, whole, REFUSAL, signal, { call, picture: true })).text;
     const { keep, changes } = await askForJson(context.textProvider, prompt, edited, REFUSAL, signal, { call, picture: true });
     // With the skin where facial hair has gone, as the face is drawn anew there: a dark man shaven was drawn fair.
-    const bearded = (looks = "") => FACIAL_HAIR.test(looks);
+    const bearded = (looks = "") => FACIAL_HAIR.test(looks.replace(SHAVEN, ""));
     const shaved = ask.kind === "portrait" && bearded(ask.was) && !bearded(ask.looks);
     const left = ask.kind === "portrait" ? missingFeatures(ask.looks, changes).filter((part) => shaved || !SKIN.test(part)) : [];
     const features = left.length > 0 ? `With ${left.join(" and ")}.` : "";

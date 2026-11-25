@@ -286,3 +286,18 @@ test("words that name the morning for an afternoon never set the clock back half
   const drifted = applyOperations(at("a while later", 17), [move(0.1, "eleven in the morning")]).next;
   expect(drifted.storyTime?.hours).toBe(11);
 });
+
+test("a count a hair short of midnight rolls the day at words just past it, and one left behind rolls at the next small hour", () => {
+  const night = at({ day: 2, date: "7th of Dry Month", timeOfDay: "late night", hours: 47.79999 });
+  const past = applyOperations(night, [set(0, null, "just past midnight", 0.2)]).next.storyTime;
+  expect(past).toMatchObject({ day: 3, dateDue: true });
+  expect(past!.hours).toBeGreaterThanOrEqual(48);
+  // A Save left a day behind by it.
+  const behind = at({ day: 2, date: "7th of Dry Month", timeOfDay: "about half past midnight", hours: 48.55 });
+  const one = applyOperations(behind, [set(0, null, "going on one in the morning", 0.3)]).next.storyTime;
+  expect(one).toMatchObject({ day: 3 });
+  expect(one!.hours).toBeCloseTo(48.85, 2);
+  // Not a count run on past midnight while the words still say evening.
+  const evening = at({ day: 1, date: "Monday, 15th", timeOfDay: "a little after ten at night", hours: 24.2 });
+  expect(applyOperations(evening, [set(0, null, "half past ten at night", 0.2)]).next.storyTime).toMatchObject({ day: 1 });
+});

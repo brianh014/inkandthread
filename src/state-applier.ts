@@ -651,7 +651,10 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const [from, to] = [hourOf(before?.timeOfDay ?? ""), hourOf(time_of_day)];
       const crossed = operation.hours_passed !== null && Math.floor(hours / 24) > Math.floor((before?.hours ?? hours) / 24);
       const wordsRoll = from !== undefined && to !== undefined ? to < from : crossed;
-      const day = Math.max((before?.day ?? 1) + days, wordsRoll ? Math.floor(hours / 24) + 1 : 0);
+      // Or where the count stands past the day's end and the words are of the small hours, as one a hair short of midnight at "just
+      // past midnight" never rolled, and "one in the morning" then set the clock back a whole day, where it stayed to the end.
+      const smallHours = before?.hours !== undefined && to !== undefined && to < SMALL_HOURS && hours + MIDNIGHT_SLACK >= before.day * 24;
+      const day = Math.max((before?.day ?? 1) + days, wordsRoll || smallHours ? Math.floor((hours + (smallHours ? MIDNIGHT_SLACK : 0)) / 24) + 1 : 0);
       // Back to a clock time the words give, where far from the count, so it never drifts from what the page says; never to
       // words alone, as "three in the morning" reads as morning's nine.
       const at = clockTimeOf(time_of_day);
@@ -661,7 +664,9 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       // and hours over-counted on a night's are still set back to its morning.
       const slipped =
         named !== undefined && before?.hours !== undefined && day === before.day && named < before.hours && Math.abs(hours - named - 12) <= DRIFT_HOURS;
-      const clock = named !== undefined && !slipped && Math.abs(hours - named) > DRIFT_HOURS ? named : hours;
+      const counted = named !== undefined && !slipped && Math.abs(hours - named) > DRIFT_HOURS ? named : hours;
+      // Never before the day it is now.
+      const clock = day > (before?.day ?? 1) ? Math.max(counted, (day - 1) * 24) : counted;
       const newDay = day > (before?.day ?? 1);
       // Never back within a day, as a reply that did so had started the story over from its first morning.
       const [was, now] = [dayPart(before?.timeOfDay), dayPart(time_of_day)];
@@ -782,6 +787,9 @@ const nightWraps = (from: number, to: number) => from >= 20 && to < 12;
 
 // Hours the count may stray from a clock time the words give before it is set back to it.
 const DRIFT_HOURS = 3;
+// The hours from midnight that are the small ones, and how near its end a count has the day over, as summed pieces fall short.
+const SMALL_HOURS = 5;
+const MIDNIGHT_SLACK = 0.25;
 
 /**
  * How many days on `to` is from `from` by their day of the month, or undefined where either has none, as dates are any

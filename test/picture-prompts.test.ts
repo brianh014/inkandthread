@@ -198,6 +198,16 @@ test("an Update's portrait prompt keeps the hair and beard of their looks it lea
   );
 });
 
+test("an edit says the skin where facial hair has gone, and not otherwise", async () => {
+  const looks = "a heavy-set man of fifty with dark brown skin, clean-shaven";
+  const reply = JSON.stringify({
+    keep: "The same man with his face preserved.",
+    changes: "He is clean-shaven. Standing in front of a plain neutral background.",
+  });
+  expect(await write({ ...portrait, looks, was: "A heavy-set man with a black beard." }, "prose", reply).written).toContain("With dark brown skin.");
+  expect(await write({ ...portrait, looks, was: "A heavy-set man." }, "prose", reply).written).not.toContain("brown skin");
+});
+
 test("a prompt the text model can't write fails with a reason to show, and nothing is drawn from a template", async () => {
   const failed = new TextProviderFailed("offline");
   const { written } = write(portrait, "prose", failed, failed, failed);

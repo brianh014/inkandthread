@@ -229,6 +229,13 @@ test("an edit says the skin where facial hair has gone, and not otherwise", asyn
   const off = "a heavy-set man of fifty with dark brown skin, his beard shaved off";
   expect(await write({ ...portrait, looks: off, was: "A heavy-set man with a black mustache." }, "prose", reply).written).toContain("With dark brown skin");
   expect(await write({ ...portrait, looks, was: "A heavy-set man." }, "prose", reply).written).not.toContain("brown skin");
+  // Dark skin with any beard too.
+  const bearded = "a heavy-set man of fifty with dark brown skin and a grey-shot black beard";
+  const kept = JSON.stringify({
+    keep: "The same man with his face preserved.",
+    changes: "He wears a sweater. Standing in front of a plain neutral background.",
+  });
+  expect(await write({ ...portrait, looks: bearded, was: "A heavy-set man with a black beard." }, "prose", kept).written).toContain("dark brown skin");
 });
 
 test("a prompt the text model can't write fails with a reason to show, and nothing is drawn from a template", async () => {

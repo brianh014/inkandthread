@@ -982,6 +982,7 @@ const refuseGarbled = (prompt: string, context: z.RefinementCtx) => {
   for (const [fault, message] of faults) if (fault) context.addIssue({ code: "custom", message });
 };
 // What an Update's edit leaves out of the face, as the hair and beard: "never describe their face" left a beard out, and the edit shaved it.
+const DARK = /\b(?:dark|brown|black|ebony)\b/i;
 const SKIN = /\b(?:skin|skinned|complexion|freckles|freckled)\b/i;
 
 const SHAVEN =
@@ -1126,7 +1127,10 @@ ${imageInstructions(context)}`,
     // With the skin where facial hair has gone, as the face is drawn anew there: a dark man shaven was drawn fair.
     const bearded = (looks = "") => FACIAL_HAIR.test(looks.replace(SHAVEN, ""));
     const shaved = ask.kind === "portrait" && bearded(ask.was) && !bearded(ask.looks);
-    const left = ask.kind === "portrait" ? missingFeatures(ask.looks, changes).filter((part) => shaved || !SKIN.test(part)) : [];
+    const missing = ask.kind === "portrait" ? missingFeatures(ask.looks, changes) : [];
+    // And dark skin with any beard, as two edits that named a dark man's beard alone drew him fair.
+    const beard = FACIAL_HAIR.test([changes, ...missing].join(" "));
+    const left = missing.filter((part) => shaved || !SKIN.test(part) || (beard && DARK.test(part)));
     const features = left.length > 0 ? `With ${left.join(" and ")}.` : "";
     // The Art Style in code, last so the face stays up front, as edits without it came out as photographs.
     return [keep, features, changes, ask.artStyle]

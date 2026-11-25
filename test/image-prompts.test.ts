@@ -400,3 +400,11 @@ test("a person is never something the PC wears or carries, at no cost to the Tur
   ]);
   expect([next.inventory, refused]).toEqual([{ ...openingState.inventory, carrying: [...openingState.inventory.carrying, "Ossery's letter"] }, []]);
 });
+
+test("an NPC's looks given the PC whole are refused, though theirs were kept without what passes", () => {
+  const given =
+    "a gaunt, lean man in his forties with windburned cracked skin, a straggling grey-brown beard, deep-set eyes and frost-split lips, wearing a torn orange nylon flight suit under a cracked canvas anorak with a fur-lined hood and leather straps crusted with ice, dark trousers and mitts with the wool showing through";
+  const own = "a strong, rawboned woman in her forties with a weathered pale face and short ash-blonde hair";
+  const met = applyOperations({ ...openingState, pcAppearance: own }, [{ op: "add_npc", name: "Halvorsen", appearance: given }]).next;
+  expect(applyOperations(met, [{ op: "set_pc_appearance", appearance: given }], own).next.pcAppearance).toBe(own);
+});

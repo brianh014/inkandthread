@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import { duePlan, forgetOffers, planOffered, planShown } from "../src/due-plans";
+import { duePlan, planOffered, planShown, replyBefore } from "../src/due-plans";
 import { saveStore } from "../src/save-store";
 import { openingState, type State } from "../src/state-applier";
 import { logOf, narration, scriptedTextProvider, startApp, tempFolder } from "./support";
@@ -27,38 +27,63 @@ const state: State = {
 };
 
 test("the plan brought on is one near the PC whose hour this reply reaches, never a far one", () => {
-  expect(duePlan("near", state, "Wren")).toBe(PLAN);
+  expect(duePlan("near", state, "Wren", 1)).toBe(PLAN);
   // Not before its hour is in reach, but after it while no move has told it.
-  expect(duePlan("early", { ...state, storyTime: at(18.6) }, "Wren")).toBeUndefined();
-  expect(duePlan("pace", { ...state, storyTime: at(18.6) }, "Wren", 0.5)).toBe(PLAN);
-  expect(duePlan("late", { ...state, storyTime: at(29) }, "Wren")).toBe(PLAN);
+  expect(duePlan("early", { ...state, storyTime: at(18.6) }, "Wren", 1)).toBeUndefined();
+  expect(duePlan("pace", { ...state, storyTime: at(18.6) }, "Wren", 1, 0.5)).toBe(PLAN);
+  expect(duePlan("late", { ...state, storyTime: at(29) }, "Wren", 1)).toBe(PLAN);
+  expect(duePlan("days", { ...state, storyTime: at(60) }, "Wren", 1)).toBeUndefined();
+  // The one whose hour is now before one left from earlier.
+  const also = {
+    ...state,
+    storyTime: at(22),
+    threadsPlan: { [OSSERY]: "At ten Ossery will hail Tamsin.", [DREM]: PLAN },
+    threadsDue: { [OSSERY]: 22, [DREM]: 19 },
+  };
+  expect(duePlan("now", also, "Wren", 1)).toContain("Ossery");
   // Nor missed by a rounding, or by a pace shorter than a reply may take.
-  expect(duePlan("rounding", { ...state, storyTime: at(18.949999999999974) }, "Wren", 0.05)).toBe(PLAN);
+  expect(duePlan("rounding", { ...state, storyTime: at(18.949999999999974) }, "Wren", 1, 0.05)).toBe(PLAN);
   // Someone with the PC, the PC by name, or the PC's place makes it near, and otherwise none is sent.
   const alone = { ...state, scene: { location: "the north pillar", visibleCast: [] } };
   const plan = (text: string, hours = 18.95, pace = 0.1) =>
-    duePlan("alone", { ...alone, storyTime: at(hours), threadsPlan: { [DREM]: text } }, "Mara Vell", pace);
+    duePlan("alone", { ...alone, storyTime: at(hours), threadsPlan: { [DREM]: text } }, "Mara Vell", 1, pace);
   expect(plan(PLAN)).toBeUndefined();
   expect(plan("At seven Drem will tell Mara.")).toContain("Mara");
   expect(plan("At seven Drem will tell Mrs Vell.")).toContain("Vell");
   expect(plan("At seven Drem will climb the pillar.")).toContain("pillar");
   // By what someone in view with no name is called.
-  const watched = { ...alone, scene: { ...alone.scene, visibleCast: ["Rider on the crest"] }, storyTime: at(19) };
-  expect(duePlan("called", { ...watched, threadsPlan: { [DREM]: "At seven the rider will demand the satchel." } }, "Wren")).toContain("rider");
-  // Never by whom a far deed is meant for.
+  const called = (person: string, text: string) =>
+    duePlan("called", { ...alone, scene: { ...alone.scene, visibleCast: [person] }, storyTime: at(19), threadsPlan: { [DREM]: text } }, "Wren", 1);
+  expect(called("Rider on the crest", "At seven the rider will demand the satchel.")).toContain("rider");
+  expect(called("Two riders", "At seven the grey rider will demand the satchel.")).toContain("rider");
+  // Never by what they hold or stand by, nor by a name's last part.
+  expect(called("Man holding a lantern", "At seven Ossery will smash the lantern in the far mill.")).toBeUndefined();
+  expect(called("Stranger beneath the gatehouse", "At seven Ossery will climb the gatehouse in Harrow.")).toBeUndefined();
+  expect(called("Mara Vell of Harrow", "At seven Jon Vell will burn the papers.")).toBeUndefined();
+  expect(called("Hob Miller", "At seven the miller will open the sluice.")).toBeUndefined();
+  // Never by whom a far deed is meant for, though the deed itself counts wherever that comes.
   expect(plan("At seven Ossery will bury his knife, meaning to meet Mara.")).toBeUndefined();
+  expect(plan("At seven, meaning to buy the wells, Drem will walk up to Mara.")).toContain("Mara");
+  expect(plan("At seven Drem will put the accounts in order and hand them to Mara.")).toContain("Mara");
   // Never by a surname shared, a direction or any room, nor hours ahead at a pace of travel.
   expect(plan("At seven Jon Vell will burn the papers in Harrow.")).toBeUndefined();
   expect(plan("At seven Drem will carry the lie north.")).toBeUndefined();
   expect(plan("At seven Drem will tell Mara.", 13, 6)).toBeUndefined();
 });
 
-test("a plan is offered to one committed Turn, a replacement aside, and afresh once a Revert takes it", () => {
-  planOffered("once", PLAN);
-  expect(duePlan("once", state, "Wren")).toBeUndefined();
-  expect(duePlan("once", state, "Wren", 0.1, true)).toBe(PLAN);
-  forgetOffers("once");
-  expect(duePlan("once", state, "Wren")).toBe(PLAN);
+test("a plan is offered to one committed Turn, which a reply written again or a Revert takes back and no other", () => {
+  planOffered("once", PLAN, 5);
+  expect(duePlan("once", state, "Wren", 7)).toBeUndefined();
+  // The Turn it was offered to, written again or reverted and played anew.
+  expect(duePlan("once", state, "Wren", 5)).toBe(PLAN);
+  // And where one before it was reverted.
+  expect(duePlan("once", state, "Wren", 3)).toBe(PLAN);
+  expect(
+    replyBefore([
+      { id: 5, role: "narrator" },
+      { id: 6, role: "player" },
+    ]),
+  ).toBe(5);
 });
 
 test("a plan is shown by its doer coming into view or speaking, or by the deed told, and never by a mention of them", () => {

@@ -301,6 +301,8 @@ test("a night's words past midnight are the next day however far the count is sh
   // The date it gives is the new day's, once.
   expect(after(night(47.8), "just past midnight", 0.2, 1, "8th of Dry Month")).toMatchObject({ day: 3, date: "8th of Dry Month" });
   expect(after(night(47.8), "just past midnight", 0.2, 1, "8th of Dry Month").dateDue).toBeUndefined();
+  // Turned once, though the small hours are called late at night.
+  expect(after({ ...night(0), storyTime: { day: 3, date: "8th of Dry Month", timeOfDay: "late at night", hours: 49 } }, "one in the morning", 0.5).day).toBe(3);
   // Still the night before.
   for (const words of ["a few minutes to midnight", "nearly midnight", "not yet midnight"])
     expect([words, after(night(47.5), words, 0.2).day]).toEqual([words, 2]);

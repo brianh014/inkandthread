@@ -653,7 +653,9 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       const wordsRoll = from !== undefined && to !== undefined ? to < from : crossed;
       // A night's words going back past midnight are the next day whatever the count, as one a hair short of it at "just past
       // midnight" never rolled, and "one in the morning" then set the clock back a whole day, where it stayed to the end.
-      const overnight = before && from !== undefined && to !== undefined && to < from && nightWraps(from, to) ? before.day + 1 : 0;
+      // Only from a day's second half, as "late at night" said of the small hours is the night already turned.
+      const late = before && (before.hours === undefined || before.hours - (before.day - 1) * 24 >= 12);
+      const overnight = late && from !== undefined && to !== undefined && to < from && nightWraps(from, to) ? before.day + 1 : 0;
       const day = Math.max((before?.day ?? 1) + days, wordsRoll ? Math.floor(hours / 24) + 1 : 0, overnight);
       // Back to a clock time the words give, where far from the count, so it never drifts from what the page says; never to
       // words alone, as "three in the morning" reads as morning's nine.

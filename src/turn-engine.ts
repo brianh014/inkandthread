@@ -161,17 +161,9 @@ export class TurnFailed extends Error {
 // Nor resolves a thread, which was only ever a request to World Moves On: looped resolves ran on past whole replies, 537 in one
 // 30-Turn play, and a move decides by its own answer to each thread's question.
 // Nor says who a known person is, which is State Upkeep's, as the Narrator's words told the player a secret.
-const RETIRED = [
-  "set_summary",
-  "add_plot_thread",
-  "remove_lore_entry",
-  "resolve_plot_thread",
-  "set_known_npc_summary",
-  // Nor writes the Journal's facts and Loose Ends, for the same reason: of twelve entries the page never showed, all were the Narrator's.
-  "add_known_fact",
-  "update_known_fact",
-  "add_loose_end",
-];
+// Nor writes the Journal's facts and Loose Ends, for the same reason: of twelve entries the page never showed, all were the Narrator's.
+const JOURNAL_OPS = ["add_known_fact", "update_known_fact", "add_loose_end"];
+const RETIRED = ["set_summary", "add_plot_thread", "remove_lore_entry", "resolve_plot_thread", "set_known_npc_summary", ...JOURNAL_OPS];
 // DeepSeek filled its operations with placeholders, such as resolving a thread named "x", "none" or "", which failed whole Turns,
 // and saved an item named "x" and a known fact that was only a name, such as "Silas Grout", to the Journal.
 const PLACEHOLDER = /^[\s_]*(?:none|nonexistent|unused|placeholder|n\/a|null|\p{L})?[\s_]*$/iu;
@@ -1219,7 +1211,7 @@ async function narrate(
                 timed,
               ).then((ops) => {
                 if (!ops) return ops;
-                const told = groundedNotes(ops, narrated.next, read, opening);
+                const told = groundedNotes(ops, { ...narrated.next, npcKnows: before.npcKnows }, read, opening);
                 return withoutRelearned(seen ? journalRead(told, narrated.next, read) : told, state_operations, narrated.next);
               })
             : undefined,
@@ -1360,8 +1352,8 @@ async function narrate(
       // Why, as the count alone hid State Upkeep repeating what NPCs learned.
       if (upkeepDropped.length > 0) log.info("turn", "Upkeep operations dropped", { reason: refusalText(upkeepDropped) });
       const operations = state_operations.map(({ op }) => op);
-      // With what State Upkeep does in its place.
-      const inPlace = (upkept ?? []).map(({ op }) => op).filter((op) => RETIRED.includes(op));
+      // With the Journal's entries, which State Upkeep writes.
+      const inPlace = (upkept ?? []).map(({ op }) => op).filter((op) => JOURNAL_OPS.includes(op));
       counted?.({ difficulty: check?.difficulty, operations: [...operations, ...inPlace] });
       // Counts only, so that the log never repeats the story: a Check's action is the player's words, so it's left out.
       log.info("turn", "Turn committed", () => ({
@@ -1488,8 +1480,9 @@ export function groundedNotes<Operation extends StateOperation>(upkept: Operatio
   const unread = unreadIn(read);
   const known = Object.values(npcKnows).flat().join("\n");
   const kept = upkept.filter((operation) => {
-    // What only someone's knowledge holds never reaches the player in a line on a person either.
-    if (operation.op === "set_known_npc_summary" && secretWords(operation.summary, known, read, unread).length > 0) {
+    // What only someone's knowledge holds never reaches the player in a line on a person or a fact reworded either.
+    const reworded = operation.op === "set_known_npc_summary" ? operation.summary : operation.op === "update_known_fact" ? operation.replacement : "";
+    if (secretWords(reworded, known, read, unread).length > 0) {
       dropped.secret++;
       return false;
     }

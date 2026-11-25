@@ -161,15 +161,17 @@ const COMMON = new Set(
 );
 
 // What the player reads in the Journal as the PC's own knowledge.
-const JOURNAL: StateOperation["op"][] = ["add_known_fact", "set_known_npc_summary", "add_loose_end"];
+const JOURNAL: StateOperation["op"][] = ["add_known_fact", "update_known_fact", "set_known_npc_summary", "add_loose_end"];
 const journalText = (operation: StateOperation) =>
   operation.op === "add_known_fact"
     ? operation.fact
-    : operation.op === "set_known_npc_summary"
-      ? operation.summary
-      : operation.op === "add_loose_end"
-        ? operation.loose_end
-        : "";
+    : operation.op === "update_known_fact"
+      ? operation.replacement
+      : operation.op === "set_known_npc_summary"
+        ? operation.summary
+        : operation.op === "add_loose_end"
+          ? operation.loose_end
+          : "";
 /**
  * The operations without a known fact, summary or Loose End naming what the player has only in the hidden threads and Lore, as
  * the Narrator wrote the constable's bribes and the vicar's smuggling into the PC's notes before she learned of either. Checked

@@ -6,7 +6,18 @@ import { activateLore, wholeWord } from "./lore-activation";
 import { LORE_TOKEN_BUDGET, type Prompt, SUMMARY_EVERY, withClock } from "./prompt-assembler";
 import type { SaveStore } from "./save-store";
 import type { SettingsStore } from "./settings-store";
-import { clockOf, closestThread, hourOf, isBody, type ListChange, MAX_PLAN_HOURS, nameForms, type State, type StateOperation } from "./state-applier";
+import {
+  clockOf,
+  closestThread,
+  findPerson,
+  hourOf,
+  isBody,
+  type ListChange,
+  MAX_PLAN_HOURS,
+  nameForms,
+  type State,
+  type StateOperation,
+} from "./state-applier";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 import { threadPeople } from "./thread-people";
 
@@ -195,6 +206,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const pcForms = nameForms(saves.read(id).pc.name ?? "");
   const adds = ({ thread, truth, now }: ThreadMove) => thread === null && truth !== null && now !== null;
   const doersNamed = new Set<string>();
+  let pcParts = 0;
   // Why a change can't be used, named so the log and the request to write it again both say which.
   const fault = (change: ThreadMove, index: number, all: ThreadMove[]) => {
     if (change.thread !== null && !plotThreads.includes(change.thread)) return "a change misquotes a thread";
@@ -222,7 +234,10 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
       const thread = closestThread(plotThreads, change.thread ?? change.truth ?? "");
       const plan = change.plan && change.now ? withDoer(change.plan, change.now, pcForms) : change.plan;
       if (plan && plan !== change.plan) doersNamed.add(plan);
-      return { ...change, plan, ...(thread !== undefined && { thread, truth: change.thread === null ? null : change.truth }) };
+      // Never the PC's, who was kept as someone with a hidden part in 4 plays of 23, unless it is someone else's name.
+      const knows = change.knows.filter(({ name }) => !pcForms.includes(name) || findPerson(state.npcs, name));
+      pcParts += change.knows.length - knows.length;
+      return { ...change, knows, plan, ...(thread !== undefined && { thread, truth: change.thread === null ? null : change.truth }) };
     });
     const kept = changes.filter((change, index) => fault(change, index, changes) === null);
     // Adds only up to OPEN_THREADS, as the rule says, since an 80-round story's moves added past it to seven that nothing ended,
@@ -601,13 +616,11 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       ),
     );
     const knows: Record<string, string[]> = {};
-    const pcForms = nameForms(saves.read(id).pc.name);
-    // Never the PC, who was kept as someone with a hidden part in 4 plays of 23.
     for (const { name, knows: part } of kept.flatMap(({ now, knows }) => (now === null ? [] : knows)))
-      if (/\p{L}/u.test(name) && /\p{L}/u.test(part) && !pcForms.includes(name)) knows[name] = [...(knows[name] ?? []), part];
+      if (/\p{L}/u.test(name) && /\p{L}/u.test(part)) knows[name] = [...(knows[name] ?? []), part];
     const parts = Object.fromEntries(
       kept.flatMap(({ thread, truth, now, knows }) => {
-        const names = knows.filter(({ name, knows }) => /\p{L}/u.test(name) && /\p{L}/u.test(knows) && !pcForms.includes(name)).map(({ name }) => name);
+        const names = knows.filter(({ name, knows }) => /\p{L}/u.test(name) && /\p{L}/u.test(knows)).map(({ name }) => name);
         return now === null || names.length === 0 ? [] : [[thread ?? truth!, names] as const];
       }),
     );
@@ -684,6 +697,8 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       plans: Object.keys(plan).length,
       questions: Object.keys(question).length,
       planDue: fell.size,
+      // Parts the move gave the PC, over all its tries.
+      ...(pcParts > 0 && { pcParts }),
       // Plans that named their doer only as he or she, and were given their name.
       ...(namedPlans > 0 && { plansNamed: namedPlans }),
       ...(marked.size > 0 && { marks: marked.size }),

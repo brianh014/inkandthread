@@ -462,9 +462,6 @@ function namedThread(state: State, text: string, { became }: ThreadsSoFar) {
 }
 
 /** Changes `state` and returns nothing, or returns why `operation` is disproved, having changed nothing. The reason goes to the Server Log, so it never quotes the operation. */
-const NOT_AN_ITEM = "a person, not an item";
-const isPerson = (state: State, item: string) => state.npcs.some(({ name }) => name.toLowerCase() === item.trim().toLowerCase());
-
 function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = { became: new Map() }, pcTraits = ""): string | undefined {
   switch (operation.op) {
     case "add_item": {
@@ -724,9 +721,6 @@ const DAY_PARTS: [RegExp, number][] = [
 const PASSING =
   /\b(?:holding|carrying|carried|clutch(?:ing|ed)|gripp(?:ing|ed)|kneeling|crouching|sitting|seated|lying|leaning|standing (?:at|in|by|on|beside|over|before)|gone (?:out|off|away|into|to|back)|in (?:his|her|their|one) (?:other )?hand|in hand|held (?:high|low|up|out)(?! by)|soaked|sodden|drenched|dripping|damp|rain-\w+|mud-(?!brown|colou?red)\w+|windblown|caked|crusted|drained|ashen|flushed|(?:wrists|hands|arms|ankles) (?:bound|tied)|(?:bound|tied) (?:before|behind)|manacled|shackled|in irons|(?:taken|pulled|shrugged) off|(?:coat|jacket|cloak|hat|cap|shirt|boots) off|bare-?foot(?:ed)?|folded (?:over|on|across)|left (?:below|behind)|(?:under|over|across) (?:his|her|their|one|an?) arms?|tucked(?! into (?:[\w'-]+ ){0,3}(?:boots|trousers|breeches|skirts?|pants|jeans)\b))\b/i;
 // Dirt, wet and how a garment sits for now, which say nothing of what comes before them, so only they go.
-// Held for now in more words, as a cap "crushed in his hands" and a crossbow "across her saddlebow" stayed in looks in 10 plays of 23.
-const IN_HAND =
-  /\b(?:in (?:(?:his|her|their|both|one) )(?:other )?(?:hands|fists?)|(?:between|in) (?:his|her|their) fingers|(?:across|over) (?:his|her|their) (?:saddlebow|saddle|knees|lap))\b/i;
 const FOR_NOW = /\b(?:wet|dusty(?!-)|dust(?!-(?:gr[ae]y|brown|colou?red))|muddied|bare feet|hood (?:up|down)|rime)\b/i;
 // Dirt on what the next words name, as a "dusty blue officer's coat" lost the whole coat from looks in five plays.
 const SOILED =
@@ -747,11 +741,6 @@ const lasting = (appearance: string) => {
     .split(",")
     .flatMap((clause) => {
       if (PASSING.test(clause)) return [];
-      if (IN_HAND.test(clause)) {
-        // Its "and" may join something worn, which stays.
-        const worn = clause.split(/\sand\s(?=(?:an?|the)\s)/).filter((part) => !IN_HAND.test(part));
-        return worn.length > 0 ? [`${/^\s/.test(clause) ? " " : ""}${worn.join(" and ").trim()}`] : [];
-      }
       const parts = clause.split(/(?=\s(?:and|with (?:an?|the|his|her|their|wet|rime|bare|hood))\s)/);
       const at = parts.findIndex((part) => FOR_NOW.test(part));
       return at === 0 ? [] : [parts.slice(0, at < 0 ? parts.length : at).join("")];
@@ -760,6 +749,10 @@ const lasting = (appearance: string) => {
     .trim();
   return kept || appearance;
 };
+
+const NOT_AN_ITEM = "a person, not an item";
+// Exactly as named, as amber isn't Amber.
+const isPerson = (state: State, item: string) => state.npcs.some(({ name }) => name === item);
 
 const OTHERS_BODY = "someone else's body";
 const BODY_PART =

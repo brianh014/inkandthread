@@ -598,3 +598,28 @@ test("a person's line never holds what only someone's knowledge does, nor replac
     expect(store().latestState(id).pcKnown.summaries!.Mara).toBe("My sister-in-law, whom I trust.");
   }
 });
+
+test("the player's line on a person outlives the reply that gives them their full name", async () => {
+  const summary = (name: string) => ({ op: "set_known_npc_summary", name, summary: "A smuggler." });
+  play(
+    [narration("Mara waves."), new Error("down"), narration("Mara Vell, as she is called, smiles.", { op: "merge_npc", name: "Mara", into: "Mara Vell" })],
+    [upkept(), upkept(summary("Mara Vell"))],
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: ["Mara"] },
+      summary: "",
+      npcs: [{ name: "Mara", appearance: "a pilot" }],
+      pcKnown: { facts: [], npcs: ["Mara"], summaries: {} },
+    },
+  });
+  expect((await turn(id)).ok).toBe(true);
+  store().addEdit(id, { edit: "npcSummary", name: "Mara", text: "My sister-in-law, whom I trust." });
+
+  expect((await turn(id)).ok).toBe(true);
+
+  expect(store().latestState(id).pcKnown.summaries).toEqual({ "Mara Vell": "My sister-in-law, whom I trust." });
+});

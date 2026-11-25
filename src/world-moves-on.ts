@@ -342,7 +342,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
       if (here.length > 0 && pcsPeopleAct(change.now).some((clause) => !here.some((word) => mentions(clause, word)))) faults.push(SOMEWHERE_ELSE);
       if (named.length > 0 && secretWords(both, secrets, theirs(named, change)).length > 0) faults.push(SECRET);
       // Its plan too, as a plan for someone to tell the PC a secret was spent by another who wasn't told it.
-      if (both.split(/(?<=[.!?;])\s+/).some((sentence) => toldPc.test(sentence) && secretWords(sentence, secrets, pcKnew).length > 0)) faults.push(PC_TOLD);
+      if (both.split(/(?<=[.!?;])\s+|\n+/).some((sentence) => toldPc.test(sentence) && secretWords(sentence, secrets, pcKnew).length > 0)) faults.push(PC_TOLD);
       const plan = change.thread === null ? "" : (threadsPlan[change.thread] ?? "");
       if (withPc(plan) && tellsDone(plan, threadsNow[change.thread!] ?? "", change.now))
         faults.push("a now tells as done a plan whose people were with the PC");

@@ -1091,7 +1091,14 @@ export const Person = z.object({ name: z.string().trim().min(1), appearance: z.s
  * Makes everyone a response names a known NPC, as Narrators often forget to, ahead of `operations`, so that those can
  * use the new names. Returns the state and what's left of `operations` once anything this already did is taken out.
  */
-export function introduce(state: State, people: z.infer<typeof Person>[], pcName: string, operations: StateOperation[]) {
+export function introduce(
+  state: State,
+  people: z.infer<typeof Person>[],
+  pcName: string,
+  operations: StateOperation[],
+  /** Whether someone has been named nowhere the player has read, so they aren't known to the PC. */
+  unread: (name: string) => boolean = () => false,
+) {
   // Someone shortened to a name only one person has is that person, not someone new.
   const known = (name: string) => findPerson(state.npcs, name)?.name;
   // A list of people is never worth a Turn, so someone with no looks waits until they're named again. Each name once, the first
@@ -1104,7 +1111,7 @@ export function introduce(state: State, people: z.infer<typeof Person>[], pcName
       const kept = known(name) ?? name;
       return [
         ...(known(name) ? [] : [{ op: "add_npc" as const, name, appearance }]),
-        ...(state.pcKnown.npcs.includes(kept) ? [] : [{ op: "add_known_npc" as const, name: kept }]),
+        ...(state.pcKnown.npcs.includes(kept) || unread(kept) ? [] : [{ op: "add_known_npc" as const, name: kept }]),
       ];
     });
   // Two people with one given name can't be told apart, by the player or by the matching above.
@@ -1129,7 +1136,9 @@ export function introduce(state: State, people: z.infer<typeof Person>[], pcName
   return {
     state: applyOperations(state, introductions).next,
     operations: operations.filter(
-      (operation) => !introductions.some((done) => done.op === operation.op && "name" in done && "name" in operation && done.name === operation.name),
+      (operation) =>
+        (operation.op !== "add_known_npc" || !unread(operation.name)) &&
+        !introductions.some((done) => done.op === operation.op && "name" in done && "name" in operation && done.name === operation.name),
     ),
     refused,
   };

@@ -1430,6 +1430,37 @@ test("a move asked again for a faulted now never closes that thread instead", as
   expect(store().latestState(id).plotThreads).toContain(drowned);
 });
 
+test("a plan for someone to tell the PC a secret is asked again, as another told it instead", async () => {
+  const hidden = "The ledger is hidden in the cottage chimney, and the vicar is searching for it.";
+  const told = play(
+    narration("Ash walks to the quay.", nextDay()),
+    moved({
+      ...change(hidden, "The ferryman rows in"),
+      plan: "The ferryman will come to the quay and tell Ash the ledger lies hidden up the cottage chimney.",
+      plan_in_hours: 2,
+    }),
+    moved({ ...change(hidden, "The ferryman rows in."), plan: "The ferryman will moor at the quay.", plan_in_hours: 2 }),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [hidden],
+      worldBible: [],
+    },
+  });
+
+  for (const input of ["I walk.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+
+  expect(told.prompts).toHaveLength(4);
+  expect(store().latestState(id).threadsPlan[hidden]).toBe("The ferryman will moor at the quay.");
+});
+
 test("a now that has the PC told a secret off the page is asked again, naming that thread, and kept out if still so while the old now is the newest reply's", async () => {
   const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
   const hidden = "The ledger is hidden in the cottage chimney, and the vicar is searching for it.";

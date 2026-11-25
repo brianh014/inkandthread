@@ -352,6 +352,36 @@ test("a move that misquotes a thread, or fails, leaves the world as it was and t
   expect(log).toContain("a change misquotes a thread");
 });
 
+const post = (path: string) =>
+  fetch(new URL(path, server.url), { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).then(({ status }) => status);
+const openingMove = () =>
+  moved({ ...change(THIEF, "The thief is on the quay, counting the gulls."), plan: "The thief will try the dome's lock at dusk.", plan_in_hours: 0.5 });
+
+test("the world first moves after the opening, so the first Turn has plans, set by a story's usual pace", async () => {
+  const told = play(narration("Ash wakes."), openingMove(), narration("Ash walks."));
+  const id = createSave();
+
+  expect(await post(`/saves/${id}/opening`)).toBe(201);
+  expect((await turn(id, "I walk.")).ok).toBe(true);
+
+  expect(told.prompts).toHaveLength(3);
+  expect(JSON.parse(told.prompts[1]!.at(-1)!.content).hours_per_reply).toBe(0.1);
+  expect(told.prompts[2]!.map(({ content }) => content).join("\n")).toContain("try the dome's lock");
+});
+
+test("an opening written again drops the plans made from it, and the next Turn moves the world", async () => {
+  const told = play(narration("Ash wakes."), openingMove(), narration("Ash wakes again."), narration("Ash sits."), openingMove(), narration("Ash stands."));
+  const id = createSave();
+
+  expect(await post(`/saves/${id}/opening`)).toBe(201);
+  expect(await post(`/saves/${id}/messages/2/regenerate`)).toBe(201);
+  expect(store().latestState(id).threadsPlan).toEqual({});
+  for (const input of ["I sit.", "I stand."]) expect((await turn(id, input)).ok).toBe(true);
+
+  expect(told.prompts).toHaveLength(6);
+  expect(Object.keys(store().latestState(id).threadsPlan)).toEqual([THIEF]);
+});
+
 test("a move is due after hours of story time, on a new day or every few replies, even with no threads, as only a move adds them", () => {
   const at = (timeOfDay: string, date = "1st of Thaw") => ({ date, timeOfDay, day: 1 });
   const before = { ...openingState, plotThreads: ["A thread."], scene: { location: "Here", visibleCast: [] }, storyTime: at("early afternoon") };

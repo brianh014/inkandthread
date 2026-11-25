@@ -84,7 +84,8 @@ test("a pause drops at most a tenth of a long list of known facts, in the same c
 
 test("a Save gives every edit the player made, on its Messages and since, and none a World Change wrote", async () => {
   const folder = tempFolder();
-  const script = scriptedTextProvider(narration("It begins."), narration("On."));
+  // The edit's own settling fails, which the Turn plays on past.
+  const script = scriptedTextProvider(new Error("down"), narration("It begins."));
   const app = startApp(join(folder.path, "Saves"), script.textProvider);
   const id = await app.createSave();
   const saves = saveStore(join(folder.path, "Saves"));

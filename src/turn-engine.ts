@@ -1105,9 +1105,10 @@ async function narrate(
       // Someone of the hidden world the page never names isn't known to the PC, as a looping reply listed a man off in his own
       // town, who then stood in the player's Journal. They still join the state, as those met by their trade alone must.
       const hidden = (name: string) => seen !== undefined && unnamedSecret(name, before.worldBible, read);
-      const unread = [...people, ...state_operations.filter(({ op }) => op === "add_known_npc")].filter((each) =>
-        hidden((each as { name: string }).name),
-      ).length;
+      const told = [...people, ...state_operations.filter((operation) => operation.op === "add_known_npc")].map(
+        ({ name }) => findPerson(before.npcs, name)?.name ?? name,
+      );
+      const unread = new Set(told.filter((name) => !before.pcKnown.npcs.includes(name) && hidden(name))).size;
       if (unread > 0) log.info("turn", "People the page never names kept out of the Journal", { attempt, generation, count: unread });
       // Checked before State Upkeep, so a reply that will be written again costs no call.
       const introducedBefore = introduce(before, people, pcName, state_operations, hidden);
@@ -1567,7 +1568,7 @@ const LEFT_OUT = "an opening that leaves out someone its Starting Hook names";
 /** Whether someone with a Lore Entry of their own has been named nowhere in what the player has read. */
 const unnamedSecret = (name: string, worldBible: State["worldBible"], read: string) =>
   worldBible.some(({ title, alwaysOn }) => !alwaysOn && nameForms(title).some((form) => nameForms(name).includes(form))) &&
-  !nameForms(name).some((form) => wholeWord(form, "u").test(read));
+  !nameForms(name).some((form) => wholeWord(form, form === name ? "iu" : "u").test(read));
 /** Who of `people` the narration never names, by their full name or any capitalised part of it, such as a surname. */
 export const peopleLeftOut = (narration: string, people: string[]) =>
   people.filter((name) => !nameForms(name).some((part) => wholeWord(part, "u").test(narration)));

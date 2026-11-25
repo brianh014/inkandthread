@@ -13,8 +13,6 @@ const USUAL_PACE = 0.1;
 const NEAR_HOURS = 0.5;
 /** Added to the reach, as 43.75 and 0.05 came to a hair under the 43.8 a plan was due. */
 const ROUNDING = 0.01;
-/** The most replies one plan is offered to, so one the Narrator leaves out goes to the next move of the world. */
-const MOST_OFFERS = 2;
 // The words of a place that tell nothing of which, as "carries the lie north" put a far well at a north rock.
 const ANY_PLACE = new Set(
   "north south east west upper lower above below between near inside outside behind under over house hall road street door hers their mouth edge side".split(
@@ -22,11 +20,14 @@ const ANY_PLACE = new Set(
   ),
 );
 
-/** How many committed Turns each Save's plans were offered to. shortcut: in memory, so a restart offers a plan afresh; store it if one is played twice. */
-const offered = new Map<string, Map<string, number>>();
+/**
+ * The plans each Save's committed Turns were offered, once each: 19 of 20 replayed replies brought theirs on at the first, some by
+ * signs no words of it told, such as tracks in the sand, and one offered again would play twice. One left out goes to the next
+ * move of the world. shortcut: in memory, so a restart offers a plan afresh; store it if one is played twice.
+ */
+const offered = new Map<string, Set<string>>();
 export const planOffered = (id: string, plan: string) => {
-  const times = offered.get(id) ?? new Map<string, number>();
-  offered.set(id, times.set(plan, (times.get(plan) ?? 0) + 1));
+  offered.set(id, (offered.get(id) ?? new Set<string>()).add(plan));
 };
 /** A Revert takes the replies a plan was offered to. */
 export const forgetOffers = (id: string) => offered.delete(id);
@@ -53,14 +54,13 @@ const calledBy = (person: string) => {
 };
 
 /**
- * The open plan to bring on in the coming reply, whose hour it reaches or has passed with no move to tell it: one that names the PC or someone with them, or else the
- * PC's place, as a far deed offered brought its news from nowhere. One at most, so events never crowd in. `again` is for a reply
- * that replaces one, whose own offer was counted.
+ * The open plan to bring on in the coming reply, whose hour it reaches or has passed with no move to tell it: one that names the
+ * PC or someone with them, or else the PC's place, as a far deed offered brought its news from nowhere. One at most, so events
+ * never crowd in. `again` is for a reply that replaces one, whose own offer was counted.
  */
 export function duePlan(id: string, state: State, pcName: string, pace = USUAL_PACE, again = false) {
   const clock = clockOf(state.storyTime);
   if (clock === undefined) return undefined;
-  const most = MOST_OFFERS + (again ? 1 : 0);
   const company = [...state.scene.visibleCast, pcName].filter(Boolean);
   const place = (state.scene.location.match(/\p{L}{4,}/gu) ?? []).filter((word) => !common(word) && !ANY_PLACE.has(word.toLowerCase()));
   const nearness = (plan: string) => {
@@ -75,7 +75,7 @@ export function duePlan(id: string, state: State, pcName: string, pace = USUAL_P
       const due = state.threadsDue[truth];
       const near = nearness(plan);
       const coming = due !== undefined && due <= reach;
-      return coming && near > 0 && (offered.get(id)?.get(plan) ?? 0) < most ? [{ plan, near, due }] : [];
+      return coming && near > 0 && (again || !offered.get(id)?.has(plan)) ? [{ plan, near, due }] : [];
     })
     .toSorted((a, b) => b.near - a.near || a.due - b.due);
   return first?.plan;

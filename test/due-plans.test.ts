@@ -53,14 +53,12 @@ test("the plan brought on is one near the PC whose hour this reply reaches, neve
   expect(plan("At seven Drem will tell Mara.", 13, 6)).toBeUndefined();
 });
 
-test("a plan is offered to two committed Turns at most, a replacement aside, and afresh once a Revert takes them", () => {
-  planOffered("twice", PLAN);
-  expect(duePlan("twice", state, "Wren")).toBe(PLAN);
-  planOffered("twice", PLAN);
-  expect(duePlan("twice", state, "Wren")).toBeUndefined();
-  expect(duePlan("twice", state, "Wren", 0.1, true)).toBe(PLAN);
-  forgetOffers("twice");
-  expect(duePlan("twice", state, "Wren")).toBe(PLAN);
+test("a plan is offered to one committed Turn, a replacement aside, and afresh once a Revert takes it", () => {
+  planOffered("once", PLAN);
+  expect(duePlan("once", state, "Wren")).toBeUndefined();
+  expect(duePlan("once", state, "Wren", 0.1, true)).toBe(PLAN);
+  forgetOffers("once");
+  expect(duePlan("once", state, "Wren")).toBe(PLAN);
 });
 
 test("a plan is shown by its doer coming into view or speaking, or by the deed told, and never by a mention of them", () => {

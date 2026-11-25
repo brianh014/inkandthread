@@ -235,6 +235,13 @@ test("a clothing clause keeps its clothes when a word in it passes with the scen
   expect(looksOf("a lanky boy with dusty brown skin and a shaven head, in a dust-caked orange coat")).toBe(
     "a lanky boy with brown skin and a shaven head, in an orange coat",
   );
+  // Dirt told after it, up to what the clause says next.
+  expect(looksOf("a woman, blonde hair in a long plait greyed with ash at the tip, a shirt black with soot and a leather cap")).toBe(
+    "a woman, blonde hair in a long plait, a shirt and a leather cap",
+  );
+  expect(looksOf("a man, a fair beard streaked with ash-blonde, boots stained with grape must")).toBe(
+    "a man, a fair beard streaked with ash-blonde, boots stained with grape must",
+  );
   // Half of a compound says more than dirt.
   expect(looksOf("a man, dusty-haired and lean, blue eyes")).toBe("a man, dusty-haired and lean, blue eyes");
   // A colour, not dirt.

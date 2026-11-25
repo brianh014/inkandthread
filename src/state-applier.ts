@@ -728,6 +728,12 @@ const FOR_NOW = /\b(?:wet|dusty(?!-)|dust(?!-(?:gr[ae]y|brown|colou?red))|muddie
 // Dirt on what the next words name, as a "dusty blue officer's coat" lost the whole coat from looks in five plays.
 const SOILED =
   /((?:^|,\s*|\b(?:an?|his|her|their|the|in|over|under|wearing|with|of|from)\s))(?:dusty|muddied|(?:mud|dust|snow|sand)-(?!colou?red)\w+ed)\s+(?!(?:a|an|the|at|with|from|to|through|in|on|of|by|and|now|up|down|after)\b)(\p{L})/giu;
+// Dirt told after what it is on, up to what the clause says next, as a plait "greyed with ash at the tip" redrew a blonde woman grey.
+const DIRT = String.raw`(?:ash(?:es)?|soot|dust|mud|sand|snow|frost|sweat|rain)(?![-\w])`;
+const DIRTIED = new RegExp(
+  String.raw`\s+(?:and\s+)?(?:grey|greyed|gray|grayed|white|whitened|black|blackened|dark|darkened|stiff|smudged|smeared|streaked|dusted|grimed|powdered) with ${DIRT}(?:\s+and\s+${DIRT})?(?:(?!\s(?:and|with|in|over|under|wearing)\s)[^,;.])*`,
+  "gi",
+);
 /**
  * The looks without what passes: a word of dirt on its own, then what a clause says of now from its "and" or "with", so the
  * clothes it opens with stay, and the whole of a clause that has something held, put off or bound, as both sides of its "and"
@@ -735,6 +741,7 @@ const SOILED =
  */
 const lasting = (appearance: string) => {
   const kept = appearance
+    .replace(DIRTIED, "")
     .replace(
       SOILED,
       (_, before: string, letter: string) =>

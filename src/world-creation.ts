@@ -995,6 +995,22 @@ const SCENE_WORDS: Record<PromptStyle, number> = { prose: 150, keywords: 80 };
 const marksOf = (prompt: string): string[] => withoutStrayQuote(prompt).match(/\[[^[\]]*\]|\{[^{}]*\}/g) ?? [];
 // A review closed the curly sentence with a quote, as in `here."}`, on all 14 of a play's refusals, drawing two prompts unchecked.
 const withoutStrayQuote = (prompt: string) => prompt.replace(/["“”\s]+\}/g, "}");
+/**
+ * A review's new marks on the cast with their phrase cut to its opening words the prompt has as written, the rest left after them,
+ * as reworded ones were refused in 18 of 219 checks and the next try lost the mark, drawing a stranger. shortcut: by its opening
+ * four words or more only, so a phrase reworded from the start is still refused.
+ */
+const asWritten = (reviewed: string, original: string[], cast: string[], description: string) =>
+  reviewed.replace(/\[([^:\]]+):\s*([^\]]+)\]/g, (mark, name: string, phrase: string) => {
+    const has = (words: string) => description.toLowerCase().includes(words.toLowerCase());
+    if (original.includes(mark) || !cast.includes(name.trim()) || has(phrase.trim())) return mark;
+    const words = phrase.trim().split(/\s+/);
+    let kept = words.length;
+    while (kept > 0 && !has(words.slice(0, kept).join(" "))) kept--;
+    // Never ending mid-phrase, as "looking down at a".
+    while (kept > 0 && /^(?:an?|the|at|in|on|of|to|by|with|and|his|her|their|its|from|over|under|into)$/i.test(words[kept - 1]!)) kept--;
+    return kept >= 4 ? `[${name}: ${words.slice(0, kept).join(" ").replace(/[,;]$/, "")}] ${words.slice(kept).join(" ")}` : mark;
+  });
 const keepsMarks = (original: string[], reviewed: string[], cast: string[] = [], description = "") => {
   const left = [...original];
   const unmarked = [...cast];
@@ -1030,7 +1046,8 @@ export async function reviewScenePrompt(
   const limit = Math.max(SCENE_WORDS[style], countWords(description));
   const marks = marksOf(description);
   const names = cast.map(({ name }) => name);
-  const reply = z.object({ prompt: atMost(limit).refine((prompt) => keepsMarks(marks, marksOf(prompt), names, description), "changed a mark") });
+  const kept = (prompt: string) => asWritten(prompt, marks, names, description);
+  const reply = z.object({ prompt: atMost(limit).refine((prompt) => keepsMarks(marks, marksOf(kept(prompt)), names, description), "changed a mark") });
   const form =
     style === "prose"
       ? "Copy every part in square brackets and the sentence in curly braces exactly, each where it was, except that you may take out whoever shouldn't be in the picture, with their part in square brackets."
@@ -1046,7 +1063,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(reply))
   ];
   try {
     const reviewed = withoutStrayQuote(
-      (await askForJson(context.textProvider, prompt, reply, REFUSAL, signal, { call: "scenePrompt", picture: true })).prompt,
+      kept((await askForJson(context.textProvider, prompt, reply, REFUSAL, signal, { call: "scenePrompt", picture: true })).prompt),
     ).trim();
     if (cast.length > 0) {
       const marked = marksOf(reviewed).filter((mark) => !marks.includes(mark)).length;

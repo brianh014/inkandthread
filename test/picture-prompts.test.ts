@@ -188,6 +188,22 @@ test("a garbled portrait prompt is written again, with only the reason logged, a
   expect(await titled.written).toBe(`A drowned city, "Salt #9 塩" lettered above.`);
 });
 
+test("a review's mark on a person keeps the words the prompt has of them, and what it adds follows", async () => {
+  const bare = "A pit. A slight woman in her early thirties kneeling at the lip. {The people are the same people.}";
+  const cast = [{ name: "Mara Vukas", looks: "a slight woman of thirty-two" }];
+  const reply = (marked: string) => checked(`A pit. ${marked} {The people are the same people.}`);
+  const reviewed = (marked: string) => {
+    const script = scriptedTextProvider(reply(marked), reply(marked), reply(marked));
+    const settings = settingsStore(join(folder.path, "settings.json"));
+    return reviewScenePrompt({ textProvider: script.textProvider, settings }, bare, "prose", new AbortController().signal, cast);
+  };
+  expect(await reviewed("[Mara Vukas: A slight woman in her early thirties with olive skin, kneeling at the lip].")).toContain(
+    "[Mara Vukas: A slight woman in her early thirties] with olive skin, kneeling at the lip.",
+  );
+  // Described anew from the start is still refused.
+  expect(await reviewed("[Mara Vukas: A grey old woman kneeling at the lip].")).toBe(bare);
+});
+
 test("an Update's portrait prompt keeps the hair and beard of their looks it leaves out, but not their skin", async () => {
   const reply = JSON.stringify({ keep: "The same man with his face preserved.", changes: "He wears a white shirt." });
   const looks = "a tall man with weathered olive skin, close-cut greying hair, a short beard and grey-green eyes, wearing a white shirt";

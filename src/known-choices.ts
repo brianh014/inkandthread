@@ -295,42 +295,30 @@ export function knownChoices(choices: string[], state: State, seen: string, repl
 }
 
 // shortcut: English verbs right before a name, so a Choice worded otherwise slips through; widen if the bench shows more.
-// Only those needing someone alive to hear, for the dead, as "give Pavel a burial" and "kiss Pavel goodbye" are fair.
+// Only those needing someone alive to hear, as "give Pavel a burial" and "kiss Pavel goodbye" are fair.
 const LISTENING = "wake|rouse|ask|tell|question|press|warn|thank|answer";
-const AT_HAND = `${LISTENING}|show|hand|give|help|kiss|hug|pass`;
 
 /**
- * Who each Choice asks something of that only someone at hand allows, by a verb right before their name, when they are dead or
- * out of view, as "wake Pavel" was offered and picked just after he left, and "let's wake Vik" for a man dead a month.
+ * Who each Choice asks something of that only the living can hear, by a verb right before their name, as "wake Pavel" was
+ * offered and picked for a man marked dead. Not someone only out of view: the cast is set only by set_scene, and on the bench
+ * most such Choices were fair, as asking through a door or going round to wake someone.
  */
-export function askedOfAbsent(choices: string[], { npcs, scene, dead }: Pick<State, "npcs" | "scene" | "dead">) {
+export function askedOfDead(choices: string[], { scene, dead }: Pick<State, "scene" | "dead">) {
   // Never a form someone in view also has, as "ask Pavel" means the Pavel there. The name as written, as "Hope" isn't "give hope".
   const inView = new Set(scene.visibleCast.filter((name) => !dead.includes(name)).flatMap(nameForms));
-  const asked = (choice: string, name: string, verbs: string) =>
+  const asked = (choice: string, name: string) =>
     nameForms(name)
       .filter((form) => !inView.has(form))
-      .find((form) => new RegExp(String.raw`\b(?i:${verbs})\s+(?:(?i:the)\s+)?${RegExp.escape(form)}(?![\p{L}\p{N}'’])`, "u").test(choice));
-  const away = npcs.map(({ name }) => name).filter((name) => !scene.visibleCast.includes(name) && !dead.includes(name));
-  return choices.map((choice) => {
-    const gone = dead.map((name) => asked(choice, name, LISTENING)).find(Boolean);
-    if (gone) return { dead: gone };
-    const absent = away.map((name) => asked(choice, name, AT_HAND)).find(Boolean);
-    return absent ? { absent } : {};
-  });
+      .find((form) => new RegExp(String.raw`\b(?i:${LISTENING})\s+(?:(?i:the)\s+)?${RegExp.escape(form)}(?![\p{L}\p{N}'’])`, "u").test(choice));
+  return choices.map((choice) => dead.map((name) => asked(choice, name)).find(Boolean));
 }
 
-/**
- * Choices without those asking something of the dead. One of someone only out of view is counted, not dropped, as the cast is
- * set only by set_scene, so someone who walked in without one would lose a fair Choice.
- */
-export function withoutTheDead(choices: string[], state: Pick<State, "npcs" | "scene" | "dead">, storyInLog = false) {
-  const asked = askedOfAbsent(choices, state);
-  const kept = choices.filter((_, index) => !asked[index]!.dead);
-  const absent = choices.filter((_, index) => asked[index]!.absent);
-  if (kept.length < choices.length || absent.length > 0)
-    log.info("turn", "Choices asking of someone absent", { dead: choices.length - kept.length, outOfView: absent.length });
-  // The Choices themselves only with Story in log, so a fair one dropped or counted can be traced.
-  if ((kept.length < choices.length || absent.length > 0) && storyInLog)
-    log.story("turn", "Choices asking of someone absent", { dead: choices.filter((choice) => !kept.includes(choice)), outOfView: absent });
+/** Choices without those asking something of the dead. */
+export function withoutTheDead(choices: string[], state: Pick<State, "scene" | "dead">, storyInLog = false) {
+  const asked = askedOfDead(choices, state);
+  const kept = choices.filter((_, index) => !asked[index]);
+  if (kept.length < choices.length) log.info("turn", "Choices asking of the dead dropped", { dropped: choices.length - kept.length, kept: kept.length });
+  // The Choices themselves only with Story in log, so a fair one dropped can be traced.
+  if (kept.length < choices.length && storyInLog) log.story("turn", "Choices asking of the dead", { choices: choices.filter((_, index) => asked[index]) });
   return kept;
 }

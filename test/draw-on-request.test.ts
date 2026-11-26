@@ -90,7 +90,7 @@ const callText = () =>
 
 test("a Scene Image and a requested one are drawn from their reviewed prompts", async () => {
   drawn = scriptedImages(png(1), png(2), png(3), png(4));
-  written = scriptedTextProvider(turn("A figure waits by the sea wall.", scene("The sea wall")), written_("A figure watches the tide."));
+  written = scriptedTextProvider(turn("Gulls wait by the sea wall.", scene("The sea wall")), written_("Gulls watch the tide."));
   app = startApp(savesDir, written.textProvider, scriptedDice(), 2, drawn.imageAdapter, undefined, async (description) => `${description} Checked.`);
   await app.patch("/settings", { imageModel: "fake/image", imageApiKey: "image-key" });
   const id = await newSave();
@@ -99,7 +99,7 @@ test("a Scene Image and a requested one are drawn from their reviewed prompts", 
   await settled(id);
 
   const prompts = drawn.payloads.filter(({ aspect_ratio }) => aspect_ratio === "16:9").map(({ prompt }) => prompt);
-  expect(prompts).toEqual(["A figure waits by the sea wall. Checked.", "A figure watches the tide. Checked."]);
+  expect(prompts).toEqual(["Gulls wait by the sea wall. Checked.", "Gulls watch the tide. Checked."]);
   // A pose the player asks for, such as a hug, wins over the rules that keep people apart, and so do the people they name.
   expect(written.prompts[1]![0]!.content).toContain("or names who is in it, draw that as asked, up to four people");
 });

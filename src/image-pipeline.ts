@@ -221,6 +221,36 @@ const NOT_A_NAME = new Set([
   "Master",
 ]);
 
+const marksOf = (prompt: string) => (prompt.match(/\[[^[\]]*\]/g) ?? []).length;
+// A person the prompt pictures by a noun alone, and the sex a noun or someone's looks give, if any.
+const PERSON = /\b(?:a|an|the|one|another|second)\s+(?:[\p{L}-]+\s+){0,3}?(woman|girl|man|boy|figure|person)\b/giu;
+const sexOf = (words: string) => (/\b(?:woman|girl|lady|she|her)\b/i.test(words) ? "she" : /\b(?:man|boy|he|his|him)\b/i.test(words) ? "he" : undefined);
+
+/**
+ * Marks each person of `people`, those in view the prompt left unmarked, where it pictures someone by a noun alone that only one
+ * of them fits by sex (a figure, anyone), as "a woman inside" was the PC drawn as a stranger, with no portrait sent (ticket 106). Text in a mark or
+ * the likeness sentence is left alone, and no one is marked twice.
+ * shortcut: a stranger the prompt pictures beside them can be marked as them when the sexes match; check the noun's place if that shows.
+ */
+export function markByLooks(text: string, people: { name: string; looks: string }[]) {
+  const left = [...people];
+  return text
+    .split(/(\[[^[\]]*\]|\{[^{}]*\})/)
+    .map((part, at) =>
+      at % 2 === 1
+        ? part
+        : part.replace(PERSON, (phrase: string, noun: string) => {
+            const sex = sexOf(noun);
+            // A woman or a man only someone whose looks say so, as a stranger asked for was drawn as a PC of no stated sex.
+            const fits = left.filter(({ looks }) => !sex || sexOf(looks) === sex);
+            if (fits.length !== 1) return phrase;
+            left.splice(left.indexOf(fits[0]!), 1);
+            return `[${fits[0]!.name}: ${phrase}]`;
+          }),
+    )
+    .join("");
+}
+
 /**
  * Marks each person the prompt names without a [Name: phrase] mark, as a model sometimes writes "Ash, a short man," instead:
  * unmarked, their name would reach the image model and their portrait wouldn't. Text already in a mark or the likeness
@@ -500,7 +530,15 @@ export function imagePipeline(
             )
         : [];
     const moment = cast.length > 0 ? saves.messages(id).find((message) => message.id === messageId)?.text : undefined;
-    const description = await reviewPicture(marked, style, signal, cast, moment);
+    const reviewed = await reviewPicture(marked, style, signal, cast, moment);
+    // Those the review left unmarked, by a noun only they fit, the PC's sex also from their background, as their looks may not say it.
+    const marks = expandMarks(reviewed, npcs, pcName).pictured;
+    const left = cast
+      .filter(({ name }) => !marks.includes(name === pcName ? null : name))
+      .map(({ name, looks }) => ({ name, looks: name === pcName ? `${looks} ${pc.background ?? ""}` : looks }));
+    const description = markByLooks(reviewed, left);
+    if (description !== reviewed)
+      log.info("images", "Unmarked people marked by a noun", { left: left.length, marked: marksOf(description) - marksOf(reviewed) });
     // Twice, as who is pictured decides which portraits go in, and those decide how each mark is written.
     const { pictured } = expandMarks(description, npcs, pcName);
     const { prompt: expanded } = expandMarks(description, npcs, pcName, referenced(id, pictured));

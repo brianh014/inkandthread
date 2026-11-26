@@ -74,18 +74,21 @@ describe("scorePlay", () => {
   });
 
   test("each major costs 0.1 flat, whatever the length, up to 1", () => {
-    const one = scored(reply({}, [mistake("picture", "major")]), 50);
-    const longer = scored(reply({}, [mistake("picture", "major")]), 100);
-    // pictures capped 7 → 4 lowers the mean by 3/12 = 0.25, then 0.1 off.
-    expect(one["judge.overall"]).toBeCloseTo(7 - 0.25 - 0.1);
+    const one = scored(reply({}, [mistake("character", "major")]), 50);
+    const longer = scored(reply({}, [mistake("character", "major")]), 100);
+    // characters capped 7 → 4 lowers the mean by 3/11.5, as pictures count half, then 0.1 off.
+    expect(one["judge.overall"]).toBeCloseTo(7 - 3 / 11.5 - 0.1);
     expect(longer["judge.overall"]).toBeCloseTo(one["judge.overall"]!);
+    // A picture's major costs half of that, in its item and its penalty, as players forgive pictures sooner.
+    const picture = scored(reply({}, [mistake("picture", "major")]), 50);
+    expect(picture["judge.overall"]).toBeCloseTo(7 - 1.5 / 11.5 - 0.05);
     const many = scored(
       reply(
         {},
         Array.from({ length: 20 }, () => mistake("pcVoiced", "major")),
       ),
     );
-    expect(many["judge.overall"]).toBeCloseTo(7 - 0.25 - 1);
+    expect(many["judge.overall"]).toBeCloseTo(7 - 3 / 11.5 - 1);
   });
 
   test("minors cost at most 0.2, and the overall never drops below 1", () => {

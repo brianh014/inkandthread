@@ -223,7 +223,8 @@ const NOT_A_NAME = new Set([
 
 const marksOf = (prompt: string) => (prompt.match(/\[[^[\]]*\]/g) ?? []).length;
 // Someone newly pictured by a noun alone: never "the man", who may be someone already marked, nor "a woman's voice" or "man-sized".
-const PERSON = /\b(?:a|an|another)\s+(?:[\p{L}-]+\s+){0,3}?(woman|girl|man|boy|figure|person)\b(?![\p{L}'’-])/giu;
+// Its words may be listed with commas, as "a lean, sun-browned woman" was most of the prompts left with no portrait.
+const PERSON = /\b(?:a|an|another)\s+(?:[\p{L}-]+,?\s+){0,4}?(woman|girl|man|boy|figure|person)\b(?![\p{L}'’-])/giu;
 const NOUN = /\b(woman|girl|man|boy|figure|person)\b(?![\p{L}'’-])/giu;
 const KIND = /\b(woman|lady|she|girl|man|he|his|him|boy)\b/i;
 const KINDS: Record<string, string> = { lady: "woman", she: "woman", he: "man", his: "man", him: "man" };

@@ -42,3 +42,9 @@ test("the kind comes from the looks first, and the background only when the look
   expect(markByLooks("A woman waits at the door.", [tom])).toBe("A woman waits at the door.");
   expect(markByLooks("A woman waits.", [{ name: "", looks: "A woman." }])).toBe("A woman waits.");
 });
+
+test("describing words listed with commas still find the person", () => {
+  expect(markByLooks("A lean, sun-browned woman in her thirties kneels by the pit.", [INGRID])).toBe(
+    "[Ingrid: A lean, sun-browned woman] in her thirties kneels by the pit.",
+  );
+});

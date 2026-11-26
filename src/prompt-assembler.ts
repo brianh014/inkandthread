@@ -457,7 +457,7 @@ Set recent_summary in this response.${journalNote(journalEdits)}
 ${PACE}${
   duePlan
     ? `
-Due now, out of the PC's sight so far: ${JSON.stringify(duePlan)} If the PC or anyone with them would see, hear or be reached by it where they are, show it in this response beside what the PC does, never in place of it, as it looks to someone who doesn't know its cause or who is behind it; otherwise leave it out.`
+Due now, out of the PC's sight so far: ${JSON.stringify(duePlan)} If the PC or anyone with them would see, hear or be reached by it where they are, show it in this response beside what the PC does, never in place of it or holding them back from it, so a PC who leaves meets it only where they go, as it looks to someone who doesn't know its cause or who is behind it; otherwise leave it out.`
     : ""
 }${
   directions.length > 0

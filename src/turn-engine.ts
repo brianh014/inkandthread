@@ -46,7 +46,7 @@ import {
 } from "./state-applier";
 import { duePlan, planOffered, planShown, replyBefore } from "./due-plans";
 import { countWords, withinLimit } from "./limits";
-import { knownChoices, secretWords, unreadIn, withoutUnread, writeChoices } from "./known-choices";
+import { knownChoices, secretWords, unreadIn, withoutTheDead, withoutUnread, writeChoices } from "./known-choices";
 import { estimateTokens, wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { keepSummary, summaryDue } from "./story-summary";
@@ -1229,6 +1229,7 @@ async function narrate(
           });
       // Moved, not only asked, as a set_story_time the state refuses as earlier than now moved no time, and Upkeep wasn't asked.
       const timed = JSON.stringify(narrated.next.storyTime) !== JSON.stringify(introducedBefore.state.storyTime);
+      const knownDead = narrated.next.dead.filter((name) => narrated.next.pcKnown.npcs.includes(name));
       const alone = () =>
         writeChoices(textProvider, narration, signal, previous, plainMessage({ role: "player", text: upkeep?.input ?? input }).text, {
           about,
@@ -1247,13 +1248,17 @@ async function narrate(
             place: narrated.next.scene.location,
             // Only those the PC knows by name, as a name the page never gave is a secret too.
             present: narrated.next.scene.visibleCast.filter((name) => narrated.next.pcKnown.npcs.includes(name)),
+            // So a Choice dropped for asking something of one isn't written again. Only once someone has died, to keep the call lean.
+            ...(knownDead.length > 0 && { dead: knownDead }),
           },
-        }).then((written) =>
+        }).then((written) => {
+          const storyInLog = upkeep?.settings.read().storyInLog ?? false;
+          const alive = written && withoutTheDead(written, narrated.next, storyInLog);
           // Held to what the PC knows, as a Choice may still build on a word only the secrets hold.
-          written && upkeep && seen !== undefined
-            ? knownChoices(written, narrated.next, [seen(), about?.pc ?? "", about?.theme ?? ""].join(" "), narration, upkeep.settings.read().storyInLog)
-            : written,
-        );
+          return alive && upkeep && seen !== undefined
+            ? knownChoices(alive, narrated.next, [seen(), about?.pc ?? "", about?.theme ?? ""].join(" "), narration, storyInLog)
+            : alive;
+        });
       // Merged with what each ask kept, up to two asks, as taking one set or the other offered two Choices when each had lost one to a leak.
       const refilled = async (kept: string[]) => {
         for (let ask = 0; ask < 2 && kept.length < 3; ask++) {

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
 import { UPKEEP_LIMIT } from "../src/state-upkeep";
-import { knownChoices, unknownWords, withoutUnread, writeChoices } from "../src/known-choices";
+import { askedOfAbsent, knownChoices, unknownWords, withoutTheDead, withoutUnread, writeChoices } from "../src/known-choices";
 import { openingState, type State } from "../src/state-applier";
 import { narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
@@ -285,4 +285,21 @@ test("a Turn sends the Choices the player's notes on the PC, and a word of their
   expect(JSON.stringify(turn)).toContain("Salvatori");
   await app.stop();
   folder.remove();
+});
+
+test("a Choice that asks something of someone dead is dropped, and one of someone out of view only counted", () => {
+  const cast: State = {
+    ...state,
+    npcs: [
+      { name: "Pavel Duda", appearance: "a big man" },
+      { name: "Lise", appearance: "a small woman" },
+      { name: "Brandt", appearance: "a grey man" },
+    ],
+    scene: { location: "the galley", visibleCast: ["Lise"] },
+    dead: ["Pavel Duda"],
+  };
+  const choices = ["Wake Pavel and ask about the rope.", "Tell Lise about Pavel's boots.", "Ask Brandt for the key.", "Go after Brandt.", "Bury Pavel."];
+  // Only by a verb right before the name, so telling someone of the dead, or going after the absent, stands.
+  expect(askedOfAbsent(choices, cast)).toEqual([{ dead: "Pavel" }, {}, { absent: "Brandt" }, {}, {}]);
+  expect(withoutTheDead(choices, cast)).toEqual(choices.slice(1));
 });

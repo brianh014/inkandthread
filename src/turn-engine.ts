@@ -278,6 +278,30 @@ export function jsonSchemaOf(schema: z.ZodType) {
  * ignored the schema wrote it ("#2", "Thread 2:"). A reply not handed the truths (`handed`) can't amend one it never read, nor
  * write the first now of a thread whose people it can't see, so those go. A reply that quoted words is matched as before.
  */
+// A death told, in the sentence that names someone or the next, as "He was dead" follows the one naming him.
+const DYING =
+  /\b(?:dies|died|dying|dead|death|killed|slain|lifeless|corpse|murdered|drowned|bled out|stopped breathing|no pulse|breathed his last|breathed her last)\b/i;
+
+/**
+ * The operations without each npc_dies the narration never shows, as a Narrator offered the operation marked everyone in a
+ * scene dead, the PC among them, Turn after Turn. Dropped, never refused, as the reply stands either way.
+ * shortcut: by death words near their name, so "reported dead" counts and a death told only by pronouns two sentences on doesn't.
+ */
+export function deathsShown<Operation extends StateOperation>(operations: Operation[], narration: string, npcs: { name: string }[]) {
+  const sentences = narration.split(/(?<=[.!?…"”])\s+|\n+/);
+  let dropped = 0;
+  const kept = operations.filter((operation) => {
+    if (operation.op !== "npc_dies") return true;
+    const forms = nameForms(findPerson(npcs, operation.name)?.name ?? operation.name);
+    const shown = sentences.some(
+      (sentence, at) => forms.some((form) => wholeWord(form, "u").test(sentence)) && DYING.test(`${sentence} ${sentences[at + 1] ?? ""}`),
+    );
+    if (!shown) dropped++;
+    return shown;
+  });
+  return { kept, dropped };
+}
+
 export function threadsByLabel<Operation extends StateOperation>(operations: Operation[], state: Pick<State, "plotThreads" | "threadsNow">, handed: boolean) {
   const truths = state.plotThreads.slice(0, MAX_PLOT_THREADS);
   const dropped = { unmatched: 0, blind: 0 };
@@ -1170,6 +1194,9 @@ async function narrate(
       const threads = turnThreadChanges(state_operations, before, narration);
       if (Object.keys(threads.dropped).length > 0) log.info("turn", "Thread changes dropped", { attempt, generation, ...threads.dropped });
       state_operations = threads.kept;
+      const deaths = deathsShown(state_operations, narration, before.npcs);
+      if (deaths.dropped > 0) log.info("turn", "Deaths the page never shows dropped", { attempt, generation, dropped: deaths.dropped });
+      state_operations = deaths.kept;
       const amended = state_operations.filter((operation) => operation.op === "update_plot_thread" && operation.truth).length;
       if (amended > 0) log.info("turn", "Thread truths amended", { attempt, generation, amended });
       // The text is final here, so the player reads it while the follow-ups below run, and nothing after changes it.

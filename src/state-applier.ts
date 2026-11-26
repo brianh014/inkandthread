@@ -189,7 +189,7 @@ export const StateOperation = z.discriminatedUnion("op", [
   z.object({ op: z.literal("merge_npc"), name: nonEmpty, into: nonEmpty }),
   z.object({
     op: z.literal("npc_dies"),
-    name: nonEmpty.describe("an NPC the narration shows dying, as the state names them"),
+    name: nonEmpty.describe("only an NPC whose death this narration shows, as the state names them, never one who is just there"),
   }),
   z.object({
     op: z.literal("npc_learns"),

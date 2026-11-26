@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { saveStore } from "../src/save-store";
 import { applyOperations, isBody, openingState, type State } from "../src/state-applier";
 import { threadPeople } from "../src/thread-people";
+import { deathsShown } from "../src/turn-engine";
 import { narration, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 // Someone killed in play is marked dead, so no one paints, plans for or asks a part of them (ticket 109).
@@ -54,7 +55,7 @@ test("a plan is the dead's only when its doer is them by full name, never someon
 test("someone marked dead who speaks on the page lives after all", async () => {
   const folder = tempFolder();
   const script = scriptedTextProvider(
-    narration("Arne falls still.", { op: "add_npc", name: "Arne Vik", appearance: "A big man." }, { op: "npc_dies", name: "Arne Vik" }),
+    narration("Arne falls still, dead.", { op: "add_npc", name: "Arne Vik", appearance: "A big man." }, { op: "npc_dies", name: "Arne Vik" }),
     narration('[Arne Vik]: "Not yet."'),
   );
   const app = startApp(join(folder.path, "Saves"), script.textProvider);
@@ -68,4 +69,18 @@ test("someone marked dead who speaks on the page lives after all", async () => {
     await app.stop();
     folder.remove();
   }
+});
+
+test("a death is kept only where the page tells it beside their name, never for someone merely in the scene", () => {
+  const npcs = [{ name: "Arne Vik" }, { name: "Lise Moen" }];
+  const dies = (name: string) => ({ op: "npc_dies" as const, name });
+
+  const told = deathsShown(
+    [dies("Arne Vik"), dies("Lise Moen")],
+    "Arne Vik falls against the stove. He is dead before he hits the floor.\n\nLise Moen screams.",
+    npcs,
+  );
+
+  expect(told.kept).toEqual([dies("Arne Vik")]);
+  expect(told.dropped).toBe(1);
 });

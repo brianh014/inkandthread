@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { TONE_MAX } from "./tones";
 
-export type LoreEntry = { title: string; keywords: string[]; content: string; alwaysOn: boolean };
+/** `content` is what anyone could see or learn of it; `hidden`, what only play may reveal, never reaches a narrating call unearned. */
+export type LoreEntry = { title: string; keywords: string[]; content: string; hidden?: string; alwaysOn: boolean };
+
+/** All an entry holds, for the calls that keep secrets rather than tell them. */
+export const loreText = ({ content, hidden }: Pick<LoreEntry, "content" | "hidden">) => (hidden ? `${content}\n${hidden}` : content);
 
 export type SceneMemory = { firstMessage: number; lastMessage: number; text: string };
 
@@ -12,6 +16,8 @@ export type State = {
   /** What each NPC has learned or lived through in play, newest last, by name. Hidden from the player, as it can hold what the PC never saw. */
   npcKnows: Record<string, string[]>;
   scene: { location: string; visibleCast: string[] };
+  /** Who has died in play, by name, so no one paints, plans for or asks a part of them. A Save from before it has none. */
+  dead: string[];
   /** `summaries` says who each known NPC is, as the PC understands it. A Save from before them has none. */
   pcKnown: { facts: string[]; npcs: string[]; summaries?: Record<string, string> };
   /** What the PC knows is still unresolved. Unlike a Plot Thread, the player reads these. */
@@ -83,6 +89,7 @@ export const openingState: State = {
   npcs: [],
   npcKnows: {},
   scene: { location: "", visibleCast: [] },
+  dead: [],
   pcKnown: { facts: [], npcs: [] },
   looseEnds: [],
   sceneMemories: [],
@@ -117,10 +124,11 @@ export const StateSections = {
   npcs: z.array(z.object({ name: z.string(), appearance: z.string() })),
   npcKnows: z.record(z.string(), stringList),
   scene: z.object({ location: z.string(), visibleCast: stringList }),
+  dead: stringList,
   pcKnown: z.object({ facts: stringList, npcs: stringList, summaries: z.record(z.string(), z.string()).optional() }),
   looseEnds: stringList,
   sceneMemories: z.array(z.object({ firstMessage: z.number().int(), lastMessage: z.number().int(), text: z.string() })),
-  worldBible: z.array(z.object({ title: z.string(), keywords: stringList, content: z.string(), alwaysOn: z.boolean() })),
+  worldBible: z.array(z.object({ title: z.string(), keywords: stringList, content: z.string(), hidden: z.string().optional(), alwaysOn: z.boolean() })),
   worldRules: stringList,
   plotThreads: stringList,
   threadsNow: z.record(z.string(), z.string()),
@@ -179,6 +187,10 @@ export const StateOperation = z.discriminatedUnion("op", [
       ),
   }),
   z.object({ op: z.literal("merge_npc"), name: nonEmpty, into: nonEmpty }),
+  z.object({
+    op: z.literal("npc_dies"),
+    name: nonEmpty.describe("only an NPC whose death this narration shows, as the state names them, never one who is just there"),
+  }),
   z.object({
     op: z.literal("npc_learns"),
     name: nonEmpty,
@@ -391,6 +403,7 @@ function mergeNpc(state: State, name: string, into: string) {
   else npc.name = into;
   if (pcKnown.npcs.includes(name)) replaceOnce(pcKnown.npcs, name, into);
   if (scene.visibleCast.includes(name)) replaceOnce(scene.visibleCast, name, into);
+  if (state.dead.includes(name)) state.dead = [...new Set(state.dead.map((dead) => (dead === name ? into : dead)))];
   const { [name]: summary, ...summaries } = pcKnown.summaries ?? {};
   if (summary !== undefined) pcKnown.summaries = { [into]: summary, ...summaries };
   mergeNpcKnows(state, name, into);
@@ -536,6 +549,14 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
     case "merge_npc":
       mergeNpc(state, operation.name, operation.into);
       return;
+    case "npc_dies": {
+      // Their state name, as the narration may shorten it, and none for a stranger, as a reply can't be refused for one.
+      // shortcut: the Narrator's alone, not State Upkeep's, which reads only the page and would mark a faked death; add it there if deaths go unrecorded.
+      const name = findPerson(state.npcs, operation.name)?.name;
+      if (!name) return "no such NPC";
+      addOnce(state.dead, name);
+      return;
+    }
     case "npc_learns": {
       // A reply squeezed by its schema can send a scrap here, and then they just know less.
       const name = findPerson(state.npcs, operation.name)?.name;
@@ -595,6 +616,12 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       if (entry?.alwaysOn) return;
       if (entry) Object.assign(entry, { keywords, content });
       else state.worldBible.push({ title, keywords, content, alwaysOn: false });
+      // A secret the rewrite has told, its words now mostly in the content, is no longer kept, so play can settle it.
+      if (entry?.hidden) {
+        const told = wordsOf(content);
+        const secret = [...wordsOf(entry.hidden)];
+        if (secret.filter((word) => told.has(word)).length * 2 >= secret.length) delete entry.hidden;
+      }
       return;
     }
     case "update_plot_thread": {
@@ -912,7 +939,7 @@ const isRepeat = ({ pcKnown, looseEnds }: State, operation: StateOperation) =>
   (operation.op === "add_loose_end" && looseEnds.includes(operation.loose_end));
 
 // None of these contradict the narration, so they aren't worth a whole response. Someone nameless is added once they're named.
-const IGNORABLE: StateOperation["op"][] = ["resolve_loose_end", "add_known_npc", "set_known_npc_summary", "set_story_time", "npc_learns"];
+const IGNORABLE: StateOperation["op"][] = ["resolve_loose_end", "add_known_npc", "set_known_npc_summary", "set_story_time", "npc_learns", "npc_dies"];
 const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }) =>
   IGNORABLE.includes(op) ||
   reason === "already there" ||
@@ -946,6 +973,14 @@ const quote = z.string().min(1);
 export const namesSomething = (change: { old: string | null; new: string | null }) => change.old !== null || change.new !== null;
 
 export const LoreEntryReply = z.object({ title: words, keywords: z.array(words).min(3), content: words });
+/** For the calls that hold the whole world. Null keeps an entry's hidden part as it is. */
+// A blank one is null, as models write "" for nothing and one would refuse the whole world.
+export const SecretLoreEntryReply = LoreEntryReply.extend({
+  hidden: z.preprocess((value) => (typeof value === "string" && !value.trim() ? null : value), words.nullable()).default(null),
+});
+
+/** An entry without an empty hidden part, so a null never reaches a Save. */
+export const withHidden = <T extends { hidden?: string | null }>({ hidden, ...entry }: T) => ({ ...entry, ...(hidden ? { hidden } : {}) });
 
 /** One entry of a list: replaces `old`, or adds when `old` is null, or removes it when `new` is null. */
 export const ListChange = z.object({ old: quote.nullable(), new: words.nullable() }).refine(namesSomething);
@@ -953,7 +988,7 @@ export type ListChange = z.infer<typeof ListChange>;
 
 /** A change to a world already written, holding only what changes, so a reply can't lose an entry by leaving it out. Each Lore Entry is added, or replaces the one with its exact title. */
 export const WorldUpdate = z.object({
-  lore_entries: z.array(LoreEntryReply),
+  lore_entries: z.array(SecretLoreEntryReply),
   removed_lore: z.array(quote),
   world_rules: z.array(ListChange),
   plot_threads: z.array(ListChange),
@@ -967,15 +1002,22 @@ export function changeList(list: string[], change: ListChange) {
   return [...new Set(at < 0 ? [...list, ...added] : list.toSpliced(at, 1, ...added))];
 }
 
-export function mergeWorldUpdate(world: World, update: WorldUpdate): World {
+// Hidden parts optional, so a caller with none, such as lore growth from the page, leaves them as they are.
+export function mergeWorldUpdate(
+  world: World,
+  update: Omit<WorldUpdate, "lore_entries"> & { lore_entries: (z.infer<typeof LoreEntryReply> & { hidden?: string | null })[] },
+): World {
   const written = new Map(update.lore_entries.map((entry) => [entry.title, entry]));
   const kept = world.worldBible.filter(({ title }) => !update.removed_lore.includes(title));
   const added = update.lore_entries.filter(({ title }) => !kept.some((entry) => entry.title === title));
   return {
     worldBible: [
-      ...kept.map((entry) => ({ ...entry, ...written.get(entry.title) })),
+      ...kept.map((entry) => {
+        const rewrite = written.get(entry.title);
+        return rewrite ? withHidden({ ...entry, ...rewrite, hidden: rewrite.hidden ?? entry.hidden }) : entry;
+      }),
       // Always-on entries bypass the token budget, so the Narrator can only add keyword-activated ones.
-      ...added.map((entry) => ({ ...entry, alwaysOn: false })),
+      ...added.map((entry) => withHidden({ ...entry, alwaysOn: false })),
     ],
     worldRules: update.world_rules.reduce(changeList, world.worldRules),
     plotThreads: update.plot_threads.reduce(changeList, world.plotThreads),
@@ -1237,8 +1279,10 @@ export function givenName(name: string) {
  * Whether someone is named as a body, or their own Lore Entry is keyed as one. shortcut: by name and keyword, as an NPC has no
  * alive or dead, so one who dies in play still counts as alive; add a field if that misleads.
  */
-export const isBody = (state: Pick<State, "worldBible">, name: string) =>
-  DEAD.test(name) || state.worldBible.some(({ title, keywords }) => title === name && keywords.some((keyword) => DEAD.test(keyword)));
+export const isBody = (state: Pick<State, "worldBible"> & Partial<Pick<State, "dead">>, name: string) =>
+  DEAD.test(name) ||
+  (state.dead ?? []).includes(name) ||
+  state.worldBible.some(({ title, keywords }) => title === name && keywords.some((keyword) => DEAD.test(keyword)));
 const DEAD = /\b(body|corpse|remains)\b/i;
 
 export const nameForms = (name: string) => [

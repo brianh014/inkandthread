@@ -673,7 +673,9 @@ test("the Narrator plays a wizard Save from its world, and the world survives du
 
   const prompt = JSON.stringify(prompts[2]);
   expect(prompt).toContain("Its judges drown the guilty.");
-  expect(prompt).toContain("The mayor is a drowned ghost.");
+  // A thread only by its label, as the Turn never reads a truth.
+  expect(prompt).not.toContain("The mayor is a drowned ghost.");
+  expect(prompt).toContain(JSON.stringify('"thread":"1"').slice(1, -1));
   expect(prompt).toContain("Magic does not exist.");
 
   const saves = saveStore(savesDir);

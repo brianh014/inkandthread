@@ -1024,12 +1024,16 @@ test("a reply that ends its narration with the brace or tag of its own JSON is s
 });
 
 test("a reply that repeats an operation on one record is kept with only the first, not written again", async () => {
-  const update = (now: string) => ({ op: "update_plot_thread", thread: "The duke plots.", now, truth: null });
+  const update = (now: string) => ({ op: "update_plot_thread", thread: "1", now, truth: null });
   const learns = { op: "add_item", slot: "carrying", item: "a ledger" };
   play([narrated("He sits.", update("The duke waits."), learns, update("The duke strikes."), learns)]);
-  // With the thread there, as a rewrite that matches none is ignored rather than added.
+  // With the thread and its now there, as a rewrite that matches none is ignored rather than added, and a Turn can't start a now.
   const store = saveStore(join(folder.path, "Saves"));
-  const id = store.create({ worldBrief: "A drowned city", pc: { name: "Ash" }, opening: { plotThreads: ["The duke plots."] } });
+  const id = store.create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: { plotThreads: ["The duke plots."], threadsNow: { "The duke plots.": "The duke is in town." } },
+  });
 
   const log = await logOf(async () => expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201));
 

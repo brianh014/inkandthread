@@ -66,7 +66,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 71;
+const BENCH_ITERATION = 7;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 45;
@@ -117,6 +117,7 @@ const COVERAGE: [string, string[]][] = [
   ["Plot Thread moved on", ["ops.update_plot_thread", "moves.rewritten"]],
   ["Plot Thread resolved", ["moves.removed"]],
   ["NPC learns (npcKnows)", ["ops.npc_learns", "upkeep.npc_learns"]],
+  ["Death recorded", ["ops.npc_dies"]],
   ["Known fact added", ["upkeep.add_known_fact"]],
   ["Known fact changed", ["upkeep.update_known_fact", "upkeep.remove_known_fact"]],
   ["Known NPC summary", ["ops.set_known_npc_summary", "upkeep.set_known_npc_summary"]],
@@ -388,6 +389,7 @@ function hiddenChanges(before: State, after: State) {
     if (plan && plan !== before.threadsPlan[truth]) lines.push(`Plot Thread plan, of "${truth.split(" ").slice(0, 8).join(" ")}…": ${plan}`);
   }
   diff("Loose End", before.looseEnds, after.looseEnds);
+  diff("Died", before.dead ?? [], after.dead ?? []);
   for (const name of new Set([...Object.keys(before.npcKnows), ...Object.keys(after.npcKnows)])) {
     const [was, now] = [before.npcKnows[name] ?? [], after.npcKnows[name] ?? []];
     for (const text of now.filter((item) => !was.includes(item))) lines.push(`${name} now knows: ${text}`);
@@ -402,8 +404,8 @@ function hiddenChanges(before: State, after: State) {
   // Its words too, as a long story is judged on lore staying true, and an entry rewritten keeps its title.
   diff(
     "Lore entry",
-    before.worldBible.map(({ title, content }) => `${title}: ${content}`),
-    after.worldBible.map(({ title, content }) => `${title}: ${content}`),
+    before.worldBible.map(({ title, content, hidden }) => `${title}: ${content}${hidden ? ` [hidden: ${hidden}]` : ""}`),
+    after.worldBible.map(({ title, content, hidden }) => `${title}: ${content}${hidden ? ` [hidden: ${hidden}]` : ""}`),
   );
   diff("World rule", before.worldRules, after.worldRules);
   diff("Director's note", before.directorsNotes, after.directorsNotes);
@@ -857,7 +859,7 @@ function transcript(
   const start = (resumed?.state ?? world.opening) as Partial<State>;
   const end = saves.latestState(id);
   // The world as it began and the summary as it ended, so the transcript alone holds what the Narrator was working from.
-  const begun = `## World rules at the start\n\n${list(start.worldRules ?? [])}\n\n## Lore at the start (hidden)\n\n${list((start.worldBible ?? []).map(({ title, content }) => `${title}: ${content}`))}`;
+  const begun = `## World rules at the start\n\n${list(start.worldRules ?? [])}\n\n## Lore at the start (hidden)\n\n${list((start.worldBible ?? []).map(({ title, content, hidden }) => `${title}: ${content}${hidden ? ` [hidden: ${hidden}]` : ""}`))}`;
   const when = ({ storyTime }: State) => (storyTime ? `day ${storyTime.day}, ${storyTime.date}, ${storyTime.timeOfDay}` : "(none)");
   const threads = (state: State) =>
     list(state.plotThreads.map((truth) => `${truth}\n  - Now: ${state.threadsNow[truth] || "(none)"}\n  - Plan: ${state.threadsPlan[truth] || "(none)"}`));

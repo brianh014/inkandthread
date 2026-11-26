@@ -203,7 +203,8 @@ test("Journal edits are settled by a World Change of their own before the Turn, 
   expect(asked).toContain(DROPPED);
   expect(asked).toContain(MISSING);
   expect(asked).toContain("never change the summary");
-  expect(textOf(prompts[2]!)).toContain("a quieter plot");
+  // Settled before the Turn, which reads its threads only by label.
+  expect(store().latestState(id).plotThreads).toContain(`${SECRET} a quieter plot.`);
   expect(textOf(prompts[2]!)).not.toContain(THREAD);
   // Settled once: the third Turn is the next reply in the script.
   expect(prompts).toHaveLength(4);

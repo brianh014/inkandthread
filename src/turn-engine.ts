@@ -9,6 +9,8 @@ import {
   chapterTitlePrompt,
   isContinueInput,
   editInstruction,
+  handover,
+  secretsAbout,
   journalChange,
   memoryDue,
   memoryPrompt,
@@ -20,6 +22,7 @@ import {
   resultInstruction,
   narratorReplies,
   SET_SCENE_NOTE,
+  threadLabel,
   worldSigns,
 } from "./prompt-assembler";
 import { type Message, type Reply, type SaveStore, StaleTurn } from "./save-store";
@@ -29,6 +32,7 @@ import {
   alike,
   applyOperations,
   clockOf,
+  closestThread,
   findPerson,
   givenName,
   introduce,
@@ -271,9 +275,75 @@ export function jsonSchemaOf(schema: z.ZodType) {
 }
 
 /**
+ * The operations with each thread named by its truth, from the label a narrating call names it by, however a provider that
+ * ignored the schema wrote it ("#2", "Thread 2:"). A reply not handed the truths (`handed`) can't amend one it never read, nor
+ * write the first now of a thread whose people it can't see, so those go. A reply that quoted words is matched as before.
+ */
+// A death told, in the sentence that names someone or the next, as "He was dead" follows the one naming him.
+const DYING =
+  /\b(?:dies|died|dying|dead|death|killed|slain|lifeless|corpse|murdered|drowned|bled out|stopped breathing|no pulse|breathed his last|breathed her last)\b/i;
+// Not a death that is only said or believed, as a man "reported dead" a month before was marked dead on meeting the PC.
+const HEARSAY = /\b(?:thought|reported|believed|presumed|feared|supposed|said to be|left for|given up for|not)\s+(?:to be\s+|him\s+|her\s+)?dead\b/gi;
+
+/**
+ * The operations without each npc_dies the narration never shows, as a Narrator offered the operation marked everyone in a
+ * scene dead, the PC among them, Turn after Turn. Dropped, never refused, as the reply stands either way.
+ * shortcut: by death words near their name, so a death told only by pronouns two sentences on doesn't count; widen if deaths go unrecorded.
+ */
+export function deathsShown<Operation extends StateOperation>(operations: Operation[], narration: string, npcs: { name: string }[]) {
+  // Never by a speaker's label, as a man's own line about "two dead dogs" marked him dead.
+  const sentences = narration
+    .replace(HEARSAY, "")
+    .replace(/^\[[^[\]]*\]:/gm, "")
+    .split(/(?<=[.!?…"”])\s+|\n+/);
+  let dropped = 0;
+  const kept = operations.filter((operation) => {
+    if (operation.op !== "npc_dies") return true;
+    const forms = nameForms(findPerson(npcs, operation.name)?.name ?? operation.name);
+    const shown = sentences.some(
+      (sentence, at) => forms.some((form) => wholeWord(form, "u").test(sentence)) && DYING.test(`${sentence} ${sentences[at + 1] ?? ""}`),
+    );
+    if (!shown) dropped++;
+    return shown;
+  });
+  return { kept, dropped };
+}
+
+export function threadsByLabel<Operation extends StateOperation>(
+  operations: Operation[],
+  state: Pick<State, "plotThreads" | "threadsNow">,
+  handed: ReadonlySet<string>,
+) {
+  const truths = state.plotThreads.slice(0, MAX_PLOT_THREADS);
+  const dropped = { unmatched: 0, blind: 0 };
+  const kept = operations.flatMap((operation) => {
+    if (operation.op !== "update_plot_thread") return [operation];
+    const label = /^\W*(?:plot\s+)?(?:thread\s*)?#?\s*(\d+)\W*$/i.exec(operation.thread)?.[1];
+    const truth = label ? truths[Number(label) - 1] : closestThread(truths, operation.thread);
+    if (truth === undefined) dropped.unmatched++;
+    else if (!handed.has(truth) && !state.threadsNow[truth]) dropped.blind++;
+    else return [{ ...operation, thread: truth, ...(!handed.has(truth) && { truth: null }) }];
+    return [];
+  });
+  return { operations: kept, dropped };
+}
+
+/** The secrets for a reply that earned them, logged by counts only. */
+function handedOver(state: State, by: "check" | "edit", about?: string) {
+  const secrets = secretsAbout(state, about);
+  if (secrets.threads.length + secrets.hidden.length > 0)
+    log.info("turn", "Secrets handed over", { by, threads: secrets.threads.length, hidden: secrets.hidden.length });
+  return { prompt: handover(secrets), truths: new Set(secrets.threads.map(([, truth]) => truth)) };
+}
+
+/** What a Check rests on, for the secrets it may earn: its action and stakes, and the player's move. */
+const checkAbout = ({ action, stakes }: Check, move: string) => [action, stakes ?? "", move].join("\n");
+
+/**
  * `schema` with every thread an operation names held to the open truths, as models misquoted the long truths they were told to copy
  * and the change was lost. Only the sent schema, so a provider that ignores it still gets closestThread's match.
  */
+
 export const threadsHeld = (schema: object, threads: string[]): object =>
   threads.length === 0
     ? schema
@@ -917,7 +987,9 @@ export async function editResponse(
   });
   const done = await narrate(textProvider, signal, emit, {
     kind: "edit",
-    prompt: [...prompt, editInstruction(text, added)],
+    // With the secrets, as the player wrote this response, so nothing can leak, and it may set the threads right.
+    // Every secret, as nothing can leak from the player's own words, and it may set any thread right.
+    prompt: [...prompt, ...handedOver(state, "edit").prompt, editInstruction(text, added)],
     input: text,
     refusal: "The Narrator refused this edit, so the response stays as it was.",
     pcName: saves.read(id).pc.name,
@@ -978,12 +1050,12 @@ async function narrate(
     times,
   }: Narrated,
 ) {
-  const schemas = {
-    any: threadsHeld(SCHEMAS.any, before.plotThreads.slice(0, MAX_PLOT_THREADS)),
-    noCheck: threadsHeld(SCHEMAS.noCheck, before.plotThreads.slice(0, MAX_PLOT_THREADS)),
-  };
+  const labels = before.plotThreads.slice(0, MAX_PLOT_THREADS).map((_, at) => threadLabel(at));
+  const schemas = { any: threadsHeld(SCHEMAS.any, labels), noCheck: threadsHeld(SCHEMAS.noCheck, labels) };
   // Kept across attempts, so an invalid reply can never change the outcome.
   let check: Check | undefined;
+  // What a success was handed, worked out once with its roll.
+  let handed: ReturnType<typeof handedOver> | undefined;
   // A Turn is rated once, as a retry rated the move afresh and rolled for an act the first reply had called None.
   let ratedNone = false;
   let narrationSent = 0;
@@ -1030,7 +1102,7 @@ async function narrate(
     try {
       const reply: string = await askNarrator(
         textProvider,
-        [...prompt, ...(check ? [resultInstruction(check)] : []), ...(unplacedBefore ? [SET_SCENE_NOTE] : []), ...why],
+        [...prompt, ...(check ? [...(handed?.prompt ?? []), resultInstruction(check)] : []), ...(unplacedBefore ? [SET_SCENE_NOTE] : []), ...why],
         {
           schema: check || !rollCheck || ratedNone ? schemas.noCheck : schemas.any,
           call: kind,
@@ -1053,6 +1125,8 @@ async function narrate(
       if (response.check) {
         if (check || !rollCheck || ratedNone) throw new InvalidResponse();
         check = rollCheck(response.check);
+        // Logged once here, as the result call it goes with may be asked again.
+        if (check.outcome === "success") handed = handedOver(before, "check", checkAbout(check, move));
         attempt = 0; // The result call gets its own retries.
         why = [];
         continue;
@@ -1061,8 +1135,11 @@ async function narrate(
       const { people, recent_summary, scene_changed, visual_description, chapter_ends } = response;
       // Kept without the loop, not written again, as DeepSeek's whole narration was lost to a retry eight times in one 30-round play.
       const operationLimit = MAX_OPERATIONS * (kind === "opening" ? 2 : 1);
-      let state_operations = withoutLoop(response.state_operations, operationLimit);
-      const looping = state_operations.length < response.state_operations.length;
+      // Only the threads this reply was handed may have their truth amended; an Edit was handed every one.
+      const named = threadsByLabel(response.state_operations, before, edited !== undefined ? new Set(before.plotThreads) : (handed?.truths ?? new Set()));
+      if (named.dropped.unmatched + named.dropped.blind > 0) log.info("turn", "Thread changes dropped by label", { attempt, generation, ...named.dropped });
+      let state_operations = withoutLoop(named.operations, operationLimit);
+      const looping = state_operations.length < named.operations.length;
       // Later replies copy marks like these, so they never reach a Save.
       const unlabelled = withoutFields(withoutStrayMarks(response.narration as string));
       const speakers = [
@@ -1103,8 +1180,7 @@ async function narrate(
       unplacedBefore = fault === unplaced && !!unplaced;
       if (fault) throw new InvalidResponse(undefined, { cause: fault });
       if (spoken === LONG_SPEECH) log.warning("turn", "Long speech kept", { attempt, generation });
-      if (looping)
-        log.warning("turn", "Looping operations dropped", { attempt, generation, sent: response.state_operations.length, kept: state_operations.length });
+      if (looping) log.warning("turn", "Looping operations dropped", { attempt, generation, sent: named.operations.length, kept: state_operations.length });
       const story = seen?.() ?? "";
       // With the move, as the player has read their own words, and the Messages don't hold it yet.
       const read = `${story}\n${move}\n${narration}`;
@@ -1131,6 +1207,9 @@ async function narrate(
       const threads = turnThreadChanges(state_operations, before, narration);
       if (Object.keys(threads.dropped).length > 0) log.info("turn", "Thread changes dropped", { attempt, generation, ...threads.dropped });
       state_operations = threads.kept;
+      const deaths = deathsShown(state_operations, narration, before.npcs);
+      if (deaths.dropped > 0) log.info("turn", "Deaths the page never shows dropped", { attempt, generation, dropped: deaths.dropped });
+      state_operations = deaths.kept;
       const amended = state_operations.filter((operation) => operation.op === "update_plot_thread" && operation.truth).length;
       if (amended > 0) log.info("turn", "Thread truths amended", { attempt, generation, amended });
       // The text is final here, so the player reads it while the follow-ups below run, and nothing after changes it.
@@ -1238,6 +1317,8 @@ async function narrate(
       let repeated = 0;
       let ignored: Refusal[] = [];
       let overtakenPlans = 0;
+      let plansOfDead = 0;
+      let revived = 0;
       let plansPutOff = 0;
       let plansShown = 0;
       const messages = commit(
@@ -1255,9 +1336,14 @@ async function narrate(
           upkeepDropped = [...kept.refused, ...kept.ignored];
           upkeepRefused = upkeepDropped.length;
           const next = kept.next;
+          // Someone marked dead who speaks on the page lives after all, as one who only seemed dead was lost to the story.
+          const speakers = [...narration.matchAll(/^\[([^[\]]+)\]:/gm)].map(([, speaker]) => findPerson(next.npcs, speaker!.trim())?.name);
+          const diedNow = new Set(state_operations.flatMap((operation) => (operation.op === "npc_dies" ? [findPerson(next.npcs, operation.name)?.name] : [])));
+          revived = next.dead.filter((name) => speakers.includes(name) && !diedNow.has(name)).length;
+          if (revived > 0) next.dead = next.dead.filter((name) => !speakers.includes(name) || diedNow.has(name));
           // A plan whose hour came while its doer is with the PC was overtaken by play, as it could not happen off the page and
           // moves put it off again and again: it goes, and the next move gives its thread another.
-          const { doerIn } = threadPeople(next);
+          const { doerIn, doerIsOne } = threadPeople(next);
           const clock = next.storyTime?.hours;
           // A plan with no hour counts as come, as moves read it as due.
           // By its words, as the reply that plays it is the likeliest to amend its thread's truth.
@@ -1284,12 +1370,15 @@ async function narrate(
             const plan = next.threadsPlan[truth]!;
             return hour !== undefined && hour > started && clock! - hour <= PUT_OFF_HOURS && !doerIn(plan, castBefore) && !sameDeed(plan, narration);
           });
-          const overtaken = [...come.filter((truth) => !putOff.includes(truth)), ...(played ? [played] : [])];
+          // And one whose doer has died, which can no longer happen.
+          const doerDead = Object.keys(next.threadsPlan).filter((truth) => truth !== played && doerIsOne(next.threadsPlan[truth]!, next.dead));
+          const overtaken = [...new Set([...come.filter((truth) => !putOff.includes(truth)), ...doerDead, ...(played ? [played] : [])])];
           for (const truth of putOff) next.threadsDue[truth] = clock! + PUT_OFF_HOURS;
           plansPutOff = putOff.length;
           next.threadsPlan = Object.fromEntries(Object.entries(next.threadsPlan).filter(([truth]) => !overtaken.includes(truth)));
           next.threadsDue = Object.fromEntries(Object.entries(next.threadsDue).filter(([truth]) => !overtaken.includes(truth)));
-          overtakenPlans = overtaken.length - (played ? 1 : 0);
+          plansOfDead = doerDead.length;
+          overtakenPlans = overtaken.length - plansOfDead - (played ? 1 : 0);
           plansShown = played ? 1 : 0;
           repeated = repeats;
           ignored = harmless;
@@ -1359,6 +1448,8 @@ async function narrate(
         chapterEnds: !!chapter_ends,
         // Plans dropped as overtaken, their hour come while their doer was with the PC.
         ...(overtakenPlans > 0 && { plansOvertaken: overtakenPlans }),
+        ...(plansOfDead > 0 && { plansOfDead }),
+        ...(revived > 0 && { revived }),
         ...(plansPutOff > 0 && { plansPutOff }),
         ...(due && { planOffered: 1, plansShown }),
       }));
@@ -1387,6 +1478,8 @@ const NAMES_A_FIELD = new RegExp(String.raw`\b(?:${FIELDS.filter((field) => fiel
  * shortcut: notes are told by "I", "my", "null" or "JSON" beside a field's name; add a word when others are drawn.
  */
 const withoutFieldNotes = (text: string) => {
+  // A word for no picture is none, as "None" was drawn as abstract noise.
+  if (/^\W*(?:none|null|nil|n\/a|nothing|empty|no (?:picture|image|scene))\W*$/i.test(text)) return "";
   // Its own field's name is a label, not a note, and a placeholder of no letters is no prompt.
   const prompt = /\p{L}/u.test(text) ? text.replace(/^[\s"{]*visual_description"?\s*:\s*"?/i, "") : "";
   if (prompt !== text && /^(?:null|none|I|my|JSON)\b/.test(prompt)) return "";

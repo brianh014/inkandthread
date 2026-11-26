@@ -803,3 +803,36 @@ test("a picture prompt that is only the place's name draws nothing", async () =>
 
   expect(images.payloads.map(({ prompt }) => prompt)).not.toContain("the camp");
 });
+
+test("someone in view the picture check left unmarked is marked by a noun only they fit, and their portrait goes in", async () => {
+  images = scriptedImages(PNG, PNG, PNG);
+  script = scriptedTextProvider(newScene("A woman inside leans over the stove by [Kit: a boy in a cap].", "The quay"));
+  // A check that marks no one, as the horror live play's left three of four unmarked.
+  app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter, undefined, async (description) => description);
+  await enableImages();
+  const created = await app.post("/saves", {
+    worldBrief: "A drowned city",
+    pc: { name: "Ash", physicalTraits: "tall, grey hair", background: "She keeps the light." },
+  });
+  const { id } = (await created.json()) as { id: string };
+
+  await playTurn(id);
+  await settled(id);
+
+  const scene = images.payloads.at(-1)!;
+  expect(scene.prompt).toContain("the person from image 1");
+  expect(scene.reference_images).toHaveLength(1);
+});
+
+test("a picture prompt of only a word for none draws nothing", async () => {
+  images = scriptedImages(PNG);
+  script = scriptedTextProvider(newScene("None", "The quay"));
+  app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter);
+  await enableImages();
+  const id = await app.createSave();
+
+  await playTurn(id);
+  await settled(id);
+
+  expect(images.payloads.filter(({ aspect_ratio }) => aspect_ratio === "16:9")).toEqual([]);
+});

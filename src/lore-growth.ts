@@ -57,7 +57,12 @@ export async function growLore(provider: TextProvider, saves: SaveStore, id: str
       saves.addWorldChange(id, basedOn, [
         {
           edit: "world",
-          update: { lore_entries: added as z.infer<typeof LoreEntryReply>[], removed_lore: [], world_rules: [], plot_threads: [] },
+          update: {
+            lore_entries: (added as z.infer<typeof LoreEntryReply>[]).map((entry) => ({ ...entry, hidden: null })),
+            removed_lore: [],
+            world_rules: [],
+            plot_threads: [],
+          },
           made: 0,
           moved: true,
         },

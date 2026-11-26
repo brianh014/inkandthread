@@ -1277,6 +1277,8 @@ async function narrate(
       let repeated = 0;
       let ignored: Refusal[] = [];
       let overtakenPlans = 0;
+      let plansOfDead = 0;
+      let revived = 0;
       let plansPutOff = 0;
       let plansShown = 0;
       const messages = commit(
@@ -1294,9 +1296,14 @@ async function narrate(
           upkeepDropped = [...kept.refused, ...kept.ignored];
           upkeepRefused = upkeepDropped.length;
           const next = kept.next;
+          // Someone marked dead who speaks on the page lives after all, as one who only seemed dead was lost to the story.
+          const speakers = [...narration.matchAll(/^\[([^[\]]+)\]:/gm)].map(([, speaker]) => findPerson(next.npcs, speaker!.trim())?.name);
+          const diedNow = new Set(state_operations.flatMap((operation) => (operation.op === "npc_dies" ? [findPerson(next.npcs, operation.name)?.name] : [])));
+          revived = next.dead.filter((name) => speakers.includes(name) && !diedNow.has(name)).length;
+          if (revived > 0) next.dead = next.dead.filter((name) => !speakers.includes(name) || diedNow.has(name));
           // A plan whose hour came while its doer is with the PC was overtaken by play, as it could not happen off the page and
           // moves put it off again and again: it goes, and the next move gives its thread another.
-          const { doerIn } = threadPeople(next);
+          const { doerIn, doerIsOne } = threadPeople(next);
           const clock = next.storyTime?.hours;
           // A plan with no hour counts as come, as moves read it as due.
           // By its words, as the reply that plays it is the likeliest to amend its thread's truth.
@@ -1324,13 +1331,14 @@ async function narrate(
             return hour !== undefined && hour > started && clock! - hour <= PUT_OFF_HOURS && !doerIn(plan, castBefore) && !sameDeed(plan, narration);
           });
           // And one whose doer has died, which can no longer happen.
-          const doerDead = Object.keys(next.threadsPlan).filter((truth) => truth !== played && doerIn(next.threadsPlan[truth]!, next.dead));
+          const doerDead = Object.keys(next.threadsPlan).filter((truth) => truth !== played && doerIsOne(next.threadsPlan[truth]!, next.dead));
           const overtaken = [...new Set([...come.filter((truth) => !putOff.includes(truth)), ...doerDead, ...(played ? [played] : [])])];
           for (const truth of putOff) next.threadsDue[truth] = clock! + PUT_OFF_HOURS;
           plansPutOff = putOff.length;
           next.threadsPlan = Object.fromEntries(Object.entries(next.threadsPlan).filter(([truth]) => !overtaken.includes(truth)));
           next.threadsDue = Object.fromEntries(Object.entries(next.threadsDue).filter(([truth]) => !overtaken.includes(truth)));
-          overtakenPlans = overtaken.length - (played ? 1 : 0);
+          plansOfDead = doerDead.length;
+          overtakenPlans = overtaken.length - plansOfDead - (played ? 1 : 0);
           plansShown = played ? 1 : 0;
           repeated = repeats;
           ignored = harmless;
@@ -1400,6 +1408,8 @@ async function narrate(
         chapterEnds: !!chapter_ends,
         // Plans dropped as overtaken, their hour come while their doer was with the PC.
         ...(overtakenPlans > 0 && { plansOvertaken: overtakenPlans }),
+        ...(plansOfDead > 0 && { plansOfDead }),
+        ...(revived > 0 && { revived }),
         ...(plansPutOff > 0 && { plansPutOff }),
         ...(due && { planOffered: 1, plansShown }),
       }));

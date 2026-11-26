@@ -85,5 +85,10 @@ export function threadPeople(state: Pick<State, "npcs" | "worldBible">) {
     if (name === undefined || told.some(({ forms }) => forms.includes(name) && forms.some((form) => mentions(rest, form, "u")))) return plan;
     return `${when}${name}${rest}`;
   };
-  return { named, mentions, doer, doerIn, withDoer };
+  /** Whether a plan's doer is one of these, by their own full name, as a dead "Vik" is not a living "Jon Vik". */
+  const doerIsOne = (plan: string, people: string[]) => {
+    const names = doer(plan);
+    return !!names && people.includes(names[0]!);
+  };
+  return { named, mentions, doer, doerIn, doerIsOne, withDoer };
 }

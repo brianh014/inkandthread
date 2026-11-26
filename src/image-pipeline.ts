@@ -97,7 +97,7 @@ export function restyledBy(before: State, after: State, operations: StateOperati
   // Never the dead, as a death wound recorded on someone killed redrew their portrait.
   const npcs = after.npcs.filter(
     ({ name, appearance }) =>
-      !passing.has(name) && !after.dead.includes(name) && before.npcs.some((npc) => npc.name === name && chestUp(npc.appearance) !== chestUp(appearance)),
+      !passing.has(name) && !isBody(after, name) && before.npcs.some((npc) => npc.name === name && chestUp(npc.appearance) !== chestUp(appearance)),
   );
   const pc = JSON.stringify(before.inventory.wearing) !== JSON.stringify(after.inventory.wearing) || before.pcAppearance !== after.pcAppearance;
   return [...(pc ? [null] : []), ...npcs];

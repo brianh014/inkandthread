@@ -203,7 +203,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const shown = latestReplies.join("\n");
   const played = [state.summary, ...earlierReplies, shown].join("\n");
   const pace = storyPace(saves, id, messages, clock);
-  const { named, mentions, withDoer } = threadPeople(state);
+  const { named, mentions, withDoer, doerIsOne } = threadPeople(state);
   const pcForms = nameForms(saves.read(id).pc.name ?? "");
   const adds = ({ thread, truth, now }: ThreadMove) => thread === null && truth !== null && now !== null;
   const doersNamed = new Set<string>();
@@ -619,7 +619,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
           ? []
           : locked.has(change)
             ? [[change.thread!, threadsPlan[change.thread!]!] as const]
-            : !change.plan || putOff.has(change)
+            : !change.plan || putOff.has(change) || doerIsOne(change.plan, state.dead)
               ? []
               : [[change.thread ?? change.truth!, change.plan] as const],
       ),

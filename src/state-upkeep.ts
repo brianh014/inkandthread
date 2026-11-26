@@ -61,7 +61,8 @@ const RULES = { withTime: rules(true), withoutTime: rules(false) };
 
 // The Choices and the Turn's save wait for State Upkeep, which took 1 to 5 s on the bench; past this, as a slow or retrying
 // reviewer could hold them for 30 s or more, the Turn keeps the Narrator's own state and adds nothing to the Journal. Exported only so a test can shorten it.
-export const UPKEEP_LIMIT = { ms: 15_000 };
+// 25 s, as at 15 a slow provider (MiMo Flash at 18 tokens/s) ran out of time on 7 of 8 Choices.
+export const UPKEEP_LIMIT = { ms: 25_000 };
 // Thinking tokens Upkeep may spend, sent where the provider takes a budget: 1,000, which 44 of 52 finished Upkeeps by DeepSeek at
 // Low stayed within over three bench runs, as 600 stopped 34 of 35. Where it can't be sent, thinking stops a third of UPKEEP_LIMIT
 // from its first token, as a cut at 9 s left its hurried second try 5 s, and 14 of 29 such tries ran out of time.

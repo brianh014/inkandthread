@@ -736,6 +736,43 @@ test("the picture check is given those in view with a portrait whom the prompt l
   expect(scene.reference_images).toHaveLength(1);
 });
 
+test("the picture check is given no more unmarked people than the Settings' count leaves beside those marked", async () => {
+  images = scriptedImages(PNG, PNG, PNG);
+  script = scriptedTextProvider(
+    turn({
+      scene_changed: true,
+      visual_description: "A woman stands by [Kit: a boy in a cap].",
+      state_operations: [
+        { op: "add_npc", name: "Kit", appearance: "a boy in a cap" },
+        { op: "set_scene", location: "The quay", visible_cast: ["Kit"] },
+      ],
+    }),
+  );
+  const given: { name: string }[][] = [];
+  app = startApp(
+    join(folder.path, "Saves"),
+    script.textProvider,
+    undefined,
+    undefined,
+    images.imageAdapter,
+    undefined,
+    async (description, _style, _signal, cast = []) => {
+      given.push(cast);
+      return description;
+    },
+  );
+  await enableImages();
+  await app.patch("/settings", { scenePeople: 1 });
+  const created = await app.post("/saves", { worldBrief: "A drowned city", pc: { name: "Ash", physicalTraits: "a tall woman of forty" } });
+  const { id } = (await created.json()) as { id: string };
+
+  await playTurn(id);
+  await settled(id);
+
+  // Kit, marked, takes the one place, so the PC isn't offered for marking.
+  expect(given).toEqual([[]]);
+});
+
 test("a picture prompt that is the Narrator's notes on its own fields draws nothing", async () => {
   images = scriptedImages(PNG);
   script = scriptedTextProvider(newScene("Keep scene_changed false. I set visual_description null.", "The quay"));

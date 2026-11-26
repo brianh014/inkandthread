@@ -87,7 +87,10 @@ test("the Gallery lists the PC, known NPCs and Scene Images with their prompts, 
     ["scene", "The ferry"],
   ]);
   expect(gallery.images[1]!.prompt).toContain("A head and shoulders portrait of one person, Tall, in oilskins, facing");
-  expect(gallery.images[2]!.prompt).toBe("the person from image 1, Tall, in oilskins, on a wet street");
+  // With the likeness sentence the Narrator left out.
+  expect(gallery.images[2]!.prompt).toBe(
+    "the person from image 1, Tall, in oilskins, on a wet street. The people from the images are the same people with their faces preserved, dressed and posed as written here.",
+  );
   expect(gallery.images.every(({ redraws, redrawing, failure }) => redraws === 0 && !redrawing && failure === "")).toBe(true);
 });
 

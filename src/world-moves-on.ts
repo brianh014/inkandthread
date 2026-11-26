@@ -207,6 +207,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const adds = ({ thread, truth, now }: ThreadMove) => thread === null && truth !== null && now !== null;
   const doersNamed = new Set<string>();
   let pcParts = 0;
+  let withPcParts = 0;
   // Why a change can't be used, named so the log and the request to write it again both say which.
   const fault = (change: ThreadMove, index: number, all: ThreadMove[]) => {
     if (change.thread !== null && !plotThreads.includes(change.thread)) return "a change misquotes a thread";
@@ -621,8 +622,14 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       ),
     );
     const knows: Record<string, string[]> = {};
-    for (const { name, knows: part } of kept.flatMap(({ now, knows }) => (now === null ? [] : knows)))
-      if (/\p{L}/u.test(name) && /\p{L}/u.test(part)) knows[name] = [...(knows[name] ?? []), part];
+    // Nothing more for someone with the PC who holds a part, as they learn only on the page, which npc_learns records, and a move
+    // gave the chief "Vik is alive" in the very room where the PC saw him learn nothing. Here, not in sorted, so a now's check
+    // still counts the part. shortcut: someone who learned out of sight and then joined the PC loses it; keep it if that shows.
+    const more = ({ thread }: ThreadMove, name: string) =>
+      thread !== null && given(name, state.scene.visibleCast) && given(name, state.threadParts[thread] ?? []);
+    const takenParts = kept.flatMap((change) => (change.now === null ? [] : change.knows.filter(({ name }) => !more(change, name))));
+    withPcParts = kept.flatMap((change) => (change.now === null ? [] : change.knows)).length - takenParts.length;
+    for (const { name, knows: part } of takenParts) if (/\p{L}/u.test(name) && /\p{L}/u.test(part)) knows[name] = [...(knows[name] ?? []), part];
     const parts = Object.fromEntries(
       kept.flatMap(({ thread, truth, now, knows }) => {
         const names = knows.filter(({ name, knows }) => /\p{L}/u.test(name) && /\p{L}/u.test(knows)).map(({ name }) => name);
@@ -704,6 +711,8 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       planDue: fell.size,
       // Parts the move gave the PC, over all its tries.
       ...(pcParts > 0 && { pcParts }),
+      // More parts of a thread the move gave someone with the PC, dropped.
+      ...(withPcParts > 0 && { withPcParts }),
       // Plans that named their doer only as he or she, and were given their name.
       ...(namedPlans > 0 && { plansNamed: namedPlans }),
       ...(marked.size > 0 && { marks: marked.size }),

@@ -295,20 +295,26 @@ export function knownChoices(choices: string[], state: State, seen: string, repl
 }
 
 // shortcut: English verbs right before a name, so a Choice worded otherwise slips through; widen if the bench shows more.
-const AT_HAND = String.raw`\b(?:wake|rouse|ask|tell|show|hand|give|help|kiss|hug|question|press|warn|thank|answer|pass)\s+(?:the\s+)?`;
+// Only those needing someone alive to hear, for the dead, as "give Pavel a burial" and "kiss Pavel goodbye" are fair.
+const LISTENING = "wake|rouse|ask|tell|question|press|warn|thank|answer";
+const AT_HAND = `${LISTENING}|show|hand|give|help|kiss|hug|pass`;
 
 /**
  * Who each Choice asks something of that only someone at hand allows, by a verb right before their name, when they are dead or
  * out of view, as "wake Pavel" was offered and picked just after he left, and "let's wake Vik" for a man dead a month.
  */
 export function askedOfAbsent(choices: string[], { npcs, scene, dead }: Pick<State, "npcs" | "scene" | "dead">) {
-  const asked = (choice: string, name: string) =>
-    nameForms(name).find((form) => new RegExp(`${AT_HAND}${RegExp.escape(form)}(?![\\p{L}\\p{N}])`, "iu").test(choice));
+  // Never a form someone in view also has, as "ask Pavel" means the Pavel there. The name as written, as "Hope" isn't "give hope".
+  const inView = new Set(scene.visibleCast.filter((name) => !dead.includes(name)).flatMap(nameForms));
+  const asked = (choice: string, name: string, verbs: string) =>
+    nameForms(name)
+      .filter((form) => !inView.has(form))
+      .find((form) => new RegExp(String.raw`\b(?i:${verbs})\s+(?:(?i:the)\s+)?${RegExp.escape(form)}(?![\p{L}\p{N}'’])`, "u").test(choice));
   const away = npcs.map(({ name }) => name).filter((name) => !scene.visibleCast.includes(name) && !dead.includes(name));
   return choices.map((choice) => {
-    const gone = dead.map((name) => asked(choice, name)).find(Boolean);
+    const gone = dead.map((name) => asked(choice, name, LISTENING)).find(Boolean);
     if (gone) return { dead: gone };
-    const absent = away.map((name) => asked(choice, name)).find(Boolean);
+    const absent = away.map((name) => asked(choice, name, AT_HAND)).find(Boolean);
     return absent ? { absent } : {};
   });
 }
@@ -323,6 +329,8 @@ export function withoutTheDead(choices: string[], state: Pick<State, "npcs" | "s
   const absent = choices.filter((_, index) => asked[index]!.absent);
   if (kept.length < choices.length || absent.length > 0)
     log.info("turn", "Choices asking of someone absent", { dead: choices.length - kept.length, outOfView: absent.length });
-  if (absent.length > 0 && storyInLog) log.story("turn", "Choices asking of someone out of view", { choices: absent });
+  // The Choices themselves only with Story in log, so a fair one dropped or counted can be traced.
+  if ((kept.length < choices.length || absent.length > 0) && storyInLog)
+    log.story("turn", "Choices asking of someone absent", { dead: choices.filter((choice) => !kept.includes(choice)), outOfView: absent });
   return kept;
 }

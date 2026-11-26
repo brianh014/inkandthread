@@ -4,6 +4,7 @@ import { UPKEEP_LIMIT } from "../src/state-upkeep";
 import { askedOfAbsent, knownChoices, unknownWords, withoutTheDead, withoutUnread, writeChoices } from "../src/known-choices";
 import { openingState, type State } from "../src/state-applier";
 import { narration, scriptedTextProvider, startApp, tempFolder } from "./support";
+import { stillDead } from "../src/turn-engine";
 
 const state: State = {
   ...openingState,
@@ -302,4 +303,18 @@ test("a Choice that asks something of someone dead is dropped, and one of someon
   // Only by a verb right before the name, so telling someone of the dead, or going after the absent, stands.
   expect(askedOfAbsent(choices, cast)).toEqual([{ dead: "Pavel" }, {}, { absent: "Brandt" }, {}, {}]);
   expect(withoutTheDead(choices, cast)).toEqual(choices.slice(1));
+  // Not the dead's kin, belongings or body, nor a word a name happens to be, nor a living namesake in view.
+  const fair = ["Ask Pavel's widow about the rope.", "Give Pavel a burial.", "Kiss Pavel goodbye.", "Ask Pavel for the lantern."];
+  const namesake = { ...cast, npcs: [...cast.npcs, { name: "Pavel Novak", appearance: "a thin man" }, { name: "Hope Calder", appearance: "a girl" }] };
+  const scene = { location: "the galley", visibleCast: ["Lise", "Pavel Novak"] };
+  expect(askedOfAbsent([...fair, "Tell hope to wait."], { ...namesake, scene, dead: ["Pavel Duda", "Hope Calder"] })).toEqual([{}, {}, {}, {}, {}]);
+});
+
+test("someone marked dead who speaks in the reply is no longer dead, unless they died in it", () => {
+  const npcs = [
+    { name: "Pavel Duda", appearance: "a big man" },
+    { name: "Vik", appearance: "a lean man" },
+  ];
+  const reply = "[Pavel Duda]: Not dead yet.\n[Vik]: Help me.";
+  expect(stillDead(reply, { npcs, dead: ["Pavel Duda", "Vik"] }, [{ op: "npc_dies", name: "Vik" }])).toEqual(["Vik"]);
 });

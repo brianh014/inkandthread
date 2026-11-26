@@ -168,7 +168,8 @@ const REQUESTED_IMAGE_PROMPT = { prose: requestedImagePrompt("prose", 2) };
 
 test("a picture shows as many people as Settings allow, two unless raised", () => {
   expect(requestedImagePrompt("prose", 2)).toContain("as the narration has it, and at most two, leaving anyone else out of view");
-  expect(requestedImagePrompt("keywords", 4)).toContain("as the narration has it, at most four, each as a short phrase");
+  expect(requestedImagePrompt("keywords", 4)).toContain("as the narration has it, at most two, each as a short phrase");
+  expect(requestedImagePrompt("prose", 4)).toContain("and at most four, leaving anyone else out of view");
   expect(systemPrompt("prose")).toContain("and at most two, leaving anyone else out of view");
 });
 
@@ -182,7 +183,7 @@ test("an Image Prompt puts each person once in what they do, keeps props plain a
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain("never in a list of who is there");
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain("keep their hands empty otherwise");
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain(
-    "Picture only people physically there at this moment, as the narration has it, and at most two, leaving anyone else out of view, as the image model merges or drops people in a crowded frame.",
+    "Picture only people physically there at this moment, as the narration has it, and at most two, leaving anyone else out of view.",
   );
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain("say plainly where each body is, where each one's arms go and where each head is");
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain("each named plainly with its size, material and place");

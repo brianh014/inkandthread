@@ -1382,8 +1382,8 @@ function InstallSettings({
           />
         </label>
         <p className="muted">
-          Anyone else in the scene is left out of view. Image models often merge or leave out people in a crowded picture, so more than two goes wrong more
-          often.
+          For scene pictures and the ones you ask for, unless your request names more. Anyone else is left out of view. Image models often merge or leave out
+          people in a crowded picture, so more than two goes wrong more often.
         </p>
         <label className="toggle">
           <input type="checkbox" checked={draft.updatePortraits} onChange={(e) => set({ updatePortraits: e.target.checked })} />

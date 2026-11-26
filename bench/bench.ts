@@ -45,6 +45,7 @@ import { setLogLevel, startLog } from "../src/logger";
 import { CONTINUE } from "../src/prompt-assembler";
 import { startServer } from "../src/rest-api";
 import { MAX_NPC_KNOWS, type State, StateOperation } from "../src/state-applier";
+import { SCENE_PEOPLE } from "../src/limits";
 import { OPENING_SNAPSHOT, saveStore } from "../src/save-store";
 import { localIsSetUp } from "../src/graph-builder";
 import { reviewerSettings, settingsStore } from "../src/settings-store";
@@ -1044,7 +1045,7 @@ function setUp(world?: z.infer<typeof World>) {
   process.on("SIGINT", () => process.exit(130));
   const settings = settingsStore(settingsPath);
   const { modelInstructions = "", imageInstructions = "" } = world ?? {};
-  settings.update({ imagesEnabled: true, drawScenes: true, modelInstructions, imageInstructions });
+  settings.update({ imagesEnabled: true, drawScenes: true, scenePeople: SCENE_PEOPLE.usual, modelInstructions, imageInstructions });
   const drawing = settings.read();
   // With --fake, the stand-in still draws, so keeping the pictures can be tried free.
   if (draw && !fake && (drawing.imageProvider !== "local" || !localIsSetUp(drawing)))

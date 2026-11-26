@@ -524,8 +524,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             <b>Draw scene pictures</b> and <b>Update portraits as the story goes</b>: which pictures come by themselves.
           </li>
           <li>
-            <b>Most people in a picture</b>: two unless you raise it. Anyone else in the scene is left out of view, as image models often merge or leave out
-            people in a crowded picture.
+            <b>Most people in a picture</b>: two unless you change it, for scene pictures and the ones you ask for, unless your request names more. Anyone else
+            is left out of view, as image models often merge or leave out people in a crowded picture.
           </li>
           <li>
             <b>Extra Image Instructions</b>: your own guidance for every picture.

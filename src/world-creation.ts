@@ -872,7 +872,9 @@ ${modelInstructions(context)}`,
 }
 
 // The player's own words for a pose win over how the story last left the people.
-const POSE_ASKED_FOR = "When request itself asks for a pose, such as a hug or a kiss, draw that pose as asked, even where the story last left them apart.";
+// Its own count of people too, as the Settings' limit is for pictures nobody asked for.
+const POSE_ASKED_FOR =
+  "When request itself asks for a pose, such as a hug or a kiss, or names who is in it, draw that as asked, up to four people, even where the story last left them apart or the rules above picture fewer.";
 
 /**
  * The Image Prompt for a picture the player asked for, which they can read in the Gallery. Its prompt is an allowlist of

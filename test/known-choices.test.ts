@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
 import { join } from "node:path";
 import { UPKEEP_LIMIT } from "../src/state-upkeep";
-import { knownChoices, unknownWords, withoutUnread, writeChoices } from "../src/known-choices";
+import { askedOfDead, knownChoices, unknownWords, withoutTheDead, withoutUnread, writeChoices } from "../src/known-choices";
 import { openingState, type State } from "../src/state-applier";
 import { narration, scriptedTextProvider, startApp, tempFolder } from "./support";
+import { stillDead } from "../src/turn-engine";
 
 const state: State = {
   ...openingState,
@@ -285,4 +286,25 @@ test("a Turn sends the Choices the player's notes on the PC, and a word of their
   expect(JSON.stringify(turn)).toContain("Salvatori");
   await app.stop();
   folder.remove();
+});
+
+test("a Choice that asks something of someone dead is dropped, and the others kept", () => {
+  const cast = { scene: { location: "the galley", visibleCast: ["Lise"] }, dead: ["Pavel Duda"] };
+  const choices = ["Wake Pavel and ask about the rope.", "Tell Lise about Pavel's boots.", "Ask Brandt for the key.", "Bury Pavel."];
+  // Only by a verb right before the name, so telling someone of the dead, or burying them, stands, and so does asking the absent.
+  expect(askedOfDead(choices, cast)).toEqual(["Pavel", undefined, undefined, undefined]);
+  expect(withoutTheDead(choices, cast)).toEqual(choices.slice(1));
+  // Not the dead's kin, belongings or body, nor a word a name happens to be, nor a living namesake in view.
+  const fair = ["Ask Pavel's widow about the rope.", "Give Pavel a burial.", "Kiss Pavel goodbye.", "Ask Pavel for the lantern.", "Tell hope to wait."];
+  const namesake = { scene: { location: "the galley", visibleCast: ["Lise", "Pavel Novak"] }, dead: ["Pavel Duda", "Hope Calder"] };
+  expect(askedOfDead(fair, namesake)).toEqual(fair.map(() => undefined));
+});
+
+test("someone marked dead who speaks in the reply is no longer dead, unless they died in it", () => {
+  const npcs = [
+    { name: "Pavel Duda", appearance: "a big man" },
+    { name: "Vik", appearance: "a lean man" },
+  ];
+  const reply = "[Pavel Duda]: Not dead yet.\n[Vik]: Help me.";
+  expect(stillDead(reply, { npcs, dead: ["Pavel Duda", "Vik"] }, [{ op: "npc_dies", name: "Vik" }])).toEqual(["Vik"]);
 });

@@ -91,6 +91,23 @@ test("a death only reported or believed is no death", () => {
   expect(told.kept).toEqual([]);
 });
 
+test("a sound dying away, or dead meaning very, is no death", () => {
+  const dies = { op: "npc_dies" as const, name: "Harriet Vell" };
+  const npcs = [{ name: "Harriet Vell" }];
+  // As Harriet was marked dead for "Mrs Vell let the silence sit while a burst of laughter went up and died away again."
+  for (const said of [
+    "Mrs Vell let the silence sit while the laughter died away again.",
+    "Harriet Vell spoke, and the noise died down.",
+    "Harriet Vell came in the dead of night.",
+  ])
+    expect(deathsShown([dies], said, npcs).kept).toEqual([]);
+  // A death told in the same words still counts, and so does a body that is still or a weight.
+  for (const said of ["Harriet Vell died out there on the moor.", "They carried Harriet Vell, a dead weight.", "Harriet Vell lay dead still."])
+    expect(deathsShown([dies], said, npcs).kept).toEqual([dies]);
+  expect(deathsShown([dies], "Harriet Vell died in the night.", npcs).kept).toEqual([dies]);
+  expect(deathsShown([dies], "Harriet Vell fell dead on the flags.", npcs).kept).toEqual([dies]);
+});
+
 test("someone's own line about a death is no death of theirs, though a death called out aloud is", () => {
   const npcs = [{ name: "Pavel Duda" }, { name: "Lise Moen" }];
   const dies = (name: string) => ({ op: "npc_dies" as const, name });

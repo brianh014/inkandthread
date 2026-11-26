@@ -46,7 +46,7 @@ import {
 } from "./state-applier";
 import { duePlan, planOffered, planShown, replyBefore } from "./due-plans";
 import { countWords, withinLimit } from "./limits";
-import { knownChoices, secretWords, unreadIn, withoutUnread, writeChoices } from "./known-choices";
+import { knownChoices, secretWords, unreadIn, withoutTheDead, withoutUnread, writeChoices } from "./known-choices";
 import { estimateTokens, wholeWord } from "./lore-activation";
 import { type Upkeep, upkeepOperations } from "./state-upkeep";
 import { keepSummary, summaryDue } from "./story-summary";
@@ -279,11 +279,22 @@ export function jsonSchemaOf(schema: z.ZodType) {
  * ignored the schema wrote it ("#2", "Thread 2:"). A reply not handed the truths (`handed`) can't amend one it never read, nor
  * write the first now of a thread whose people it can't see, so those go. A reply that quoted words is matched as before.
  */
+/** The dead without those who speak on the page and didn't die in it, as one who only seemed dead was lost to the story. */
+export function stillDead(narration: string, { npcs, dead }: Pick<State, "npcs" | "dead">, operations: StateOperation[]) {
+  const speakers = [...narration.matchAll(/^\[([^[\]]+)\]:/gm)].map(([, speaker]) => findPerson(npcs, speaker!.trim())?.name);
+  const diedNow = new Set(operations.flatMap((operation) => (operation.op === "npc_dies" ? [findPerson(npcs, operation.name)?.name] : [])));
+  return dead.filter((name) => !speakers.includes(name) || diedNow.has(name));
+}
+
 // A death told, in the sentence that names someone or the next, as "He was dead" follows the one naming him.
 const DYING =
   /\b(?:dies|died|dying|dead|death|killed|slain|lifeless|corpse|murdered|drowned|bled out|stopped breathing|no pulse|breathed his last|breathed her last)\b/i;
 // Not a death that is only said or believed, as a man "reported dead" a month before was marked dead on meeting the PC.
 const HEARSAY = /\b(?:thought|reported|believed|presumed|feared|supposed|said to be|left for|given up for|not)\s+(?:to be\s+|him\s+|her\s+)?dead\b/gi;
+// Nor a sound or light dying away, or "dead" for very, as a woman was marked dead for laughter that "died away" in her sentence.
+// Only at a clause's end, as "died out there on the moor" is a death, and never "dead still" or "dead weight", which can be a body.
+const IDIOM =
+  /\b(?:died|dies|dying)\s+(?:away|down|out|off|back)(?=\s*(?:[,.;:!?…"”]|again\b|$))|\bdead\s+(?:of\s+(?:night|winter)|silence|calm|tired|end|set|centre|center|straight|level)\b/gi;
 
 /**
  * The operations without each npc_dies the narration never shows, as a Narrator offered the operation marked everyone in a
@@ -294,6 +305,7 @@ export function deathsShown<Operation extends StateOperation>(operations: Operat
   // Never by a speaker's label, as a man's own line about "two dead dogs" marked him dead.
   const sentences = narration
     .replace(HEARSAY, "")
+    .replace(IDIOM, "")
     .replace(/^\[[^[\]]*\]:/gm, "")
     .split(/(?<=[.!?…"”])\s+|\n+/);
   let dropped = 0;
@@ -1229,6 +1241,9 @@ async function narrate(
           });
       // Moved, not only asked, as a set_story_time the state refuses as earlier than now moved no time, and Upkeep wasn't asked.
       const timed = JSON.stringify(narrated.next.storyTime) !== JSON.stringify(introducedBefore.state.storyTime);
+      // As the Turn will save it, without one marked dead who speaks in this reply.
+      const dead = stillDead(narration, narrated.next, state_operations);
+      const knownDead = dead.filter((name) => narrated.next.pcKnown.npcs.includes(name));
       const alone = () =>
         writeChoices(textProvider, narration, signal, previous, plainMessage({ role: "player", text: upkeep?.input ?? input }).text, {
           about,
@@ -1247,13 +1262,17 @@ async function narrate(
             place: narrated.next.scene.location,
             // Only those the PC knows by name, as a name the page never gave is a secret too.
             present: narrated.next.scene.visibleCast.filter((name) => narrated.next.pcKnown.npcs.includes(name)),
+            // So a Choice dropped for asking something of one isn't written again. Only once someone has died, to keep the call lean.
+            ...(knownDead.length > 0 && { dead: knownDead }),
           },
-        }).then((written) =>
+        }).then((written) => {
+          const storyInLog = upkeep?.settings.read().storyInLog ?? false;
+          const alive = written && withoutTheDead(written, { ...narrated.next, dead }, storyInLog);
           // Held to what the PC knows, as a Choice may still build on a word only the secrets hold.
-          written && upkeep && seen !== undefined
-            ? knownChoices(written, narrated.next, [seen(), about?.pc ?? "", about?.theme ?? ""].join(" "), narration, upkeep.settings.read().storyInLog)
-            : written,
-        );
+          return alive && upkeep && seen !== undefined
+            ? knownChoices(alive, narrated.next, [seen(), about?.pc ?? "", about?.theme ?? ""].join(" "), narration, storyInLog)
+            : alive;
+        });
       // Merged with what each ask kept, up to two asks, as taking one set or the other offered two Choices when each had lost one to a leak.
       const refilled = async (kept: string[]) => {
         for (let ask = 0; ask < 2 && kept.length < 3; ask++) {
@@ -1336,11 +1355,9 @@ async function narrate(
           upkeepDropped = [...kept.refused, ...kept.ignored];
           upkeepRefused = upkeepDropped.length;
           const next = kept.next;
-          // Someone marked dead who speaks on the page lives after all, as one who only seemed dead was lost to the story.
-          const speakers = [...narration.matchAll(/^\[([^[\]]+)\]:/gm)].map(([, speaker]) => findPerson(next.npcs, speaker!.trim())?.name);
-          const diedNow = new Set(state_operations.flatMap((operation) => (operation.op === "npc_dies" ? [findPerson(next.npcs, operation.name)?.name] : [])));
-          revived = next.dead.filter((name) => speakers.includes(name) && !diedNow.has(name)).length;
-          if (revived > 0) next.dead = next.dead.filter((name) => !speakers.includes(name) || diedNow.has(name));
+          const living = stillDead(narration, next, state_operations);
+          revived = next.dead.length - living.length;
+          if (revived > 0) next.dead = living;
           // A plan whose hour came while its doer is with the PC was overtaken by play, as it could not happen off the page and
           // moves put it off again and again: it goes, and the next move gives its thread another.
           const { doerIn, doerIsOne } = threadPeople(next);

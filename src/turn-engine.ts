@@ -281,14 +281,16 @@ export function jsonSchemaOf(schema: z.ZodType) {
 // A death told, in the sentence that names someone or the next, as "He was dead" follows the one naming him.
 const DYING =
   /\b(?:dies|died|dying|dead|death|killed|slain|lifeless|corpse|murdered|drowned|bled out|stopped breathing|no pulse|breathed his last|breathed her last)\b/i;
+// Not a death that is only said or believed, as a man "reported dead" a month before was marked dead on meeting the PC.
+const HEARSAY = /\b(?:thought|reported|believed|presumed|feared|supposed|said to be|left for|given up for|not)\s+(?:to be\s+|him\s+|her\s+)?dead\b/gi;
 
 /**
  * The operations without each npc_dies the narration never shows, as a Narrator offered the operation marked everyone in a
  * scene dead, the PC among them, Turn after Turn. Dropped, never refused, as the reply stands either way.
- * shortcut: by death words near their name, so "reported dead" counts and a death told only by pronouns two sentences on doesn't.
+ * shortcut: by death words near their name, so a death told only by pronouns two sentences on doesn't count; widen if deaths go unrecorded.
  */
 export function deathsShown<Operation extends StateOperation>(operations: Operation[], narration: string, npcs: { name: string }[]) {
-  const sentences = narration.split(/(?<=[.!?…"”])\s+|\n+/);
+  const sentences = narration.replace(HEARSAY, "").split(/(?<=[.!?…"”])\s+|\n+/);
   let dropped = 0;
   const kept = operations.filter((operation) => {
     if (operation.op !== "npc_dies") return true;

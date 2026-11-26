@@ -84,3 +84,9 @@ test("a death is kept only where the page tells it beside their name, never for 
   expect(told.kept).toEqual([dies("Arne Vik")]);
   expect(told.dropped).toBe(1);
 });
+
+test("a death only reported or believed is no death", () => {
+  const told = deathsShown([{ op: "npc_dies", name: "Arne Vik" }], "Arne Vik, reported dead a month ago, steps out of the dark.", [{ name: "Arne Vik" }]);
+
+  expect(told.kept).toEqual([]);
+});

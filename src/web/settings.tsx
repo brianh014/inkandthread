@@ -1,6 +1,7 @@
 import { type FormEvent, type KeyboardEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { WORKFLOW_EXAMPLE } from "../comfy-workflow";
+import { SCENE_PEOPLE } from "../limits";
 import { chosenModels, familyDefaults, switchFamily } from "../graph-builder";
 import { ArtStylePicker, artStyleText, readArtStyle } from "./art-style-picker";
 import {
@@ -1368,6 +1369,22 @@ function InstallSettings({
           Draw scene pictures
         </label>
         <p className="muted">A picture of the scene as the story moves. Off, only the pictures you ask for and portraits are drawn.</p>
+        <label>
+          Most people in a picture
+          <input
+            type="number"
+            required
+            min={SCENE_PEOPLE.least}
+            max={SCENE_PEOPLE.most}
+            step={1}
+            value={draft.scenePeople}
+            onChange={(e) => set({ scenePeople: e.target.valueAsNumber })}
+          />
+        </label>
+        <p className="muted">
+          Anyone else in the scene is left out of view. Image models often merge or leave out people in a crowded picture, so more than two goes wrong more
+          often.
+        </p>
         <label className="toggle">
           <input type="checkbox" checked={draft.updatePortraits} onChange={(e) => set({ updatePortraits: e.target.checked })} />
           Update portraits as the story goes

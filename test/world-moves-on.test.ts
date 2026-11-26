@@ -1102,29 +1102,32 @@ test("a move asks a part of each person a thread names who has none for it, thou
 });
 
 test("a move gives no more of a thread to someone with the PC who holds a part of it, as they learn only on the page", async () => {
-  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders, and Kit saw it.";
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders, his sister Mara Grout hid the boat, and Kit saw it.";
   const part = "He held the harbourmaster under, and the vicar paid him.";
   play(
     narration(
       "Ash meets the sexton.",
       { op: "add_npc", name: "Silas Grout", appearance: "a huge man" },
       { op: "add_npc", name: "Kit", appearance: "a boy" },
+      { op: "add_npc", name: "Mara Grout", appearance: "a tall woman" },
       { op: "set_scene", location: "The graveyard", visible_cast: ["Silas Grout"] },
       nextDay(),
     ),
     moved({
       ...change(drowned, "Grout digs a grave."),
       knows: [
-        { name: "Grout", knows: part },
+        { name: "Silas Grout", knows: part },
         { name: "Kit", knows: "He saw a big man hold someone under." },
+        { name: "Mara Grout", knows: "She sank the boat off the point." },
       ],
     }),
     narration("Ash watches him dig.", nextDay("3rd of Thaw")),
     moved({
       ...change(drowned, "Kit has gone to the vicar."),
       knows: [
-        { name: "Grout", knows: "Kit has told the vicar what he saw." },
+        { name: "Silas", knows: "Kit has told the vicar what he saw." },
         { name: "Kit", knows: "The vicar told him to keep quiet." },
+        { name: "Mara Grout", knows: "Kit has told the vicar." },
       ],
     }),
   );
@@ -1145,10 +1148,12 @@ test("a move gives no more of a thread to someone with the PC who holds a part o
     for (const input of ["I meet him.", "I watch."]) expect((await turn(id, input)).ok).toBe(true);
   }, "info");
 
-  // His first part stands, though he is with the PC; what the move says he learned after it doesn't. Kit, away, learns more.
+  // His first part stands, though he is with the PC; what the move says he learned after it doesn't. Kit and his sister, away,
+  // learn more, though she shares his surname.
   const { npcKnows } = store().latestState(id);
   expect(npcKnows["Silas Grout"]).toEqual([part]);
   expect(npcKnows.Kit).toEqual(["He saw a big man hold someone under.", "The vicar told him to keep quiet."]);
+  expect(npcKnows["Mara Grout"]).toEqual(["She sank the boat off the point.", "Kit has told the vicar."]);
   expect(log).toContain('"withPcParts":1');
 });
 

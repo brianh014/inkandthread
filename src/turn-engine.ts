@@ -291,6 +291,9 @@ const DYING =
   /\b(?:dies|died|dying|dead|death|killed|slain|lifeless|corpse|murdered|drowned|bled out|stopped breathing|no pulse|breathed his last|breathed her last)\b/i;
 // Not a death that is only said or believed, as a man "reported dead" a month before was marked dead on meeting the PC.
 const HEARSAY = /\b(?:thought|reported|believed|presumed|feared|supposed|said to be|left for|given up for|not)\s+(?:to be\s+|him\s+|her\s+)?dead\b/gi;
+// Nor a sound or light dying away, or "dead" for very, as a woman was marked dead for laughter that "died away" in her sentence.
+const IDIOM =
+  /\b(?:died|dies|dying)\s+(?:away|down|out|off|back)\b|\bdead\s+(?:of\s+(?:night|winter)|still|silent|silence|quiet|calm|tired|weight|end|set|centre|center|straight|level)\b/gi;
 
 /**
  * The operations without each npc_dies the narration never shows, as a Narrator offered the operation marked everyone in a
@@ -301,6 +304,7 @@ export function deathsShown<Operation extends StateOperation>(operations: Operat
   // Never by a speaker's label, as a man's own line about "two dead dogs" marked him dead.
   const sentences = narration
     .replace(HEARSAY, "")
+    .replace(IDIOM, "")
     .replace(/^\[[^[\]]*\]:/gm, "")
     .split(/(?<=[.!?…"”])\s+|\n+/);
   let dropped = 0;

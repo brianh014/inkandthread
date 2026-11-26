@@ -90,3 +90,11 @@ test("a death only reported or believed is no death", () => {
 
   expect(told.kept).toEqual([]);
 });
+
+test("someone's own line about a death is no death of theirs, though a death called out aloud is", () => {
+  const npcs = [{ name: "Pavel Duda" }, { name: "Lise Moen" }];
+  const dies = (name: string) => ({ op: "npc_dies" as const, name });
+
+  expect(deathsShown([dies("Pavel Duda")], '[Pavel Duda]: "I\'ll be in the kennel. Lise is alone with two dead dogs."', npcs).kept).toEqual([]);
+  expect(deathsShown([dies("Pavel Duda")], '[Lise Moen]: "Pavel Duda is dead. He stopped breathing."', npcs).kept).toEqual([dies("Pavel Duda")]);
+});

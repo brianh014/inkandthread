@@ -291,7 +291,11 @@ const HEARSAY = /\b(?:thought|reported|believed|presumed|feared|supposed|said to
  * shortcut: by death words near their name, so a death told only by pronouns two sentences on doesn't count; widen if deaths go unrecorded.
  */
 export function deathsShown<Operation extends StateOperation>(operations: Operation[], narration: string, npcs: { name: string }[]) {
-  const sentences = narration.replace(HEARSAY, "").split(/(?<=[.!?…"”])\s+|\n+/);
+  // Never by a speaker's label, as a man's own line about "two dead dogs" marked him dead.
+  const sentences = narration
+    .replace(HEARSAY, "")
+    .replace(/^\[[^[\]]*\]:/gm, "")
+    .split(/(?<=[.!?…"”])\s+|\n+/);
   let dropped = 0;
   const kept = operations.filter((operation) => {
     if (operation.op !== "npc_dies") return true;

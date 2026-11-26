@@ -36,6 +36,9 @@ _Avoid_: Message (when the input-and-response pair is meant)
 **Scene**:
 A continuous place and situation in the story. A Scene can have several Scene Images over time, such as when its cast changes.
 
+**Dead**:
+Someone the narration shows dying, recorded by the Narrator, so no one paints, plans for or asks a part of them afterwards.
+
 **Cover**:
 The book-cover art of a story, with its title lettered into the picture, drawn from what the player can read: the Title, theme and World Brief if the player draws it while creating the story, otherwise the World Overview. It is kept in the Save through every Revert.
 _Avoid_: Title image, world image

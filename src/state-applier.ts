@@ -16,6 +16,8 @@ export type State = {
   /** What each NPC has learned or lived through in play, newest last, by name. Hidden from the player, as it can hold what the PC never saw. */
   npcKnows: Record<string, string[]>;
   scene: { location: string; visibleCast: string[] };
+  /** Who has died in play, by name, so no one paints, plans for or asks a part of them. A Save from before it has none. */
+  dead: string[];
   /** `summaries` says who each known NPC is, as the PC understands it. A Save from before them has none. */
   pcKnown: { facts: string[]; npcs: string[]; summaries?: Record<string, string> };
   /** What the PC knows is still unresolved. Unlike a Plot Thread, the player reads these. */
@@ -87,6 +89,7 @@ export const openingState: State = {
   npcs: [],
   npcKnows: {},
   scene: { location: "", visibleCast: [] },
+  dead: [],
   pcKnown: { facts: [], npcs: [] },
   looseEnds: [],
   sceneMemories: [],
@@ -121,6 +124,7 @@ export const StateSections = {
   npcs: z.array(z.object({ name: z.string(), appearance: z.string() })),
   npcKnows: z.record(z.string(), stringList),
   scene: z.object({ location: z.string(), visibleCast: stringList }),
+  dead: stringList,
   pcKnown: z.object({ facts: stringList, npcs: stringList, summaries: z.record(z.string(), z.string()).optional() }),
   looseEnds: stringList,
   sceneMemories: z.array(z.object({ firstMessage: z.number().int(), lastMessage: z.number().int(), text: z.string() })),
@@ -183,6 +187,10 @@ export const StateOperation = z.discriminatedUnion("op", [
       ),
   }),
   z.object({ op: z.literal("merge_npc"), name: nonEmpty, into: nonEmpty }),
+  z.object({
+    op: z.literal("npc_dies"),
+    name: nonEmpty.describe("an NPC the narration shows dying, as the state names them"),
+  }),
   z.object({
     op: z.literal("npc_learns"),
     name: nonEmpty,
@@ -395,6 +403,7 @@ function mergeNpc(state: State, name: string, into: string) {
   else npc.name = into;
   if (pcKnown.npcs.includes(name)) replaceOnce(pcKnown.npcs, name, into);
   if (scene.visibleCast.includes(name)) replaceOnce(scene.visibleCast, name, into);
+  if (state.dead.includes(name)) state.dead = [...new Set(state.dead.map((dead) => (dead === name ? into : dead)))];
   const { [name]: summary, ...summaries } = pcKnown.summaries ?? {};
   if (summary !== undefined) pcKnown.summaries = { [into]: summary, ...summaries };
   mergeNpcKnows(state, name, into);
@@ -540,6 +549,14 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
     case "merge_npc":
       mergeNpc(state, operation.name, operation.into);
       return;
+    case "npc_dies": {
+      // Their state name, as the narration may shorten it, and none for a stranger, as a reply can't be refused for one.
+      // shortcut: the Narrator's alone, not State Upkeep's, which reads only the page and would mark a faked death; add it there if deaths go unrecorded.
+      const name = findPerson(state.npcs, operation.name)?.name;
+      if (!name) return "no such NPC";
+      addOnce(state.dead, name);
+      return;
+    }
     case "npc_learns": {
       // A reply squeezed by its schema can send a scrap here, and then they just know less.
       const name = findPerson(state.npcs, operation.name)?.name;
@@ -922,7 +939,7 @@ const isRepeat = ({ pcKnown, looseEnds }: State, operation: StateOperation) =>
   (operation.op === "add_loose_end" && looseEnds.includes(operation.loose_end));
 
 // None of these contradict the narration, so they aren't worth a whole response. Someone nameless is added once they're named.
-const IGNORABLE: StateOperation["op"][] = ["resolve_loose_end", "add_known_npc", "set_known_npc_summary", "set_story_time", "npc_learns"];
+const IGNORABLE: StateOperation["op"][] = ["resolve_loose_end", "add_known_npc", "set_known_npc_summary", "set_story_time", "npc_learns", "npc_dies"];
 const isHarmless = ({ op, reason }: { op: StateOperation["op"]; reason: string }) =>
   IGNORABLE.includes(op) ||
   reason === "already there" ||
@@ -1262,8 +1279,10 @@ export function givenName(name: string) {
  * Whether someone is named as a body, or their own Lore Entry is keyed as one. shortcut: by name and keyword, as an NPC has no
  * alive or dead, so one who dies in play still counts as alive; add a field if that misleads.
  */
-export const isBody = (state: Pick<State, "worldBible">, name: string) =>
-  DEAD.test(name) || state.worldBible.some(({ title, keywords }) => title === name && keywords.some((keyword) => DEAD.test(keyword)));
+export const isBody = (state: Pick<State, "worldBible"> & Partial<Pick<State, "dead">>, name: string) =>
+  DEAD.test(name) ||
+  (state.dead ?? []).includes(name) ||
+  state.worldBible.some(({ title, keywords }) => title === name && keywords.some((keyword) => DEAD.test(keyword)));
 const DEAD = /\b(body|corpse|remains)\b/i;
 
 export const nameForms = (name: string) => [

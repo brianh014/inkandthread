@@ -367,6 +367,9 @@ const toVersion30 = addMissingSections;
 /** The Tone, which starts empty, so an older Save is told as before. */
 const toVersion31 = addMissingSections;
 
+/** Who has died in play, which starts empty, as before it no death was recorded. */
+const toVersion32 = addMissingSections;
+
 /** One step per schema version, where step N takes a Save from version N to N + 1. New Saves take them too, so they can't drift from old ones. */
 const MIGRATIONS = [
   toVersion1,
@@ -400,6 +403,7 @@ const MIGRATIONS = [
   toVersion29,
   toVersion30,
   toVersion31,
+  toVersion32,
 ];
 
 function schemaVersion(db: Database) {

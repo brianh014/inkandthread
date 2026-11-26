@@ -94,8 +94,10 @@ export function restyledBy(before: State, after: State, operations: StateOperati
   // Not one whose every update said its portrait needn't change, as wet hair, a mark or a pose redrew one every Turn.
   const passing = passingLooks(operations);
   // Only a change a head and shoulders frame shows, as soot to the wrists redrew a portrait that then drew it on the neck.
+  // Never the dead, as a death wound recorded on someone killed redrew their portrait.
   const npcs = after.npcs.filter(
-    ({ name, appearance }) => !passing.has(name) && before.npcs.some((npc) => npc.name === name && chestUp(npc.appearance) !== chestUp(appearance)),
+    ({ name, appearance }) =>
+      !passing.has(name) && !after.dead.includes(name) && before.npcs.some((npc) => npc.name === name && chestUp(npc.appearance) !== chestUp(appearance)),
   );
   const pc = JSON.stringify(before.inventory.wearing) !== JSON.stringify(after.inventory.wearing) || before.pcAppearance !== after.pcAppearance;
   return [...(pc ? [null] : []), ...npcs];

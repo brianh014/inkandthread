@@ -1323,7 +1323,9 @@ async function narrate(
             const plan = next.threadsPlan[truth]!;
             return hour !== undefined && hour > started && clock! - hour <= PUT_OFF_HOURS && !doerIn(plan, castBefore) && !sameDeed(plan, narration);
           });
-          const overtaken = [...come.filter((truth) => !putOff.includes(truth)), ...(played ? [played] : [])];
+          // And one whose doer has died, which can no longer happen.
+          const doerDead = Object.keys(next.threadsPlan).filter((truth) => truth !== played && doerIn(next.threadsPlan[truth]!, next.dead));
+          const overtaken = [...new Set([...come.filter((truth) => !putOff.includes(truth)), ...doerDead, ...(played ? [played] : [])])];
           for (const truth of putOff) next.threadsDue[truth] = clock! + PUT_OFF_HOURS;
           plansPutOff = putOff.length;
           next.threadsPlan = Object.fromEntries(Object.entries(next.threadsPlan).filter(([truth]) => !overtaken.includes(truth)));

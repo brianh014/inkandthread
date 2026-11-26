@@ -223,6 +223,48 @@ const NOT_A_NAME = new Set([
   "Master",
 ]);
 
+const marksOf = (prompt: string) => (prompt.match(/\[[^[\]]*\]/g) ?? []).length;
+// Someone newly pictured by a noun alone: never "the man", who may be someone already marked, nor "a woman's voice" or "man-sized".
+// Its words may be listed with commas, as "a lean, sun-browned woman" was most of the prompts left with no portrait.
+const PERSON = /\b(?:a|an|another)\s+(?:[\p{L}-]+,?\s+){0,4}?(woman|girl|man|boy|figure|person)\b(?![\p{L}'’-])/giu;
+const NOUN = /\b(woman|girl|man|boy|figure|person)\b(?![\p{L}'’-])/giu;
+const KIND = /\b(woman|lady|she|girl|man|he|his|him|boy)\b/i;
+const KINDS: Record<string, string> = { lady: "woman", she: "woman", he: "man", his: "man", him: "man" };
+// The kind of person words give, by the first word that says one, as a man's background mentioning his aunt made him a woman.
+const kindOf = (words: string) => {
+  const word = KIND.exec(words)?.[1]?.toLowerCase();
+  return word === undefined ? undefined : (KINDS[word] ?? word);
+};
+
+/**
+ * Marks each person of `people`, those in view with a portrait the prompt left unmarked, where it pictures someone new by a noun
+ * alone ("a woman inside") that is the only one of its kind in the prompt and fits only one of them, as the PC was drawn as a
+ * stranger with no portrait sent (ticket 106). A figure or person only when the prompt pictures no one else and one is left.
+ * Text in a mark or the likeness sentence, closed or not, is left alone. `about` is read for the kind only when the looks give none.
+ * shortcut: a stranger the prompt pictures as the only one of their kind can be marked as someone in view; check the noun's place if that shows.
+ */
+export function markByLooks(text: string, people: { name: string; looks: string; about?: string }[]) {
+  const left = people.filter(({ name }) => name.trim());
+  const nouns = [...text.matchAll(NOUN)].map(([, noun]) => noun!.toLowerCase());
+  const marked = /\[[^[\]]*\]/.test(text);
+  return text
+    .split(/(\[[^[\]]*\]|\{[^{}]*(?:\}|$))/)
+    .map((part, at) =>
+      at % 2 === 1
+        ? part
+        : part.replace(PERSON, (phrase: string, found: string) => {
+            const noun = found.toLowerCase();
+            const sexless = noun === "figure" || noun === "person";
+            if (sexless ? marked || nouns.length > 1 || left.length !== 1 : nouns.filter((other) => other === noun).length > 1) return phrase;
+            const fits = left.filter(({ looks, about = "" }) => sexless || (kindOf(looks) ?? kindOf(about)) === noun);
+            if (fits.length !== 1) return phrase;
+            left.splice(left.indexOf(fits[0]!), 1);
+            return `[${fits[0]!.name}: ${phrase}]`;
+          }),
+    )
+    .join("");
+}
+
 /**
  * Marks each person the prompt names without a [Name: phrase] mark, as a model sometimes writes "Ash, a short man," instead:
  * unmarked, their name would reach the image model and their portrait wouldn't. Text already in a mark or the likeness
@@ -481,7 +523,8 @@ export function imagePipeline(
     return { prompt, negative_prompt: AVOID, aspect_ratio: "16:9", reference_images, style_preset: "" };
   };
 
-  async function drawMoment(id: string, messageId: number, { description: written, npcs, inView, wearing }: Moment, signal: AbortSignal) {
+  // `byNoun` off for a picture the player asked for, as the stranger they name may share a kind with someone in view.
+  async function drawMoment(id: string, messageId: number, { description: written, npcs, inView, wearing }: Moment, signal: AbortSignal, byNoun = true) {
     const { pc } = saves.read(id);
     const pcName = pc.name;
     const style = promptStyle(settings.read());
@@ -502,7 +545,15 @@ export function imagePipeline(
             )
         : [];
     const moment = cast.length > 0 ? saves.messages(id).find((message) => message.id === messageId)?.text : undefined;
-    const description = await reviewPicture(marked, style, signal, cast, moment);
+    const reviewed = await reviewPicture(marked, style, signal, cast, moment);
+    // Those the review left unmarked, by a noun only they fit, the PC's sex also from their background, as their looks may not say it.
+    const marks = expandMarks(reviewed, npcs, pcName).pictured;
+    const left = cast
+      .filter(({ name }) => !marks.includes(name === pcName ? null : name))
+      .map(({ name, looks }) => ({ name, looks, ...(name === pcName && { about: pc.background ?? "" }) }));
+    const description = byNoun ? markByLooks(reviewed, left) : reviewed;
+    if (description !== reviewed)
+      log.info("images", "Unmarked people marked by a noun", { left: left.length, marked: marksOf(description) - marksOf(reviewed) });
     // Twice, as who is pictured decides which portraits go in, and those decide how each mark is written.
     const { pictured } = expandMarks(description, npcs, pcName);
     const { prompt: expanded } = expandMarks(description, npcs, pcName, referenced(id, pictured));
@@ -720,7 +771,7 @@ export function imagePipeline(
         try {
           const { text: description, title } = await write(signal);
           step = "drawing it";
-          const { prompt, pictured, bytes } = await drawMoment(id, messageId, { ...moment, description }, signal);
+          const { prompt, pictured, bytes } = await drawMoment(id, messageId, { ...moment, description }, signal, false);
           saves.addRequestedImage(id, messageId, words || title.trim().slice(0, 80) || "The current scene", bytes, prompt, pictured);
           log.info("images", "Image drawn", about(id, { kind: "requested", messageId }));
         } catch (error) {

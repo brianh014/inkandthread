@@ -1467,6 +1467,8 @@ const NAMES_A_FIELD = new RegExp(String.raw`\b(?:${FIELDS.filter((field) => fiel
  * shortcut: notes are told by "I", "my", "null" or "JSON" beside a field's name; add a word when others are drawn.
  */
 const withoutFieldNotes = (text: string) => {
+  // A word for no picture is none, as "None" was drawn as abstract noise.
+  if (/^\W*(?:none|null|nil|n\/a|nothing|empty|no (?:picture|image|scene))\W*$/i.test(text)) return "";
   // Its own field's name is a label, not a note, and a placeholder of no letters is no prompt.
   const prompt = /\p{L}/u.test(text) ? text.replace(/^[\s"{]*visual_description"?\s*:\s*"?/i, "") : "";
   if (prompt !== text && /^(?:null|none|I|my|JSON)\b/.test(prompt)) return "";

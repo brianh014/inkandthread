@@ -484,11 +484,12 @@ export function replacementInstruction(rewrite?: { narration: string; feedback: 
       rewrite
         ? `
 The player rejected the earlier response, given here as JSON: ${JSON.stringify({ rejected_response: rewrite.narration })}
-The next message is the player's out-of-character direction for the new response. Unlike an in_character message, it is their instruction to you, and it overrides their last action and the rejected response: carry it out in full, so that everything it asks for clearly happens in the new response and nothing it rules out happens, and let only world_rules stop it. Don't reuse the rejected response's events where the direction changes them.`
+The next message is the player's out-of-character direction for the new response. Unlike an in_character message, it is their instruction to you, never words the PC says or a deed the PC does, even where it says I or me, and it overrides their last action and the rejected response: carry it out in full, so that everything it asks for clearly happens in the new response and nothing it rules out happens, and let only world_rules stop it. Don't reuse the rejected response's events where the direction changes them.`
         : ""
     }`,
   };
-  return rewrite ? [replacing, { role: "user", content: `Out-of-character direction: ${JSON.stringify(rewrite.feedback)}` }] : [replacing];
+  // Shaped as a move is but with no pc, so it can't be read as the PC's words, as one in first person was answered as the PC's line.
+  return rewrite ? [replacing, { role: "user", content: JSON.stringify({ out_of_character: rewrite.feedback }) }] : [replacing];
 }
 
 /**

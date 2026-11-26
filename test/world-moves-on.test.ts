@@ -548,6 +548,36 @@ test("a thread whose question play has answered is removed in place of its rewri
   expect(log).toContain('"rewritten":0,"added":1,"removed":1');
 });
 
+test("a null now for a thread the same move's left calls unanswered keeps the thread", async () => {
+  const PELL = "Mr Pell means to burn the mill.";
+  const [TIDE, GULLS] = ["The tide is wrong.", "The gulls are omens."];
+  play(
+    narration("Ash sees Mr Pell at the quay.", { op: "set_scene", location: "The quay", visible_cast: [] }, nextDay()),
+    JSON.stringify({ left: [{ thread: PELL, answer: null }], plot_threads: [change(PELL, null), change(TIDE, "The tide turns early.")] }),
+    narration("Ash goes home."),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The library", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [PELL, TIDE, GULLS],
+      threadsQuestion: { [PELL]: "Whether Pell is caught." },
+      worldBible: [{ title: "The miller", keywords: ["Mr Pell"], content: "", alwaysOn: false }],
+    },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I walk to the quay.", "I go home."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(store().latestState(id).plotThreads).toEqual([PELL, TIDE, GULLS]);
+  expect(log).toContain("Removes of unanswered threads kept open");
+});
+
 test("an answer for a thread with no question yet closes nothing, as a greeting once closed one", async () => {
   const PELL = "Mr Pell means to burn the mill.";
   const [TIDE, GULLS, BELLS] = ["The tide is wrong.", "The gulls are omens.", "The bells ring wrong."];

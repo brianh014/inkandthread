@@ -408,7 +408,13 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     // through were answers, and lost an open thread or its rewrite, a romance's among them.
     const closed = overthought ? [] : answered;
     if (overthought) answersUntaken = answered.length;
-    const rest = plot_threads.filter(({ thread }) => thread === null || !closed.includes(closestThread(plotThreads, thread) ?? ""));
+    // Not a null now for a thread the same reply's left says play has yet to answer, as MiMo wrote null for threads it left unchanged and two were lost.
+    const unanswered = left.filter(({ answer }) => !answer).map(({ thread }) => closestThread(plotThreads, thread));
+    const contradicted = plot_threads.filter(({ thread, now }) => thread !== null && now === null && unanswered.includes(closestThread(plotThreads, thread)));
+    if (contradicted.length > 0) log.info("world", "Removes of unanswered threads kept open", { count: contradicted.length });
+    const rest = plot_threads.filter(
+      (move) => !contradicted.includes(move) && (move.thread === null || !closed.includes(closestThread(plotThreads, move.thread) ?? "")),
+    );
     return [
       ...rest,
       ...closed.map((thread): ThreadMove => ({ thread, truth: null, now: null, plan: null, plan_in_hours: null, question: null, knows: [], mark: null })),

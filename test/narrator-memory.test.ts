@@ -337,10 +337,11 @@ const promptFor = (sections: Partial<State> = {}, input = "I wait.") => {
 };
 
 test("a Save holding more Plot Threads than the limit sends only the first ones", () => {
-  const prompt = promptFor({ plotThreads: Array.from({ length: MAX_PLOT_THREADS + 1 }, (_, i) => `THREAD-${i}.`) });
+  const threads = Array.from({ length: MAX_PLOT_THREADS + 1 }, (_, i) => `THREAD-${i}.`);
+  const prompt = promptFor({ plotThreads: threads, threadsNow: Object.fromEntries(threads.map((truth, i) => [truth, `NOW-${i}.`])) });
 
-  expect(prompt).toContain(`THREAD-${MAX_PLOT_THREADS - 1}.`);
-  expect(prompt).not.toContain(`THREAD-${MAX_PLOT_THREADS}.`);
+  expect(prompt).toContain(`NOW-${MAX_PLOT_THREADS - 1}.`);
+  expect(prompt).not.toContain(`NOW-${MAX_PLOT_THREADS}.`);
 });
 
 test("the Turn is never asked to add a Plot Thread, which is World Moves On's", () => {

@@ -124,7 +124,7 @@ People besides the PC that the player wants in the story, added on the New Story
 _Avoid_: Cast, NPCs (those are whoever the story meets)
 
 **Plot Thread**:
-A secret storyline held by the Narrator that play can reveal. Its truth is what really happened, who is behind it and what is hidden, and changes only as play reveals it; its now is what its people have done out of the PC's sight, which is true, and its plan the one deed they mean to do next and by when, which has not happened until its time comes and play hasn't prevented it. World Moves On rewrites both.
+A secret storyline held by the Narrator that play can reveal. Its truth is what really happened, who is behind it and what is hidden, and changes only as play reveals it; its now is what its people have done out of the PC's sight, which is true, and its plan the one deed they mean to do next and by when, which has not happened until its time comes and play hasn't prevented it. World Moves On rewrites both. A Turn reads a thread by its label, now and plan; its truth comes only with a Check result that earns it.
 _Avoid_: Hook (alone), plot
 
 **Loose End**:
@@ -144,7 +144,7 @@ A short, spoiler-free description of the world as the PC would plausibly know it
 _Avoid_: World Bible, World Brief
 
 **Lore Entry**:
-One titled, self-contained piece of the World Bible, either always available to the Narrator or activated by keywords.
+One titled, self-contained piece of the World Bible, either always available to the Narrator or activated by keywords. Its content is what anyone could see or learn of it; its hidden part, what only play may reveal, reaches the Narrator only with a Check result that earns it.
 _Avoid_: World Info, lorebook entry
 
 ### Player controls

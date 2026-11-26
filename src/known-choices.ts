@@ -2,7 +2,7 @@ import { z } from "zod";
 import { errorType, log } from "./logger";
 import { wholeWord } from "./lore-activation";
 import { type Prompt, withClock } from "./prompt-assembler";
-import { nameForms, type State, type StateOperation } from "./state-applier";
+import { loreText, nameForms, type State, type StateOperation } from "./state-applier";
 import { UPKEEP_LIMIT } from "./state-upkeep";
 import { askForJson, CHOICES_RULE, jsonSchemaOf, type TextProvider, usableChoices } from "./turn-engine";
 
@@ -44,7 +44,7 @@ export function unknownWords(choices: string[], state: State, seen: string, jour
   // The threads' truths, never their nows, as a now retells play in the words the page or the PC's notes used, and true notes
   // were dropped for "arrived", "payments" and "hearthstone". Every Lore Entry's content, read of or not, as a Choice offered
   // the loose brick a chimney hid once the page had named the cottage.
-  const hidden = [...state.plotThreads, ...lore.map(({ content }) => content)].join("\n");
+  const hidden = [...state.plotThreads, ...lore.map(loreText)].join("\n");
   const unseen = unreadIn(known);
   const hiddenRuns = new Set(journal ? [] : runs(hidden));
   return choices.map((choice) => [...new Set([...unknown.filter((word) => mentions(choice, word)), ...guessed(choice)])]);

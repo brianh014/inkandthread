@@ -69,31 +69,36 @@
       {
         "title": "Tamsin",
         "keywords": ["Tamsin", "caravan master", "Pell", "braid"],
-        "content": "A stocky woman in her sixties, white hair in a single long braid, a deeply weathered face, missing the two smallest fingers of her right hand, in an indigo head-wrap and a long leather vest over a faded red robe. Owner of the caravan, thirty years on the road. She lost two fingers to a rope on a camel's girth. Her son Pell drowned in the spring flood two years ago, and she has not laughed since. Governor Hale owes her a large debt for salt he never paid for. Secretly she sympathises with the Free Wells and carries their demand to the Governor, sewn into her saddle. She trusts Jory like a grandson.",
+        "content": "A stocky woman in her sixties, white hair in a single long braid, a deeply weathered face, missing the two smallest fingers of her right hand, in an indigo head-wrap and a long leather vest over a faded red robe. Owner of the caravan, thirty years on the road. She lost two fingers to a rope on a camel's girth. Her son Pell drowned in the spring flood two years ago, and she has not laughed since. Governor Hale owes her a large debt for salt he never paid for. She trusts Jory like a grandson.",
+        "hidden": "Secretly she sympathises with the Free Wells and carries their demand to the Governor, sewn into her saddle.",
         "alwaysOn": false
       },
       {
         "title": "Jory",
         "keywords": ["Jory", "camel boy", "boy", "orphan"],
-        "content": "A gangly boy of about fourteen with red curly hair and freckles, in a too-large green tunic belted with rope, barefoot. An orphan from Port Lell who cannot read. At the Well of Ashar last season, Ossery paid him a silver coin to cut one waterskin, telling him it was a joke on a rival; he did, and has been sick with guilt since, sure that Tamsin would turn him out if she knew. He would confess to someone who was kind to him.",
+        "content": "A gangly boy of about fourteen with red curly hair and freckles, in a too-large green tunic belted with rope, barefoot. An orphan from Port Lell who cannot read.",
+        "hidden": "At the Well of Ashar last season, Ossery paid him a silver coin to cut one waterskin, telling him it was a joke on a rival; he did, and has been sick with guilt since, sure that Tamsin would turn him out if she knew. He would confess to someone who was kind to him.",
         "alwaysOn": false
       },
       {
         "title": "Captain Vane",
         "keywords": ["Vane", "Captain", "Border Guard", "officer", "sabre"],
-        "content": "A tall man in his forties with a shaved head, a close-trimmed black beard and a burn scar down the left side of his neck, in a dusty blue officer's coat with brass buttons, a sabre at his hip. A Border Guard captain sent by the Governor to find who is sabotaging caravans. His burn scar is from a well fire he pulled two children out of. Honest, ruthless and proud; he will use his sabre if crossed, and he will hang whoever he decides is guilty. He suspects Tamsin because her caravans are never hit. He keeps Wren's pistol in his saddlebag.",
+        "content": "A tall man in his forties with a shaved head, a close-trimmed black beard and a burn scar down the left side of his neck, in a dusty blue officer's coat with brass buttons, a sabre at his hip. A Border Guard captain sent by the Governor to find who is sabotaging caravans. His burn scar is from a well fire he pulled two children out of. Honest, ruthless and proud; he will use his sabre if crossed, and he will hang whoever he decides is guilty.",
+        "hidden": "He suspects Tamsin because her caravans are never hit. He keeps Wren's pistol in his saddlebag.",
         "alwaysOn": false
       },
       {
         "title": "Ossery",
         "keywords": ["Ossery", "well-keeper", "keeper", "Well of Ashar"],
-        "content": "Keeper of the Well of Ashar: a thin, smiling man in his fifties with a long grey moustache, wearing an old Border Guard coat with brass buttons he bought from a deserter. He slits caravans' waterskins at night, then sells them water at ten times its worth. He fears Vane, and would kill to keep his secret. One brass button is missing from his coat.",
+        "content": "Keeper of the Well of Ashar: a thin, smiling man in his fifties with a long grey moustache, wearing an old Border Guard coat with brass buttons he bought from a deserter. One brass button is missing from his coat.",
+        "hidden": "He slits caravans' waterskins at night, then sells them water at ten times its worth. He fears Vane, and would kill to keep his secret.",
         "alwaysOn": false
       },
       {
         "title": "Marrick",
         "keywords": ["Marrick", "steward", "receipts"],
-        "content": "Governor Hale's steward, soft-spoken and patient. He sells forged salt-tax receipts to the Free Wells and has grown rich on it. He has paid a band of dust-riders to take every letter bound for the Governor this season.",
+        "content": "Governor Hale's steward, soft-spoken and patient.",
+        "hidden": "He sells forged salt-tax receipts to the Free Wells and has grown rich on it. He has paid a band of dust-riders to take every letter bound for the Governor this season.",
         "alwaysOn": false
       },
       {
@@ -105,7 +110,8 @@
       {
         "title": "The Free Wells",
         "keywords": ["Free Wells", "league", "well-keepers", "rebels"],
-        "content": "A league of desert well-keepers sworn to end the water tax. They mean to seize the Well of Ashar at the new moon, three nights off, and close the salt road until the Governor gives way. Ossery is not one of them; they despise him.",
+        "content": "A league of desert well-keepers sworn to end the water tax. Ossery is not one of them; they despise him.",
+        "hidden": "They mean to seize the Well of Ashar at the new moon, three nights off, and close the salt road until the Governor gives way.",
         "alwaysOn": false
       },
       {

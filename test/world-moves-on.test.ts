@@ -45,7 +45,8 @@ function play(...replies: (string | Error | Promise<string>)[]) {
 
 const THIEF = "A thief plans to rob the library at the next high tide.";
 const store = () => saveStore(savesDir);
-const createSave = (facts: string[] = []) =>
+// A Turn writes a thread's now only once it has one, as it can't see the truth to start one.
+const createSave = (facts: string[] = [], now?: string) =>
   store().create({
     worldBrief: "A drowned city",
     pc: { name: "Ash" },
@@ -55,6 +56,7 @@ const createSave = (facts: string[] = []) =>
       summary: "",
       worldRules: ["The city has one boat."],
       plotThreads: [THIEF],
+      ...(now && { threadsNow: { [THIEF]: now } }),
       pcKnown: { facts, npcs: [] },
       worldBible: [
         { title: "The thief", keywords: ["thief"], content: "The thief is the librarian's own son.", alwaysOn: false },
@@ -102,7 +104,7 @@ test("on a new day the world moves on out of sight, rewriting a thread's now and
   // And who is with the PC, so a move doesn't retell the scene in play as what they did out of sight.
   expect(told.prompts[1]!.at(-1)!.content).toContain('"visible_cast":["Ferryman"]');
   const next = told.prompts[2]!.map(({ content }) => content).join("\n");
-  expect(next).toContain(JSON.stringify({ truth: THIEF, now: "The thief has robbed the library and hides the books on a barge." }));
+  expect(next).toContain(JSON.stringify({ thread: "1", now: "The thief has robbed the library and hides the books on a barge." }));
   expect(store().latestState(id).plotThreads).toEqual([THIEF]);
   expect(store().latestState(id).threadsNow).toEqual({ [THIEF]: "The thief has robbed the library and hides the books on a barge." });
   expect(log).toContain('"threads":1,"rewritten":1,"added":0,"removed":0');
@@ -232,13 +234,13 @@ test("a move is told which of each thread's people are with the PC, so it never 
       "Ash meets Kit in the library.",
       { op: "add_npc", name: "Kit", appearance: "a boy in a cap" },
       { op: "set_scene", location: "The library", visible_cast: ["Kit"] },
-      { op: "update_plot_thread", thread: THIEF, truth: null, now: "Kit watches the library stacks.", plan: null },
+      { op: "update_plot_thread", thread: "1", truth: null, now: "Kit watches the library stacks.", plan: null },
       nextDay(),
     ),
     moved({ ...change(THIEF, "Kit watches the library stacks."), knows: [{ name: "Kit", knows: "A thief is coming." }] }),
     narration("Ash reads."),
   );
-  const id = createSave();
+  const id = createSave([], "The thief waits for the tide.");
   expect((await turn(id, "I go in.")).ok).toBe(true);
   expect((await turn(id, "I read.")).ok).toBe(true);
 
@@ -251,13 +253,13 @@ test("a move is told which of each thread's people the latest replies showed aft
       "Kit runs off down the quay.",
       { op: "add_npc", name: "Kit", appearance: "a boy in a cap" },
       { op: "set_scene", location: "The library", visible_cast: [] },
-      { op: "update_plot_thread", thread: THIEF, truth: null, now: "Kit watches the library stacks.", plan: null },
+      { op: "update_plot_thread", thread: "1", truth: null, now: "Kit watches the library stacks.", plan: null },
       nextDay(),
     ),
     moved({ ...change(THIEF, "Kit hides on the quay."), knows: [{ name: "Kit", knows: "A thief is coming." }] }),
     narration("Ash reads."),
   );
-  const id = createSave();
+  const id = createSave([], "The thief waits for the tide.");
   expect((await turn(id, "I go in.")).ok).toBe(true);
   expect((await turn(id, "I read.")).ok).toBe(true);
 
@@ -271,12 +273,12 @@ test("a move is told what the PC knows of each thread's people, so no plan calls
     narration(
       "Ash learns Kit now sleeps above the bakery.",
       { op: "add_npc", name: "Kit", appearance: "a boy in a cap" },
-      { op: "update_plot_thread", thread: THIEF, truth: null, now: "Kit watches the library stacks.", plan: null },
+      { op: "update_plot_thread", thread: "1", truth: null, now: "Kit watches the library stacks.", plan: null },
       nextDay(),
     ),
     moved(),
   );
-  const id = createSave(["Kit sleeps above the bakery now.", "The tide turns at noon."]);
+  const id = createSave(["Kit sleeps above the bakery now.", "The tide turns at noon."], "The thief waits for the tide.");
   expect((await turn(id, "I listen.")).ok).toBe(true);
 
   expect(JSON.parse(told.prompts[1]!.at(-1)!.content).plot_threads[0].pc_knows).toEqual(["Kit sleeps above the bakery now."]);
@@ -1003,7 +1005,7 @@ test("a move sent as an add carrying an open thread's truth rewrites that thread
   expect(log).not.toContain("overflow");
 });
 
-test("the schemas a move and a Turn are sent name a thread only by an open truth, as models misquoted the truths they copied", async () => {
+test("the schemas a move and a Turn are sent name a thread only by an open truth or its label, as models misquoted the truths they copied", async () => {
   const told = play(
     narration("Ash walks to the dock.", { op: "set_scene", location: "The dock", visible_cast: [] }, nextDay()),
     moved(change(THIEF, "The thief waits by the library.")),
@@ -1013,12 +1015,12 @@ test("the schemas a move and a Turn are sent name a thread only by an open truth
 
   for (const input of ["I walk to the dock.", "I watch the barges."]) expect((await turn(id, input)).ok).toBe(true);
 
-  // Every thread field in each schema, a move's and both Turns', held to the open truth.
+  // Every thread field in each schema held: a move's to the open truth, both Turns' to its label.
   const threadFields = (schema: unknown) => JSON.stringify(schema).match(/"thread":\{[^}]*\}/g) ?? [];
-  for (const schema of told.schemas) {
+  told.schemas.forEach((schema, call) => {
     expect(threadFields(schema).length).toBeGreaterThan(0);
-    for (const field of threadFields(schema)) expect(field).toContain(`"enum":[${JSON.stringify(THIEF)}]`);
-  }
+    for (const field of threadFields(schema)) expect(field).toContain(call === 1 ? `"enum":[${JSON.stringify(THIEF)}]` : `"enum":["1"]`);
+  });
 });
 
 test("a move gives each person a thread names their own part of it, kept as what they know, even for someone not yet met", async () => {
@@ -1028,7 +1030,7 @@ test("a move gives each person a thread names their own part of it, kept as what
     narration(
       "Ash walks to the dock.",
       { op: "add_npc", name: "Ferryman", appearance: "a stooped man in oilskins" },
-      { op: "set_scene", location: "The dock", visible_cast: ["Ferryman"] },
+      { op: "set_scene", location: "The dock", visible_cast: [] },
       { op: "npc_learns", name: "Ferryman", fact: "Ash asked him about boats." },
       nextDay(),
     ),
@@ -1051,8 +1053,6 @@ test("a move gives each person a thread names their own part of it, kept as what
 
   // Kept as what each knows, someone met later under the name they were met by.
   expect(store().latestState(id).npcKnows).toEqual({ Ferryman: ["Ash asked him about boats.", ferryman], "Oren Vell": [oren] });
-  // The Narrator reads the Ferryman's part while he is in the scene.
-  expect(told.prompts[2]!.map(({ content }) => content).join("\n")).toContain(ferryman);
   // The next move reads what the people its threads name already know.
   expect(JSON.parse(told.prompts[3]!.at(-1)!.content).npc_knows).toEqual({ Ferryman: ["Ash asked him about boats.", ferryman] });
   expect(log).toContain('"knows":2');
@@ -1101,7 +1101,7 @@ test("a move asks a part of each person a thread names who has none for it, thou
   expect(log).not.toContain('"withoutPart"');
 });
 
-test("a move gives no more of a thread to someone with the PC who holds a part of it, as they learn only on the page", async () => {
+test("a move gives no part of a thread to someone with the PC, as they learn only on the page", async () => {
   const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders, his sister Mara Grout hid the boat, and Kit saw it.";
   const part = "He held the harbourmaster under, and the vicar paid him.";
   play(
@@ -1148,10 +1148,10 @@ test("a move gives no more of a thread to someone with the PC who holds a part o
     for (const input of ["I meet him.", "I watch."]) expect((await turn(id, input)).ok).toBe(true);
   }, "info");
 
-  // His first part stands, though he is with the PC; what the move says he learned after it doesn't. Kit and his sister, away,
-  // learn more, though she shares his surname.
+  // Nothing for him while he is with the PC, not even a first part (ticket 113). Kit and his sister, away, learn more, though
+  // she shares his surname.
   const { npcKnows } = store().latestState(id);
-  expect(npcKnows["Silas Grout"]).toEqual([part]);
+  expect(npcKnows["Silas Grout"]).toBeUndefined();
   expect(npcKnows.Kit).toEqual(["He saw a big man hold someone under.", "The vicar told him to keep quiet."]);
   expect(npcKnows["Mara Grout"]).toEqual(["She sank the boat off the point.", "Kit has told the vicar."]);
   expect(log).toContain('"withPcParts":1');
@@ -1309,7 +1309,7 @@ test("a move keeps what a thread's people have done apart from what they plan, a
   for (const input of ["I walk to the dock.", "I watch the barges.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
 
   const next = told.prompts[2]!.map(({ content }) => content).join("\n");
-  expect(next).toContain(JSON.stringify({ truth: THIEF, now: done, plan }));
+  expect(next).toContain(JSON.stringify({ thread: "1", now: done, plan }));
   expect(next).toContain("unless play has prevented it");
   // Its hour passed by the next move, which reads it as a deed whose time has come.
   expect(JSON.parse(told.prompts[3]!.at(-1)!.content).plot_threads).toEqual([{ truth: THIEF, now: done, due_deed: plan }]);

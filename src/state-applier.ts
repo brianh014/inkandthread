@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { TONE_MAX } from "./tones";
 
-export type LoreEntry = { title: string; keywords: string[]; content: string; alwaysOn: boolean };
+/** `content` is what anyone could see or learn of it; `hidden`, what only play may reveal, never reaches a narrating call unearned. */
+export type LoreEntry = { title: string; keywords: string[]; content: string; hidden?: string; alwaysOn: boolean };
+
+/** All an entry holds, for the calls that keep secrets rather than tell them. */
+export const loreText = ({ content, hidden }: Pick<LoreEntry, "content" | "hidden">) => (hidden ? `${content}\n${hidden}` : content);
 
 export type SceneMemory = { firstMessage: number; lastMessage: number; text: string };
 
@@ -120,7 +124,7 @@ export const StateSections = {
   pcKnown: z.object({ facts: stringList, npcs: stringList, summaries: z.record(z.string(), z.string()).optional() }),
   looseEnds: stringList,
   sceneMemories: z.array(z.object({ firstMessage: z.number().int(), lastMessage: z.number().int(), text: z.string() })),
-  worldBible: z.array(z.object({ title: z.string(), keywords: stringList, content: z.string(), alwaysOn: z.boolean() })),
+  worldBible: z.array(z.object({ title: z.string(), keywords: stringList, content: z.string(), hidden: z.string().optional(), alwaysOn: z.boolean() })),
   worldRules: stringList,
   plotThreads: stringList,
   threadsNow: z.record(z.string(), z.string()),
@@ -946,6 +950,11 @@ const quote = z.string().min(1);
 export const namesSomething = (change: { old: string | null; new: string | null }) => change.old !== null || change.new !== null;
 
 export const LoreEntryReply = z.object({ title: words, keywords: z.array(words).min(3), content: words });
+/** For the calls that hold the whole world. Null keeps an entry's hidden part as it is. */
+export const SecretLoreEntryReply = LoreEntryReply.extend({ hidden: words.nullable().default(null) });
+
+/** An entry without an empty hidden part, so a null never reaches a Save. */
+export const withHidden = <T extends { hidden?: string | null }>({ hidden, ...entry }: T) => ({ ...entry, ...(hidden ? { hidden } : {}) });
 
 /** One entry of a list: replaces `old`, or adds when `old` is null, or removes it when `new` is null. */
 export const ListChange = z.object({ old: quote.nullable(), new: words.nullable() }).refine(namesSomething);
@@ -953,7 +962,7 @@ export type ListChange = z.infer<typeof ListChange>;
 
 /** A change to a world already written, holding only what changes, so a reply can't lose an entry by leaving it out. Each Lore Entry is added, or replaces the one with its exact title. */
 export const WorldUpdate = z.object({
-  lore_entries: z.array(LoreEntryReply),
+  lore_entries: z.array(SecretLoreEntryReply),
   removed_lore: z.array(quote),
   world_rules: z.array(ListChange),
   plot_threads: z.array(ListChange),
@@ -967,15 +976,19 @@ export function changeList(list: string[], change: ListChange) {
   return [...new Set(at < 0 ? [...list, ...added] : list.toSpliced(at, 1, ...added))];
 }
 
-export function mergeWorldUpdate(world: World, update: WorldUpdate): World {
+// Its input, so a caller with no hidden parts, such as lore growth from the page, leaves them as they are.
+export function mergeWorldUpdate(world: World, update: z.input<typeof WorldUpdate>): World {
   const written = new Map(update.lore_entries.map((entry) => [entry.title, entry]));
   const kept = world.worldBible.filter(({ title }) => !update.removed_lore.includes(title));
   const added = update.lore_entries.filter(({ title }) => !kept.some((entry) => entry.title === title));
   return {
     worldBible: [
-      ...kept.map((entry) => ({ ...entry, ...written.get(entry.title) })),
+      ...kept.map((entry) => {
+        const rewrite = written.get(entry.title);
+        return rewrite ? withHidden({ ...entry, ...rewrite, hidden: rewrite.hidden ?? entry.hidden }) : entry;
+      }),
       // Always-on entries bypass the token budget, so the Narrator can only add keyword-activated ones.
-      ...added.map((entry) => ({ ...entry, alwaysOn: false })),
+      ...added.map((entry) => withHidden({ ...entry, alwaysOn: false })),
     ],
     worldRules: update.world_rules.reduce(changeList, world.worldRules),
     plotThreads: update.plot_threads.reduce(changeList, world.plotThreads),

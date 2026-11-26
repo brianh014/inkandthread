@@ -391,9 +391,13 @@ export function assemblePrompt({
   scenePeople?: number;
 }): Prompt {
   // A Save from before the limit can hold far more, which would crowd the prompt.
-  const plotThreads = allThreads
-    .slice(0, MAX_PLOT_THREADS)
-    .map((truth) => ({ truth, now: threadsNow[truth] ?? "", ...(threadsPlan[truth] && { plan: threadsPlan[truth] }) }));
+  const truths = allThreads.slice(0, MAX_PLOT_THREADS);
+  // By label, never the truth, as people told what only the truth held (ticket 113): it comes only with a result that earns it.
+  const plotThreads = truths.map((truth, at) => ({
+    thread: threadLabel(at),
+    now: threadsNow[truth] ?? "",
+    ...(threadsPlan[truth] && { plan: threadsPlan[truth] }),
+  }));
   const recent = messageWindow(messages, sceneMemories, memoryStart, windowMessages);
   const npcKnows = knowsOfPresent({ ...currentState, npcKnows: allKnows }, [input, recent.findLast(({ role }) => role === "narrator")?.text ?? ""].join("\n"));
   // Last before the player's words, as models attend most to the end and the slips found in play were exactly these.
@@ -404,7 +408,7 @@ export function assemblePrompt({
   // first time rewrote who they were; first, so recent mentions rank ahead of them for the budget.
   const activeEntries = activateLore(
     worldBible,
-    [...plotThreads.flatMap(({ truth, now }) => [truth, now, threadsPlan[truth] ?? ""]), ...opening, ...recent.map(({ text }) => text), input].join("\n"),
+    [...truths.flatMap((truth) => [truth, threadsNow[truth] ?? "", threadsPlan[truth] ?? ""]), ...opening, ...recent.map(({ text }) => text), input].join("\n"),
     // Plot Threads and world_rules are always-on too, so they spend the budget before any Lore Entry.
     LORE_TOKEN_BUDGET - estimateTokens(JSON.stringify([plotThreads, worldRules])),
   );
@@ -422,7 +426,7 @@ looseEnds in the current state lists what the PC knows is still unresolved: unan
 In every finished Turn, list in people everyone the narration names, other than the PC, even someone only mentioned, by the name the state has for them, ${LOOKS}. Anyone listed joins the state and becomes known to the PC, with no need for add_npc or add_known_npc.
 Record each unnamed NPC the PC comes to know of through add_known_npc, using add_npc first only for an NPC not yet in the state, and never repeat one. The player reads recent_summary in the Journal, so write it as the PC would, with no Lore Entry or Plot Thread secrets, and no dice, numbers or Checks.
 The player reads the inventory and status too, so write them as the PC would, with no Lore Entry or Plot Thread secrets. Keep the inventory realistic for this world: add only what the PC could really wear or carry there, and narrate anything too heavy or bulky being left behind instead of adding it. When the inventory lists nothing the PC wears while they have clothes on, add what they have on, as the story shows it or as they would plausibly wear there, so it can change as they dress and undress. Use remove_item only for an item the state lists, and to move an item between wearing and carrying use remove_item and then add_item. Describe health, injuries and conditions in words with no digits, never as points or percentages: health in at most five words, set again with set_health whenever an injury or condition changes it, and each injury or condition in at most eight. Keep at most three injuries and three conditions, as only the latest three of each are kept. Use remove_status only for an entry the state lists under that kind, and never add_status one it already lists. Keep status short: remove an entry when it passes, and remove the old entry when a new one says much the same.
-The Lore Entries and Plot Threads are secret, except what the PC can plainly see, hear or feel where they are, such as how the people around them look, dress and act, which the narration always shows as the PC takes it in, from the first time they see it, even when its cause is a secret. Let the rest shape the story and reveal it only through play, a piece at a time and only as far as what the PC finds or does draws out: no one tells more than they were asked or knows more than their own part of a secret, and winning someone over gets only what they would give under that pressure, so someone with something to lose gives a part, a lie or a price, and admits only what the PC can already show. When the narration establishes a place, group, custom or past that no Lore Entry covers, add one in that Turn with several keywords so that paraphrases still activate it. At a natural pause in the story, bring a Plot Thread forward or move one on, but never by cutting into a conversation the player is still having. A Plot Thread's now is what its people have done out of sight, and its plan what they mean to do and by when, which has not happened: once storyTime reaches that time it happens, unless play has prevented it, reaching the PC if it would, even when their move would pass over that time. Where the PC is somewhere a Plot Thread's now would show, it shows in passing, as it would look to someone who doesn't know its cause. Keep them true to the story, as what has happened in play beats any Lore Entry or Plot Thread: as soon as one is out of date, or disagrees with the narration or the known facts, fix it in that Turn with update_lore_entry, giving its title and its whole new keywords and content, or update_plot_thread, copying the thread's truth exactly and giving its whole new now, with a new truth only when play has revealed part of it, holding what play established and never a time or what anyone means to do, which are its now and plan.
+The Lore Entries and Plot Threads are secret, except what the PC can plainly see, hear or feel where they are, such as how the people around them look, dress and act, which the narration always shows as the PC takes it in, from the first time they see it, even when its cause is a secret. Let the rest shape the story and reveal it only through play, a piece at a time and only as far as what the PC finds or does draws out: no one tells more than they were asked or knows more than their own part of a secret, and winning someone over gets only what they would give under that pressure, so someone with something to lose gives a part, a lie or a price, and admits only what the PC can already show. What lies behind a Plot Thread, and the rest of a Lore Entry marked secret, is kept from you until a Check earns it, so until then no one settles it or guesses it right, and pressing anyone on it, or searching where it may lie, is never None or Easy. When the narration establishes a place, group, custom or past that no Lore Entry covers, add one in that Turn with several keywords so that paraphrases still activate it. At a natural pause in the story, bring a Plot Thread forward or move one on, but never by cutting into a conversation the player is still having. A Plot Thread's now is what its people have done out of sight, and its plan what they mean to do and by when, which has not happened: once storyTime reaches that time it happens, unless play has prevented it, reaching the PC if it would, even when their move would pass over that time. Where the PC is somewhere a Plot Thread's now would show, it shows in passing, as it would look to someone who doesn't know its cause. Keep them true to the story, as what has happened in play beats any Lore Entry or Plot Thread: as soon as one is out of date, or disagrees with the narration or the known facts, fix it in that Turn with update_lore_entry, giving its title and its whole new keywords and content, or update_plot_thread, naming the thread by its label and giving its whole new now, with a new truth only when you were given its truth and play has revealed part of it, holding what play established and never a time or what anyone means to do, which are its now and plan.
 Keep the scene in the state current. Whenever the PC reaches a new location or the NPCs they can see change, use set_scene with a short name for the location, repeated exactly while they stay there, and visible_cast listing the NPCs in view by their names in the state, using add_npc first for a new one. An NPC's appearance is used to paint them, so give it ${LOOKS}, and use update_npc whenever their looks change for longer than a moment: clothing, hair, scars, wounds, tattoos, makeup and the like, but never a passing expression, pose or position. The PC's physicalTraits are how they looked when the story began, and pcAppearance in the state, once set, is how they look now and replaces them. When the PC's body or face changes for longer than a moment in the same way, or the story first shows looks their description lacks, use set_pc_appearance with all of how their body and face look now, keeping what hasn't changed, in at most 40 words with no name and never clothing, which comes from what they wear. If two NPCs in the state turn out to be one person, such as a description and the name they later gave, use merge_npc with name for the one to drop and into for the one to keep, then use only the kept name. The player reads the location as a caption, so write it as the PC would, with no Lore Entry or Plot Thread secrets, and no dice, numbers or Checks.
 storyTime in the current state is the date and time of day the PC is living in, and its day counts the days since the story began. Keep it up to date: time passes as people talk, act and travel, a journey taking as long as the lore's distances allow, so whenever the time has moved on, use set_story_time in that Turn, without narrating the time passing. time_of_day is a few words, true to storyTime's clock, the 24-hour time it has reached, moved on by hours_passed, giving the hour as the PC would say it and only when they would know it. days_passed is how many days the narration moved past, usually 0, and passing midnight counts as one. hours_passed is how many hours it moved on since the last reply, such as 0.1 for a long talk or 8 for a night's sleep. date is needed whenever days_passed is above 0, worked out from the current date by the world's calendar, never earlier than it, and kept to a few words such as "3rd of Thaw, 1204", otherwise null. Whenever anyone names a time, day, date or how long ago something was, keep it true to storyTime, and for anything earlier to the date and time the Scene Memory of it opens with, never a guess, and if storyTime has fallen behind what the story shows, correct it in that Turn. In the summary and Plot Threads, say when something happens by its day or date, never counted from now, as "in two days" goes stale once time moves on. The player reads the date and time of day, so write them as the PC would reckon them, even vaguely if the PC has lost track, with no Lore Entry or Plot Thread secrets.
 ${imageInstruction(promptStyle, { artStyle, theme, worldBrief: currentBrief }, imageInstructions, scenePeople)}
@@ -434,7 +438,7 @@ Scene Memories of the story so far, oldest first, each opening with the date and
     {
       role: "system",
       // Everything that changes from Turn to Turn stays down here, as the provider's cache only covers an unchanged start.
-      content: `Lore Entries: ${JSON.stringify(activeEntries.map(({ title, content }) => ({ title, content })))}
+      content: `Lore Entries: ${JSON.stringify(activeEntries.map(({ title, content, hidden }) => ({ title, content, ...(hidden && { secret: true }) })))}
 Current state, apart from its inventory, scene and storyTime, which come last: ${JSON.stringify({ ...restOfState, npcKnows })}
 Summary of the story so far: ${summary}${startInstruction(startingHook, messages, importantCharacters)}
 world_rules: ${JSON.stringify(worldRules)}
@@ -523,6 +527,26 @@ const RESULTS: Record<Check["degree"], string> = {
     "The PC fails badly, and the stakes come true in full: when it rests on how someone takes it, they resist, refuse or stop it, as that person would; otherwise it goes wrong badly." +
     FAILED,
 };
+
+/** A Plot Thread's name in a narrating call, by its place in the state. */
+export const threadLabel = (at: number) => String(at + 1);
+
+/**
+ * What a result that earns it may draw on: every open thread's truth and every hidden part, as the narrating call has neither.
+ * Sent after the cached start, so the first call's cache still serves it.
+ * shortcut: everything, not only what the move touches, as Check Turns held 2 of 14 leaks; scope it if leaks show on success Turns.
+ */
+export function handover({ plotThreads, worldBible }: Pick<State, "plotThreads" | "worldBible">): Prompt {
+  const threads = Object.fromEntries(plotThreads.slice(0, MAX_PLOT_THREADS).map((truth, at) => [threadLabel(at), truth]));
+  const hidden = Object.fromEntries(worldBible.flatMap(({ title, hidden }) => (hidden ? [[title, hidden]] : [])));
+  if (plotThreads.length === 0 && Object.keys(hidden).length === 0) return [];
+  return [
+    {
+      role: "system",
+      content: `What this reply may draw on, kept from the Plot Threads and Lore Entries above: each thread's truth by its label, ${JSON.stringify(threads)}, and the secret part of each Lore Entry by its title, ${JSON.stringify(hidden)}. Reveal of it only what happens in this reply earns, as the people who hold it would give it.`,
+    },
+  ];
+}
 
 export function resultInstruction({ stakes, at_most, outcome, degree }: Check): Prompt[number] {
   // Last and plain, where a success can't miss it.

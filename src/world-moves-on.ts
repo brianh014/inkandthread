@@ -13,6 +13,7 @@ import {
   hourOf,
   isBody,
   type ListChange,
+  loreText,
   MAX_PLAN_HOURS,
   nameForms,
   type State,
@@ -283,7 +284,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   );
   const here = state.scene.location.match(/\p{L}{4,}/gu) ?? [];
   const lore = state.worldBible.filter(({ alwaysOn }) => !alwaysOn);
-  const secrets = [...plotThreads, ...lore.map(({ content }) => content)].join("\n");
+  const secrets = [...plotThreads, ...lore.map(loreText)].join("\n");
   // The whole Journal is told already, as nows were faulted for secrets the page had given the PC.
   const journal = [...state.pcKnown.facts, ...state.pcKnown.npcs, ...Object.values(state.pcKnown.summaries ?? {}), ...state.looseEnds];
   /** What a now's people know: what they learned and their parts, their own Lore Entries, and what anyone could, so a now hands them nothing more. */
@@ -291,8 +292,8 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     [
       ...Object.entries(state.npcKnows).flatMap(([name, known]) => (given(name, names) ? known : [])),
       ...knows.flatMap(({ name, knows }) => (given(name, names) ? [knows] : [])),
-      ...lore.flatMap(({ title, keywords, content }) =>
-        names.some((name) => [title, ...keywords].some((word) => nameForms(name).includes(word))) ? [content] : [],
+      ...lore.flatMap((entry) =>
+        names.some((name) => [entry.title, ...entry.keywords].some((word) => nameForms(name).includes(word))) ? [loreText(entry)] : [],
       ),
       thread === null ? "" : `${threadsNow[thread] ?? ""}\n${threadsPlan[thread] ?? ""}`,
       state.worldBrief,
@@ -509,7 +510,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
         world_rules: state.worldRules,
         // Without these a move reinvented who was behind a thread, against the world.
         // Named by the story too, as with every thread resolved a move had no lore and added one with a culprit the world never had.
-        lore: loreGiven.map(({ title, content }) => ({ title, content })),
+        lore: loreGiven.map(({ title, content, hidden }) => ({ title, content, ...(hidden && { hidden }) })),
         summary: state.summary,
         earlier_replies: earlierReplies,
         latest_replies: latestReplies,
@@ -622,14 +623,15 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       ),
     );
     const knows: Record<string, string[]> = {};
-    // Nothing more for someone with the PC who holds a part, as they learn only on the page, which npc_learns records, and a move
-    // gave the chief "Vik is alive" in the very room where the PC saw him learn nothing. Here, not in sorted, so a now's check
-    // still counts the part. In the scene as with_pc tells it, by the one person the name is, as a shared surname is no one.
+    // Nothing for someone with the PC, as they learn only on the page, which npc_learns records: a move gave the chief "Vik is
+    // alive" in the very room where the PC saw him learn nothing, and a first part given there was told at once (ticket 113).
+    // Here, not in sorted, so a now's check still counts the part. In the scene as with_pc tells it, by the one person the name
+    // is, as a shared surname is no one.
     // shortcut: someone who learned out of sight, or over a long pause after the last Turn, while still in the scene loses it;
     // keep it if that shows.
     const more = ({ thread }: ThreadMove, name: string) => {
       const person = findPerson(state.npcs, name)?.name;
-      return thread !== null && person !== undefined && state.scene.visibleCast.includes(person) && given(person, state.threadParts[thread] ?? []);
+      return thread !== null && person !== undefined && state.scene.visibleCast.includes(person);
     };
     for (const change of kept)
       for (const { name, knows: part } of change.now === null ? [] : change.knows)
@@ -686,7 +688,12 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       marked.set(title, `${content} ${when}${/[.!?…"'”’)]$/u.test(text) ? text : `${text}.`} ${MARK_SEEN}`);
       return false;
     }).length;
-    const lore_entries = [...marked].map(([title, content]) => ({ title, keywords: loreGiven.find((entry) => entry.title === title)!.keywords, content }));
+    const lore_entries = [...marked].map(([title, content]) => ({
+      title,
+      keywords: loreGiven.find((entry) => entry.title === title)!.keywords,
+      content,
+      hidden: null,
+    }));
     if (kept.length > 0 || Object.keys(question).length > 0)
       saves.addWorldChange(id, basedOn, [
         {

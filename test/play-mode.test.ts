@@ -64,9 +64,8 @@ test("the Narrator writes no Choices: they are written apart, by a call sent no 
     expect(turn.messages.at(-1)).toMatchObject({ role: "narrator", text: "The tide rises.", choices: CHOICES });
   }, "info");
 
-  // The Narrator, who sees the secrets, is asked for none, as its own Choices named them in everyday words.
+  // The Narrator is asked for none, as its own Choices named secrets in everyday words.
   expect(schemaKeys(script.schemas[0])).not.toContain("choices");
-  expect(JSON.stringify(script.prompts[0])).toContain("stolen bell");
   expect(script.prompts[1]![0]!.content).toContain("You offer the player");
   expect(JSON.stringify(script.prompts[1])).not.toContain("stolen bell");
   expect(await latestChoices(id)).toEqual(CHOICES);

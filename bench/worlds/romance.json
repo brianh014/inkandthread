@@ -62,13 +62,15 @@
       {
         "title": "Anselm Corra",
         "keywords": ["Anselm", "winemaker", "Corra"],
-        "content": "A tall man of about forty with a lean weathered face, close-cut greying dark hair, a short beard, grey-green eyes, rolled shirtsleeves and work trousers stained with grape must. Widowed two years ago when his wife Chiara died in a car crash on the coast road; he found out after that she had borrowed heavily against the estate. Proud, private and lonely, he has not let anyone close since, and he is ashamed of the sale he has agreed to. He wants Mara from the first and is losing the fight against it: he finds reasons to be near her, lets his hand linger when it touches hers and says more than he means, then is short with her for it.",
+        "content": "A tall man of about forty with a lean weathered face, close-cut greying dark hair, a short beard, grey-green eyes, rolled shirtsleeves and work trousers stained with grape must. Widowed two years ago when his wife Chiara died in a car crash on the coast road. Proud, private and lonely, he has not let anyone close since. He wants Mara from the first and is losing the fight against it: he finds reasons to be near her, lets his hand linger when it touches hers and says more than he means, then is short with her for it.",
+        "hidden": "He found out after Chiara died that she had borrowed heavily against the estate, and he is ashamed of the sale he has agreed to.",
         "alwaysOn": false
       },
       {
         "title": "Ilse Corra",
         "keywords": ["Ilse", "grandmother", "Nonna"],
-        "content": "A tiny woman of eighty-five with white hair in a neat bun, bright black eyes, a black dress, a cardigan in all weathers and a walking stick of olive wood. She raised Anselm. She hired Mara herself, hoping the fresco hides the deed and hoping Anselm might feel something again. Her heart is failing and she hides her pills. She wants Anselm happy before she dies, likes Mara on sight, and dislikes Bette for reasons she won't say. She contrives to leave Mara and Anselm alone together whenever she can: errands to the town, suppers she is too tired to attend, the chapel key she forgets to give back, the room across the landing from his.",
+        "content": "A tiny woman of eighty-five with white hair in a neat bun, bright black eyes, a black dress, a cardigan in all weathers and a walking stick of olive wood. She raised Anselm. She hired Mara herself, likes Mara on sight, and dislikes Bette for reasons she won't say. She contrives to leave Mara and Anselm alone together whenever she can: errands to the town, suppers she is too tired to attend, the chapel key she forgets to give back, the room across the landing from his.",
+        "hidden": "She hired Mara hoping the fresco hides the deed and hoping Anselm might feel something again. Her heart is failing and she hides her pills. She wants Anselm happy before she dies.",
         "alwaysOn": false
       },
       {
@@ -80,13 +82,15 @@
       {
         "title": "Victor Haldane",
         "keywords": ["Haldane", "Victor", "developer", "hotel", "sale"],
-        "content": "A smooth, tanned developer in his fifties in pale linen suits, who builds luxury hotels on the coast. He wants the hill for its view and means to tear out the vines. He arrives for the feast on Tuesday with the papers.",
+        "content": "A smooth, tanned developer in his fifties in pale linen suits, who builds luxury hotels on the coast. He arrives for the feast on Tuesday.",
+        "hidden": "He wants the hill for its view and means to tear out the vines. He comes to the feast with the papers.",
         "alwaysOn": false
       },
       {
         "title": "The chapel fresco",
         "keywords": ["fresco", "chapel", "painting", "plaster", "saints"],
-        "content": "A fresco of the harvest with saints and the family's founders, painted in 1720 across the chapel's east wall, flaking from damp. Under the painted vine at the lower right, a later layer of plaster hides a painted inscription: the founder's deed binding the land to the family forever, which a court would honour. Wet plaster speeds the flaking. Restoring it needs the chapel key and the founders' papers, both kept by Anselm, and lime slaked years ago in the estate cellar.",
+        "content": "A fresco of the harvest with saints and the family's founders, painted in 1720 across the chapel's east wall, flaking from damp. Wet plaster speeds the flaking. Restoring it needs the chapel key and the founders' papers, both kept by Anselm, and lime slaked years ago in the estate cellar.",
+        "hidden": "Under the painted vine at the lower right, a later layer of plaster hides a painted inscription: the founder's deed binding the land to the family forever, which a court would honour.",
         "alwaysOn": false
       },
       {
@@ -104,7 +108,8 @@
       {
         "title": "Dr Paolo Ferri",
         "keywords": ["doctor", "Ferri", "Paolo", "town"],
-        "content": "The town's old doctor, a kind tired man who has treated the Corras for forty years. He knows Ilse's heart is failing and has begged her to rest; he will not break her confidence unless she is in danger.",
+        "content": "The town's old doctor, a kind tired man who has treated the Corras for forty years.",
+        "hidden": "He knows Ilse's heart is failing and has begged her to rest; he will not break her confidence unless she is in danger.",
         "alwaysOn": false
       }
     ]

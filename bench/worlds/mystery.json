@@ -69,49 +69,57 @@
       {
         "title": "Owen Price",
         "keywords": ["Price", "Constable", "constable", "Owen"],
-        "content": "A broad man in his fifties with a grey walrus moustache, a red face and a dark blue constable's coat he buttons wrong. Twenty years the town's constable. He takes a share of the smuggling money from Reverend Thorne to look the other way, and has never had to look away from a killing before. He drinks at the Anchor and is fond of Nell, who set his broken wrist.",
+        "content": "A broad man in his fifties with a grey walrus moustache, a red face and a dark blue constable's coat he buttons wrong. Twenty years the town's constable. He drinks at the Anchor and is fond of Nell, who set his broken wrist.",
+        "hidden": "He takes a share of the smuggling money from Reverend Thorne to look the other way, and has never had to look away from a killing before.",
         "alwaysOn": false
       },
       {
         "title": "Kit Rowan",
         "keywords": ["Kit", "Rowan", "apprentice", "lad"],
-        "content": "A wiry lad of about sixteen with short black hair, a sunburnt face, a patched pea jacket too big for him and a knitted cap. Crane's apprentice, an orphan Crane took in. On Sunday night he saw a lantern moving in the chapel crypt and a man on the cliff path, and has told no one, because the man looked like Silas Grout and Grout once broke a boy's arm.",
+        "content": "A wiry lad of about sixteen with short black hair, a sunburnt face, a patched pea jacket too big for him and a knitted cap. Crane's apprentice, an orphan Crane took in.",
+        "hidden": "On Sunday night he saw a lantern moving in the chapel crypt and a man on the cliff path, and has told no one, because the man looked like Silas Grout and Grout once broke a boy's arm.",
         "alwaysOn": false
       },
       {
         "title": "Harriet Vell",
         "keywords": ["Harriet", "Vell", "Anchor", "innkeeper", "inn"],
-        "content": "A handsome woman in her forties with dark hair greying at the temples, sharp brown eyes, a high-collared black dress and a ring of keys at her waist. She keeps the Anchor Inn. She is Tobias Crane's daughter by a marriage he kept secret, and has his letter saying the cottage is hers. She suspects his death was no accident and wants Nell to look at the body for her.",
+        "content": "A handsome woman in her forties with dark hair greying at the temples, sharp brown eyes, a high-collared black dress and a ring of keys at her waist. She keeps the Anchor Inn.",
+        "hidden": "She is Tobias Crane's daughter by a marriage he kept secret, and has his letter saying the cottage is hers. She suspects his death was no accident and wants Nell to look at the body for her.",
         "alwaysOn": false
       },
       {
         "title": "Tobias Crane",
         "keywords": ["Crane", "Tobias", "harbourmaster", "body", "drowned"],
-        "content": "The harbourmaster, a lean man of seventy with a white beard. His body has bruises on the back of the neck from a hand holding him down, sea water in his lungs, and a torn fingernail with a scrap of black wool under it, from the sexton's coat. He wrote to the Revenue a week before he died.",
+        "content": "The harbourmaster, a lean man of seventy with a white beard.",
+        "hidden": "His body has bruises on the back of the neck from a hand holding him down, sea water in his lungs, and a torn fingernail with a scrap of black wool under it, from the sexton's coat. He wrote to the Revenue a week before he died.",
         "alwaysOn": false
       },
       {
         "title": "Reverend Amos Thorne",
         "keywords": ["Thorne", "Reverend", "vicar", "chapel", "crypt"],
-        "content": "The vicar, a soft-voiced man in his sixties with silver hair and a kind face, loved by the town for his charity. He runs the smuggling, landing brandy and tea in the chapel crypt through a sea cave, and pays the constable and half the fishermen. He would sooner see another man dead than hang.",
+        "content": "The vicar, a soft-voiced man in his sixties with silver hair and a kind face, loved by the town for his charity.",
+        "hidden": "He runs the smuggling, landing brandy and tea in the chapel crypt through a sea cave, and pays the constable and half the fishermen. He would sooner see another man dead than hang.",
         "alwaysOn": false
       },
       {
         "title": "Silas Grout",
         "keywords": ["Grout", "Silas", "sexton", "gravedigger"],
-        "content": "The sexton and gravedigger, a huge silent man with a bald head, a broken nose and a black wool coat, missing a button at the cuff. He does whatever Thorne asks. He drowned Crane, and he will kill anyone Thorne names, or anyone he thinks has seen him. The button is caught in the weed on the harbour steps where Crane was held under, and wet sand from the sea cave is on his boots.",
+        "content": "The sexton and gravedigger, a huge silent man with a bald head, a broken nose and a black wool coat, missing a button at the cuff.",
+        "hidden": "He does whatever Thorne asks. He drowned Crane, and he will kill anyone Thorne names, or anyone he thinks has seen him. The button is caught in the weed on the harbour steps where Crane was held under, and wet sand from the sea cave is on his boots.",
         "alwaysOn": false
       },
       {
         "title": "The chapel crypt and the sea cave",
         "keywords": ["crypt", "sea cave", "cave", "brandy", "tunnel"],
-        "content": "Under the chapel, a crypt of old family tombs leads down a cut stair to a sea cave that floods at high tide. Kegs of brandy and chests of tea are landed there at night and carried up through the crypt. A careless visitor at the wrong hour can drown in the cave. Fresh keg rings mark the crypt floor, and the tomb of the Pengelly family has been moved aside to open the stair.",
+        "content": "Under the chapel, a crypt of old family tombs. A sea cave floods at high tide, and a careless visitor at the wrong hour can drown in the cave.",
+        "hidden": "The crypt leads down a cut stair to the sea cave. Kegs of brandy and chests of tea are landed there at night and carried up through the crypt. Fresh keg rings mark the crypt floor, and the tomb of the Pengelly family has been moved aside to open the stair.",
         "alwaysOn": false
       },
       {
         "title": "Crane's cottage and ledger",
         "keywords": ["cottage", "ledger", "chimney", "Crane's cottage"],
-        "content": "A two-room cottage on the quay with a wide old chimney. A loose brick halfway up the chimney hides an oilskin packet: Crane's ledger of every cargo landed through the crypt for six years, with dates and names, enough to hang Thorne.",
+        "content": "A two-room cottage on the quay with a wide old chimney.",
+        "hidden": "A loose brick halfway up the chimney hides an oilskin packet: Crane's ledger of every cargo landed through the crypt for six years, with dates and names, enough to hang Thorne.",
         "alwaysOn": false
       },
       {

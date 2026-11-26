@@ -62,8 +62,9 @@ test("Plot Threads come forward at the Narrator's choice of a pause, by a rule i
   for (let turn = 0; turn < 9; turn++) await playTurn(id);
 
   expect(prompts.at(-1)![0]!.content).toContain("At a natural pause in the story");
-  expect(JSON.stringify(prompts.at(-1))).toContain("THREAD-ONE");
-  expect(lastSystem()).not.toContain("THREAD-ONE");
+  // By its label in the cached start, never its truth.
+  expect(prompts.at(-1)![0]!.content).toContain('"thread":"1"');
+  expect(JSON.stringify(prompts.at(-1))).not.toContain("THREAD-ONE");
 });
 
 test("the Narrator may invent the present but not the PC's past, and that rule leaves the cached start alone", async () => {

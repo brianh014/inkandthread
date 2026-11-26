@@ -1247,7 +1247,9 @@ test("Plot Threads and world_rules spend the token budget too", async () => {
   const id = await app.createSave();
   seed(id, {
     worldBible: [keywordEntry("Small", ["vault"], "small-content")],
-    plotThreads: ["x".repeat(100_000)],
+    // Its now, as the Turn reads a thread by its label and now.
+    plotThreads: ["a thread"],
+    threadsNow: { "a thread": "x".repeat(100_000) },
   });
 
   await app.post(`/saves/${id}/turns`, { input: "I open the vault." });
@@ -1335,7 +1337,7 @@ test("no player-facing response reveals the World Bible or Plot Threads", async 
     await app.post(`/saves/${id}/messages/2/revert`, {}).then((r) => r.text()),
   ];
 
-  expect(contents(prompts[1]).join()).toContain(thread);
+  expect(contents(prompts[1]).join()).toContain('"thread":"1"');
   expect(contents(prompts[1]).join()).toContain("MARKER-WORLD-RULE");
   for (const body of bodies) expect(body).not.toMatch(/MARKER|worldBible|plotThreads|worldRules/);
 });
@@ -1382,19 +1384,19 @@ test("a merged NPC is gone from the Journal and the next prompt, and a Revert br
   expect(await known()).toEqual(["Stranger", "Nadia"]);
 });
 
-test("a Lore Entry and a Plot Thread the Narrator corrects go forward corrected, and a Revert undoes it", async () => {
+test("a Lore Entry and a Plot Thread's now the Narrator corrects go forward corrected, and a Revert undoes it", async () => {
   const { app, prompts } = play(
     narration("A horn.", { op: "add_lore_entry", title: "Ferrymen", keywords: ["ferry"], content: "old-lore" }),
     narration(
       "It stops.",
       { op: "update_lore_entry", title: "Ferrymen", keywords: ["ferry"], content: "new-lore" },
-      { op: "update_plot_thread", thread: "old-thread", now: "new-now", truth: "new-thread" },
+      { op: "update_plot_thread", thread: "1", now: "new-now", truth: null },
     ),
     narration("Silence."),
     narration("A horn again."),
   );
   const id = await app.createSave();
-  seed(id, { plotThreads: ["old-thread"] });
+  seed(id, { plotThreads: ["old-thread"], threadsNow: { "old-thread": "old-now" } });
   const board = () => app.post(`/saves/${id}/turns`, { input: "I board the ferry." });
 
   await board();
@@ -1403,16 +1405,16 @@ test("a Lore Entry and a Plot Thread the Narrator corrects go forward corrected,
 
   expect(corrected.status).toBe(201);
   expect(contents(prompts[2]).join()).toContain("new-lore");
-  expect(contents(prompts[2]).join()).toContain("new-thread");
+  expect(contents(prompts[2]).join()).toContain("new-now");
   expect(contents(prompts[2]).join()).not.toContain("old-lore");
-  expect(contents(prompts[2]).join()).not.toContain("old-thread");
+  expect(contents(prompts[2]).join()).not.toContain("old-now");
 
   const { messages } = (await app.get(`/saves/${id}/messages`).then((r) => r.json())) as { messages: { id: number }[] };
   // After the seeded pair, the first boarding's reply.
   await app.post(`/saves/${id}/messages/${messages[3]!.id}/revert`, {});
   await board();
   expect(contents(prompts[3]).join()).toContain("old-lore");
-  expect(contents(prompts[3]).join()).toContain("old-thread");
+  expect(contents(prompts[3]).join()).toContain("old-now");
 });
 
 test("a Turn that resolves a Plot Thread leaves it open, as only World Moves On closes one, and isn't refused", async () => {
@@ -1426,8 +1428,7 @@ test("a Turn that resolves a Plot Thread leaves it open, as only World Moves On 
   await app.post(`/saves/${id}/turns`, { input: "I find them." });
   const ignored = await app.post(`/saves/${id}/turns`, { input: "I move on." });
 
-  expect(contents(prompts[1]).join()).toContain("the-missing-heir");
-  expect(contents(prompts[2]).join()).toContain("the-missing-heir");
+  expect(saveStore(savesDir).latestState(id).plotThreads).toEqual(["the-missing-heir"]);
   expect(ignored.status).toBe(201);
   expect(prompts).toHaveLength(3);
 });

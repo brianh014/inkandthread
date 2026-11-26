@@ -9,6 +9,7 @@ import {
   chapterTitlePrompt,
   isContinueInput,
   editInstruction,
+  handover,
   journalChange,
   memoryDue,
   memoryPrompt,
@@ -20,6 +21,7 @@ import {
   resultInstruction,
   narratorReplies,
   SET_SCENE_NOTE,
+  threadLabel,
   worldSigns,
 } from "./prompt-assembler";
 import { type Message, type Reply, type SaveStore, StaleTurn } from "./save-store";
@@ -29,6 +31,7 @@ import {
   alike,
   applyOperations,
   clockOf,
+  closestThread,
   findPerson,
   givenName,
   introduce,
@@ -274,6 +277,27 @@ export function jsonSchemaOf(schema: z.ZodType) {
  * `schema` with every thread an operation names held to the open truths, as models misquoted the long truths they were told to copy
  * and the change was lost. Only the sent schema, so a provider that ignores it still gets closestThread's match.
  */
+/**
+ * The operations with each thread named by its truth, from the label a narrating call names it by. A reply not handed the truths
+ * (`handed`) can't amend one it never read, nor write the first now of a thread whose people it can't see, so those go.
+ * A reply that ignored the schema and quoted words is matched as before.
+ */
+export function threadsByLabel<Operation extends StateOperation>(operations: Operation[], state: Pick<State, "plotThreads" | "threadsNow">, handed: boolean) {
+  const truths = state.plotThreads.slice(0, MAX_PLOT_THREADS);
+  let dropped = 0;
+  const kept = operations.flatMap((operation) => {
+    if (operation.op !== "update_plot_thread") return [operation];
+    const label = operation.thread.trim().replace(/^(?:plot\s+)?thread\s+/i, "");
+    const truth = /^\d+$/.test(label) ? truths[Number(label) - 1] : closestThread(truths, operation.thread);
+    if (truth === undefined || (!handed && !state.threadsNow[truth])) {
+      dropped++;
+      return [];
+    }
+    return [{ ...operation, thread: truth, ...(!handed && { truth: null }) }];
+  });
+  return { operations: kept, dropped };
+}
+
 export const threadsHeld = (schema: object, threads: string[]): object =>
   threads.length === 0
     ? schema
@@ -917,7 +941,8 @@ export async function editResponse(
   });
   const done = await narrate(textProvider, signal, emit, {
     kind: "edit",
-    prompt: [...prompt, editInstruction(text, added)],
+    // With the secrets, as the player wrote this response, so nothing can leak, and it may set the threads right.
+    prompt: [...prompt, ...handover(state), editInstruction(text, added)],
     input: text,
     refusal: "The Narrator refused this edit, so the response stays as it was.",
     pcName: saves.read(id).pc.name,
@@ -978,10 +1003,8 @@ async function narrate(
     times,
   }: Narrated,
 ) {
-  const schemas = {
-    any: threadsHeld(SCHEMAS.any, before.plotThreads.slice(0, MAX_PLOT_THREADS)),
-    noCheck: threadsHeld(SCHEMAS.noCheck, before.plotThreads.slice(0, MAX_PLOT_THREADS)),
-  };
+  const labels = before.plotThreads.slice(0, MAX_PLOT_THREADS).map((_, at) => threadLabel(at));
+  const schemas = { any: threadsHeld(SCHEMAS.any, labels), noCheck: threadsHeld(SCHEMAS.noCheck, labels) };
   // Kept across attempts, so an invalid reply can never change the outcome.
   let check: Check | undefined;
   // A Turn is rated once, as a retry rated the move afresh and rolled for an act the first reply had called None.
@@ -1030,7 +1053,12 @@ async function narrate(
     try {
       const reply: string = await askNarrator(
         textProvider,
-        [...prompt, ...(check ? [resultInstruction(check)] : []), ...(unplacedBefore ? [SET_SCENE_NOTE] : []), ...why],
+        [
+          ...prompt,
+          ...(check ? [...(check.outcome === "success" ? handover(before) : []), resultInstruction(check)] : []),
+          ...(unplacedBefore ? [SET_SCENE_NOTE] : []),
+          ...why,
+        ],
         {
           schema: check || !rollCheck || ratedNone ? schemas.noCheck : schemas.any,
           call: kind,
@@ -1053,6 +1081,8 @@ async function narrate(
       if (response.check) {
         if (check || !rollCheck || ratedNone) throw new InvalidResponse();
         check = rollCheck(response.check);
+        if (check.outcome === "success" && handover(before).length > 0)
+          log.info("turn", "Secrets handed over", { threads: Math.min(before.plotThreads.length, MAX_PLOT_THREADS), hidden: before.worldBible.filter(({ hidden }) => hidden).length });
         attempt = 0; // The result call gets its own retries.
         why = [];
         continue;
@@ -1061,8 +1091,10 @@ async function narrate(
       const { people, recent_summary, scene_changed, visual_description, chapter_ends } = response;
       // Kept without the loop, not written again, as DeepSeek's whole narration was lost to a retry eight times in one 30-round play.
       const operationLimit = MAX_OPERATIONS * (kind === "opening" ? 2 : 1);
-      let state_operations = withoutLoop(response.state_operations, operationLimit);
-      const looping = state_operations.length < response.state_operations.length;
+      const named = threadsByLabel(response.state_operations, before, edited !== undefined || check?.outcome === "success");
+      if (named.dropped > 0) log.info("turn", "Thread changes a blind reply couldn't make dropped", { attempt, generation, dropped: named.dropped });
+      let state_operations = withoutLoop(named.operations, operationLimit);
+      const looping = state_operations.length < named.operations.length;
       // Later replies copy marks like these, so they never reach a Save.
       const unlabelled = withoutFields(withoutStrayMarks(response.narration as string));
       const speakers = [
@@ -1103,8 +1135,7 @@ async function narrate(
       unplacedBefore = fault === unplaced && !!unplaced;
       if (fault) throw new InvalidResponse(undefined, { cause: fault });
       if (spoken === LONG_SPEECH) log.warning("turn", "Long speech kept", { attempt, generation });
-      if (looping)
-        log.warning("turn", "Looping operations dropped", { attempt, generation, sent: response.state_operations.length, kept: state_operations.length });
+      if (looping) log.warning("turn", "Looping operations dropped", { attempt, generation, sent: named.operations.length, kept: state_operations.length });
       const story = seen?.() ?? "";
       // With the move, as the player has read their own words, and the Messages don't hold it yet.
       const read = `${story}\n${move}\n${narration}`;

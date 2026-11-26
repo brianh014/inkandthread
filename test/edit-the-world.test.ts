@@ -50,7 +50,6 @@ const turn = (id: string, input = "I wait.") => app.post(`/saves/${id}/turns`, {
 const journal = (id: string) => json(app.get(`/saves/${id}/journal`));
 const brief = async (id: string) => (await json(app.get(`/saves/${id}`))).worldBrief;
 const facts = (id: string) => store().latestState(id).pcKnown.facts;
-const everyPrompt = () => JSON.stringify(prompts);
 const firstFact = KNOWN.facts[0]!;
 
 test("the World Brief, Recent summary and an NPC's summary can be edited", async () => {
@@ -902,7 +901,9 @@ test("the next Turn uses a hidden change", async () => {
 
   const [system] = prompts[1]!;
   expect(prompts[1]!.at(-2)!.content).toContain("the mayor smuggles.");
-  expect(system!.content).toContain("the mayor runs guns.");
+  // The thread is in the world, though the Turn reads it only by its label (ticket 113).
+  expect(hidden(id).plotThreads).toContain(`${SECRET} the mayor runs guns.`);
+  expect(system!.content).not.toContain("the mayor runs guns.");
   expect(system!.content).not.toContain("keeps bees");
   expect(store().snapshot(id, 2).plotThreads).toContain(`${SECRET} the mayor runs guns.`);
 });
@@ -976,7 +977,6 @@ test("Regenerate keeps a hidden change, however often it runs", async () => {
   const { messages } = (await json(app.post(`/saves/${id}/messages/2/regenerate`, {}))) as { messages: { id: number }[] };
   await app.post(`/saves/${id}/messages/${messages[0]!.id}/regenerate`, {});
 
-  expect(everyPrompt()).toContain("Rewritten.");
   expect(hidden(id).plotThreads).toEqual(["Rewritten.", WORLD.plotThreads[1]!]);
   expect(hidden(id).worldBible).toEqual([WORLD.worldBible[0]!]);
 });

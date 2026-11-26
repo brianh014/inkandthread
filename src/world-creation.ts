@@ -23,7 +23,8 @@ import {
   hasNumber,
   MAX_PLOT_THREADS,
   ListChange,
-  LoreEntryReply,
+  SecretLoreEntryReply,
+  withHidden,
   namesSomething,
   openingState,
   type State,
@@ -74,13 +75,13 @@ const text = z
   .refine((words) => !FILLER.test(words), "filler instead of text");
 
 // Always-on entries bypass the token budget, so the Narrator can only add keyword-activated ones.
-const toLoreEntries = (entries: z.infer<typeof LoreEntryReply>[]) => entries.map((entry) => ({ ...entry, alwaysOn: false }));
+const toLoreEntries = (entries: z.infer<typeof SecretLoreEntryReply>[]) => entries.map((entry) => withHidden({ ...entry, alwaysOn: false }));
 
 const WorldReply = z.object({
   world_overview: text,
   // Before the people and places, so it shapes their names rather than describing them afterwards.
   naming: text,
-  lore_entries: z.array(LoreEntryReply).min(1),
+  lore_entries: z.array(SecretLoreEntryReply).min(1),
   world_rules: z.array(text).min(1),
   plot_threads: z.array(text).min(1).max(MAX_PLOT_THREADS),
   calendar: text,
@@ -628,7 +629,7 @@ Build the world from the theme, title and world_brief. If there is a starting_ho
 pc and inventory are the player's PC and what they start with. ${PC_IS_CANON} The PC belongs in this world from the start, unless the player's choices bring them from elsewhere. If anything about them conflicts with the theme or world_brief, the world changes and the PC does not. Change only what the conflict needs, and keep the theme and tone. For example, a wizard who throws fireballs in a strict modern-day world means magic exists there.
 Reply only with JSON matching this schema, with its keys in the same order: ${JSON.stringify(jsonSchemaOf(WorldReply))}
 naming says in a sentence or two how people here name people and places and how those names sound. Give every name in the world by it, and in play new names will follow it too.
-lore_entries is the World Bible, which is secret. Write at least twelve entries covering places, factions, people, history and how the world works. Each must make sense on its own, because in play you only see the entries a recent Message activates. Give each at least three keywords, including names, nicknames and everyday paraphrases, so that a player's wording still activates it.
+lore_entries is the World Bible, which is secret. Write at least twelve entries covering places, factions, people, history and how the world works. Each must make sense on its own, because in play you only see the entries a recent Message activates. Give each at least three keywords, including names, nicknames and everyday paraphrases, so that a player's wording still activates it. Put in content what anyone meeting it could see or come to know, a person's looks included, and in hidden what only play may reveal, such as a person's secret, what a place hides or who is really behind something, or null when it hides nothing: in play the hidden part stays out of sight until the PC earns it.
 world_rules are strict statements of what is and is not possible in this world. Start with its theme and tone${choices.tone ? ", taking the tone from tone, and build a world it fits" : ""}, because you will see these on every Turn and nothing else carries them. If the player's choices bring anyone from elsewhere, one rule says who, as the starting_hook is not seen again once the story is under way.
 plot_threads are secret storylines for play to reveal. Write three to six.
 ${STORY_CRAFT}
@@ -1274,7 +1275,7 @@ function withoutStrangers<T extends z.infer<typeof WorldChange>>(state: State, c
 
 /** How a World Change is written, for the Narrator that writes one and the review that corrects it. */
 const CHANGE_FORM = `List only what changes, as everything you leave out stays exactly as it is, and never repeat what stays the same.
-lore_entries holds each entry you add or rewrite. To rewrite one, use its exact title and give its whole new content and keywords. Give each at least three keywords, including names, nicknames and everyday paraphrases. removed_lore holds the exact title of each entry that no longer holds.
+lore_entries holds each entry you add or rewrite. To rewrite one, use its exact title and give its whole new content and keywords, and its hidden part, what only play may reveal, or null to keep it as it is. Give each at least three keywords, including names, nicknames and everyday paraphrases. removed_lore holds the exact title of each entry that no longer holds.
 world_rules are strict and read on every Turn, so put in one only what the instruction itself says, in a sentence or two, and any detail or custom that follows from it in lore_entries. Each change in world_rules, plot_threads and facts has old, copied exactly from the world (a thread's truth) or null to add a new one, and new, the text to put there or null to remove it. A thread's new is its truth alone: give a thread you add or rewrite its now and plan apart, as the world shows them, with plan_in_hours, how many story hours after story_time its plan falls due, and null otherwise. Keep at most ${MAX_PLOT_THREADS} plot_threads, so to add one when that many are there, rewrite or remove one.
 world_brief, summary, facts and npc_summaries are the Journal, which the player reads. Change them only where they no longer hold, and give null or an empty list otherwise. Write them as the PC knows the world: a secret, and news of anything the PC hasn't seen or been told, stays out of them, even when the player's instruction names it, and goes in the hidden parts, such as a thread's now, for the story to bring to the PC. Each of npc_summaries holds a new summary with the exact name of an NPC already in the Journal.
 inventory and status are what the PC wears and carries, and their health, injuries and conditions, which the player also reads. Give the whole new inventory or status only when the instruction changes it, keeping everything it doesn't change, and null otherwise. Write status in words with no digits: health in at most five words, and at most three injuries and three conditions of at most eight words each.
@@ -1308,7 +1309,7 @@ const worldAsItStands = (
   ...(latestReplies.length > 0 && { scene: { location: scene.location, visible_cast: scene.visibleCast, latest_replies: latestReplies } }),
   // Without it plan_in_hours had no clock to count from.
   story_time: storyTime && { date: storyTime.date, time_of_day: storyTime.timeOfDay },
-  lore_entries: worldBible.map(({ title, keywords, content }) => ({ title, keywords, content })),
+  lore_entries: worldBible.map(({ title, keywords, content, hidden }) => ({ title, keywords, content, ...(hidden && { hidden }) })),
   world_rules: worldRules,
   // The hours left on each plan, so a change that keeps or retimes one counts from them rather than guessing.
   plot_threads: plotThreads.map((truth) => {
@@ -1509,7 +1510,7 @@ const ReviewedChange = z.object({ fault, old: text.nullable(), new: text.nullabl
 /** A World review's edits, each with the fault it fixes. Only what changes, so a review can't lose a part by leaving it out. */
 const WorldReview = z.object({
   world_overview: z.object({ fault, text }).nullable(),
-  lore_entries: z.array(LoreEntryReply.extend({ fault })),
+  lore_entries: z.array(SecretLoreEntryReply.extend({ fault })),
   world_rules: z.array(ReviewedChange),
   plot_threads: z.array(ReviewedChange),
   calendar: z.object({ fault, text }).nullable(),
@@ -1521,7 +1522,9 @@ type WorldReview = z.infer<typeof WorldReview>;
 /** `world` with a review's edits made. A Lore Entry replaces the one with its exact title, or is added. */
 function withReview(world: WorldReply, review: WorldReview): WorldReply {
   const entries = new Map(world.lore_entries.map((entry) => [entry.title, entry]));
-  for (const { fault: _, ...entry } of review.lore_entries) entries.set(entry.title, entry);
+  // A null hidden part keeps the one the world had, as a review fixing an entry's content wrote none.
+  for (const { fault: _, ...entry } of review.lore_entries)
+    entries.set(entry.title, { ...entry, hidden: entry.hidden ?? entries.get(entry.title)?.hidden ?? null });
   const changed = (list: string[], changes: z.infer<typeof ReviewedChange>[]) => changes.reduce(changeList, list);
   return {
     world_overview: review.world_overview?.text ?? world.world_overview,

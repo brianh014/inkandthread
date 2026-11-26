@@ -6,7 +6,8 @@
 //                                                    steer the story a chosen way; the rounds are the moves
 //   bun bench run --world <file> [...]   plays another world shaped like bench/worlds/adventure.json, such as one kept out of git
 //   bun bench run --draw [...]   draws the pictures on the Settings file's local ComfyUI, never a paid API, into each play's
-//                                pictures folder, to judge the pictures themselves
+//                                pictures folder, to judge the pictures themselves, the Important
+//                                Characters' portraits before the opening, as New Story draws them
 // Each play's Saves folder is kept in its run folder, to open, play on or replay from later; delete a run once it's not needed.
 //   bun bench run --from <Saves folder> --world <its world> [...]   plays on from a kept Save for --rounds more, with no
 //                                                                   opening, numbering rounds after those it has
@@ -44,7 +45,8 @@ import { setLogLevel, startLog } from "../src/logger";
 import { CONTINUE } from "../src/prompt-assembler";
 import { startServer } from "../src/rest-api";
 import { MAX_NPC_KNOWS, type State, StateOperation } from "../src/state-applier";
-import { saveStore } from "../src/save-store";
+import { SCENE_PEOPLE } from "../src/limits";
+import { OPENING_SNAPSHOT, saveStore } from "../src/save-store";
 import { localIsSetUp } from "../src/graph-builder";
 import { reviewerSettings, settingsStore } from "../src/settings-store";
 import { textProvider } from "../src/text-provider";
@@ -64,7 +66,7 @@ const BENCH = import.meta.dir;
 const DEFAULT_WORLD = "adventure.json";
 // The app's version, then the iteration on it: bump the iteration whenever the prompts, the rubric, a world or how a Turn is
 // checked and retried change, and start it again at 1 when the app's version changes. A chart compares only runs of one version.
-const BENCH_ITERATION = 67;
+const BENCH_ITERATION = 71;
 const BENCH_VERSION = `${VERSION}.${BENCH_ITERATION}`;
 // The length a chart compares, as a longer story scores differently; runs of another length are left out.
 const CHART_ROUNDS = 45;
@@ -175,6 +177,11 @@ const HEADLINE = [
   // The tally first: what a reader would notice, less noisy than any score.
   "mistakes.major",
   "mistakes.minor",
+  // Text and pictures apart, as players forgive pictures sooner.
+  "mistakes.textMajor",
+  "mistakes.textMinor",
+  "mistakes.pictureMajor",
+  "mistakes.pictureMinor",
   ...Object.keys(RUBRIC).map((key) => `judge.${key}`),
   "judge.craft",
   "judge.overall",
@@ -432,6 +439,28 @@ function hiddenChanges(before: State, after: State) {
 /** The steps that write a reply, which a Turn's timing and tokens are the median of. */
 const REPLIES = new Set(["opening", "choice", "move", "continue", "continue (no Choices)", "rewrite", "regenerate", "edit"]);
 const ACTIONS = ["rewrite", "regenerate", "continue", "edit", "worldChange"] as const;
+
+/** A new Save of a world, with --draw its Important Characters' portraits drawn first, as New Story draws them from the form. */
+async function beginWorld(saves: ReturnType<typeof saveStore>, url: URL, world: z.infer<typeof World>) {
+  const id = saves.create({ ...world.save, opening: world.opening as Partial<State> });
+  if (!draw) return id;
+  const { theme, worldBrief, artStyle, pc, importantCharacters } = world.save;
+  const held = crypto.randomUUID();
+  const people = importantCharacters.filter(({ description }) => description.trim()).map((person, at) => ({ ...person, ref: `c${at}` }));
+  await Promise.all(
+    people.map(async ({ name, description, ref }) => {
+      const ask = { kind: "npc", id: held, ref, name, pcName: pc.name, description, theme, worldBrief, artStyle };
+      const headers = { "content-type": "application/json" };
+      const asked = await fetch(new URL("/worlds/draw", url), { method: "POST", headers, body: JSON.stringify(ask) });
+      const picture = asked.ok && (await fetch(new URL(`/worlds/${held}/npcs/${ref}`, url)));
+      // Before any Turn is paid for, as a play without them doesn't compare.
+      if (!picture || !picture.ok) throw new Error(`${name}'s portrait wasn't drawn, so the play didn't start.`);
+      const { prompt } = (await (await fetch(new URL(`/worlds/${held}/npcs/${ref}/details`, url))).json()) as { prompt: string };
+      saves.addPortrait(id, OPENING_SNAPSHOT, name, await picture.bytes(), prompt);
+    }),
+  );
+  return id;
+}
 
 /**
  * A play in its folder: the real server on a Settings copy, with every call counted and logged, `send` to make each step of it,
@@ -722,8 +751,8 @@ async function play(
   folder: string,
 ) {
   const pick = seeded(seed * 1000 + index);
-  const { server, saves, id, first, replayed, send, latestNarrator, settle, close, finish } = await openPlay(index, seed, settingsPath, folder, (saves) =>
-    saves.create({ ...world.save, opening: world.opening as Partial<State> }),
+  const { server, saves, id, first, replayed, send, latestNarrator, settle, close, finish } = await openPlay(index, seed, settingsPath, folder, (saves, url) =>
+    beginWorld(saves, url, world),
   );
   // Spread across the play, so each comes after some story; a short play may fit fewer.
   // None in a replay, which tests only the Turn that went wrong.
@@ -1021,7 +1050,7 @@ function setUp(world?: z.infer<typeof World>) {
   process.on("SIGINT", () => process.exit(130));
   const settings = settingsStore(settingsPath);
   const { modelInstructions = "", imageInstructions = "" } = world ?? {};
-  settings.update({ imagesEnabled: true, drawScenes: true, modelInstructions, imageInstructions });
+  settings.update({ imagesEnabled: true, drawScenes: true, scenePeople: SCENE_PEOPLE.usual, modelInstructions, imageInstructions });
   const drawing = settings.read();
   // With --fake, the stand-in still draws, so keeping the pictures can be tried free.
   if (draw && !fake && (drawing.imageProvider !== "local" || !localIsSetUp(drawing)))
@@ -1098,7 +1127,7 @@ async function live() {
 
   let built: z.infer<typeof World> | undefined;
   const opened = await openPlay(1, Number(option("--seed") ?? 1), settingsPath, folder, async (saves, url) => {
-    if (given) return saves.create({ ...given.save, opening: given.opening as Partial<State> });
+    if (given) return beginWorld(saves, url, given);
     const id = await randomStory(url, theme);
     built = worldOf(saves, id);
     return id;

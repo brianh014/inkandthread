@@ -4,7 +4,7 @@ import { z } from "zod";
 import { jsonSchemaOf } from "../src/turn-engine";
 
 /** Bumped when the rubric changes how scores read, so a comparison never sets a score beside one from another rubric. */
-export const RUBRIC_VERSION = 4;
+export const RUBRIC_VERSION = 5;
 
 /** The rubric, in general words, as it judges any story the bench plays, each item with anchors written from a reader's side. */
 export const RUBRIC = {
@@ -119,6 +119,12 @@ const MAJOR_COST = 0.1;
 const MAJOR_COST_LIMIT = 1;
 const MINOR_COST_PER_RATE = 0.02;
 const MINOR_COST_LIMIT = 0.2;
+/** How much pictures count against the text, in the craft and overall means and the penalty: players forgive a wrong picture far sooner than a wrong page. */
+const PICTURE_WEIGHT = 0.5;
+const weightOf = (item: RubricKey) => (item === "pictures" ? PICTURE_WEIGHT : 1);
+/** The items' mean with pictures counting less. */
+const weighted = (score: (item: RubricKey) => number) =>
+  keys(RUBRIC).reduce((sum, item) => sum + score(item) * weightOf(item), 0) / keys(RUBRIC).reduce((sum, item) => sum + weightOf(item), 0);
 /** Items a mistake would lower, so a judge scoring one 6 or lower must list a mistake of a kind that caps it, or for state, any naming a feature. */
 const MISTAKE_DRIVEN: RubricKey[] = ["secrets", "characters", "continuity", "agency", "state", "pictures"];
 const behind = (item: RubricKey, { kind, features }: { kind: Kind; features?: string[] }) =>
@@ -212,8 +218,18 @@ export function scorePlay(reply: JudgeReply, turns: number) {
   const minors = reply.mistakes.length - majors;
   flat["mistakes.major"] = majors * per10;
   flat["mistakes.minor"] = minors * per10;
-  flat["judge.craft"] = mean(keys(RUBRIC).map((key) => reply.scores[key].score));
-  const penalty = Math.min(majors * MAJOR_COST, MAJOR_COST_LIMIT) + Math.min(minors * per10 * MINOR_COST_PER_RATE, MINOR_COST_LIMIT);
-  flat["judge.overall"] = Math.max(1, mean(keys(RUBRIC).map((key) => flat[`judge.${key}`]!)) - penalty);
+  // Pictures apart from the text, as players forgive a wrong picture far sooner than a wrong page.
+  const pictures = reply.mistakes.filter(({ kind }) => kind === "picture");
+  const pictureMajors = pictures.filter(({ weight }) => weight === "major").length;
+  flat["mistakes.textMajor"] = (majors - pictureMajors) * per10;
+  flat["mistakes.textMinor"] = (minors - (pictures.length - pictureMajors)) * per10;
+  flat["mistakes.pictureMajor"] = pictureMajors * per10;
+  flat["mistakes.pictureMinor"] = (pictures.length - pictureMajors) * per10;
+  flat["judge.craft"] = weighted((key) => reply.scores[key].score);
+  // A picture's mistakes count as a part of one.
+  const costMajors = majors - pictureMajors * (1 - PICTURE_WEIGHT);
+  const costMinors = minors - (pictures.length - pictureMajors) * (1 - PICTURE_WEIGHT);
+  const penalty = Math.min(costMajors * MAJOR_COST, MAJOR_COST_LIMIT) + Math.min(costMinors * per10 * MINOR_COST_PER_RATE, MINOR_COST_LIMIT);
+  flat["judge.overall"] = Math.max(1, weighted((key) => flat[`judge.${key}`]!) - penalty);
   return flat;
 }

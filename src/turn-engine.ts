@@ -562,6 +562,7 @@ function turnPrompt(
     input,
     responseSchema: JSON.stringify(SCHEMAS.any),
     promptStyle: picture ? promptStyle(current) : null,
+    scenePeople: current.scenePeople,
   });
   // Tokens by part, counts only, so a long story's log shows which part of the prompt grew.
   log.info("turn", "Prompt size", () => {

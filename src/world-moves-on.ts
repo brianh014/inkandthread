@@ -207,6 +207,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const adds = ({ thread, truth, now }: ThreadMove) => thread === null && truth !== null && now !== null;
   const doersNamed = new Set<string>();
   let pcParts = 0;
+  let withPcParts = 0;
   // Why a change can't be used, named so the log and the request to write it again both say which.
   const fault = (change: ThreadMove, index: number, all: ThreadMove[]) => {
     if (change.thread !== null && !plotThreads.includes(change.thread)) return "a change misquotes a thread";
@@ -621,8 +622,20 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       ),
     );
     const knows: Record<string, string[]> = {};
-    for (const { name, knows: part } of kept.flatMap(({ now, knows }) => (now === null ? [] : knows)))
-      if (/\p{L}/u.test(name) && /\p{L}/u.test(part)) knows[name] = [...(knows[name] ?? []), part];
+    // Nothing more for someone with the PC who holds a part, as they learn only on the page, which npc_learns records, and a move
+    // gave the chief "Vik is alive" in the very room where the PC saw him learn nothing. Here, not in sorted, so a now's check
+    // still counts the part. In the scene as with_pc tells it, by the one person the name is, as a shared surname is no one.
+    // shortcut: someone who learned out of sight, or over a long pause after the last Turn, while still in the scene loses it;
+    // keep it if that shows.
+    const more = ({ thread }: ThreadMove, name: string) => {
+      const person = findPerson(state.npcs, name)?.name;
+      return thread !== null && person !== undefined && state.scene.visibleCast.includes(person) && given(person, state.threadParts[thread] ?? []);
+    };
+    for (const change of kept)
+      for (const { name, knows: part } of change.now === null ? [] : change.knows)
+        if (!/\p{L}/u.test(name) || !/\p{L}/u.test(part)) continue;
+        else if (more(change, name)) withPcParts++;
+        else knows[name] = [...(knows[name] ?? []), part];
     const parts = Object.fromEntries(
       kept.flatMap(({ thread, truth, now, knows }) => {
         const names = knows.filter(({ name, knows }) => /\p{L}/u.test(name) && /\p{L}/u.test(knows)).map(({ name }) => name);
@@ -704,6 +717,8 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       planDue: fell.size,
       // Parts the move gave the PC, over all its tries.
       ...(pcParts > 0 && { pcParts }),
+      // More parts of a thread the move gave someone with the PC, dropped.
+      ...(withPcParts > 0 && { withPcParts }),
       // Plans that named their doer only as he or she, and were given their name.
       ...(namedPlans > 0 && { plansNamed: namedPlans }),
       ...(marked.size > 0 && { marks: marked.size }),

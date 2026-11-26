@@ -369,3 +369,21 @@ test("a portrait drawn from an older one's face, with no prompt to edit, is writ
   await plain.written;
   expect(plain.prompts[0]![0]!.content).not.toContain("older portrait");
 });
+
+test("a picture with more people than Settings allow is cut by its review to those the moment is most about", async () => {
+  const crowd =
+    "[Ash: a short person in grey] kneels by the fire, [Bo: a tall man in red] stands behind, [Cy: a girl in blue] sits on a crate. {The same people.}";
+  const cut = "[Ash: a short person in grey] kneels by the fire, [Bo: a tall man in red] stands behind. {The same people.}";
+  const script = scriptedTextProvider(checked(cut));
+  const settings = settingsStore(join(folder.path, "settings.json"));
+  const reviewed = await reviewScenePrompt({ textProvider: script.textProvider, settings }, crowd, "prose", new AbortController().signal);
+  expect(reviewed).toBe(cut);
+  expect(script.prompts[0]![0]!.content).toContain("more than 2 people, which an image model merges or drops, so first take out all but the 2");
+  expect(script.prompts[0]![0]!.content).toContain("give back the prompt as cut");
+
+  // Within the count, nothing is asked to go.
+  settings.update({ scenePeople: 3 });
+  const roomy = scriptedTextProvider(checked(crowd));
+  await reviewScenePrompt({ textProvider: roomy.textProvider, settings }, crowd, "prose", new AbortController().signal);
+  expect(roomy.prompts[0]![0]!.content).not.toContain("take out all but");
+});

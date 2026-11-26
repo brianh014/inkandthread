@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { basename } from "node:path";
 import { z } from "zod";
+import { SCENE_PEOPLE } from "./limits";
 import { LOG_LEVELS, log } from "./logger";
 
 const Lora = z.object({ name: z.string().min(1), strength: z.number().min(-100).max(100), triggerWords: z.string() });
@@ -74,6 +75,8 @@ export const SettingsUpdate = z
     showChoices: z.boolean(),
     // Off, a Turn draws no Scene Image of its own. Pictures the player asks for, and portraits, still come.
     drawScenes: z.boolean(),
+    // The most people a scene picture shows, as the image model merges or drops people in a crowded frame.
+    scenePeople: z.number().int().min(SCENE_PEOPLE.least).max(SCENE_PEOPLE.most),
     // On, a portrait is drawn again, keeping its face, whenever a Turn changes how that person looks.
     updatePortraits: z.boolean(),
     // By the 1K, 1.5K and 2K that image providers use, each the area of a square that wide. Settings from before name a video size or megapixels.
@@ -188,6 +191,7 @@ const defaults = {
   showChecks: false,
   showChoices: true,
   drawScenes: true,
+  scenePeople: SCENE_PEOPLE.usual,
   updatePortraits: false,
   comfyUrl: "http://127.0.0.1:8188",
   comfyFamily: "sd",

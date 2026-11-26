@@ -100,8 +100,8 @@ test("a Scene Image and a requested one are drawn from their reviewed prompts", 
 
   const prompts = drawn.payloads.filter(({ aspect_ratio }) => aspect_ratio === "16:9").map(({ prompt }) => prompt);
   expect(prompts).toEqual(["A figure waits by the sea wall. Checked.", "A figure watches the tide. Checked."]);
-  // A pose the player asks for, such as a hug, wins over the rules that keep people apart.
-  expect(written.prompts[1]![0]!.content).toContain("draw that pose as asked");
+  // A pose the player asks for, such as a hug, wins over the rules that keep people apart, and so do the people they name.
+  expect(written.prompts[1]![0]!.content).toContain("or names who is in it, draw that as asked, up to four people");
 });
 
 test("a request draws from the text call's prompt, joins the latest Message and leaves its Scene Image alone", async () => {

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { promptStyle } from "../src/graph-builder";
 import { chestUp, expandMarks, flashlights, markNames, portraitsDue, restyledBy } from "../src/image-pipeline";
-import { assemblePrompt, IN_ITS_WORLD_AND_STYLE, REQUESTED_IMAGE_PROMPT } from "../src/prompt-assembler";
+import { assemblePrompt, IN_ITS_WORLD_AND_STYLE, requestedImagePrompt } from "../src/prompt-assembler";
 import { applyOperations, openingState } from "../src/state-applier";
 
 const npcs = [
@@ -164,6 +164,15 @@ test("with images off the Narrator writes no prompt", () => {
   expect(system).not.toContain("connected sentences");
 });
 
+const REQUESTED_IMAGE_PROMPT = { prose: requestedImagePrompt("prose", 2) };
+
+test("a picture shows as many people as Settings allow, two unless raised", () => {
+  expect(requestedImagePrompt("prose", 2)).toContain("as the narration has it, and at most two, leaving anyone else out of view");
+  expect(requestedImagePrompt("keywords", 4)).toContain("as the narration has it, at most two, each as a short phrase");
+  expect(requestedImagePrompt("prose", 4)).toContain("and at most four, leaving anyone else out of view");
+  expect(systemPrompt("prose")).toContain("and at most two, leaving anyone else out of view");
+});
+
 test("the Narrator ends with a likeness sentence in braces, which asks to keep each face but not the portrait's clothing", () => {
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain("end the prompt with one short sentence in curly braces");
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain("the same people with their faces preserved");
@@ -174,7 +183,7 @@ test("an Image Prompt puts each person once in what they do, keeps props plain a
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain("never in a list of who is there");
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain("keep their hands empty otherwise");
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain(
-    "Picture only people physically there at this moment, as the narration has it, and at most three, leaving anyone else out of view.",
+    "Picture only people physically there at this moment, as the narration has it, and at most two, leaving anyone else out of view.",
   );
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain("say plainly where each body is, where each one's arms go and where each head is");
   expect(REQUESTED_IMAGE_PROMPT.prose).toContain("each named plainly with its size, material and place");

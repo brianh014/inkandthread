@@ -1101,6 +1101,62 @@ test("a move asks a part of each person a thread names who has none for it, thou
   expect(log).not.toContain('"withoutPart"');
 });
 
+test("a move gives no more of a thread to someone with the PC who holds a part of it, as they learn only on the page", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders, his sister Mara Grout hid the boat, and Kit saw it.";
+  const part = "He held the harbourmaster under, and the vicar paid him.";
+  play(
+    narration(
+      "Ash meets the sexton.",
+      { op: "add_npc", name: "Silas Grout", appearance: "a huge man" },
+      { op: "add_npc", name: "Kit", appearance: "a boy" },
+      { op: "add_npc", name: "Mara Grout", appearance: "a tall woman" },
+      { op: "set_scene", location: "The graveyard", visible_cast: ["Silas Grout"] },
+      nextDay(),
+    ),
+    moved({
+      ...change(drowned, "Grout digs a grave."),
+      knows: [
+        { name: "Silas Grout", knows: part },
+        { name: "Kit", knows: "He saw a big man hold someone under." },
+        { name: "Mara Grout", knows: "She sank the boat off the point." },
+      ],
+    }),
+    narration("Ash watches him dig.", nextDay("3rd of Thaw")),
+    moved({
+      ...change(drowned, "Kit has gone to the vicar."),
+      knows: [
+        { name: "Silas", knows: "Kit has told the vicar what he saw." },
+        { name: "Kit", knows: "The vicar told him to keep quiet." },
+        { name: "Mara Grout", knows: "Kit has told the vicar." },
+      ],
+    }),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [drowned],
+      worldBible: [],
+    },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I meet him.", "I watch."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  // His first part stands, though he is with the PC; what the move says he learned after it doesn't. Kit and his sister, away,
+  // learn more, though she shares his surname.
+  const { npcKnows } = store().latestState(id);
+  expect(npcKnows["Silas Grout"]).toEqual([part]);
+  expect(npcKnows.Kit).toEqual(["He saw a big man hold someone under.", "The vicar told him to keep quiet."]);
+  expect(npcKnows["Mara Grout"]).toEqual(["She sank the boat off the point.", "Kit has told the vicar."]);
+  expect(log).toContain('"withPcParts":1');
+});
+
 test("a move asks no part of the dead, as a dead man was asked what he knew", async () => {
   const drowned = "Silas Grout drowned Tobias Crane on the vicar's orders.";
   const told = play(

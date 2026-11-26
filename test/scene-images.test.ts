@@ -823,3 +823,16 @@ test("someone in view the picture check left unmarked is marked by a noun only t
   expect(scene.prompt).toContain("the person from image 1");
   expect(scene.reference_images).toHaveLength(1);
 });
+
+test("a picture prompt of only a word for none draws nothing", async () => {
+  images = scriptedImages(PNG);
+  script = scriptedTextProvider(newScene("None", "The quay"));
+  app = startApp(join(folder.path, "Saves"), script.textProvider, undefined, undefined, images.imageAdapter);
+  await enableImages();
+  const id = await app.createSave();
+
+  await playTurn(id);
+  await settled(id);
+
+  expect(images.payloads.filter(({ aspect_ratio }) => aspect_ratio === "16:9")).toEqual([]);
+});

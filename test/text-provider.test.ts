@@ -1066,6 +1066,8 @@ test("a reply that runs on in its operations is kept up to its last whole one, a
 test("Choices lose JSON marks left at their end, and one-word Choices told apart by a number are one", () => {
   expect(usableChoices(["I go north.:null,", 'I say, "Wait."', "I wait here]]}​"])).toEqual(["I go north.", 'I say, "Wait."', "I wait here"]);
   expect(usableChoices(["next", "next2", "next3"])).toBeUndefined();
+  const restated = `three things I might do, each under 25 words: 1. "I go north." 2. "I ${"wait and ".repeat(15)}listen." 3. "I ask."`;
+  expect(usableChoices([restated, "I go north.", "I wait.", "I ask her."])).toEqual(["I go north.", "I wait.", "I ask her."]);
   expect(usableChoices(["我打开门", "我逃跑", "我问她"])).toEqual(["我打开门", "我逃跑", "我问她"]);
   expect(withoutJsonTail('A lane at dusk"],')).toBe("A lane at dusk");
   expect(withoutJsonTail('I shout "Run!""]')).toBe('I shout "Run!"');

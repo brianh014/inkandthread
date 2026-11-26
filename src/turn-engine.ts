@@ -457,7 +457,9 @@ export function usableChoices(choices: unknown) {
   const parsed = z.array(z.string()).safeParse(choices);
   const sameAs = (choice: string) => (/\s/.test(choice) ? choice : choice.replace(/\d+$/, ""));
   const byKind = new Map<string, string>();
-  for (const choice of (parsed.data ?? []).map(withoutJsonTail)) if (/\p{L}/u.test(choice) && !byKind.has(sameAs(choice))) byKind.set(sameAs(choice), choice);
+  // Within CHOICES_RULE's 25 words, as a model once wrote each Choice as the rule restated and all three numbered after it.
+  const fits = (choice: string) => /\p{L}/u.test(choice) && withinLimit(choice, 25);
+  for (const choice of (parsed.data ?? []).map(withoutJsonTail)) if (fits(choice) && !byKind.has(sameAs(choice))) byKind.set(sameAs(choice), choice);
   const distinct = [...byKind.values()];
   return distinct.length >= 3 ? distinct.slice(0, 3) : undefined;
 }

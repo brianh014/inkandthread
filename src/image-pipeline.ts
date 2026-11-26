@@ -222,27 +222,38 @@ const NOT_A_NAME = new Set([
 ]);
 
 const marksOf = (prompt: string) => (prompt.match(/\[[^[\]]*\]/g) ?? []).length;
-// A person the prompt pictures by a noun alone, and the sex a noun or someone's looks give, if any.
-const PERSON = /\b(?:a|an|the|one|another|second)\s+(?:[\p{L}-]+\s+){0,3}?(woman|girl|man|boy|figure|person)\b/giu;
-const sexOf = (words: string) => (/\b(?:woman|girl|lady|she|her)\b/i.test(words) ? "she" : /\b(?:man|boy|he|his|him)\b/i.test(words) ? "he" : undefined);
+// Someone newly pictured by a noun alone: never "the man", who may be someone already marked, nor "a woman's voice" or "man-sized".
+const PERSON = /\b(?:a|an|another)\s+(?:[\p{L}-]+\s+){0,3}?(woman|girl|man|boy|figure|person)\b(?![\p{L}'’-])/giu;
+const NOUN = /\b(woman|girl|man|boy|figure|person)\b(?![\p{L}'’-])/giu;
+const KIND = /\b(woman|lady|she|girl|man|he|his|him|boy)\b/i;
+const KINDS: Record<string, string> = { lady: "woman", she: "woman", he: "man", his: "man", him: "man" };
+// The kind of person words give, by the first word that says one, as a man's background mentioning his aunt made him a woman.
+const kindOf = (words: string) => {
+  const word = KIND.exec(words)?.[1]?.toLowerCase();
+  return word === undefined ? undefined : (KINDS[word] ?? word);
+};
 
 /**
- * Marks each person of `people`, those in view the prompt left unmarked, where it pictures someone by a noun alone that only one
- * of them fits by sex (a figure, anyone), as "a woman inside" was the PC drawn as a stranger, with no portrait sent (ticket 106). Text in a mark or
- * the likeness sentence is left alone, and no one is marked twice.
- * shortcut: a stranger the prompt pictures beside them can be marked as them when the sexes match; check the noun's place if that shows.
+ * Marks each person of `people`, those in view with a portrait the prompt left unmarked, where it pictures someone new by a noun
+ * alone ("a woman inside") that is the only one of its kind in the prompt and fits only one of them, as the PC was drawn as a
+ * stranger with no portrait sent (ticket 106). A figure or person only when the prompt pictures no one else and one is left.
+ * Text in a mark or the likeness sentence, closed or not, is left alone. `about` is read for the kind only when the looks give none.
+ * shortcut: a stranger the prompt pictures as the only one of their kind can be marked as someone in view; check the noun's place if that shows.
  */
-export function markByLooks(text: string, people: { name: string; looks: string }[]) {
-  const left = [...people];
+export function markByLooks(text: string, people: { name: string; looks: string; about?: string }[]) {
+  const left = people.filter(({ name }) => name.trim());
+  const nouns = [...text.matchAll(NOUN)].map(([, noun]) => noun!.toLowerCase());
+  const marked = /\[[^[\]]*\]/.test(text);
   return text
-    .split(/(\[[^[\]]*\]|\{[^{}]*\})/)
+    .split(/(\[[^[\]]*\]|\{[^{}]*(?:\}|$))/)
     .map((part, at) =>
       at % 2 === 1
         ? part
-        : part.replace(PERSON, (phrase: string, noun: string) => {
-            const sex = sexOf(noun);
-            // A woman or a man only someone whose looks say so, as a stranger asked for was drawn as a PC of no stated sex.
-            const fits = left.filter(({ looks }) => !sex || sexOf(looks) === sex);
+        : part.replace(PERSON, (phrase: string, found: string) => {
+            const noun = found.toLowerCase();
+            const sexless = noun === "figure" || noun === "person";
+            if (sexless ? marked || nouns.length > 1 || left.length !== 1 : nouns.filter((other) => other === noun).length > 1) return phrase;
+            const fits = left.filter(({ looks, about = "" }) => sexless || (kindOf(looks) ?? kindOf(about)) === noun);
             if (fits.length !== 1) return phrase;
             left.splice(left.indexOf(fits[0]!), 1);
             return `[${fits[0]!.name}: ${phrase}]`;
@@ -509,7 +520,8 @@ export function imagePipeline(
     return { prompt, negative_prompt: AVOID, aspect_ratio: "16:9", reference_images, style_preset: "" };
   };
 
-  async function drawMoment(id: string, messageId: number, { description: written, npcs, inView, wearing }: Moment, signal: AbortSignal) {
+  // `byNoun` off for a picture the player asked for, as the stranger they name may share a kind with someone in view.
+  async function drawMoment(id: string, messageId: number, { description: written, npcs, inView, wearing }: Moment, signal: AbortSignal, byNoun = true) {
     const { pc } = saves.read(id);
     const pcName = pc.name;
     const style = promptStyle(settings.read());
@@ -535,8 +547,8 @@ export function imagePipeline(
     const marks = expandMarks(reviewed, npcs, pcName).pictured;
     const left = cast
       .filter(({ name }) => !marks.includes(name === pcName ? null : name))
-      .map(({ name, looks }) => ({ name, looks: name === pcName ? `${looks} ${pc.background ?? ""}` : looks }));
-    const description = markByLooks(reviewed, left);
+      .map(({ name, looks }) => ({ name, looks, ...(name === pcName && { about: pc.background ?? "" }) }));
+    const description = byNoun ? markByLooks(reviewed, left) : reviewed;
     if (description !== reviewed)
       log.info("images", "Unmarked people marked by a noun", { left: left.length, marked: marksOf(description) - marksOf(reviewed) });
     // Twice, as who is pictured decides which portraits go in, and those decide how each mark is written.
@@ -756,7 +768,7 @@ export function imagePipeline(
         try {
           const { text: description, title } = await write(signal);
           step = "drawing it";
-          const { prompt, pictured, bytes } = await drawMoment(id, messageId, { ...moment, description }, signal);
+          const { prompt, pictured, bytes } = await drawMoment(id, messageId, { ...moment, description }, signal, false);
           saves.addRequestedImage(id, messageId, words || title.trim().slice(0, 80) || "The current scene", bytes, prompt, pictured);
           log.info("images", "Image drawn", about(id, { kind: "requested", messageId }));
         } catch (error) {

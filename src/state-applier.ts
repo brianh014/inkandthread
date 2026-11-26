@@ -599,6 +599,12 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       if (entry?.alwaysOn) return;
       if (entry) Object.assign(entry, { keywords, content });
       else state.worldBible.push({ title, keywords, content, alwaysOn: false });
+      // A secret the rewrite has told, its words now mostly in the content, is no longer kept, so play can settle it.
+      if (entry?.hidden) {
+        const told = wordsOf(content);
+        const secret = [...wordsOf(entry.hidden)];
+        if (secret.filter((word) => told.has(word)).length * 2 >= secret.length) delete entry.hidden;
+      }
       return;
     }
     case "update_plot_thread": {
@@ -951,7 +957,10 @@ export const namesSomething = (change: { old: string | null; new: string | null 
 
 export const LoreEntryReply = z.object({ title: words, keywords: z.array(words).min(3), content: words });
 /** For the calls that hold the whole world. Null keeps an entry's hidden part as it is. */
-export const SecretLoreEntryReply = LoreEntryReply.extend({ hidden: words.nullable().default(null) });
+// A blank one is null, as models write "" for nothing and one would refuse the whole world.
+export const SecretLoreEntryReply = LoreEntryReply.extend({
+  hidden: z.preprocess((value) => (typeof value === "string" && !value.trim() ? null : value), words.nullable()).default(null),
+});
 
 /** An entry without an empty hidden part, so a null never reaches a Save. */
 export const withHidden = <T extends { hidden?: string | null }>({ hidden, ...entry }: T) => ({ ...entry, ...(hidden ? { hidden } : {}) });
@@ -976,8 +985,11 @@ export function changeList(list: string[], change: ListChange) {
   return [...new Set(at < 0 ? [...list, ...added] : list.toSpliced(at, 1, ...added))];
 }
 
-// Its input, so a caller with no hidden parts, such as lore growth from the page, leaves them as they are.
-export function mergeWorldUpdate(world: World, update: z.input<typeof WorldUpdate>): World {
+// Hidden parts optional, so a caller with none, such as lore growth from the page, leaves them as they are.
+export function mergeWorldUpdate(
+  world: World,
+  update: Omit<WorldUpdate, "lore_entries"> & { lore_entries: (z.infer<typeof LoreEntryReply> & { hidden?: string | null })[] },
+): World {
   const written = new Map(update.lore_entries.map((entry) => [entry.title, entry]));
   const kept = world.worldBible.filter(({ title }) => !update.removed_lore.includes(title));
   const added = update.lore_entries.filter(({ title }) => !kept.some((entry) => entry.title === title));

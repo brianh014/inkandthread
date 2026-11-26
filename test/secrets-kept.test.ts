@@ -2,7 +2,8 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import type { Prompt } from "../src/prompt-assembler";
 import { saveStore } from "../src/save-store";
-import { type LoreEntry, mergeWorldUpdate, openingState, type State, applyOperations } from "../src/state-applier";
+import { applyOperations, type LoreEntry, mergeWorldUpdate, openingState, SecretLoreEntryReply, type State } from "../src/state-applier";
+import { threadsByLabel } from "../src/turn-engine";
 import { narration, scriptedDice, scriptedTextProvider, startApp, tempFolder } from "./support";
 
 // Threads and Lore Entries hold secrets the narrating call never reads, as people told what only the prompt held (ticket 113).
@@ -130,4 +131,23 @@ test("a Lore Entry's hidden part outlives the Narrator's rewrite and a World Cha
     plot_threads: [],
   });
   expect(world.worldBible[0]).toMatchObject({ content: "Retired.", hidden: HIDDEN });
+});
+
+test("a secret the Narrator writes into an entry's content is no longer kept, and a blank one in a reply is none", () => {
+  const state = { ...structuredClone(openingState), worldBible: [structuredClone(KEEPER)] };
+  const told = "A grey man who tends the light, and keeps the insurance letter in the lamp room.";
+  const { next } = applyOperations(state, [{ op: "update_lore_entry", title: "The keeper", keywords: ["keeper"], content: told }]);
+  expect(next.worldBible[0]!.hidden).toBeUndefined();
+
+  expect(SecretLoreEntryReply.parse({ title: "The keeper", keywords: ["keeper", "lamp", "light"], content: "A grey man.", hidden: " " }).hidden).toBeNull();
+});
+
+test("a label written loosely still finds its thread, and a quoted truth is matched as before", () => {
+  const state = { plotThreads: ["The duke plots.", "The tide is wrong."], threadsNow: { "The duke plots.": "He waits.", "The tide is wrong.": "It rises." } };
+  const update = (thread: string) => ({ op: "update_plot_thread" as const, thread, now: "Moved.", truth: null });
+
+  const { operations, dropped } = threadsByLabel([update("#2"), update("Thread 1:"), update("The duke plots."), update("7")], state, false);
+
+  expect(operations.map(({ thread }) => thread)).toEqual(["The tide is wrong.", "The duke plots.", "The duke plots."]);
+  expect(dropped).toEqual({ unmatched: 1, blind: 0 });
 });

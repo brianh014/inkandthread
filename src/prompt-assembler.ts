@@ -405,7 +405,10 @@ export function assemblePrompt({
   // The first Turn opens from the Starting Hook, so the people it names are met with their entries, not given new looks.
   const opening = messages.some(({ role }) => role === "narrator") ? [] : [startingHook];
   // The Plot Threads first, so the people the hidden plot will bring on come with their entries, as a Narrator naming one for the
-  // first time rewrote who they were; first, so recent mentions rank ahead of them for the budget.
+  // first time rewrote who they were; first, so recent mentions rank ahead of them for the budget. The truths only choose the
+  // entries: their words, and the entries' hidden parts, stay out.
+  // shortcut: a culprit's entry is sent, marked secret, on every Turn, which may point at them; activate on nows and plans alone
+  // if plays show it. A Save from before hidden parts keeps its secrets in content, sent as before; split it on opening if that shows.
   const activeEntries = activateLore(
     worldBible,
     [...truths.flatMap((truth) => [truth, threadsNow[truth] ?? "", threadsPlan[truth] ?? ""]), ...opening, ...recent.map(({ text }) => text), input].join("\n"),
@@ -543,7 +546,7 @@ export function handover({ plotThreads, worldBible }: Pick<State, "plotThreads" 
   return [
     {
       role: "system",
-      content: `What this reply may draw on, kept from the Plot Threads and Lore Entries above: each thread's truth by its label, ${JSON.stringify(threads)}, and the secret part of each Lore Entry by its title, ${JSON.stringify(hidden)}. Reveal of it only what happens in this reply earns, as the people who hold it would give it.`,
+      content: `What this reply may draw on, kept from the Plot Threads and Lore Entries above: each thread's truth by its label, ${JSON.stringify(threads)}, and the secret part of each Lore Entry by its title, ${JSON.stringify(hidden)}. Reveal of it only what happens in this reply earns, as the people who hold it would give it, and once the page has shown part of a Lore Entry's secret, write what it showed into that entry's content with update_lore_entry.`,
     },
   ];
 }

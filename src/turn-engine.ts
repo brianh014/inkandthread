@@ -274,29 +274,37 @@ export function jsonSchemaOf(schema: z.ZodType) {
 }
 
 /**
- * `schema` with every thread an operation names held to the open truths, as models misquoted the long truths they were told to copy
- * and the change was lost. Only the sent schema, so a provider that ignores it still gets closestThread's match.
- */
-/**
- * The operations with each thread named by its truth, from the label a narrating call names it by. A reply not handed the truths
- * (`handed`) can't amend one it never read, nor write the first now of a thread whose people it can't see, so those go.
- * A reply that ignored the schema and quoted words is matched as before.
+ * The operations with each thread named by its truth, from the label a narrating call names it by, however a provider that
+ * ignored the schema wrote it ("#2", "Thread 2:"). A reply not handed the truths (`handed`) can't amend one it never read, nor
+ * write the first now of a thread whose people it can't see, so those go. A reply that quoted words is matched as before.
  */
 export function threadsByLabel<Operation extends StateOperation>(operations: Operation[], state: Pick<State, "plotThreads" | "threadsNow">, handed: boolean) {
   const truths = state.plotThreads.slice(0, MAX_PLOT_THREADS);
-  let dropped = 0;
+  const dropped = { unmatched: 0, blind: 0 };
   const kept = operations.flatMap((operation) => {
     if (operation.op !== "update_plot_thread") return [operation];
-    const label = operation.thread.trim().replace(/^(?:plot\s+)?thread\s+/i, "");
-    const truth = /^\d+$/.test(label) ? truths[Number(label) - 1] : closestThread(truths, operation.thread);
-    if (truth === undefined || (!handed && !state.threadsNow[truth])) {
-      dropped++;
-      return [];
-    }
-    return [{ ...operation, thread: truth, ...(!handed && { truth: null }) }];
+    const label = /^\W*(?:plot\s+)?(?:thread\s*)?#?\s*(\d+)\W*$/i.exec(operation.thread)?.[1];
+    const truth = label ? truths[Number(label) - 1] : closestThread(truths, operation.thread);
+    if (truth === undefined) dropped.unmatched++;
+    else if (!handed && !state.threadsNow[truth]) dropped.blind++;
+    else return [{ ...operation, thread: truth, ...(!handed && { truth: null }) }];
+    return [];
   });
   return { operations: kept, dropped };
 }
+
+/** The secrets for a reply that earned them, logged by counts only. */
+function handedOver(state: State, by: "check" | "edit") {
+  const given = handover(state);
+  const hidden = state.worldBible.filter((entry) => entry.hidden).length;
+  if (given.length > 0) log.info("turn", "Secrets handed over", { by, threads: Math.min(state.plotThreads.length, MAX_PLOT_THREADS), hidden });
+  return given;
+}
+
+/**
+ * `schema` with every thread an operation names held to the open truths, as models misquoted the long truths they were told to copy
+ * and the change was lost. Only the sent schema, so a provider that ignores it still gets closestThread's match.
+ */
 
 export const threadsHeld = (schema: object, threads: string[]): object =>
   threads.length === 0
@@ -942,7 +950,7 @@ export async function editResponse(
   const done = await narrate(textProvider, signal, emit, {
     kind: "edit",
     // With the secrets, as the player wrote this response, so nothing can leak, and it may set the threads right.
-    prompt: [...prompt, ...handover(state), editInstruction(text, added)],
+    prompt: [...prompt, ...handedOver(state, "edit"), editInstruction(text, added)],
     input: text,
     refusal: "The Narrator refused this edit, so the response stays as it was.",
     pcName: saves.read(id).pc.name,
@@ -1081,8 +1089,8 @@ async function narrate(
       if (response.check) {
         if (check || !rollCheck || ratedNone) throw new InvalidResponse();
         check = rollCheck(response.check);
-        if (check.outcome === "success" && handover(before).length > 0)
-          log.info("turn", "Secrets handed over", { threads: Math.min(before.plotThreads.length, MAX_PLOT_THREADS), hidden: before.worldBible.filter(({ hidden }) => hidden).length });
+        // Logged once here, as the result call it goes with may be asked again.
+        if (check.outcome === "success") handedOver(before, "check");
         attempt = 0; // The result call gets its own retries.
         why = [];
         continue;
@@ -1092,7 +1100,7 @@ async function narrate(
       // Kept without the loop, not written again, as DeepSeek's whole narration was lost to a retry eight times in one 30-round play.
       const operationLimit = MAX_OPERATIONS * (kind === "opening" ? 2 : 1);
       const named = threadsByLabel(response.state_operations, before, edited !== undefined || check?.outcome === "success");
-      if (named.dropped > 0) log.info("turn", "Thread changes a blind reply couldn't make dropped", { attempt, generation, dropped: named.dropped });
+      if (named.dropped.unmatched + named.dropped.blind > 0) log.info("turn", "Thread changes dropped by label", { attempt, generation, ...named.dropped });
       let state_operations = withoutLoop(named.operations, operationLimit);
       const looping = state_operations.length < named.operations.length;
       // Later replies copy marks like these, so they never reach a Save.

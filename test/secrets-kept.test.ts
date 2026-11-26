@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import type { Prompt } from "../src/prompt-assembler";
+import { type Prompt, secretsAbout } from "../src/prompt-assembler";
 import { saveStore } from "../src/save-store";
 import { applyOperations, type LoreEntry, mergeWorldUpdate, openingState, SecretLoreEntryReply, type State } from "../src/state-applier";
 import { threadsByLabel } from "../src/turn-engine";
@@ -146,7 +146,7 @@ test("a label written loosely still finds its thread, and a quoted truth is matc
   const state = { plotThreads: ["The duke plots.", "The tide is wrong."], threadsNow: { "The duke plots.": "He waits.", "The tide is wrong.": "It rises." } };
   const update = (thread: string) => ({ op: "update_plot_thread" as const, thread, now: "Moved.", truth: null });
 
-  const { operations, dropped } = threadsByLabel([update("#2"), update("Thread 1:"), update("The duke plots."), update("7")], state, false);
+  const { operations, dropped } = threadsByLabel([update("#2"), update("Thread 1:"), update("The duke plots."), update("7")], state, new Set());
 
   expect(operations.map(({ thread }) => thread)).toEqual(["The tide is wrong.", "The duke plots.", "The duke plots."]);
   expect(dropped).toEqual({ unmatched: 1, blind: 0 });
@@ -161,4 +161,30 @@ test("a success hands over only the secrets of what the Check and the move are a
 
   expect(text(prompts[1])).not.toContain("TRUTH-MARK");
   expect(text(prompts[1])).not.toContain("HIDDEN-MARK");
+});
+
+test("what a move names finds its secrets in any case, and threads through an entry with no secret", () => {
+  const state = {
+    npcs: [{ name: "Ada", appearance: "a tall woman" }],
+    worldBible: [
+      { title: "Lamp Room", keywords: ["lamp room"], content: "The top of the light.", hidden: "LETTER-MARK", alwaysOn: false },
+      { title: "Harbor warehouse", keywords: ["warehouse"], content: "A long shed.", alwaysOn: false },
+    ],
+    plotThreads: ["The guild hides powder in the warehouse.", "Ada sank the boat."],
+  };
+
+  const found = secretsAbout(state, "I search the LAMP ROOM and break into the warehouse.");
+
+  expect(found.hidden).toEqual([["Lamp Room", "LETTER-MARK"]]);
+  expect(found.threads).toEqual([["1", "The guild hides powder in the warehouse."]]);
+});
+
+test("a success may amend only the truths it was handed", async () => {
+  const other = JSON.stringify({ check: { action: "Climb the sea wall", stakes: "a fall", difficulty: "Hard" } });
+  const { app } = playWith([19], other, narration("She reaches the top.", { op: "update_plot_thread", thread: "1", now: "He waits.", truth: "A guess." }));
+  const id = await seeded(app);
+
+  await app.post(`/saves/${id}/turns`, { input: "I climb the sea wall." });
+
+  expect(stateOf(id).plotThreads).toEqual([TRUTH]);
 });

@@ -541,24 +541,26 @@ export const threadLabel = (at: number) => String(at + 1);
  * Sent after the cached start, so the first call's cache still serves it.
  * shortcut: by names and keywords, so a matter named only by a pronoun hands nothing over; widen if earned reveals go missing.
  */
-export function secretsAbout({ plotThreads, worldBible, npcs }: Pick<State, "plotThreads" | "worldBible" | "npcs">, about: string) {
-  const said = (words: string[]) => words.some((word) => word.trim() && wholeWord(word, "u").test(about));
-  const entries = worldBible.filter(({ title, keywords, hidden, alwaysOn }) => hidden && !alwaysOn && said([title, ...keywords]));
-  const touched = [
-    ...npcs
-      .map(({ name }) => nameForms(name))
-      .filter(said)
-      .flat(),
-    ...entries.flatMap(({ title, keywords }) => [title, ...keywords]),
-  ];
-  const threads = plotThreads
-    .slice(0, MAX_PLOT_THREADS)
-    .flatMap((truth, at) => (touched.some((word) => word.trim() && wholeWord(word, "u").test(truth)) ? [[threadLabel(at), truth] as const] : []));
-  return { threads, hidden: entries.map(({ title, hidden }) => [title, hidden!] as const) };
+/** With no `about`, every secret, as for an Edit. Names by their case, as "Will" is not "will"; Lore words in any case, as activation reads them. */
+export function secretsAbout({ plotThreads, worldBible, npcs }: Pick<State, "plotThreads" | "worldBible" | "npcs">, about?: string) {
+  const open = plotThreads.slice(0, MAX_PLOT_THREADS);
+  if (about === undefined)
+    return {
+      threads: open.map((truth, at) => [threadLabel(at), truth] as const),
+      hidden: worldBible.flatMap(({ title, hidden }) => (hidden ? [[title, hidden] as const] : [])),
+    };
+  const holds = (text: string, words: string[], flags: string) => words.some((word) => word.trim() && wholeWord(word, flags).test(text));
+  const people = npcs.map(({ name }) => nameForms(name)).filter((forms) => holds(about, forms, "u"));
+  const entries = worldBible.filter(({ title, keywords }) => holds(about, [title, ...keywords], "iu"));
+  const threads = open.flatMap((truth, at) =>
+    people.some((forms) => holds(truth, forms, "u")) || entries.some(({ title, keywords }) => holds(truth, [title, ...keywords], "iu"))
+      ? [[threadLabel(at), truth] as const]
+      : [],
+  );
+  return { threads, hidden: entries.flatMap(({ title, hidden }) => (hidden ? [[title, hidden] as const] : [])) };
 }
 
-export function handover(state: Pick<State, "plotThreads" | "worldBible" | "npcs">, about: string): Prompt {
-  const secrets = secretsAbout(state, about);
+export function handover(secrets: ReturnType<typeof secretsAbout>): Prompt {
   if (secrets.threads.length + secrets.hidden.length === 0) return [];
   const threads = Object.fromEntries(secrets.threads);
   const hidden = Object.fromEntries(secrets.hidden);

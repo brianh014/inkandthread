@@ -305,7 +305,11 @@ export function deathsShown<Operation extends StateOperation>(operations: Operat
   return { kept, dropped };
 }
 
-export function threadsByLabel<Operation extends StateOperation>(operations: Operation[], state: Pick<State, "plotThreads" | "threadsNow">, handed: boolean) {
+export function threadsByLabel<Operation extends StateOperation>(
+  operations: Operation[],
+  state: Pick<State, "plotThreads" | "threadsNow">,
+  handed: ReadonlySet<string>,
+) {
   const truths = state.plotThreads.slice(0, MAX_PLOT_THREADS);
   const dropped = { unmatched: 0, blind: 0 };
   const kept = operations.flatMap((operation) => {
@@ -313,18 +317,19 @@ export function threadsByLabel<Operation extends StateOperation>(operations: Ope
     const label = /^\W*(?:plot\s+)?(?:thread\s*)?#?\s*(\d+)\W*$/i.exec(operation.thread)?.[1];
     const truth = label ? truths[Number(label) - 1] : closestThread(truths, operation.thread);
     if (truth === undefined) dropped.unmatched++;
-    else if (!handed && !state.threadsNow[truth]) dropped.blind++;
-    else return [{ ...operation, thread: truth, ...(!handed && { truth: null }) }];
+    else if (!handed.has(truth) && !state.threadsNow[truth]) dropped.blind++;
+    else return [{ ...operation, thread: truth, ...(!handed.has(truth) && { truth: null }) }];
     return [];
   });
   return { operations: kept, dropped };
 }
 
 /** The secrets for a reply that earned them, logged by counts only. */
-function handedOver(state: State, by: "check" | "edit", about: string) {
-  const { threads, hidden } = secretsAbout(state, about);
-  if (threads.length + hidden.length > 0) log.info("turn", "Secrets handed over", { by, threads: threads.length, hidden: hidden.length });
-  return handover(state, about);
+function handedOver(state: State, by: "check" | "edit", about?: string) {
+  const secrets = secretsAbout(state, about);
+  if (secrets.threads.length + secrets.hidden.length > 0)
+    log.info("turn", "Secrets handed over", { by, threads: secrets.threads.length, hidden: secrets.hidden.length });
+  return { prompt: handover(secrets), truths: new Set(secrets.threads.map(([, truth]) => truth)) };
 }
 
 /** What a Check rests on, for the secrets it may earn: its action and stakes, and the player's move. */
@@ -979,7 +984,8 @@ export async function editResponse(
   const done = await narrate(textProvider, signal, emit, {
     kind: "edit",
     // With the secrets, as the player wrote this response, so nothing can leak, and it may set the threads right.
-    prompt: [...prompt, ...handedOver(state, "edit", text), editInstruction(text, added)],
+    // Every secret, as nothing can leak from the player's own words, and it may set any thread right.
+    prompt: [...prompt, ...handedOver(state, "edit").prompt, editInstruction(text, added)],
     input: text,
     refusal: "The Narrator refused this edit, so the response stays as it was.",
     pcName: saves.read(id).pc.name,
@@ -1044,6 +1050,8 @@ async function narrate(
   const schemas = { any: threadsHeld(SCHEMAS.any, labels), noCheck: threadsHeld(SCHEMAS.noCheck, labels) };
   // Kept across attempts, so an invalid reply can never change the outcome.
   let check: Check | undefined;
+  // What a success was handed, worked out once with its roll.
+  let handed: ReturnType<typeof handedOver> | undefined;
   // A Turn is rated once, as a retry rated the move afresh and rolled for an act the first reply had called None.
   let ratedNone = false;
   let narrationSent = 0;
@@ -1090,12 +1098,7 @@ async function narrate(
     try {
       const reply: string = await askNarrator(
         textProvider,
-        [
-          ...prompt,
-          ...(check ? [...(check.outcome === "success" ? handover(before, checkAbout(check, move)) : []), resultInstruction(check)] : []),
-          ...(unplacedBefore ? [SET_SCENE_NOTE] : []),
-          ...why,
-        ],
+        [...prompt, ...(check ? [...(handed?.prompt ?? []), resultInstruction(check)] : []), ...(unplacedBefore ? [SET_SCENE_NOTE] : []), ...why],
         {
           schema: check || !rollCheck || ratedNone ? schemas.noCheck : schemas.any,
           call: kind,
@@ -1119,7 +1122,7 @@ async function narrate(
         if (check || !rollCheck || ratedNone) throw new InvalidResponse();
         check = rollCheck(response.check);
         // Logged once here, as the result call it goes with may be asked again.
-        if (check.outcome === "success") handedOver(before, "check", checkAbout(check, move));
+        if (check.outcome === "success") handed = handedOver(before, "check", checkAbout(check, move));
         attempt = 0; // The result call gets its own retries.
         why = [];
         continue;
@@ -1128,7 +1131,8 @@ async function narrate(
       const { people, recent_summary, scene_changed, visual_description, chapter_ends } = response;
       // Kept without the loop, not written again, as DeepSeek's whole narration was lost to a retry eight times in one 30-round play.
       const operationLimit = MAX_OPERATIONS * (kind === "opening" ? 2 : 1);
-      const named = threadsByLabel(response.state_operations, before, edited !== undefined || check?.outcome === "success");
+      // Only the threads this reply was handed may have their truth amended; an Edit was handed every one.
+      const named = threadsByLabel(response.state_operations, before, edited !== undefined ? new Set(before.plotThreads) : (handed?.truths ?? new Set()));
       if (named.dropped.unmatched + named.dropped.blind > 0) log.info("turn", "Thread changes dropped by label", { attempt, generation, ...named.dropped });
       let state_operations = withoutLoop(named.operations, operationLimit);
       const looping = state_operations.length < named.operations.length;

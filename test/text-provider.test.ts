@@ -1005,12 +1005,14 @@ test("a reply whose narration ends on a line about one of its fields, with no co
 });
 
 test("a reply that ends on a speaker tag with no words is saved without it", async () => {
-  play([narrated("She keeps the boy by her.\n\n[Lieutenant Rennie]:")]);
+  // With no colon too, as "[Herr]" and "[RADIO]" ended replies on the bench.
+  play([narrated("She keeps the boy by her.\n\n[Lieutenant Rennie]:"), narrated("He stood in the gap.\n\n[Herr]")]);
   const id = await app.createSave();
 
   expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
-
   expect((await storedMessages(id)).at(-1)!.text).toBe("She keeps the boy by her.");
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+  expect((await storedMessages(id)).at(-1)!.text).toBe("He stood in the gap.");
 });
 
 test("a reply that ends its narration with the brace or tag of its own JSON is saved without them", async () => {

@@ -535,14 +535,33 @@ const RESULTS: Record<Check["degree"], string> = {
 export const threadLabel = (at: number) => String(at + 1);
 
 /**
- * What a result that earns it may draw on: every open thread's truth and every hidden part, as the narrating call has neither.
+ * What a result that earns it may draw on, as the narrating call has no truth or hidden part: those of the people, places and
+ * things `about` names (what the Check rests on and the player's move, or an Edit's words), and the threads that name any of
+ * them. Not every secret, as a success on one matter had someone else confess theirs unasked, twice in two plays.
  * Sent after the cached start, so the first call's cache still serves it.
- * shortcut: everything, not only what the move touches, as Check Turns held 2 of 14 leaks; scope it if leaks show on success Turns.
+ * shortcut: by names and keywords, so a matter named only by a pronoun hands nothing over; widen if earned reveals go missing.
  */
-export function handover({ plotThreads, worldBible }: Pick<State, "plotThreads" | "worldBible">): Prompt {
-  const threads = Object.fromEntries(plotThreads.slice(0, MAX_PLOT_THREADS).map((truth, at) => [threadLabel(at), truth]));
-  const hidden = Object.fromEntries(worldBible.flatMap(({ title, hidden }) => (hidden ? [[title, hidden]] : [])));
-  if (plotThreads.length === 0 && Object.keys(hidden).length === 0) return [];
+export function secretsAbout({ plotThreads, worldBible, npcs }: Pick<State, "plotThreads" | "worldBible" | "npcs">, about: string) {
+  const said = (words: string[]) => words.some((word) => word.trim() && wholeWord(word, "u").test(about));
+  const entries = worldBible.filter(({ title, keywords, hidden, alwaysOn }) => hidden && !alwaysOn && said([title, ...keywords]));
+  const touched = [
+    ...npcs
+      .map(({ name }) => nameForms(name))
+      .filter(said)
+      .flat(),
+    ...entries.flatMap(({ title, keywords }) => [title, ...keywords]),
+  ];
+  const threads = plotThreads
+    .slice(0, MAX_PLOT_THREADS)
+    .flatMap((truth, at) => (touched.some((word) => word.trim() && wholeWord(word, "u").test(truth)) ? [[threadLabel(at), truth] as const] : []));
+  return { threads, hidden: entries.map(({ title, hidden }) => [title, hidden!] as const) };
+}
+
+export function handover(state: Pick<State, "plotThreads" | "worldBible" | "npcs">, about: string): Prompt {
+  const secrets = secretsAbout(state, about);
+  if (secrets.threads.length + secrets.hidden.length === 0) return [];
+  const threads = Object.fromEntries(secrets.threads);
+  const hidden = Object.fromEntries(secrets.hidden);
   return [
     {
       role: "system",

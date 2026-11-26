@@ -151,3 +151,14 @@ test("a label written loosely still finds its thread, and a quoted truth is matc
   expect(operations.map(({ thread }) => thread)).toEqual(["The tide is wrong.", "The duke plots.", "The duke plots."]);
   expect(dropped).toEqual({ unmatched: 1, blind: 0 });
 });
+
+test("a success hands over only the secrets of what the Check and the move are about", async () => {
+  const other = JSON.stringify({ check: { action: "Climb the sea wall", stakes: "a fall onto the rocks", difficulty: "Hard" } });
+  const { app, prompts } = playWith([19], other, narration("She reaches the top."));
+  const id = await seeded(app);
+
+  await app.post(`/saves/${id}/turns`, { input: "I climb the sea wall." });
+
+  expect(text(prompts[1])).not.toContain("TRUTH-MARK");
+  expect(text(prompts[1])).not.toContain("HIDDEN-MARK");
+});

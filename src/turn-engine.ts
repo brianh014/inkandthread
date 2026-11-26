@@ -10,6 +10,7 @@ import {
   isContinueInput,
   editInstruction,
   handover,
+  secretsAbout,
   journalChange,
   memoryDue,
   memoryPrompt,
@@ -320,12 +321,14 @@ export function threadsByLabel<Operation extends StateOperation>(operations: Ope
 }
 
 /** The secrets for a reply that earned them, logged by counts only. */
-function handedOver(state: State, by: "check" | "edit") {
-  const given = handover(state);
-  const hidden = state.worldBible.filter((entry) => entry.hidden).length;
-  if (given.length > 0) log.info("turn", "Secrets handed over", { by, threads: Math.min(state.plotThreads.length, MAX_PLOT_THREADS), hidden });
-  return given;
+function handedOver(state: State, by: "check" | "edit", about: string) {
+  const { threads, hidden } = secretsAbout(state, about);
+  if (threads.length + hidden.length > 0) log.info("turn", "Secrets handed over", { by, threads: threads.length, hidden: hidden.length });
+  return handover(state, about);
 }
+
+/** What a Check rests on, for the secrets it may earn: its action and stakes, and the player's move. */
+const checkAbout = ({ action, stakes }: Check, move: string) => [action, stakes ?? "", move].join("\n");
 
 /**
  * `schema` with every thread an operation names held to the open truths, as models misquoted the long truths they were told to copy
@@ -976,7 +979,7 @@ export async function editResponse(
   const done = await narrate(textProvider, signal, emit, {
     kind: "edit",
     // With the secrets, as the player wrote this response, so nothing can leak, and it may set the threads right.
-    prompt: [...prompt, ...handedOver(state, "edit"), editInstruction(text, added)],
+    prompt: [...prompt, ...handedOver(state, "edit", text), editInstruction(text, added)],
     input: text,
     refusal: "The Narrator refused this edit, so the response stays as it was.",
     pcName: saves.read(id).pc.name,
@@ -1089,7 +1092,7 @@ async function narrate(
         textProvider,
         [
           ...prompt,
-          ...(check ? [...(check.outcome === "success" ? handover(before) : []), resultInstruction(check)] : []),
+          ...(check ? [...(check.outcome === "success" ? handover(before, checkAbout(check, move)) : []), resultInstruction(check)] : []),
           ...(unplacedBefore ? [SET_SCENE_NOTE] : []),
           ...why,
         ],
@@ -1116,7 +1119,7 @@ async function narrate(
         if (check || !rollCheck || ratedNone) throw new InvalidResponse();
         check = rollCheck(response.check);
         // Logged once here, as the result call it goes with may be asked again.
-        if (check.outcome === "success") handedOver(before, "check");
+        if (check.outcome === "success") handedOver(before, "check", checkAbout(check, move));
         attempt = 0; // The result call gets its own retries.
         why = [];
         continue;

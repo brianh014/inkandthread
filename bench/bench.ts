@@ -177,6 +177,11 @@ const HEADLINE = [
   // The tally first: what a reader would notice, less noisy than any score.
   "mistakes.major",
   "mistakes.minor",
+  // Text and pictures apart, as players forgive pictures sooner.
+  "mistakes.textMajor",
+  "mistakes.textMinor",
+  "mistakes.pictureMajor",
+  "mistakes.pictureMinor",
   ...Object.keys(RUBRIC).map((key) => `judge.${key}`),
   "judge.craft",
   "judge.overall",

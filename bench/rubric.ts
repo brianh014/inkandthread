@@ -212,6 +212,13 @@ export function scorePlay(reply: JudgeReply, turns: number) {
   const minors = reply.mistakes.length - majors;
   flat["mistakes.major"] = majors * per10;
   flat["mistakes.minor"] = minors * per10;
+  // Pictures apart from the text, as players forgive a wrong picture far sooner than a wrong page.
+  const pictures = reply.mistakes.filter(({ kind }) => kind === "picture");
+  const pictureMajors = pictures.filter(({ weight }) => weight === "major").length;
+  flat["mistakes.textMajor"] = (majors - pictureMajors) * per10;
+  flat["mistakes.textMinor"] = (minors - (pictures.length - pictureMajors)) * per10;
+  flat["mistakes.pictureMajor"] = pictureMajors * per10;
+  flat["mistakes.pictureMinor"] = (pictures.length - pictureMajors) * per10;
   flat["judge.craft"] = mean(keys(RUBRIC).map((key) => reply.scores[key].score));
   const penalty = Math.min(majors * MAJOR_COST, MAJOR_COST_LIMIT) + Math.min(minors * per10 * MINOR_COST_PER_RATE, MINOR_COST_LIMIT);
   flat["judge.overall"] = Math.max(1, mean(keys(RUBRIC).map((key) => flat[`judge.${key}`]!)) - penalty);

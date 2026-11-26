@@ -112,6 +112,8 @@ describe("scorePlay", () => {
     expect(flat["mistakes.minor"]).toBe(0.5);
     expect(flat["mistakeCount.knowledge"]).toBe(2);
     expect(flat["mistakeCount.restart"]).toBe(0);
+    const both = scored(reply({}, [mistake("secret", "major"), mistake("picture", "major"), mistake("picture", "minor")]), 40);
+    expect([both["mistakes.textMajor"], both["mistakes.pictureMajor"], both["mistakes.textMinor"], both["mistakes.pictureMinor"]]).toEqual([0.25, 0.25, 0, 0.25]);
   });
 });
 

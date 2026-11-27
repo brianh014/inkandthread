@@ -1,0 +1,2391 @@
+{
+  "version": "0.6.4.4",
+  "setup": "full",
+  "date": "2026-11-27T06:13:09.324Z",
+  "label": "models-a-mimo-adventure",
+  "commit": "c031ef7",
+  "provider": "openrouter",
+  "models": {
+    "narrator": "xiaomi/mimo-v2.6-flash",
+    "reviewer": "openai/gpt-6-luna",
+    "reviewThinking": "medium"
+  },
+  "host": "DeepInfra",
+  "hostFallback": false,
+  "mode": "choices",
+  "world": "adventure.json",
+  "drawn": true,
+  "thinking": "medium",
+  "seed": 1,
+  "rounds": 45,
+  "runs": 1,
+  "estimate": 0.2655,
+  "summary": {
+    "rounds": 45,
+    "turns": 50,
+    "retries": 3,
+    "checks.asked": 5,
+    "upkeep.total": 139,
+    "ops.add_item": 1,
+    "ops.remove_item": 0,
+    "ops.set_health": 0,
+    "ops.add_status": 0,
+    "ops.remove_status": 0,
+    "ops.add_npc": 0,
+    "ops.update_npc": 0,
+    "ops.merge_npc": 0,
+    "ops.npc_dies": 0,
+    "ops.npc_learns": 3,
+    "ops.set_scene": 1,
+    "ops.add_known_fact": 0,
+    "ops.update_known_fact": 0,
+    "ops.remove_known_fact": 0,
+    "ops.add_known_npc": 0,
+    "ops.set_known_npc_summary": 0,
+    "ops.add_loose_end": 0,
+    "ops.resolve_loose_end": 0,
+    "ops.add_lore_entry": 1,
+    "ops.update_lore_entry": 0,
+    "ops.update_plot_thread": 0,
+    "ops.set_pc_appearance": 0,
+    "ops.set_era": 1,
+    "ops.set_story_time": 6,
+    "turns.opening": 1,
+    "upkeep.add_known_fact": 42,
+    "upkeep.add_loose_end": 11,
+    "upkeep.set_known_npc_summary": 4,
+    "upkeep.set_story_time": 44,
+    "upkeep.refused": 2,
+    "turns.turn": 46,
+    "upkeep.npc_learns": 30,
+    "upkeep.set_scene": 24,
+    "upkeep.add_item": 4,
+    "upkeep.update_known_fact": 16,
+    "checks.failure": 3,
+    "upkeep.remove_item": 4,
+    "turns.rewrite": 1,
+    "checks.success": 2,
+    "upkeep.resolve_loose_end": 4,
+    "turns.regenerate": 1,
+    "chapterSuggested": 2,
+    "turns.edit": 1,
+    "checks.difficultyMean": 0,
+    "moves.rewritten": 29,
+    "moves.added": 0,
+    "moves.removed": 0,
+    "lore.added": 6,
+    "moves.failed": 0,
+    "unusable": 45,
+    "failed": 0,
+    "chapters.closed": 1,
+    "actions.rewrite": 1,
+    "actions.regenerate": 1,
+    "actions.continue": 1,
+    "actions.edit": 1,
+    "actions.worldChange": 1,
+    "end.plotThreads": 4,
+    "end.npcKnows": 29,
+    "end.knownFacts": 36,
+    "end.knownNpcs": 3,
+    "end.looseEnds": 6,
+    "end.sceneMemories": 1,
+    "end.worldBible": 20,
+    "end.npcs": 3,
+    "timing.firstText.median": 5714,
+    "timing.firstText.max": 110198,
+    "timing.reply.median": 13829,
+    "timing.reply.max": 131406,
+    "timing.turn.median": 24982,
+    "timing.turn.max": 156425,
+    "timing.upkeep.median": 5551,
+    "timing.upkeep.max": 9950,
+    "timing.summary.median": 5105,
+    "timing.summary.max": 6688,
+    "timing.memory.median": 3517,
+    "timing.memory.max": 3517,
+    "timing.picture.median": 4535,
+    "timing.picture.max": 15928,
+    "images.scene": 4,
+    "images.portrait": 4,
+    "images.requested": 0,
+    "calls.narrator.portraitPrompt": 4,
+    "tokens.narrator.portraitPrompt.in": 2506,
+    "tokens.narrator.portraitPrompt.perTurn.in": 0,
+    "tokens.narrator.portraitPrompt.cached": 544,
+    "tokens.narrator.portraitPrompt.perTurn.cached": 0,
+    "tokens.narrator.portraitPrompt.out": 1095,
+    "tokens.narrator.portraitPrompt.perTurn.out": 0,
+    "tokens.narrator.portraitPrompt.reasoning": 538,
+    "tokens.narrator.portraitPrompt.perTurn.reasoning": 0,
+    "cost.narrator.portraitPrompt": 0.0005828032,
+    "tokens.narrator.portraitPrompt.perTurn.cost": 0,
+    "calls.narrator.opening": 1,
+    "tokens.narrator.opening.in": 9067,
+    "tokens.narrator.opening.perTurn.in": 0,
+    "tokens.narrator.opening.cached": 0,
+    "tokens.narrator.opening.perTurn.cached": 0,
+    "tokens.narrator.opening.out": 2377,
+    "tokens.narrator.opening.perTurn.out": 0,
+    "tokens.narrator.opening.reasoning": 1398,
+    "tokens.narrator.opening.perTurn.reasoning": 0,
+    "cost.narrator.opening": 0.00193494,
+    "tokens.narrator.opening.perTurn.cost": 0,
+    "calls.reviewer.upkeep": 50,
+    "tokens.reviewer.upkeep.in": 189798,
+    "tokens.reviewer.upkeep.perTurn.in": 3744,
+    "tokens.reviewer.upkeep.cached": 104130,
+    "tokens.reviewer.upkeep.perTurn.cached": 2115,
+    "tokens.reviewer.upkeep.out": 34945,
+    "tokens.reviewer.upkeep.perTurn.out": 644,
+    "tokens.reviewer.upkeep.reasoning": 27920,
+    "tokens.reviewer.upkeep.perTurn.reasoning": 516,
+    "cost.reviewer.upkeep": 0.029218549999999996,
+    "tokens.reviewer.upkeep.perTurn.cost": 0.0005737,
+    "calls.narrator.choices": 83,
+    "tokens.narrator.choices.in": 163346,
+    "tokens.narrator.choices.perTurn.in": 2696,
+    "tokens.narrator.choices.cached": 38752,
+    "tokens.narrator.choices.perTurn.cached": 800,
+    "tokens.narrator.choices.out": 20607,
+    "tokens.narrator.choices.perTurn.out": 453,
+    "tokens.narrator.choices.reasoning": 5547,
+    "tokens.narrator.choices.perTurn.reasoning": 0,
+    "cost.narrator.choices": 0.023321625599999996,
+    "tokens.narrator.choices.perTurn.cost": 0.00051814,
+    "calls.narrator.turn": 53,
+    "tokens.narrator.turn.in": 895879,
+    "tokens.narrator.turn.perTurn.in": 19309,
+    "tokens.narrator.turn.cached": 289280,
+    "tokens.narrator.turn.perTurn.cached": 6112,
+    "tokens.narrator.turn.out": 35261,
+    "tokens.narrator.turn.perTurn.out": 588,
+    "tokens.narrator.turn.reasoning": 9188,
+    "tokens.narrator.turn.perTurn.reasoning": 89,
+    "cost.narrator.turn": 0.09560692400000004,
+    "tokens.narrator.turn.perTurn.cost": 0.002014516,
+    "calls.reviewer.summary": 10,
+    "tokens.reviewer.summary.in": 23619,
+    "tokens.reviewer.summary.perTurn.in": 0,
+    "tokens.reviewer.summary.cached": 0,
+    "tokens.reviewer.summary.perTurn.cached": 0,
+    "tokens.reviewer.summary.out": 5714,
+    "tokens.reviewer.summary.perTurn.out": 0,
+    "tokens.reviewer.summary.reasoning": 1962,
+    "tokens.reviewer.summary.perTurn.reasoning": 0,
+    "cost.reviewer.summary": 0.0057886249999999995,
+    "tokens.reviewer.summary.perTurn.cost": 0,
+    "calls.narrator.scenePrompt": 5,
+    "tokens.narrator.scenePrompt.in": 4288,
+    "tokens.narrator.scenePrompt.perTurn.in": 0,
+    "tokens.narrator.scenePrompt.cached": 768,
+    "tokens.narrator.scenePrompt.perTurn.cached": 0,
+    "tokens.narrator.scenePrompt.out": 5530,
+    "tokens.narrator.scenePrompt.perTurn.out": 0,
+    "tokens.narrator.scenePrompt.reasoning": 4398,
+    "tokens.narrator.scenePrompt.perTurn.reasoning": 0,
+    "cost.narrator.scenePrompt": 0.0020433504,
+    "tokens.narrator.scenePrompt.perTurn.cost": 0,
+    "calls.narrator.moveWorld": 19,
+    "tokens.narrator.moveWorld.in": 93904,
+    "tokens.narrator.moveWorld.perTurn.in": 0,
+    "tokens.narrator.moveWorld.cached": 56864,
+    "tokens.narrator.moveWorld.perTurn.cached": 0,
+    "tokens.narrator.moveWorld.out": 72658,
+    "tokens.narrator.moveWorld.perTurn.out": 0,
+    "tokens.narrator.moveWorld.reasoning": 9415,
+    "tokens.narrator.moveWorld.perTurn.reasoning": 0,
+    "cost.narrator.moveWorld": 0.0256890592,
+    "tokens.narrator.moveWorld.perTurn.cost": 0,
+    "calls.reviewer.lore": 10,
+    "tokens.reviewer.lore.in": 28969,
+    "tokens.reviewer.lore.perTurn.in": 0,
+    "tokens.reviewer.lore.cached": 0,
+    "tokens.reviewer.lore.perTurn.cached": 0,
+    "tokens.reviewer.lore.out": 9496,
+    "tokens.reviewer.lore.perTurn.out": 0,
+    "tokens.reviewer.lore.reasoning": 8177,
+    "tokens.reviewer.lore.perTurn.reasoning": 0,
+    "cost.reviewer.lore": 0.008368375,
+    "tokens.reviewer.lore.perTurn.cost": 0,
+    "calls.narrator.rewrite": 1,
+    "tokens.narrator.rewrite.in": 13478,
+    "tokens.narrator.rewrite.perTurn.in": 0,
+    "tokens.narrator.rewrite.cached": 6528,
+    "tokens.narrator.rewrite.perTurn.cached": 0,
+    "tokens.narrator.rewrite.out": 561,
+    "tokens.narrator.rewrite.perTurn.out": 0,
+    "tokens.narrator.rewrite.reasoning": 128,
+    "tokens.narrator.rewrite.perTurn.reasoning": 0,
+    "cost.narrator.rewrite": 0.0011483584,
+    "tokens.narrator.rewrite.perTurn.cost": 0,
+    "calls.narrator.regenerate": 2,
+    "tokens.narrator.regenerate.in": 15661,
+    "tokens.narrator.regenerate.perTurn.in": 0,
+    "tokens.narrator.regenerate.cached": 10368,
+    "tokens.narrator.regenerate.perTurn.cached": 0,
+    "tokens.narrator.regenerate.out": 1011,
+    "tokens.narrator.regenerate.perTurn.out": 0,
+    "tokens.narrator.regenerate.reasoning": 846,
+    "tokens.narrator.regenerate.perTurn.reasoning": 0,
+    "cost.narrator.regenerate": 0.0010531304,
+    "tokens.narrator.regenerate.perTurn.cost": 0,
+    "calls.narrator.chapterTitle": 1,
+    "tokens.narrator.chapterTitle.in": 2652,
+    "tokens.narrator.chapterTitle.perTurn.in": 0,
+    "tokens.narrator.chapterTitle.cached": 0,
+    "tokens.narrator.chapterTitle.perTurn.cached": 0,
+    "tokens.narrator.chapterTitle.out": 30,
+    "tokens.narrator.chapterTitle.perTurn.out": 0,
+    "tokens.narrator.chapterTitle.reasoning": 18,
+    "tokens.narrator.chapterTitle.perTurn.reasoning": 0,
+    "cost.narrator.chapterTitle": 0.00037968,
+    "tokens.narrator.chapterTitle.perTurn.cost": 0,
+    "calls.reviewer.looseEnds": 6,
+    "tokens.reviewer.looseEnds.in": 20476,
+    "tokens.reviewer.looseEnds.perTurn.in": 0,
+    "tokens.reviewer.looseEnds.cached": 0,
+    "tokens.reviewer.looseEnds.perTurn.cached": 0,
+    "tokens.reviewer.looseEnds.out": 4225,
+    "tokens.reviewer.looseEnds.perTurn.out": 0,
+    "tokens.reviewer.looseEnds.reasoning": 4103,
+    "tokens.reviewer.looseEnds.perTurn.reasoning": 0,
+    "cost.reviewer.looseEnds": 0.00467155,
+    "tokens.reviewer.looseEnds.perTurn.cost": 0,
+    "calls.narrator.edit": 1,
+    "tokens.narrator.edit.in": 20354,
+    "tokens.narrator.edit.perTurn.in": 0,
+    "tokens.narrator.edit.cached": 96,
+    "tokens.narrator.edit.perTurn.cached": 0,
+    "tokens.narrator.edit.out": 536,
+    "tokens.narrator.edit.perTurn.out": 0,
+    "tokens.narrator.edit.reasoning": 56,
+    "tokens.narrator.edit.perTurn.reasoning": 0,
+    "cost.narrator.edit": 0.0029864688,
+    "tokens.narrator.edit.perTurn.cost": 0,
+    "calls.reviewer.knowsFold": 2,
+    "tokens.reviewer.knowsFold.in": 887,
+    "tokens.reviewer.knowsFold.perTurn.in": 0,
+    "tokens.reviewer.knowsFold.cached": 0,
+    "tokens.reviewer.knowsFold.perTurn.cached": 0,
+    "tokens.reviewer.knowsFold.out": 277,
+    "tokens.reviewer.knowsFold.perTurn.out": 0,
+    "tokens.reviewer.knowsFold.reasoning": 0,
+    "tokens.reviewer.knowsFold.perTurn.reasoning": 0,
+    "cost.reviewer.knowsFold": 0.0002272,
+    "tokens.reviewer.knowsFold.perTurn.cost": 0,
+    "calls.narrator.worldChange": 1,
+    "tokens.narrator.worldChange.in": 6118,
+    "tokens.narrator.worldChange.perTurn.in": 0,
+    "tokens.narrator.worldChange.cached": 0,
+    "tokens.narrator.worldChange.perTurn.cached": 0,
+    "tokens.narrator.worldChange.out": 696,
+    "tokens.narrator.worldChange.perTurn.out": 0,
+    "tokens.narrator.worldChange.reasoning": 420,
+    "tokens.narrator.worldChange.perTurn.reasoning": 0,
+    "cost.narrator.worldChange": 0.0010514,
+    "tokens.narrator.worldChange.perTurn.cost": 0,
+    "calls.reviewer.worldChangeReview": 1,
+    "tokens.reviewer.worldChangeReview.in": 7055,
+    "tokens.reviewer.worldChangeReview.perTurn.in": 0,
+    "tokens.reviewer.worldChangeReview.cached": 2360,
+    "tokens.reviewer.worldChangeReview.perTurn.cached": 0,
+    "tokens.reviewer.worldChangeReview.out": 1701,
+    "tokens.reviewer.worldChangeReview.perTurn.out": 0,
+    "tokens.reviewer.worldChangeReview.reasoning": 1400,
+    "tokens.reviewer.worldChangeReview.perTurn.reasoning": 0,
+    "cost.reviewer.worldChangeReview": 0.0014609,
+    "tokens.reviewer.worldChangeReview.perTurn.cost": 0,
+    "calls.narrator.memory": 1,
+    "tokens.narrator.memory.in": 3160,
+    "tokens.narrator.memory.perTurn.in": 0,
+    "tokens.narrator.memory.cached": 0,
+    "tokens.narrator.memory.perTurn.cached": 0,
+    "tokens.narrator.memory.out": 250,
+    "tokens.narrator.memory.perTurn.out": 0,
+    "tokens.narrator.memory.reasoning": 23,
+    "tokens.narrator.memory.perTurn.reasoning": 0,
+    "cost.narrator.memory": 0.0005124,
+    "tokens.narrator.memory.perTurn.cost": 0,
+    "tokens.perTurn.in": 28792,
+    "tokens.perTurn.cached": 9283,
+    "tokens.perTurn.out": 2368,
+    "tokens.perTurn.reasoning": 1089,
+    "tokens.perTurn.cost": 0.0033030266,
+    "stateFaults.timeBack": 0,
+    "stateFaults.repeatKnows": 0,
+    "stateFaults.negativeKnows": 1,
+    "stateFaults.looseEndReopened": 0,
+    "stateFaults.total": 1,
+    "messages": 96,
+    "prompt.tokens.first": 10274,
+    "prompt.tokens.last": 24149,
+    "cost.total": 0.20604534,
+    "cost.perRound": 0.004578785333333333,
+    "perRound.narrator.in": 27343,
+    "perRound.narrator.out": 3125,
+    "perRound.reviewer.in": 6018,
+    "perRound.reviewer.out": 1252,
+    "mistakeCount.secret": 0,
+    "mistakeCount.knowledge": 0,
+    "mistakeCount.character": 2,
+    "mistakeCount.contradiction": 6,
+    "mistakeCount.pcVoiced": 2,
+    "mistakeCount.restart": 0,
+    "mistakeCount.state": 6,
+    "mistakeCount.preventedDeed": 0,
+    "mistakeCount.picture": 4,
+    "judge.raw.choices": 5,
+    "judge.choices": 5,
+    "judge.raw.surprise": 4,
+    "judge.surprise": 4,
+    "judge.raw.threads": 3,
+    "judge.threads": 3,
+    "judge.raw.characters": 6,
+    "judge.characters": 6,
+    "judge.raw.continuity": 4,
+    "judge.continuity": 4,
+    "judge.raw.pacing": 4,
+    "judge.pacing": 4,
+    "judge.raw.prose": 4,
+    "judge.prose": 4,
+    "judge.raw.pictures": 6,
+    "judge.pictures": 6,
+    "judge.raw.secrets": 8,
+    "judge.secrets": 8,
+    "judge.raw.agency": 5,
+    "judge.agency": 4,
+    "judge.raw.stakes": 4,
+    "judge.stakes": 4,
+    "judge.raw.state": 5,
+    "judge.state": 4,
+    "judge.adventure": 3,
+    "mistakes.major": 0.8,
+    "mistakes.minor": 3.2,
+    "mistakes.textMajor": 0.8,
+    "mistakes.textMinor": 2.4000000000000004,
+    "mistakes.pictureMajor": 0,
+    "mistakes.pictureMinor": 0.8,
+    "judge.craft": 4.782608695652174,
+    "judge.overall": 4.152695652173913,
+    "judged.npcDied": 0,
+    "judged.pcInMortalDanger": 0,
+    "coverage.fired": 23
+  },
+  "range": {
+    "rounds": [
+      45,
+      45
+    ],
+    "turns": [
+      50,
+      50
+    ],
+    "retries": [
+      3,
+      3
+    ],
+    "checks.asked": [
+      5,
+      5
+    ],
+    "upkeep.total": [
+      139,
+      139
+    ],
+    "ops.add_item": [
+      1,
+      1
+    ],
+    "ops.remove_item": [
+      0,
+      0
+    ],
+    "ops.set_health": [
+      0,
+      0
+    ],
+    "ops.add_status": [
+      0,
+      0
+    ],
+    "ops.remove_status": [
+      0,
+      0
+    ],
+    "ops.add_npc": [
+      0,
+      0
+    ],
+    "ops.update_npc": [
+      0,
+      0
+    ],
+    "ops.merge_npc": [
+      0,
+      0
+    ],
+    "ops.npc_dies": [
+      0,
+      0
+    ],
+    "ops.npc_learns": [
+      3,
+      3
+    ],
+    "ops.set_scene": [
+      1,
+      1
+    ],
+    "ops.add_known_fact": [
+      0,
+      0
+    ],
+    "ops.update_known_fact": [
+      0,
+      0
+    ],
+    "ops.remove_known_fact": [
+      0,
+      0
+    ],
+    "ops.add_known_npc": [
+      0,
+      0
+    ],
+    "ops.set_known_npc_summary": [
+      0,
+      0
+    ],
+    "ops.add_loose_end": [
+      0,
+      0
+    ],
+    "ops.resolve_loose_end": [
+      0,
+      0
+    ],
+    "ops.add_lore_entry": [
+      1,
+      1
+    ],
+    "ops.update_lore_entry": [
+      0,
+      0
+    ],
+    "ops.update_plot_thread": [
+      0,
+      0
+    ],
+    "ops.set_pc_appearance": [
+      0,
+      0
+    ],
+    "ops.set_era": [
+      1,
+      1
+    ],
+    "ops.set_story_time": [
+      6,
+      6
+    ],
+    "turns.opening": [
+      1,
+      1
+    ],
+    "upkeep.add_known_fact": [
+      42,
+      42
+    ],
+    "upkeep.add_loose_end": [
+      11,
+      11
+    ],
+    "upkeep.set_known_npc_summary": [
+      4,
+      4
+    ],
+    "upkeep.set_story_time": [
+      44,
+      44
+    ],
+    "upkeep.refused": [
+      2,
+      2
+    ],
+    "turns.turn": [
+      46,
+      46
+    ],
+    "upkeep.npc_learns": [
+      30,
+      30
+    ],
+    "upkeep.set_scene": [
+      24,
+      24
+    ],
+    "upkeep.add_item": [
+      4,
+      4
+    ],
+    "upkeep.update_known_fact": [
+      16,
+      16
+    ],
+    "checks.failure": [
+      3,
+      3
+    ],
+    "upkeep.remove_item": [
+      4,
+      4
+    ],
+    "turns.rewrite": [
+      1,
+      1
+    ],
+    "checks.success": [
+      2,
+      2
+    ],
+    "upkeep.resolve_loose_end": [
+      4,
+      4
+    ],
+    "turns.regenerate": [
+      1,
+      1
+    ],
+    "chapterSuggested": [
+      2,
+      2
+    ],
+    "turns.edit": [
+      1,
+      1
+    ],
+    "checks.difficultyMean": [
+      0,
+      0
+    ],
+    "moves.rewritten": [
+      29,
+      29
+    ],
+    "moves.added": [
+      0,
+      0
+    ],
+    "moves.removed": [
+      0,
+      0
+    ],
+    "lore.added": [
+      6,
+      6
+    ],
+    "moves.failed": [
+      0,
+      0
+    ],
+    "unusable": [
+      45,
+      45
+    ],
+    "failed": [
+      0,
+      0
+    ],
+    "chapters.closed": [
+      1,
+      1
+    ],
+    "actions.rewrite": [
+      1,
+      1
+    ],
+    "actions.regenerate": [
+      1,
+      1
+    ],
+    "actions.continue": [
+      1,
+      1
+    ],
+    "actions.edit": [
+      1,
+      1
+    ],
+    "actions.worldChange": [
+      1,
+      1
+    ],
+    "end.plotThreads": [
+      4,
+      4
+    ],
+    "end.npcKnows": [
+      29,
+      29
+    ],
+    "end.knownFacts": [
+      36,
+      36
+    ],
+    "end.knownNpcs": [
+      3,
+      3
+    ],
+    "end.looseEnds": [
+      6,
+      6
+    ],
+    "end.sceneMemories": [
+      1,
+      1
+    ],
+    "end.worldBible": [
+      20,
+      20
+    ],
+    "end.npcs": [
+      3,
+      3
+    ],
+    "timing.firstText.median": [
+      5714,
+      5714
+    ],
+    "timing.firstText.max": [
+      110198,
+      110198
+    ],
+    "timing.reply.median": [
+      13829,
+      13829
+    ],
+    "timing.reply.max": [
+      131406,
+      131406
+    ],
+    "timing.turn.median": [
+      24982,
+      24982
+    ],
+    "timing.turn.max": [
+      156425,
+      156425
+    ],
+    "timing.upkeep.median": [
+      5551,
+      5551
+    ],
+    "timing.upkeep.max": [
+      9950,
+      9950
+    ],
+    "timing.summary.median": [
+      5105,
+      5105
+    ],
+    "timing.summary.max": [
+      6688,
+      6688
+    ],
+    "timing.memory.median": [
+      3517,
+      3517
+    ],
+    "timing.memory.max": [
+      3517,
+      3517
+    ],
+    "timing.picture.median": [
+      4535,
+      4535
+    ],
+    "timing.picture.max": [
+      15928,
+      15928
+    ],
+    "images.scene": [
+      4,
+      4
+    ],
+    "images.portrait": [
+      4,
+      4
+    ],
+    "images.requested": [
+      0,
+      0
+    ],
+    "calls.narrator.portraitPrompt": [
+      4,
+      4
+    ],
+    "tokens.narrator.portraitPrompt.in": [
+      2506,
+      2506
+    ],
+    "tokens.narrator.portraitPrompt.perTurn.in": [
+      0,
+      0
+    ],
+    "tokens.narrator.portraitPrompt.cached": [
+      544,
+      544
+    ],
+    "tokens.narrator.portraitPrompt.perTurn.cached": [
+      0,
+      0
+    ],
+    "tokens.narrator.portraitPrompt.out": [
+      1095,
+      1095
+    ],
+    "tokens.narrator.portraitPrompt.perTurn.out": [
+      0,
+      0
+    ],
+    "tokens.narrator.portraitPrompt.reasoning": [
+      538,
+      538
+    ],
+    "tokens.narrator.portraitPrompt.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.narrator.portraitPrompt": [
+      0.0005828032,
+      0.0005828032
+    ],
+    "tokens.narrator.portraitPrompt.perTurn.cost": [
+      0,
+      0
+    ],
+    "calls.narrator.opening": [
+      1,
+      1
+    ],
+    "tokens.narrator.opening.in": [
+      9067,
+      9067
+    ],
+    "tokens.narrator.opening.perTurn.in": [
+      0,
+      0
+    ],
+    "tokens.narrator.opening.cached": [
+      0,
+      0
+    ],
+    "tokens.narrator.opening.perTurn.cached": [
+      0,
+      0
+    ],
+    "tokens.narrator.opening.out": [
+      2377,
+      2377
+    ],
+    "tokens.narrator.opening.perTurn.out": [
+      0,
+      0
+    ],
+    "tokens.narrator.opening.reasoning": [
+      1398,
+      1398
+    ],
+    "tokens.narrator.opening.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.narrator.opening": [
+      0.00193494,
+      0.00193494
+    ],
+    "tokens.narrator.opening.perTurn.cost": [
+      0,
+      0
+    ],
+    "calls.reviewer.upkeep": [
+      50,
+      50
+    ],
+    "tokens.reviewer.upkeep.in": [
+      189798,
+      189798
+    ],
+    "tokens.reviewer.upkeep.perTurn.in": [
+      3744,
+      3744
+    ],
+    "tokens.reviewer.upkeep.cached": [
+      104130,
+      104130
+    ],
+    "tokens.reviewer.upkeep.perTurn.cached": [
+      2115,
+      2115
+    ],
+    "tokens.reviewer.upkeep.out": [
+      34945,
+      34945
+    ],
+    "tokens.reviewer.upkeep.perTurn.out": [
+      644,
+      644
+    ],
+    "tokens.reviewer.upkeep.reasoning": [
+      27920,
+      27920
+    ],
+    "tokens.reviewer.upkeep.perTurn.reasoning": [
+      516,
+      516
+    ],
+    "cost.reviewer.upkeep": [
+      0.029218549999999996,
+      0.029218549999999996
+    ],
+    "tokens.reviewer.upkeep.perTurn.cost": [
+      0.0005737,
+      0.0005737
+    ],
+    "calls.narrator.choices": [
+      83,
+      83
+    ],
+    "tokens.narrator.choices.in": [
+      163346,
+      163346
+    ],
+    "tokens.narrator.choices.perTurn.in": [
+      2696,
+      2696
+    ],
+    "tokens.narrator.choices.cached": [
+      38752,
+      38752
+    ],
+    "tokens.narrator.choices.perTurn.cached": [
+      800,
+      800
+    ],
+    "tokens.narrator.choices.out": [
+      20607,
+      20607
+    ],
+    "tokens.narrator.choices.perTurn.out": [
+      453,
+      453
+    ],
+    "tokens.narrator.choices.reasoning": [
+      5547,
+      5547
+    ],
+    "tokens.narrator.choices.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.narrator.choices": [
+      0.023321625599999996,
+      0.023321625599999996
+    ],
+    "tokens.narrator.choices.perTurn.cost": [
+      0.00051814,
+      0.00051814
+    ],
+    "calls.narrator.turn": [
+      53,
+      53
+    ],
+    "tokens.narrator.turn.in": [
+      895879,
+      895879
+    ],
+    "tokens.narrator.turn.perTurn.in": [
+      19309,
+      19309
+    ],
+    "tokens.narrator.turn.cached": [
+      289280,
+      289280
+    ],
+    "tokens.narrator.turn.perTurn.cached": [
+      6112,
+      6112
+    ],
+    "tokens.narrator.turn.out": [
+      35261,
+      35261
+    ],
+    "tokens.narrator.turn.perTurn.out": [
+      588,
+      588
+    ],
+    "tokens.narrator.turn.reasoning": [
+      9188,
+      9188
+    ],
+    "tokens.narrator.turn.perTurn.reasoning": [
+      89,
+      89
+    ],
+    "cost.narrator.turn": [
+      0.09560692400000004,
+      0.09560692400000004
+    ],
+    "tokens.narrator.turn.perTurn.cost": [
+      0.002014516,
+      0.002014516
+    ],
+    "calls.reviewer.summary": [
+      10,
+      10
+    ],
+    "tokens.reviewer.summary.in": [
+      23619,
+      23619
+    ],
+    "tokens.reviewer.summary.perTurn.in": [
+      0,
+      0
+    ],
+    "tokens.reviewer.summary.cached": [
+      0,
+      0
+    ],
+    "tokens.reviewer.summary.perTurn.cached": [
+      0,
+      0
+    ],
+    "tokens.reviewer.summary.out": [
+      5714,
+      5714
+    ],
+    "tokens.reviewer.summary.perTurn.out": [
+      0,
+      0
+    ],
+    "tokens.reviewer.summary.reasoning": [
+      1962,
+      1962
+    ],
+    "tokens.reviewer.summary.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.reviewer.summary": [
+      0.0057886249999999995,
+      0.0057886249999999995
+    ],
+    "tokens.reviewer.summary.perTurn.cost": [
+      0,
+      0
+    ],
+    "calls.narrator.scenePrompt": [
+      5,
+      5
+    ],
+    "tokens.narrator.scenePrompt.in": [
+      4288,
+      4288
+    ],
+    "tokens.narrator.scenePrompt.perTurn.in": [
+      0,
+      0
+    ],
+    "tokens.narrator.scenePrompt.cached": [
+      768,
+      768
+    ],
+    "tokens.narrator.scenePrompt.perTurn.cached": [
+      0,
+      0
+    ],
+    "tokens.narrator.scenePrompt.out": [
+      5530,
+      5530
+    ],
+    "tokens.narrator.scenePrompt.perTurn.out": [
+      0,
+      0
+    ],
+    "tokens.narrator.scenePrompt.reasoning": [
+      4398,
+      4398
+    ],
+    "tokens.narrator.scenePrompt.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.narrator.scenePrompt": [
+      0.0020433504,
+      0.0020433504
+    ],
+    "tokens.narrator.scenePrompt.perTurn.cost": [
+      0,
+      0
+    ],
+    "calls.narrator.moveWorld": [
+      19,
+      19
+    ],
+    "tokens.narrator.moveWorld.in": [
+      93904,
+      93904
+    ],
+    "tokens.narrator.moveWorld.perTurn.in": [
+      0,
+      0
+    ],
+    "tokens.narrator.moveWorld.cached": [
+      56864,
+      56864
+    ],
+    "tokens.narrator.moveWorld.perTurn.cached": [
+      0,
+      0
+    ],
+    "tokens.narrator.moveWorld.out": [
+      72658,
+      72658
+    ],
+    "tokens.narrator.moveWorld.perTurn.out": [
+      0,
+      0
+    ],
+    "tokens.narrator.moveWorld.reasoning": [
+      9415,
+      9415
+    ],
+    "tokens.narrator.moveWorld.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.narrator.moveWorld": [
+      0.0256890592,
+      0.0256890592
+    ],
+    "tokens.narrator.moveWorld.perTurn.cost": [
+      0,
+      0
+    ],
+    "calls.reviewer.lore": [
+      10,
+      10
+    ],
+    "tokens.reviewer.lore.in": [
+      28969,
+      28969
+    ],
+    "tokens.reviewer.lore.perTurn.in": [
+      0,
+      0
+    ],
+    "tokens.reviewer.lore.cached": [
+      0,
+      0
+    ],
+    "tokens.reviewer.lore.perTurn.cached": [
+      0,
+      0
+    ],
+    "tokens.reviewer.lore.out": [
+      9496,
+      9496
+    ],
+    "tokens.reviewer.lore.perTurn.out": [
+      0,
+      0
+    ],
+    "tokens.reviewer.lore.reasoning": [
+      8177,
+      8177
+    ],
+    "tokens.reviewer.lore.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.reviewer.lore": [
+      0.008368375,
+      0.008368375
+    ],
+    "tokens.reviewer.lore.perTurn.cost": [
+      0,
+      0
+    ],
+    "calls.narrator.rewrite": [
+      1,
+      1
+    ],
+    "tokens.narrator.rewrite.in": [
+      13478,
+      13478
+    ],
+    "tokens.narrator.rewrite.perTurn.in": [
+      0,
+      0
+    ],
+    "tokens.narrator.rewrite.cached": [
+      6528,
+      6528
+    ],
+    "tokens.narrator.rewrite.perTurn.cached": [
+      0,
+      0
+    ],
+    "tokens.narrator.rewrite.out": [
+      561,
+      561
+    ],
+    "tokens.narrator.rewrite.perTurn.out": [
+      0,
+      0
+    ],
+    "tokens.narrator.rewrite.reasoning": [
+      128,
+      128
+    ],
+    "tokens.narrator.rewrite.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.narrator.rewrite": [
+      0.0011483584,
+      0.0011483584
+    ],
+    "tokens.narrator.rewrite.perTurn.cost": [
+      0,
+      0
+    ],
+    "calls.narrator.regenerate": [
+      2,
+      2
+    ],
+    "tokens.narrator.regenerate.in": [
+      15661,
+      15661
+    ],
+    "tokens.narrator.regenerate.perTurn.in": [
+      0,
+      0
+    ],
+    "tokens.narrator.regenerate.cached": [
+      10368,
+      10368
+    ],
+    "tokens.narrator.regenerate.perTurn.cached": [
+      0,
+      0
+    ],
+    "tokens.narrator.regenerate.out": [
+      1011,
+      1011
+    ],
+    "tokens.narrator.regenerate.perTurn.out": [
+      0,
+      0
+    ],
+    "tokens.narrator.regenerate.reasoning": [
+      846,
+      846
+    ],
+    "tokens.narrator.regenerate.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.narrator.regenerate": [
+      0.0010531304,
+      0.0010531304
+    ],
+    "tokens.narrator.regenerate.perTurn.cost": [
+      0,
+      0
+    ],
+    "calls.narrator.chapterTitle": [
+      1,
+      1
+    ],
+    "tokens.narrator.chapterTitle.in": [
+      2652,
+      2652
+    ],
+    "tokens.narrator.chapterTitle.perTurn.in": [
+      0,
+      0
+    ],
+    "tokens.narrator.chapterTitle.cached": [
+      0,
+      0
+    ],
+    "tokens.narrator.chapterTitle.perTurn.cached": [
+      0,
+      0
+    ],
+    "tokens.narrator.chapterTitle.out": [
+      30,
+      30
+    ],
+    "tokens.narrator.chapterTitle.perTurn.out": [
+      0,
+      0
+    ],
+    "tokens.narrator.chapterTitle.reasoning": [
+      18,
+      18
+    ],
+    "tokens.narrator.chapterTitle.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.narrator.chapterTitle": [
+      0.00037968,
+      0.00037968
+    ],
+    "tokens.narrator.chapterTitle.perTurn.cost": [
+      0,
+      0
+    ],
+    "calls.reviewer.looseEnds": [
+      6,
+      6
+    ],
+    "tokens.reviewer.looseEnds.in": [
+      20476,
+      20476
+    ],
+    "tokens.reviewer.looseEnds.perTurn.in": [
+      0,
+      0
+    ],
+    "tokens.reviewer.looseEnds.cached": [
+      0,
+      0
+    ],
+    "tokens.reviewer.looseEnds.perTurn.cached": [
+      0,
+      0
+    ],
+    "tokens.reviewer.looseEnds.out": [
+      4225,
+      4225
+    ],
+    "tokens.reviewer.looseEnds.perTurn.out": [
+      0,
+      0
+    ],
+    "tokens.reviewer.looseEnds.reasoning": [
+      4103,
+      4103
+    ],
+    "tokens.reviewer.looseEnds.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.reviewer.looseEnds": [
+      0.00467155,
+      0.00467155
+    ],
+    "tokens.reviewer.looseEnds.perTurn.cost": [
+      0,
+      0
+    ],
+    "calls.narrator.edit": [
+      1,
+      1
+    ],
+    "tokens.narrator.edit.in": [
+      20354,
+      20354
+    ],
+    "tokens.narrator.edit.perTurn.in": [
+      0,
+      0
+    ],
+    "tokens.narrator.edit.cached": [
+      96,
+      96
+    ],
+    "tokens.narrator.edit.perTurn.cached": [
+      0,
+      0
+    ],
+    "tokens.narrator.edit.out": [
+      536,
+      536
+    ],
+    "tokens.narrator.edit.perTurn.out": [
+      0,
+      0
+    ],
+    "tokens.narrator.edit.reasoning": [
+      56,
+      56
+    ],
+    "tokens.narrator.edit.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.narrator.edit": [
+      0.0029864688,
+      0.0029864688
+    ],
+    "tokens.narrator.edit.perTurn.cost": [
+      0,
+      0
+    ],
+    "calls.reviewer.knowsFold": [
+      2,
+      2
+    ],
+    "tokens.reviewer.knowsFold.in": [
+      887,
+      887
+    ],
+    "tokens.reviewer.knowsFold.perTurn.in": [
+      0,
+      0
+    ],
+    "tokens.reviewer.knowsFold.cached": [
+      0,
+      0
+    ],
+    "tokens.reviewer.knowsFold.perTurn.cached": [
+      0,
+      0
+    ],
+    "tokens.reviewer.knowsFold.out": [
+      277,
+      277
+    ],
+    "tokens.reviewer.knowsFold.perTurn.out": [
+      0,
+      0
+    ],
+    "tokens.reviewer.knowsFold.reasoning": [
+      0,
+      0
+    ],
+    "tokens.reviewer.knowsFold.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.reviewer.knowsFold": [
+      0.0002272,
+      0.0002272
+    ],
+    "tokens.reviewer.knowsFold.perTurn.cost": [
+      0,
+      0
+    ],
+    "calls.narrator.worldChange": [
+      1,
+      1
+    ],
+    "tokens.narrator.worldChange.in": [
+      6118,
+      6118
+    ],
+    "tokens.narrator.worldChange.perTurn.in": [
+      0,
+      0
+    ],
+    "tokens.narrator.worldChange.cached": [
+      0,
+      0
+    ],
+    "tokens.narrator.worldChange.perTurn.cached": [
+      0,
+      0
+    ],
+    "tokens.narrator.worldChange.out": [
+      696,
+      696
+    ],
+    "tokens.narrator.worldChange.perTurn.out": [
+      0,
+      0
+    ],
+    "tokens.narrator.worldChange.reasoning": [
+      420,
+      420
+    ],
+    "tokens.narrator.worldChange.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.narrator.worldChange": [
+      0.0010514,
+      0.0010514
+    ],
+    "tokens.narrator.worldChange.perTurn.cost": [
+      0,
+      0
+    ],
+    "calls.reviewer.worldChangeReview": [
+      1,
+      1
+    ],
+    "tokens.reviewer.worldChangeReview.in": [
+      7055,
+      7055
+    ],
+    "tokens.reviewer.worldChangeReview.perTurn.in": [
+      0,
+      0
+    ],
+    "tokens.reviewer.worldChangeReview.cached": [
+      2360,
+      2360
+    ],
+    "tokens.reviewer.worldChangeReview.perTurn.cached": [
+      0,
+      0
+    ],
+    "tokens.reviewer.worldChangeReview.out": [
+      1701,
+      1701
+    ],
+    "tokens.reviewer.worldChangeReview.perTurn.out": [
+      0,
+      0
+    ],
+    "tokens.reviewer.worldChangeReview.reasoning": [
+      1400,
+      1400
+    ],
+    "tokens.reviewer.worldChangeReview.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.reviewer.worldChangeReview": [
+      0.0014609,
+      0.0014609
+    ],
+    "tokens.reviewer.worldChangeReview.perTurn.cost": [
+      0,
+      0
+    ],
+    "calls.narrator.memory": [
+      1,
+      1
+    ],
+    "tokens.narrator.memory.in": [
+      3160,
+      3160
+    ],
+    "tokens.narrator.memory.perTurn.in": [
+      0,
+      0
+    ],
+    "tokens.narrator.memory.cached": [
+      0,
+      0
+    ],
+    "tokens.narrator.memory.perTurn.cached": [
+      0,
+      0
+    ],
+    "tokens.narrator.memory.out": [
+      250,
+      250
+    ],
+    "tokens.narrator.memory.perTurn.out": [
+      0,
+      0
+    ],
+    "tokens.narrator.memory.reasoning": [
+      23,
+      23
+    ],
+    "tokens.narrator.memory.perTurn.reasoning": [
+      0,
+      0
+    ],
+    "cost.narrator.memory": [
+      0.0005124,
+      0.0005124
+    ],
+    "tokens.narrator.memory.perTurn.cost": [
+      0,
+      0
+    ],
+    "tokens.perTurn.in": [
+      28792,
+      28792
+    ],
+    "tokens.perTurn.cached": [
+      9283,
+      9283
+    ],
+    "tokens.perTurn.out": [
+      2368,
+      2368
+    ],
+    "tokens.perTurn.reasoning": [
+      1089,
+      1089
+    ],
+    "tokens.perTurn.cost": [
+      0.0033030266,
+      0.0033030266
+    ],
+    "stateFaults.timeBack": [
+      0,
+      0
+    ],
+    "stateFaults.repeatKnows": [
+      0,
+      0
+    ],
+    "stateFaults.negativeKnows": [
+      1,
+      1
+    ],
+    "stateFaults.looseEndReopened": [
+      0,
+      0
+    ],
+    "stateFaults.total": [
+      1,
+      1
+    ],
+    "messages": [
+      96,
+      96
+    ],
+    "prompt.tokens.first": [
+      10274,
+      10274
+    ],
+    "prompt.tokens.last": [
+      24149,
+      24149
+    ],
+    "cost.total": [
+      0.20604534,
+      0.20604534
+    ],
+    "cost.perRound": [
+      0.004578785333333333,
+      0.004578785333333333
+    ],
+    "perRound.narrator.in": [
+      27343,
+      27343
+    ],
+    "perRound.narrator.out": [
+      3125,
+      3125
+    ],
+    "perRound.reviewer.in": [
+      6018,
+      6018
+    ],
+    "perRound.reviewer.out": [
+      1252,
+      1252
+    ],
+    "mistakeCount.secret": [
+      0,
+      0
+    ],
+    "mistakeCount.knowledge": [
+      0,
+      0
+    ],
+    "mistakeCount.character": [
+      2,
+      2
+    ],
+    "mistakeCount.contradiction": [
+      6,
+      6
+    ],
+    "mistakeCount.pcVoiced": [
+      2,
+      2
+    ],
+    "mistakeCount.restart": [
+      0,
+      0
+    ],
+    "mistakeCount.state": [
+      6,
+      6
+    ],
+    "mistakeCount.preventedDeed": [
+      0,
+      0
+    ],
+    "mistakeCount.picture": [
+      4,
+      4
+    ],
+    "judge.raw.choices": [
+      5,
+      5
+    ],
+    "judge.choices": [
+      5,
+      5
+    ],
+    "judge.raw.surprise": [
+      4,
+      4
+    ],
+    "judge.surprise": [
+      4,
+      4
+    ],
+    "judge.raw.threads": [
+      3,
+      3
+    ],
+    "judge.threads": [
+      3,
+      3
+    ],
+    "judge.raw.characters": [
+      6,
+      6
+    ],
+    "judge.characters": [
+      6,
+      6
+    ],
+    "judge.raw.continuity": [
+      4,
+      4
+    ],
+    "judge.continuity": [
+      4,
+      4
+    ],
+    "judge.raw.pacing": [
+      4,
+      4
+    ],
+    "judge.pacing": [
+      4,
+      4
+    ],
+    "judge.raw.prose": [
+      4,
+      4
+    ],
+    "judge.prose": [
+      4,
+      4
+    ],
+    "judge.raw.pictures": [
+      6,
+      6
+    ],
+    "judge.pictures": [
+      6,
+      6
+    ],
+    "judge.raw.secrets": [
+      8,
+      8
+    ],
+    "judge.secrets": [
+      8,
+      8
+    ],
+    "judge.raw.agency": [
+      5,
+      5
+    ],
+    "judge.agency": [
+      4,
+      4
+    ],
+    "judge.raw.stakes": [
+      4,
+      4
+    ],
+    "judge.stakes": [
+      4,
+      4
+    ],
+    "judge.raw.state": [
+      5,
+      5
+    ],
+    "judge.state": [
+      4,
+      4
+    ],
+    "judge.adventure": [
+      3,
+      3
+    ],
+    "mistakes.major": [
+      0.8,
+      0.8
+    ],
+    "mistakes.minor": [
+      3.2,
+      3.2
+    ],
+    "mistakes.textMajor": [
+      0.8,
+      0.8
+    ],
+    "mistakes.textMinor": [
+      2.4000000000000004,
+      2.4000000000000004
+    ],
+    "mistakes.pictureMajor": [
+      0,
+      0
+    ],
+    "mistakes.pictureMinor": [
+      0.8,
+      0.8
+    ],
+    "judge.craft": [
+      4.782608695652174,
+      4.782608695652174
+    ],
+    "judge.overall": [
+      4.152695652173913,
+      4.152695652173913
+    ],
+    "judged.npcDied": [
+      0,
+      0
+    ],
+    "judged.pcInMortalDanger": [
+      0,
+      0
+    ]
+  },
+  "coverage": {
+    "Hidden Check": 1,
+    "Plot Thread added": 0,
+    "Plot Thread moved on": 1,
+    "Plot Thread resolved": 0,
+    "NPC learns (npcKnows)": 1,
+    "Death recorded": 0,
+    "Known fact added": 1,
+    "Known fact changed": 1,
+    "Known NPC summary": 1,
+    "Loose End added": 1,
+    "Loose End resolved": 1,
+    "World Bible grew": 1,
+    "World Bible entry updated": 0,
+    "New NPC": 0,
+    "NPC look changed": 0,
+    "Scene moved": 1,
+    "Item picked up or put on": 1,
+    "Item lost or taken off": 1,
+    "Story Time moved": 1,
+    "PC hurt or changed": 0,
+    "Scene picture": 1,
+    "Portrait": 1,
+    "Scene Memory": 1,
+    "Chapter closed": 1,
+    "State Upkeep changed state": 1,
+    "World Change": 1,
+    "Rewrite": 1,
+    "Regenerate": 1,
+    "Continue": 1,
+    "Edit": 1,
+    "An NPC died (judged)": 0,
+    "PC in mortal danger and lived (judged)": 0
+  },
+  "judge": {
+    "by": "claude-fable-5-2",
+    "plays": [
+      {
+        "mistakes": [
+          {
+            "kind": "state",
+            "weight": "major",
+            "where": "round 6",
+            "note": "Stale Choice picked: 'Stay where I am with the glass and watch the sixth rider' was offered after M12 had Wren back down in the shade with Tamsin and the glass back with Vane; M14 then puts her flat on the rise again with the glass, and Vane, who had only just started down, waiting at its foot.",
+            "features": [
+              "choices"
+            ]
+          },
+          {
+            "kind": "state",
+            "weight": "major",
+            "where": "M34",
+            "note": "The Regenerate left the reply as the Check's raw JSON (':{\"action\":...,\"stakes\":...}') with no story text at all; the player reads a JSON blob where the page should be.",
+            "features": [
+              "actions"
+            ]
+          },
+          {
+            "kind": "pcVoiced",
+            "weight": "major",
+            "where": "M54",
+            "note": "The move 'I saddle up and ride back for the border post' got only a raw JSON fragment as its reply; the Check rolled a success, but the ride was never narrated and the next round has Wren still in camp, re-offered the same ride. The player's move was dropped and their plan changed without them."
+          },
+          {
+            "kind": "contradiction",
+            "weight": "major",
+            "where": "M90",
+            "note": "Vane and Tamsin say the caravan will reach the Red Teeth by midday, half a day's walk ahead, and it then files through the red spires; but the story opened halted at the Red Teeth the afternoon before and has marched on south since. The road loops back to the place already left."
+          },
+          {
+            "kind": "contradiction",
+            "weight": "minor",
+            "where": "M4",
+            "note": "Tamsin says six days to Ashar; at M94 Ashar is half a day past the Teeth. The Journal keeps the six-days fact to the end and the Ossery thread's now shifts to 'four days', against its own 'tomorrow'.",
+            "features": [
+              "journal",
+              "plotThreads"
+            ]
+          },
+          {
+            "kind": "pcVoiced",
+            "weight": "minor",
+            "where": "M8",
+            "note": "On a move that was only to go and look, Wren is given a speech of her own deductions (a rider's seat, not a bandit's; a string bought together)."
+          },
+          {
+            "kind": "contradiction",
+            "weight": "minor",
+            "where": "M50",
+            "note": "The border post is 'half a day back' though the caravan was a day out from it at the opening and has moved on since; it lies west in M62-M68 and north in M70."
+          },
+          {
+            "kind": "contradiction",
+            "weight": "minor",
+            "where": "M50",
+            "note": "The woman at the post is named Pell, the name of Tamsin's drowned son in the World Bible; Tamsin speaks of 'Pell' at M52 as if the name were nothing to her."
+          },
+          {
+            "kind": "contradiction",
+            "weight": "minor",
+            "where": "M62",
+            "note": "The four men Vane begged of Tamsin at M16-M19 ('give me a patrol of four men') are 'my four' and 'my men' from here on."
+          },
+          {
+            "kind": "character",
+            "weight": "minor",
+            "where": "M70",
+            "note": "Vane, mounted and set on the ride to the post, drops it without a word the moment Wren stays, and his exchange with Tamsin over taking two or four men makes no sense for a man who is staying."
+          },
+          {
+            "kind": "character",
+            "weight": "minor",
+            "where": "M74",
+            "note": "Tamsin laughs, though she is written as not having laughed since her son drowned; and the point rider's sighting she was asking about is never told."
+          },
+          {
+            "kind": "contradiction",
+            "weight": "minor",
+            "where": "M80",
+            "note": "Tamsin tells Vane the riders came 'the same week you hired the grey' (she hired it); the two riders were 'heading east' and never stopped in M66 but 'came in from the east' and went into the back room in M76; and 'that week' was a day or two ago."
+          },
+          {
+            "kind": "state",
+            "weight": "minor",
+            "where": "round 17",
+            "note": "Plot Thread nows lag the page: Vane still 'east of the track' after he came back, and Sefa's riders still 'aiming to reach the road beyond the Red Teeth before full dark' and to 'ambush at dusk' through the whole of day 3's morning; the dusk strike never came and was never replanned.",
+            "features": [
+              "plotThreads"
+            ]
+          },
+          {
+            "kind": "state",
+            "weight": "minor",
+            "where": "round 30",
+            "note": "After the Edit the thread nows tell as done what never happened: the caravan 'turned west toward the border post' and Vane and Wren 'gone' riding to question Pell. Wren stayed and the caravan went south; not fully corrected until round 40.",
+            "features": [
+              "plotThreads"
+            ]
+          },
+          {
+            "kind": "state",
+            "weight": "minor",
+            "where": "round 14",
+            "note": "What NPCs know repeats the same backstory: Jory's guilt over the waterskin recorded at rounds 5, 14, 30 and 45, Ossery's fear of Vane at 5, 14 and 45; and round 29 records that 'Tamsin entrusted the caravan to herself'.",
+            "features": [
+              "npcKnows"
+            ]
+          },
+          {
+            "kind": "state",
+            "weight": "minor",
+            "where": "opening",
+            "note": "The Journal's summary calls Tamsin 'a wagon driver traveling with Wren's caravan'; she owns and leads it, and the line survives the round 18 update. 'Tamsin wants Wren to tell Vane' is also never retired after Tamsin tells him herself.",
+            "features": [
+              "journal"
+            ]
+          },
+          {
+            "kind": "picture",
+            "weight": "minor",
+            "where": "M27",
+            "note": "Two riders follow Vane and Wren, not four, in modern brimmed hats, and the distant line of movement is drawn as a white streak across the sky like a contrail.",
+            "features": [
+              "pictures"
+            ]
+          },
+          {
+            "kind": "picture",
+            "weight": "minor",
+            "where": "M36",
+            "note": "Wren is drawn in a leather vest with a different face and swept-up hair, Tamsin's robe is grey-mauve rather than faded red, and Jory's hair is straight.",
+            "features": [
+              "pictures"
+            ]
+          },
+          {
+            "kind": "picture",
+            "weight": "minor",
+            "where": "M44",
+            "note": "Wren has invented marks on her forehead instead of the eyebrow scar, the glass is a pair of binoculars and the folding knife a dagger; Tamsin sits awake outside by an open wagon when the page has her inside the canopy, and Jory wears shoes.",
+            "features": [
+              "pictures"
+            ]
+          },
+          {
+            "kind": "picture",
+            "weight": "minor",
+            "where": "portrait of Captain Vane",
+            "note": "The burn scar down the left side of his neck is drawn as a red cut down the middle of his throat.",
+            "features": [
+              "pictures"
+            ]
+          }
+        ],
+        "audit": {
+          "storyTime": "ok",
+          "scene": "ok",
+          "pc": "ok",
+          "npcLooks": "ok",
+          "npcKnows": "faulty",
+          "choices": "faulty",
+          "journal": "faulty",
+          "looseEnds": "ok",
+          "plotThreads": "faulty",
+          "lore": "ok",
+          "memories": "ok",
+          "pictures": "faulty",
+          "actions": "faulty"
+        },
+        "scores": {
+          "choices": {
+            "score": 5,
+            "reason": "Three distinct options most rounds, but mostly watch, ask or ride back; one stale Choice was picked, the ride to the post was offered eight rounds running, and picks bent little past the next reply."
+          },
+          "surprise": {
+            "score": 4,
+            "reason": "The riders breaking off and the lights on the Flats intrigue, but no turn lands in 47 rounds: the promised dusk strike never comes and the brand and second caravan come from outside the hidden threads."
+          },
+          "threads": {
+            "score": 3,
+            "reason": "Only the Free Wells countdown ticks; Sefa's ambush stays frozen at 'before full dark' through the next morning, Ossery's thread slides from tomorrow to four days, and nothing hidden reaches the page."
+          },
+          "characters": {
+            "score": 6,
+            "reason": "Tamsin and Vane hold their voices and wants, but Vane drops his ride the moment Wren stays, talks nonsense about brands, and Tamsin laughs against her own record."
+          },
+          "continuity": {
+            "score": 4,
+            "reason": "The caravan arrives again at the Red Teeth it left the day before, Wren is back on the rise after coming down, and Ashar, the border post and who hired the grey all shift."
+          },
+          "pacing": {
+            "score": 4,
+            "reason": "A tense first evening, then rounds 22 to 39 circle one horse brand with the same Pell story told five times, hooks like the point rider's shout are dropped, and two replies are no story at all."
+          },
+          "prose": {
+            "score": 4,
+            "reason": "Clear and at times vivid desert prose, but two replies are raw JSON, M29 ends on a cut sentence, the PC's lines are labelled None, and tics repeat (plainly, the leather strip, the two-fingered hand)."
+          },
+          "pictures": {
+            "score": 6,
+            "reason": "The opening scene and three of four portraits are right; the later scenes change Wren's clothes and face, add forehead marks and binoculars, and Vane's scar is a cut down his throat."
+          },
+          "secrets": {
+            "score": 8,
+            "reason": "Nothing hidden leaked through narration, Choices or the Journal; Jory's unease and Vane's guarded line about caravans are fair hints, though nothing was found either."
+          },
+          "agency": {
+            "score": 5,
+            "reason": "Most moves are carried out as given and Continues leave the PC alone, but the ride to the border post was dropped outright and Wren is handed deductions at M8."
+          },
+          "stakes": {
+            "score": 4,
+            "reason": "Four Checks, three on looking through a glass; the failed ride east cost nothing on the page, the one success on a real journey was thrown away, and no danger was ever met."
+          },
+          "state": {
+            "score": 5,
+            "reason": "The Journal's facts are replaced and retired with care, but a stale Choice was played, a Regenerate left JSON as the page, and the Plot Thread nows are stale or tell a march west that never happened."
+          }
+        },
+        "happened": {
+          "npcDied": false,
+          "pcInMortalDanger": false
+        },
+        "adventure": {
+          "score": 3,
+          "reason": "The road is named and talked about, but in a day of story the caravan meets no danger in action: the riders only watch and leave, the storm is a haze, and the journey circles back to the rocks it started from."
+        }
+      }
+    ]
+  },
+  "plays": [
+    {
+      "rounds": 45,
+      "turns": 50,
+      "retries": 3,
+      "checks.asked": 5,
+      "upkeep.total": 139,
+      "ops.add_item": 1,
+      "ops.remove_item": 0,
+      "ops.set_health": 0,
+      "ops.add_status": 0,
+      "ops.remove_status": 0,
+      "ops.add_npc": 0,
+      "ops.update_npc": 0,
+      "ops.merge_npc": 0,
+      "ops.npc_dies": 0,
+      "ops.npc_learns": 3,
+      "ops.set_scene": 1,
+      "ops.add_known_fact": 0,
+      "ops.update_known_fact": 0,
+      "ops.remove_known_fact": 0,
+      "ops.add_known_npc": 0,
+      "ops.set_known_npc_summary": 0,
+      "ops.add_loose_end": 0,
+      "ops.resolve_loose_end": 0,
+      "ops.add_lore_entry": 1,
+      "ops.update_lore_entry": 0,
+      "ops.update_plot_thread": 0,
+      "ops.set_pc_appearance": 0,
+      "ops.set_era": 1,
+      "ops.set_story_time": 6,
+      "turns.opening": 1,
+      "upkeep.add_known_fact": 42,
+      "upkeep.add_loose_end": 11,
+      "upkeep.set_known_npc_summary": 4,
+      "upkeep.set_story_time": 44,
+      "upkeep.refused": 2,
+      "turns.turn": 46,
+      "upkeep.npc_learns": 30,
+      "upkeep.set_scene": 24,
+      "upkeep.add_item": 4,
+      "upkeep.update_known_fact": 16,
+      "checks.failure": 3,
+      "upkeep.remove_item": 4,
+      "turns.rewrite": 1,
+      "checks.success": 2,
+      "upkeep.resolve_loose_end": 4,
+      "turns.regenerate": 1,
+      "chapterSuggested": 2,
+      "turns.edit": 1,
+      "checks.difficultyMean": null,
+      "moves.rewritten": 29,
+      "moves.added": 0,
+      "moves.removed": 0,
+      "lore.added": 6,
+      "moves.failed": 0,
+      "unusable": 45,
+      "failed": 0,
+      "chapters.closed": 1,
+      "actions.rewrite": 1,
+      "actions.regenerate": 1,
+      "actions.continue": 1,
+      "actions.edit": 1,
+      "actions.worldChange": 1,
+      "end.plotThreads": 4,
+      "end.npcKnows": 29,
+      "end.knownFacts": 36,
+      "end.knownNpcs": 3,
+      "end.looseEnds": 6,
+      "end.sceneMemories": 1,
+      "end.worldBible": 20,
+      "end.npcs": 3,
+      "timing.firstText.median": 5714,
+      "timing.firstText.max": 110198,
+      "timing.reply.median": 13829,
+      "timing.reply.max": 131406,
+      "timing.turn.median": 24982,
+      "timing.turn.max": 156425,
+      "timing.upkeep.median": 5551,
+      "timing.upkeep.max": 9950,
+      "timing.summary.median": 5105,
+      "timing.summary.max": 6688,
+      "timing.memory.median": 3517,
+      "timing.memory.max": 3517,
+      "timing.picture.median": 4535,
+      "timing.picture.max": 15928,
+      "images.scene": 4,
+      "images.portrait": 4,
+      "images.requested": 0,
+      "calls.narrator.portraitPrompt": 4,
+      "tokens.narrator.portraitPrompt.in": 2506,
+      "tokens.narrator.portraitPrompt.perTurn.in": 0,
+      "tokens.narrator.portraitPrompt.cached": 544,
+      "tokens.narrator.portraitPrompt.perTurn.cached": 0,
+      "tokens.narrator.portraitPrompt.out": 1095,
+      "tokens.narrator.portraitPrompt.perTurn.out": 0,
+      "tokens.narrator.portraitPrompt.reasoning": 538,
+      "tokens.narrator.portraitPrompt.perTurn.reasoning": 0,
+      "cost.narrator.portraitPrompt": 0.0005828032,
+      "tokens.narrator.portraitPrompt.perTurn.cost": 0,
+      "calls.narrator.opening": 1,
+      "tokens.narrator.opening.in": 9067,
+      "tokens.narrator.opening.perTurn.in": 0,
+      "tokens.narrator.opening.cached": 0,
+      "tokens.narrator.opening.perTurn.cached": 0,
+      "tokens.narrator.opening.out": 2377,
+      "tokens.narrator.opening.perTurn.out": 0,
+      "tokens.narrator.opening.reasoning": 1398,
+      "tokens.narrator.opening.perTurn.reasoning": 0,
+      "cost.narrator.opening": 0.00193494,
+      "tokens.narrator.opening.perTurn.cost": 0,
+      "calls.reviewer.upkeep": 50,
+      "tokens.reviewer.upkeep.in": 189798,
+      "tokens.reviewer.upkeep.perTurn.in": 3744,
+      "tokens.reviewer.upkeep.cached": 104130,
+      "tokens.reviewer.upkeep.perTurn.cached": 2115,
+      "tokens.reviewer.upkeep.out": 34945,
+      "tokens.reviewer.upkeep.perTurn.out": 644,
+      "tokens.reviewer.upkeep.reasoning": 27920,
+      "tokens.reviewer.upkeep.perTurn.reasoning": 516,
+      "cost.reviewer.upkeep": 0.029218549999999996,
+      "tokens.reviewer.upkeep.perTurn.cost": 0.0005737,
+      "calls.narrator.choices": 83,
+      "tokens.narrator.choices.in": 163346,
+      "tokens.narrator.choices.perTurn.in": 2696,
+      "tokens.narrator.choices.cached": 38752,
+      "tokens.narrator.choices.perTurn.cached": 800,
+      "tokens.narrator.choices.out": 20607,
+      "tokens.narrator.choices.perTurn.out": 453,
+      "tokens.narrator.choices.reasoning": 5547,
+      "tokens.narrator.choices.perTurn.reasoning": 0,
+      "cost.narrator.choices": 0.023321625599999996,
+      "tokens.narrator.choices.perTurn.cost": 0.00051814,
+      "calls.narrator.turn": 53,
+      "tokens.narrator.turn.in": 895879,
+      "tokens.narrator.turn.perTurn.in": 19309,
+      "tokens.narrator.turn.cached": 289280,
+      "tokens.narrator.turn.perTurn.cached": 6112,
+      "tokens.narrator.turn.out": 35261,
+      "tokens.narrator.turn.perTurn.out": 588,
+      "tokens.narrator.turn.reasoning": 9188,
+      "tokens.narrator.turn.perTurn.reasoning": 89,
+      "cost.narrator.turn": 0.09560692400000004,
+      "tokens.narrator.turn.perTurn.cost": 0.002014516,
+      "calls.reviewer.summary": 10,
+      "tokens.reviewer.summary.in": 23619,
+      "tokens.reviewer.summary.perTurn.in": 0,
+      "tokens.reviewer.summary.cached": 0,
+      "tokens.reviewer.summary.perTurn.cached": 0,
+      "tokens.reviewer.summary.out": 5714,
+      "tokens.reviewer.summary.perTurn.out": 0,
+      "tokens.reviewer.summary.reasoning": 1962,
+      "tokens.reviewer.summary.perTurn.reasoning": 0,
+      "cost.reviewer.summary": 0.0057886249999999995,
+      "tokens.reviewer.summary.perTurn.cost": 0,
+      "calls.narrator.scenePrompt": 5,
+      "tokens.narrator.scenePrompt.in": 4288,
+      "tokens.narrator.scenePrompt.perTurn.in": 0,
+      "tokens.narrator.scenePrompt.cached": 768,
+      "tokens.narrator.scenePrompt.perTurn.cached": 0,
+      "tokens.narrator.scenePrompt.out": 5530,
+      "tokens.narrator.scenePrompt.perTurn.out": 0,
+      "tokens.narrator.scenePrompt.reasoning": 4398,
+      "tokens.narrator.scenePrompt.perTurn.reasoning": 0,
+      "cost.narrator.scenePrompt": 0.0020433504,
+      "tokens.narrator.scenePrompt.perTurn.cost": 0,
+      "calls.narrator.moveWorld": 19,
+      "tokens.narrator.moveWorld.in": 93904,
+      "tokens.narrator.moveWorld.perTurn.in": 0,
+      "tokens.narrator.moveWorld.cached": 56864,
+      "tokens.narrator.moveWorld.perTurn.cached": 0,
+      "tokens.narrator.moveWorld.out": 72658,
+      "tokens.narrator.moveWorld.perTurn.out": 0,
+      "tokens.narrator.moveWorld.reasoning": 9415,
+      "tokens.narrator.moveWorld.perTurn.reasoning": 0,
+      "cost.narrator.moveWorld": 0.0256890592,
+      "tokens.narrator.moveWorld.perTurn.cost": 0,
+      "calls.reviewer.lore": 10,
+      "tokens.reviewer.lore.in": 28969,
+      "tokens.reviewer.lore.perTurn.in": 0,
+      "tokens.reviewer.lore.cached": 0,
+      "tokens.reviewer.lore.perTurn.cached": 0,
+      "tokens.reviewer.lore.out": 9496,
+      "tokens.reviewer.lore.perTurn.out": 0,
+      "tokens.reviewer.lore.reasoning": 8177,
+      "tokens.reviewer.lore.perTurn.reasoning": 0,
+      "cost.reviewer.lore": 0.008368375,
+      "tokens.reviewer.lore.perTurn.cost": 0,
+      "calls.narrator.rewrite": 1,
+      "tokens.narrator.rewrite.in": 13478,
+      "tokens.narrator.rewrite.perTurn.in": 0,
+      "tokens.narrator.rewrite.cached": 6528,
+      "tokens.narrator.rewrite.perTurn.cached": 0,
+      "tokens.narrator.rewrite.out": 561,
+      "tokens.narrator.rewrite.perTurn.out": 0,
+      "tokens.narrator.rewrite.reasoning": 128,
+      "tokens.narrator.rewrite.perTurn.reasoning": 0,
+      "cost.narrator.rewrite": 0.0011483584,
+      "tokens.narrator.rewrite.perTurn.cost": 0,
+      "calls.narrator.regenerate": 2,
+      "tokens.narrator.regenerate.in": 15661,
+      "tokens.narrator.regenerate.perTurn.in": 0,
+      "tokens.narrator.regenerate.cached": 10368,
+      "tokens.narrator.regenerate.perTurn.cached": 0,
+      "tokens.narrator.regenerate.out": 1011,
+      "tokens.narrator.regenerate.perTurn.out": 0,
+      "tokens.narrator.regenerate.reasoning": 846,
+      "tokens.narrator.regenerate.perTurn.reasoning": 0,
+      "cost.narrator.regenerate": 0.0010531304,
+      "tokens.narrator.regenerate.perTurn.cost": 0,
+      "calls.narrator.chapterTitle": 1,
+      "tokens.narrator.chapterTitle.in": 2652,
+      "tokens.narrator.chapterTitle.perTurn.in": 0,
+      "tokens.narrator.chapterTitle.cached": 0,
+      "tokens.narrator.chapterTitle.perTurn.cached": 0,
+      "tokens.narrator.chapterTitle.out": 30,
+      "tokens.narrator.chapterTitle.perTurn.out": 0,
+      "tokens.narrator.chapterTitle.reasoning": 18,
+      "tokens.narrator.chapterTitle.perTurn.reasoning": 0,
+      "cost.narrator.chapterTitle": 0.00037968,
+      "tokens.narrator.chapterTitle.perTurn.cost": 0,
+      "calls.reviewer.looseEnds": 6,
+      "tokens.reviewer.looseEnds.in": 20476,
+      "tokens.reviewer.looseEnds.perTurn.in": 0,
+      "tokens.reviewer.looseEnds.cached": 0,
+      "tokens.reviewer.looseEnds.perTurn.cached": 0,
+      "tokens.reviewer.looseEnds.out": 4225,
+      "tokens.reviewer.looseEnds.perTurn.out": 0,
+      "tokens.reviewer.looseEnds.reasoning": 4103,
+      "tokens.reviewer.looseEnds.perTurn.reasoning": 0,
+      "cost.reviewer.looseEnds": 0.00467155,
+      "tokens.reviewer.looseEnds.perTurn.cost": 0,
+      "calls.narrator.edit": 1,
+      "tokens.narrator.edit.in": 20354,
+      "tokens.narrator.edit.perTurn.in": 0,
+      "tokens.narrator.edit.cached": 96,
+      "tokens.narrator.edit.perTurn.cached": 0,
+      "tokens.narrator.edit.out": 536,
+      "tokens.narrator.edit.perTurn.out": 0,
+      "tokens.narrator.edit.reasoning": 56,
+      "tokens.narrator.edit.perTurn.reasoning": 0,
+      "cost.narrator.edit": 0.0029864688,
+      "tokens.narrator.edit.perTurn.cost": 0,
+      "calls.reviewer.knowsFold": 2,
+      "tokens.reviewer.knowsFold.in": 887,
+      "tokens.reviewer.knowsFold.perTurn.in": 0,
+      "tokens.reviewer.knowsFold.cached": 0,
+      "tokens.reviewer.knowsFold.perTurn.cached": 0,
+      "tokens.reviewer.knowsFold.out": 277,
+      "tokens.reviewer.knowsFold.perTurn.out": 0,
+      "tokens.reviewer.knowsFold.reasoning": 0,
+      "tokens.reviewer.knowsFold.perTurn.reasoning": 0,
+      "cost.reviewer.knowsFold": 0.0002272,
+      "tokens.reviewer.knowsFold.perTurn.cost": 0,
+      "calls.narrator.worldChange": 1,
+      "tokens.narrator.worldChange.in": 6118,
+      "tokens.narrator.worldChange.perTurn.in": 0,
+      "tokens.narrator.worldChange.cached": 0,
+      "tokens.narrator.worldChange.perTurn.cached": 0,
+      "tokens.narrator.worldChange.out": 696,
+      "tokens.narrator.worldChange.perTurn.out": 0,
+      "tokens.narrator.worldChange.reasoning": 420,
+      "tokens.narrator.worldChange.perTurn.reasoning": 0,
+      "cost.narrator.worldChange": 0.0010514,
+      "tokens.narrator.worldChange.perTurn.cost": 0,
+      "calls.reviewer.worldChangeReview": 1,
+      "tokens.reviewer.worldChangeReview.in": 7055,
+      "tokens.reviewer.worldChangeReview.perTurn.in": 0,
+      "tokens.reviewer.worldChangeReview.cached": 2360,
+      "tokens.reviewer.worldChangeReview.perTurn.cached": 0,
+      "tokens.reviewer.worldChangeReview.out": 1701,
+      "tokens.reviewer.worldChangeReview.perTurn.out": 0,
+      "tokens.reviewer.worldChangeReview.reasoning": 1400,
+      "tokens.reviewer.worldChangeReview.perTurn.reasoning": 0,
+      "cost.reviewer.worldChangeReview": 0.0014609,
+      "tokens.reviewer.worldChangeReview.perTurn.cost": 0,
+      "calls.narrator.memory": 1,
+      "tokens.narrator.memory.in": 3160,
+      "tokens.narrator.memory.perTurn.in": 0,
+      "tokens.narrator.memory.cached": 0,
+      "tokens.narrator.memory.perTurn.cached": 0,
+      "tokens.narrator.memory.out": 250,
+      "tokens.narrator.memory.perTurn.out": 0,
+      "tokens.narrator.memory.reasoning": 23,
+      "tokens.narrator.memory.perTurn.reasoning": 0,
+      "cost.narrator.memory": 0.0005124,
+      "tokens.narrator.memory.perTurn.cost": 0,
+      "tokens.perTurn.in": 28792,
+      "tokens.perTurn.cached": 9283,
+      "tokens.perTurn.out": 2368,
+      "tokens.perTurn.reasoning": 1089,
+      "tokens.perTurn.cost": 0.0033030266,
+      "stateFaults.timeBack": 0,
+      "stateFaults.repeatKnows": 0,
+      "stateFaults.negativeKnows": 1,
+      "stateFaults.looseEndReopened": 0,
+      "stateFaults.total": 1,
+      "messages": 96,
+      "prompt.tokens.first": 10274,
+      "prompt.tokens.last": 24149,
+      "cost.total": 0.20604534,
+      "cost.perRound": 0.004578785333333333,
+      "perRound.narrator.in": 27343,
+      "perRound.narrator.out": 3125,
+      "perRound.reviewer.in": 6018,
+      "perRound.reviewer.out": 1252,
+      "mistakeCount.secret": 0,
+      "mistakeCount.knowledge": 0,
+      "mistakeCount.character": 2,
+      "mistakeCount.contradiction": 6,
+      "mistakeCount.pcVoiced": 2,
+      "mistakeCount.restart": 0,
+      "mistakeCount.state": 6,
+      "mistakeCount.preventedDeed": 0,
+      "mistakeCount.picture": 4,
+      "judge.raw.choices": 5,
+      "judge.choices": 5,
+      "judge.raw.surprise": 4,
+      "judge.surprise": 4,
+      "judge.raw.threads": 3,
+      "judge.threads": 3,
+      "judge.raw.characters": 6,
+      "judge.characters": 6,
+      "judge.raw.continuity": 4,
+      "judge.continuity": 4,
+      "judge.raw.pacing": 4,
+      "judge.pacing": 4,
+      "judge.raw.prose": 4,
+      "judge.prose": 4,
+      "judge.raw.pictures": 6,
+      "judge.pictures": 6,
+      "judge.raw.secrets": 8,
+      "judge.secrets": 8,
+      "judge.raw.agency": 5,
+      "judge.agency": 4,
+      "judge.raw.stakes": 4,
+      "judge.stakes": 4,
+      "judge.raw.state": 5,
+      "judge.state": 4,
+      "judge.adventure": 3,
+      "mistakes.major": 0.8,
+      "mistakes.minor": 3.2,
+      "mistakes.textMajor": 0.8,
+      "mistakes.textMinor": 2.4000000000000004,
+      "mistakes.pictureMajor": 0,
+      "mistakes.pictureMinor": 0.8,
+      "judge.craft": 4.782608695652174,
+      "judge.overall": 4.152695652173913,
+      "judged.npcDied": 0,
+      "judged.pcInMortalDanger": 0
+    }
+  ],
+  "rubric": 5
+}

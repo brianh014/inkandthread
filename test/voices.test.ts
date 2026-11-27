@@ -25,7 +25,7 @@ test("each person in view is heard in their earliest lines of six words or more,
     narrator(8, '[Commander Devesh Rao]: "This one is sent in full already, so it is left out here."'),
   ];
 
-  expect(howTheySpeak(messages, 8, { scene, npcs })).toEqual({
+  expect(howTheySpeak(messages, 8, { scene, npcs }, "", "Brian")).toEqual({
     // By a shortened name too, as Narrators shorten names.
     "Commander Devesh Rao": [
       "\"Ensign, you'll want the second drill, it's the one that saves you.\"",
@@ -37,8 +37,22 @@ test("each person in view is heard in their earliest lines of six words or more,
 
 test("no one is heard who has no lines from before, and a long line is cut at a word", () => {
   const long = `"${"word ".repeat(60).trim()}."`;
-  expect(howTheySpeak([narrator(2, '[Commander Devesh Rao]: "Later."')], 4, { scene, npcs })).toEqual({});
-  const [line] = howTheySpeak([narrator(2, `[Captain Ilse Vantor]: ${long}`)], 4, { scene, npcs })["Captain Ilse Vantor"]!;
+  expect(howTheySpeak([narrator(2, '[Commander Devesh Rao]: "Later."')], 4, { scene, npcs }, "", "Brian")).toEqual({});
+  const [line] = howTheySpeak([narrator(2, `[Captain Ilse Vantor]: ${long}`)], 4, { scene, npcs }, "", "Brian")["Captain Ilse Vantor"]!;
   expect(line!.length).toBeLessThanOrEqual(201);
   expect(line!.endsWith("word…")).toBe(true);
+});
+
+test("the PC's own lines are never taken for someone's voice, and a line with no early space is still cut short", () => {
+  const pcLine = narrator(2, '[Hana]: "I will take the night watch myself, thank you all."');
+  expect(howTheySpeak([pcLine], 4, { scene: { ...scene, visibleCast: ["Lieutenant Hana Sorrell"] }, npcs }, "", "Hana")).toEqual({});
+  const [line] = howTheySpeak([narrator(2, `[Captain Ilse Vantor]: one two three four five ${"x".repeat(400)}`)], 4, { scene, npcs }, "", "Brian")[
+    "Captain Ilse Vantor"
+  ]!;
+  expect(line!.length).toBeLessThanOrEqual(201);
+});
+
+test("someone the last reply names is heard though the scene's cast doesn't list them yet", () => {
+  const sorrell = narrator(2, '[Lieutenant Hana Sorrell]: "The water here is warmer than the charts say it should be."');
+  expect(Object.keys(howTheySpeak([sorrell], 4, { scene, npcs }, "Sorrell walks back up the sand.", "Brian"))).toEqual(["Lieutenant Hana Sorrell"]);
 });

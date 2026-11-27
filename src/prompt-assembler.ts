@@ -334,19 +334,23 @@ const VOICE_CHARACTERS = 200;
  * How each person in view spoke before the Messages sent in full, in their own earliest lines, so the Narrator hears the voice
  * they were given rather than only the latest replies'. Empty for those with none from before.
  */
-export function howTheySpeak(messages: Message[], since: number, { scene, npcs }: Pick<State, "scene" | "npcs">) {
+export function howTheySpeak(messages: Message[], since: number, state: Pick<State, "scene" | "npcs">, said: string, pc: string) {
   const lines: Record<string, string[]> = {};
-  const inView = new Set(scene.visibleCast);
+  // Those npcKnows is sent for, as someone the last reply brought back may not be in the scene's cast yet.
+  const present = presentOf(state, said);
+  const heard = () => present.every((name) => (lines[name]?.length ?? 0) >= VOICE_LINES);
   for (const { id, role, text } of messages) {
-    if (id >= since) break;
+    if (id >= since || heard()) break;
     if (role !== "narrator") continue;
-    for (const [, speaker, said] of text.matchAll(/^\[([^\]]+)\]:\s*(.+)$/gm)) {
-      const name = findPerson(npcs, speaker!.trim())?.name;
-      if (!name || !inView.has(name) || (lines[name]?.length ?? 0) >= VOICE_LINES) continue;
-      const line = said!.trim();
-      if (line.split(/\s+/).length < VOICE_WORDS) continue;
-      const cut = line.length > VOICE_CHARACTERS ? `${line.slice(0, line.lastIndexOf(" ", VOICE_CHARACTERS))}…` : line;
-      lines[name] = [...(lines[name] ?? []), cut];
+    for (const [, speaker, line] of text.matchAll(/^\[([^\]]+)\]:\s*(.+)$/gm)) {
+      // Never the PC's own line, as a part of a name can match someone else's.
+      if (findPerson([{ name: pc }], speaker!.trim())) continue;
+      const name = findPerson(state.npcs, speaker!.trim())?.name;
+      if (!name || !present.includes(name) || (lines[name]?.length ?? 0) >= VOICE_LINES) continue;
+      const words = line!.trim();
+      if (words.split(/\s+/).length < VOICE_WORDS) continue;
+      const space = words.lastIndexOf(" ", VOICE_CHARACTERS);
+      lines[name] = [...(lines[name] ?? []), words.length > VOICE_CHARACTERS ? `${words.slice(0, space > 0 ? space : VOICE_CHARACTERS)}…` : words];
     }
   }
   return lines;
@@ -433,8 +437,9 @@ export function assemblePrompt({
     ...(threadsPlan[truth] && { plan: threadsPlan[truth] }),
   }));
   const recent = messageWindow(messages, sceneMemories, memoryStart, windowMessages);
-  const npcKnows = knowsOfPresent({ ...currentState, npcKnows: allKnows }, [input, recent.findLast(({ role }) => role === "narrator")?.text ?? ""].join("\n"));
-  const voices = howTheySpeak(messages, recent[0]?.id ?? Number.POSITIVE_INFINITY, currentState);
+  const said = [input, recent.findLast(({ role }) => role === "narrator")?.text ?? ""].join("\n");
+  const npcKnows = knowsOfPresent({ ...currentState, npcKnows: allKnows }, said);
+  const voices = howTheySpeak(messages, recent[0]?.id ?? Number.POSITIVE_INFINITY, currentState, said, pc.name ?? "");
   const heard = Object.keys(voices).length > 0;
   // Last before the player's words, as models attend most to the end and the slips found in play were exactly these.
   const { inventory, scene, storyTime, ...restOfState } = currentState;

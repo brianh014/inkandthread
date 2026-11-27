@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import { duePlan, planOffered, planTowardPc, replyBefore } from "../src/due-plans";
+import { duePlan, planOffered, replyBefore } from "../src/due-plans";
 import { planShown } from "../src/world-moves-on";
 import { saveStore } from "../src/save-store";
 import { openingState, type State } from "../src/state-applier";
@@ -26,15 +26,6 @@ const state: State = {
   scene: { location: "the mouth of the gap", visibleCast: ["Tamsin"] },
   storyTime: at(18.95),
 };
-
-test("a plan its move marked as landing on the PC is near though its words name no one with them", () => {
-  const alone = { ...state, scene: { location: "the salt road", visibleCast: [] } };
-  const plan = "At seven the riders will close on the caravan's rear.";
-  const marked = { ...alone, threadsPlan: { [DREM]: plan } };
-  expect(duePlan("unmarked", marked, "Wren", 1)).toBeUndefined();
-  planTowardPc("marked", [plan]);
-  expect(duePlan("marked", marked, "Wren", 1)).toBe(plan);
-});
 
 test("the plan brought on is one near the PC whose hour this reply reaches, never a far one", () => {
   expect(duePlan("near", state, "Wren", 1)).toBe(PLAN);

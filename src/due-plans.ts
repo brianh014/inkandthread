@@ -70,7 +70,7 @@ const calls = (plan: string, person: string) => {
 export function duePlan(id: string, state: State, pcName: string, after: number, pace = USUAL_PACE) {
   const clock = clockOf(state.storyTime);
   if (clock === undefined) return undefined;
-  const nearness = nearPc(id, state, pcName);
+  const nearness = nearPc(state, pcName);
   const spent = (plan: string) => (offered.get(id)?.get(plan) ?? Number.POSITIVE_INFINITY) < after;
   const reach = clock + Math.min(Math.max(pace, USUAL_PACE), NEAR_HOURS) + ROUNDING;
   const [first] = Object.entries(state.threadsPlan)
@@ -86,20 +86,13 @@ export function duePlan(id: string, state: State, pcName: string, after: number,
 }
 
 /**
- * Plans the move that wrote them said land on the PC or those with them, as one aimed at "the caravan" named no one and was
- * never brought on. shortcut: in memory like `offered`, so after a restart such a plan is near only by its words; store it if one lapses so.
+ * How near the PC a plan is by its words: 2 for one naming the PC or those with them, 1 for one at their place. shortcut: by words, so
+ * one aimed at "the caravan" names no one and is never near; a move's own mark for it brought plans on every other Turn (bench, 2026-11-27).
  */
-const toward = new Map<string, Set<string>>();
-export const planTowardPc = (id: string, plans: string[]) => {
-  if (plans.length > 0) toward.set(id, new Set([...(toward.get(id) ?? []), ...plans]));
-};
-
-/** How near the PC a plan is: 2 for one on the PC or those with them, by its words or its move's mark; 1 for one at their place. */
-export function nearPc(id: string, state: State, pcName: string) {
+export function nearPc(state: State, pcName: string) {
   const company = [...state.scene.visibleCast, pcName].filter(Boolean);
   const place = (state.scene.location.match(/\p{L}{4,}/gu) ?? []).filter((word) => !common(word) && !ANY_PLACE.has(word.toLowerCase()));
   return (plan: string) => {
-    if (toward.get(id)?.has(plan)) return 2;
     const deed = plan.replace(PURPOSE, "");
     if (company.some((person) => names(deed, person)) || state.scene.visibleCast.some((person) => calls(deed, person))) return 2;
     return place.some((word) => wholeWord(word, "iu").test(deed)) ? 1 : 0;

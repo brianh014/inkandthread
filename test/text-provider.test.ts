@@ -829,21 +829,26 @@ test("a reply silent from its first byte is asked for once more, as a stuck requ
   expect(log).toMatch(/Text reply \{"call":"turn","id":"[0-9a-z]+-\d+","model":"fake\/model"/);
 });
 
-test("a call with its own wait for the first line is asked once more when that passes, long before the usual silence", async () => {
+test("a hosted call with its own wait for the first line is asked once more when that passes, and a local one isn't", async () => {
   const silent = async function* () {
     await new Promise(() => {});
   };
-  play([silent, [delta("Hello."), "data: [DONE]\n\n"]]);
-  const provide = textProvider(settingsStore(join(folder.path, "settings.json")), { silenceMs: 60_000, listMs: 1000 });
+  const ask = (provide: TextProvider, signal: AbortSignal) =>
+    provide([{ role: "user", content: "Hi" }], { call: "choices", firstByteMs: 100, onText: () => {}, signal });
+  play([silent, [delta("Hello."), "data: [DONE]\n\n"]], undefined, scriptedDice(), true);
+  const hosted = textProvider(settingsStore(join(folder.path, "settings.json")), { silenceMs: 60_000, listMs: 1000 });
 
-  const log = await logOf(async () => {
-    const said = provide([{ role: "user", content: "Hi" }], { call: "choices", firstByteMs: 100, onText: () => {}, signal: AbortSignal.timeout(5_000) });
-    expect(await said).toBe("Hello.");
-  });
+  const log = await logOf(async () => expect(await ask(hosted, AbortSignal.timeout(5_000))).toBe("Hello."));
 
   expect(provider.requests).toHaveLength(2);
   expect(log).toContain("Silent reply asked again");
   expect(log).toMatch(/"firstLineMs":\d+/);
+
+  // A local server may take long over a prompt, so it keeps its usual wait.
+  play([silent]);
+  const local = textProvider(settingsStore(join(folder.path, "settings.json")), { silenceMs: 60_000, listMs: 1000 });
+  await expect(ask(local, AbortSignal.timeout(400))).rejects.toThrow();
+  expect(provider.requests).toHaveLength(1);
 });
 
 test("a model slow to start thinking is stopped at twice its thinking time from the ask, so its retry has time left", async () => {

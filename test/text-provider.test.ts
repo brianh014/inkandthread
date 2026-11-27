@@ -829,6 +829,53 @@ test("a reply silent from its first byte is asked for once more, as a stuck requ
   expect(log).toMatch(/Text reply \{"call":"turn","id":"[0-9a-z]+-\d+","model":"fake\/model"/);
 });
 
+test("a call with its own wait for the first line is asked once more when that passes, long before the usual silence", async () => {
+  const silent = async function* () {
+    await new Promise(() => {});
+  };
+  play([silent, [delta("Hello."), "data: [DONE]\n\n"]]);
+  const provide = textProvider(settingsStore(join(folder.path, "settings.json")), { silenceMs: 60_000, listMs: 1000 });
+
+  const log = await logOf(async () => {
+    const said = provide([{ role: "user", content: "Hi" }], { call: "choices", firstByteMs: 100, onText: () => {}, signal: AbortSignal.timeout(5_000) });
+    expect(await said).toBe("Hello.");
+  });
+
+  expect(provider.requests).toHaveLength(2);
+  expect(log).toContain("Silent reply asked again");
+  expect(log).toMatch(/"firstLineMs":\d+/);
+});
+
+test("a model slow to start thinking is stopped at twice its thinking time from the ask, so its retry has time left", async () => {
+  const listing = { data: [{ id: "plain/model", supported_parameters: ["reasoning"] }] };
+  const hmm = `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "Hmm. " } }] })}\n\n`;
+  // Its first thought late, then thinking steadily, never long enough from that first thought alone to be stopped by 100 ms.
+  const late = async function* () {
+    await Bun.sleep(150);
+    for (let at = 0; at < 8; at++) {
+      yield hmm;
+      await Bun.sleep(15);
+    }
+    yield* [delta("Done."), "data: [DONE]\n\n"];
+  };
+  play([late], listing, scriptedDice(), true);
+  const settings = settingsStore(join(folder.path, "settings.json"));
+  settings.update({ textThinking: "low", textModel: "plain/model" });
+
+  const log = await logOf(async () => {
+    const said = textProvider(settings)([{ role: "user", content: "Hi" }], {
+      thinkingBudget: 100,
+      thinkingMs: 100,
+      onText: () => {},
+      signal: new AbortController().signal,
+    });
+    await expect(said).rejects.toBeInstanceOf(ThinkingBudgetReached);
+  }, "info");
+
+  expect(log).toContain('"fromStart":true');
+  expect(log).toMatch(/"firstThoughtMs":\d+/);
+});
+
 test("a call's prompt and reply lines share one id, so calls running at once can be paired in the log", async () => {
   play([
     [delta("One."), "data: [DONE]\n\n"],

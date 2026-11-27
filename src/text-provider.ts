@@ -229,7 +229,7 @@ export function textProvider(
 
   const once: TextProvider = async (
     prompt,
-    { call, schema, picture, lessThinking = 0, thinkingBudget, thinkingMs, thinkingOff = false, onText, onGeneration, onUsage, onCall, signal },
+    { call, schema, picture, lessThinking = 0, thinkingBudget, thinkingMs, thinkingOff = false, firstByteMs, onText, onGeneration, onUsage, onCall, signal },
   ) => {
     const {
       textBaseUrl,
@@ -283,9 +283,16 @@ export function textProvider(
     // A model can stream forever without falling silent, so a reply also has a time limit.
     const overrun = new AbortController();
     let deadline: Timer | undefined;
+    // Until the first line, a caller's own shorter wait, as a stalled request on a slow host left Choices no time to be asked again.
+    let heard = false;
     const heardFrom = () => {
       clearTimeout(timer);
-      timer = setTimeout(() => silence.abort(), quiet);
+      timer = setTimeout(() => silence.abort(), heard || !firstByteMs ? quiet : Math.min(quiet, firstByteMs));
+    };
+    const streamed = () => {
+      if (!heard) seen.firstLineMs = Date.now() - started;
+      heard = true;
+      heardFrom();
     };
 
     let withThinking = false;
@@ -391,7 +398,7 @@ export function textProvider(
 
       // Some servers ignore `stream` and send the whole reply as one JSON body.
       const whole = response.headers.get("content-type")?.includes("application/json");
-      for await (const data of whole ? [await response.text()] : eventData(response.body, heardFrom)) {
+      for await (const data of whole ? [await response.text()] : eventData(response.body, streamed)) {
         if (data === "[DONE]") break;
         // A body that came in one piece is all read before fetch sees an abort, so a caller's stop must end it here.
         signal.throwIfAborted();
@@ -418,7 +425,10 @@ export function textProvider(
         thought += (delta?.reasoning ?? delta?.reasoning_content ?? "").length;
         // About four characters a token, as estimateTokens counts.
         if (thought / 4 > thinkingTokens) throw new ThoughtTooLong(THOUGHT_TOO_LONG);
-        if (thought > 0) thoughtFrom ??= Date.now();
+        if (thought > 0 && thoughtFrom === undefined) {
+          thoughtFrom = Date.now();
+          seen.firstThoughtMs = thoughtFrom - started;
+        }
         // A budget the model can't take is kept here by time alone, as reviewers without one thought 12,000 characters and more
         // and never answered, and a stop by length cut fixes at 9 to 12 s that had time left to answer.
         const ms = thoughtFrom === undefined ? 0 : Date.now() - thoughtFrom;
@@ -429,8 +439,17 @@ export function textProvider(
           seen.budgetWaived = true;
           log.info("text", "Thinking budget waived", { ...named, model: textModel, budget: thinkingBudget, ms });
         }
-        if (thinkingBudget && !budget && thinkingMs && !reply && ms > thinkingMs && !mustThink) {
-          log.info("text", "Thinking budget reached", { ...named, model: textModel, budget: thinkingBudget, thoughtChars: thought, ms });
+        // Or twice that from the ask, once it thinks, as a model slow to start thought until its retry had no time left.
+        const fromStart = thoughtFrom !== undefined && Date.now() - started > 2 * (thinkingMs ?? 0) && ms <= (thinkingMs ?? 0);
+        if (thinkingBudget && !budget && thinkingMs && !reply && (ms > thinkingMs || fromStart) && !mustThink) {
+          log.info("text", "Thinking budget reached", {
+            ...named,
+            model: textModel,
+            budget: thinkingBudget,
+            thoughtChars: thought,
+            ms,
+            ...(fromStart && { fromStart }),
+          });
           throw new ThinkingBudgetReached(THOUGHT_TOO_LONG);
         }
         const text = delta?.content ?? message?.content;

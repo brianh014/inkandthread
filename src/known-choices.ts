@@ -195,6 +195,8 @@ export function withoutUnread<Operation extends StateOperation>(operations: Oper
 // Thinking tokens the Choices may spend where the provider takes a budget, and milliseconds where it doesn't.
 const CHOICES_THINKING = 1_000;
 const CHOICES_THINKING_MS = 6_000;
+// A request silent this long is asked once more, as one in eight on a slow host sent nothing in the 25 s Choices have.
+const CHOICES_FIRST_BYTE_MS = 8_000;
 
 /**
  * Three Choices for a reply that came without usable ones, asked of the Narrator alone, so the Turn's story isn't lost for them.
@@ -270,7 +272,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       AbortSignal.any([signal, AbortSignal.timeout(UPKEEP_LIMIT.ms)]),
       // Cut off thinking soon enough to be asked again without it in the time left, as two Turns of one bench play ran out of
       // time still thinking and had no Choices. Upkeep cut at 9 s left its second try too little.
-      { call: "choices", lessThinking: 1, thinkingBudget: CHOICES_THINKING, thinkingMs: CHOICES_THINKING_MS },
+      { call: "choices", lessThinking: 1, thinkingBudget: CHOICES_THINKING, thinkingMs: CHOICES_THINKING_MS, firstByteMs: CHOICES_FIRST_BYTE_MS },
     );
     log.info("turn", "Choices written alone", { sent: choices.length, usable: usableChoices(choices)?.length ?? 0 });
     return usableChoices(choices);

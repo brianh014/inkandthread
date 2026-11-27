@@ -308,6 +308,12 @@ const ARTICLES = new Set(["the", "a", "an"]);
 const looksInView = ({ scene, npcs }: Pick<State, "scene" | "npcs">) =>
   Object.fromEntries(scene.visibleCast.flatMap((name) => npcs.filter((npc) => npc.name === name).map(({ appearance }) => [name, appearance])));
 
+/** How each person in view looked before a change dropped part of their looks, only when someone's did. */
+const looksBefore = ({ scene, npcs }: Pick<State, "scene" | "npcs">) => {
+  const before = Object.fromEntries(npcs.filter(({ name, was }) => was && scene.visibleCast.includes(name)).map(({ name, was }) => [name, was!]));
+  return Object.keys(before).length > 0 ? { looks_before: before } : {};
+};
+
 /**
  * The people in the scene or named in `said`. The full name in any case, or a capitalised part of it as written, so "Nadia"
  * finds Nadia Petrova, "Al" isn't in "Alright" and "will" isn't Will. Articles never count, as they start sentences.
@@ -452,7 +458,7 @@ People know only what they have seen, heard or been told themselves, and only fr
 Carry on from the last reply: anything left unfinished, such as an action, a question or a person waiting, stays in play even if the player doesn't mention it.
 Avoid melodrama, cliché and overused metaphors, and prefer natural, grounded language: the concrete thing over the abstract quality. Tell things in order with strong verbs and conjunctions, rather than participle phrases. Never use em-dashes.${toneLine(tone)}
 Keep the prose fresh: give each scene something new to notice, vary how replies open and end, and end on what a person in the scene does, says or now faces. Don't reuse the images, gestures, questions or lines of the replies above. Leave the PC free to answer however they like, so most replies end on something other than a question or a choice between two things. People give as much of themselves as they ask of the PC. Show a feeling and leave it unexplained. Say what is so and leave it there, in narration and speech alike, never against something nobody in the scene supposed ("not X but Y", "X, not Y"). Give each person their own voice, speaking naturally.
-The older replies above are shortened, so fill in every field of the schema. When anyone's clothing or looks change in this response, such as clothes coming off or going on, include update_npc for that NPC with their whole appearance as it is now, or the inventory change for the PC, as their pictures are painted from it.${fillStoryTime(currentState.storyTime, messages)}
+The older replies above are shortened, so fill in every field of the schema. When anyone's clothing or looks change in this response, such as clothes coming off or going on, include update_npc for that NPC with their whole appearance as it is now, or the inventory change for the PC, and what goes back on is what came off, as setAside and looks_before keep it, as their pictures are painted from it.${fillStoryTime(currentState.storyTime, messages)}
 Set recent_summary in this response.${journalNote(journalEdits)}
 ${PACE}${
   duePlan
@@ -465,7 +471,7 @@ Due now, out of the PC's sight so far: ${JSON.stringify(duePlan)} If the PC or a
 The player gave these out-of-character directions when rewriting recent responses, below as JSON strings. They still hold, so keep following them in this response: ${JSON.stringify(directions)}`
     : ""
 }
-Right now, from the current state: ${JSON.stringify({ inventory, scene, looks_in_view: looksInView(currentState), storyTime: withClock(storyTime) })}`,
+Right now, from the current state: ${JSON.stringify({ inventory, scene, looks_in_view: looksInView(currentState), ...looksBefore(currentState), storyTime: withClock(storyTime) })}`,
     },
     { role: "user", content: playerWords(pc.name, input) },
   ];

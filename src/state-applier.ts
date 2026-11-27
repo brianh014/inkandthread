@@ -7,12 +7,19 @@ export type LoreEntry = { title: string; keywords: string[]; content: string; hi
 /** All an entry holds, for the calls that keep secrets rather than tell them. */
 export const loreText = ({ content, hidden }: Pick<LoreEntry, "content" | "hidden">) => (hidden ? `${content}\n${hidden}` : content);
 
+export type SetAside = { item: string; slot: "wearing" | "carrying"; place: string };
+
 export type SceneMemory = { firstMessage: number; lastMessage: number; text: string };
 
 export type State = {
-  inventory: { wearing: string[]; carrying: string[] };
+  /**
+   * `setAside`: what the PC took off or put down, newest last, with where, so what goes back on is what came off, as boots
+   * taken off never came back and a put-back uniform changed colour. A Save from before it has none.
+   */
+  inventory: { wearing: string[]; carrying: string[]; setAside?: SetAside[] };
   status: { health: string; injuries: string[]; conditions: string[] };
-  npcs: { name: string; appearance: string }[];
+  /** `was`: their looks before a change dropped part of them, such as clothes taken off, until most of it is back. */
+  npcs: { name: string; appearance: string; was?: string }[];
   /** What each NPC has learned or lived through in play, newest last, by name. Hidden from the player, as it can hold what the PC never saw. */
   npcKnows: Record<string, string[]>;
   scene: { location: string; visibleCast: string[] };
@@ -119,9 +126,13 @@ const stringList = z.array(z.string());
 
 /** What each Snapshot section must hold, for a Save that comes from outside the app. */
 export const StateSections = {
-  inventory: z.object({ wearing: stringList, carrying: stringList }),
+  inventory: z.object({
+    wearing: stringList,
+    carrying: stringList,
+    setAside: z.array(z.object({ item: z.string(), slot: z.enum(["wearing", "carrying"]), place: z.string() })).optional(),
+  }),
   status: z.object({ health: z.string(), injuries: stringList, conditions: stringList }),
-  npcs: z.array(z.object({ name: z.string(), appearance: z.string() })),
+  npcs: z.array(z.object({ name: z.string(), appearance: z.string(), was: z.string().optional() })),
   npcKnows: z.record(z.string(), stringList),
   scene: z.object({ location: z.string(), visibleCast: stringList }),
   dead: stringList,
@@ -275,6 +286,21 @@ const sameItem = (held: string, item: string) => {
   const [shorter, longer] = [itemWords(held), itemWords(item)].sort((a, b) => a.length - b.length) as [string, string];
   return shorter === longer || (shorter.trim().includes(" ") && longer.includes(shorter));
 };
+
+/** How many words of someone's looks a change must drop for the old looks to be kept, as one word is rewording. */
+const DROPPED_WORDS = 3;
+/** The most set-aside things kept, newest last. */
+const ASIDE_KEPT = 8;
+const looksWords = (looks: string) => looks.toLowerCase().match(/\p{L}{4,}/gu) ?? ([] as string[]);
+const mostlyIn = (was: string, now: string) => {
+  const words = looksWords(was);
+  return words.filter((word) => looksWords(now).includes(word)).length >= words.length * 0.7;
+};
+/** Keeps what the PC took off or put down, with where, as removing it lost it for good. */
+function setAside(state: State, item: string, slot: SetAside["slot"]) {
+  const kept = (state.inventory.setAside ?? []).filter((thing) => !sameItem(thing.item, item));
+  state.inventory.setAside = [...kept, { item, slot, place: state.scene.location }].slice(-ASIDE_KEPT);
+}
 
 function take(list: string[], value: string) {
   const index = list.indexOf(value);
@@ -484,6 +510,16 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       // As the Narrator wrote who the PC met, or brought along, into what they wear and carry.
       // And a whole sentence, as State Upkeep wrote notes on what others did into what the PC carries.
       if (isPerson(state, operation.item) || /[.!?]$/.test(operation.item.trim())) return NOT_AN_ITEM;
+      // What was set aside comes back in its own words and slot, as a uniform put back on came back another colour.
+      const aside = state.inventory.setAside ?? [];
+      const back = aside.findIndex(({ item }) => sameItem(item, operation.item));
+      const held = [...state.inventory.wearing, ...state.inventory.carrying].some((item) => sameItem(item, operation.item));
+      if (back >= 0 && !held) {
+        const [thing] = aside.splice(back, 1);
+        state.inventory.setAside = aside;
+        state.inventory[thing!.slot].push(thing!.item);
+        return;
+      }
       // Worn or carried, the same thing held twice was the same notebook three times and a shawl both worn and carried. A fuller
       // name replaces the old where it is, as models restate what is held with how it is now.
       // The same words twice in one reply may be two of a thing, as "two lengths of rope" are, so only one held before it repeats.
@@ -499,7 +535,11 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
       return;
     }
     case "remove_item":
-      if (take(state.inventory.carrying, operation.item) || take(state.inventory.wearing, operation.item)) return;
+      for (const slot of ["carrying", "wearing"] as const)
+        if (take(state.inventory[slot], operation.item)) {
+          setAside(state, operation.item, slot);
+          return;
+        }
       // The old name of what an add just gave a fuller one, as a reply adds the new and removes the old: it is the same thing, still held.
       return [...state.inventory.wearing, ...state.inventory.carrying].some((held) => sameItem(held, operation.item))
         ? undefined
@@ -544,7 +584,13 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
     case "update_npc": {
       const npc = findNpc(state, operation.name);
       if (!npc) return "no such NPC";
-      npc.appearance = lasting(operation.appearance);
+      const appearance = lasting(operation.appearance);
+      // The looks before a change dropped words of them, kept until most are back, as clothes taken off came back invented.
+      // shortcut: by words, so looks reworded rather than reduced keep a stale `was` a while; compare by meaning if one misleads.
+      if (npc.was && mostlyIn(npc.was, appearance)) delete npc.was;
+      else if (!npc.was && looksWords(npc.appearance).filter((word) => !looksWords(appearance).includes(word)).length >= DROPPED_WORDS)
+        npc.was = npc.appearance;
+      npc.appearance = appearance;
       return;
     }
     case "merge_npc":
@@ -1179,7 +1225,7 @@ export function applyEdit(state: State, edit: WorldEdit): State {
     case "pcLooks":
       return { ...state, pcAppearance: edit.appearance };
     case "npcLooks":
-      return { ...state, npcs: state.npcs.map((npc) => (npc.name === edit.name ? { ...npc, appearance: edit.appearance } : npc)) };
+      return { ...state, npcs: state.npcs.map((npc) => (npc.name === edit.name ? { name: npc.name, appearance: edit.appearance } : npc)) };
     case "status":
       return { ...state, status: { health: edit.health, injuries: edit.injuries.slice(-MAX_STATUS), conditions: edit.conditions.slice(-MAX_STATUS) } };
     case "storyTime":

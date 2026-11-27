@@ -44,7 +44,7 @@ import {
   StateOperation,
   type WorldEdit,
 } from "./state-applier";
-import { duePlan, planOffered, planShown, replyBefore } from "./due-plans";
+import { duePlan, planOffered, replyBefore } from "./due-plans";
 import { countWords, withinLimit } from "./limits";
 import { knownChoices, secretWords, unreadIn, withoutTheDead, withoutUnread, writeChoices } from "./known-choices";
 import { estimateTokens, wholeWord } from "./lore-activation";
@@ -55,7 +55,7 @@ import { applyWorldChange } from "./world-creation";
 import { foldKnows } from "./knowledge-folds";
 import { closeLooseEnds } from "./loose-ends-check";
 import { growLore } from "./lore-growth";
-import { forgetUnread, MOVE_LIMIT, moveDue, moveSoon, sameDeed, moveWorldOn, storyPace, turnThreadChanges } from "./world-moves-on";
+import { forgetUnread, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, planShown, sameDeed, storyPace, turnThreadChanges } from "./world-moves-on";
 import { threadPeople } from "./thread-people";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.

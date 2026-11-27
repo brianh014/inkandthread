@@ -4,15 +4,13 @@
 import { common } from "./known-choices";
 import { wholeWord } from "./lore-activation";
 import { clockOf, nameForms, type State } from "./state-applier";
-import { threadPeople } from "./thread-people";
-import { deedWords, echoes } from "./world-moves-on";
 
 /** Story hours a reply is taken to pass at the least, as at a pace of 0.05 a plan's hour fell inside a reply that took 0.2. */
 const USUAL_PACE = 0.1;
 /** The furthest ahead of its hour a plan is brought on, as a pace of travel is no pace for talk. */
 const NEAR_HOURS = 0.5;
 /** How long past its hour a plan no move has told may still be brought on: over a night's sleep, never days later. */
-const PAST_HOURS = 12;
+export const PAST_HOURS = 12;
 /** Added to the reach, as 43.75 and 0.05 came to a hair under the 43.8 a plan was due. */
 const ROUNDING = 0.01;
 // The words of a place that tell nothing of which, as "carries the lie north" put a far well at a north rock.
@@ -72,13 +70,7 @@ const calls = (plan: string, person: string) => {
 export function duePlan(id: string, state: State, pcName: string, after: number, pace = USUAL_PACE) {
   const clock = clockOf(state.storyTime);
   if (clock === undefined) return undefined;
-  const company = [...state.scene.visibleCast, pcName].filter(Boolean);
-  const place = (state.scene.location.match(/\p{L}{4,}/gu) ?? []).filter((word) => !common(word) && !ANY_PLACE.has(word.toLowerCase()));
-  const nearness = (plan: string) => {
-    const deed = plan.replace(PURPOSE, "");
-    if (company.some((person) => names(deed, person)) || state.scene.visibleCast.some((person) => calls(deed, person))) return 2;
-    return place.some((word) => wholeWord(word, "iu").test(deed)) ? 1 : 0;
-  };
+  const nearness = nearPc(id, state, pcName);
   const spent = (plan: string) => (offered.get(id)?.get(plan) ?? Number.POSITIVE_INFINITY) < after;
   const reach = clock + Math.min(Math.max(pace, USUAL_PACE), NEAR_HOURS) + ROUNDING;
   const [first] = Object.entries(state.threadsPlan)
@@ -94,16 +86,25 @@ export function duePlan(id: string, state: State, pcName: string, after: number,
 }
 
 /**
- * Whether a reply asked to bring a plan on did: it tells the deed by two of its own words, whoever is named, as someone the PC
- * doesn't know goes unnamed, or by what words it has where the doer is named; or it brings the doer into view or has them speak,
- * as a packet handed over was told as "something pale passed". Never for a doer only spoken of.
+ * Plans the move that wrote them said land on the PC or those with them, as one aimed at "the caravan" named no one and was
+ * never brought on. shortcut: in memory like `offered`, so after a restart such a plan is near only by its words; store it if one lapses so.
  */
-export function planShown(plan: string, before: State, after: State, narration: string) {
-  const { doer, doerIn, mentions } = threadPeople(after);
-  const words = deedWords(plan);
-  const told = echoes(words, narration);
-  const named = (doer(plan) ?? []).some((name) => mentions(narration, name, "u"));
-  if (told >= 2 || (named && told >= Math.max(1, Math.min(2, words.length)))) return true;
-  const speaks = [...narration.matchAll(/^\[([^[\]]+)\]:/gm)].some(([, speaker]) => doerIn(plan, [speaker!.trim()]));
-  return !doerIn(plan, before.scene.visibleCast) && (speaks || doerIn(plan, after.scene.visibleCast));
+const toward = new Map<string, Set<string>>();
+export const planTowardPc = (id: string, plans: string[]) => {
+  if (plans.length > 0) toward.set(id, new Set([...(toward.get(id) ?? []), ...plans]));
+};
+
+/** How near the PC a plan is: 2 for one on the PC or those with them, by its words or its move's mark; 1 for one at their place. */
+export function nearPc(id: string, state: State, pcName: string) {
+  const company = [...state.scene.visibleCast, pcName].filter(Boolean);
+  const place = (state.scene.location.match(/\p{L}{4,}/gu) ?? []).filter((word) => !common(word) && !ANY_PLACE.has(word.toLowerCase()));
+  return (plan: string) => {
+    if (toward.get(id)?.has(plan)) return 2;
+    const deed = plan.replace(PURPOSE, "");
+    if (company.some((person) => names(deed, person)) || state.scene.visibleCast.some((person) => calls(deed, person))) return 2;
+    return place.some((word) => wholeWord(word, "iu").test(deed)) ? 1 : 0;
+  };
 }
+
+/** Whether a plan was ever offered to a Turn. */
+export const wasOffered = (id: string, plan: string) => offered.get(id)?.has(plan) ?? false;

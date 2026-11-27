@@ -761,6 +761,47 @@ test("an answer that says play hasn't answered it yet leaves the thread open", a
   expect(store().latestState(id).plotThreads).toEqual([PELL, TIDE, GULLS, BELLS]);
 });
 
+test("a plan on the PC whose hour a reply skipped past is held for the page, not told as done, and the next Turn brings it on", async () => {
+  const TIDE = "The harbourmaster floods the lower town.";
+  const PLAN = "The harbourmaster will stop Ash at the sluice and demand the key.";
+  const told = play(
+    narration("Ash watches the harbourmaster at the sluice.", { ...nextDay(), hours_passed: 20 }),
+    JSON.stringify({
+      left: [{ thread: TIDE, answer: null, question: "Whether the lower town floods." }],
+      plot_threads: [{ thread: TIDE, truth: null, now: "He oils the sluice gate.", plan: PLAN, plan_in_hours: 2 }],
+    }),
+    // One reply passes the plan's hour.
+    narration("Ash walks the long way round the harbour.", { ...nextDay("3rd of Thaw"), hours_passed: 5 }),
+    JSON.stringify({ left: [{ thread: TIDE, answer: null }], plot_threads: [] }),
+    narration("The harbourmaster blocks the path."),
+  );
+  const id = store().create({
+    worldBrief: "A drowned city",
+    pc: { name: "Ash" },
+    opening: {
+      inventory: { wearing: [], carrying: [] },
+      scene: { location: "The quay", visibleCast: [] },
+      summary: "",
+      worldRules: [],
+      plotThreads: [TIDE],
+      worldBible: [],
+      storyTime: { day: 1, date: "1st of Thaw", timeOfDay: "morning" },
+    },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I watch the sluice.", "I walk round the harbour.", "I go on."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  const moves = told.prompts.filter((prompt) => prompt[0]!.content.startsWith("You plot the hidden side"));
+  const second = JSON.parse(moves[1]!.at(-1)!.content).plot_threads[0];
+  expect(second).toMatchObject({ plan: PLAN });
+  expect(second).not.toHaveProperty("due_deed");
+  expect(log).toContain("Passed plans near the PC held for the page");
+  const turns = told.prompts.filter((prompt) => prompt[0]!.content.startsWith("You are the Narrator"));
+  expect(JSON.stringify(turns.at(-1))).toContain(`Due now, out of the PC's sight so far: ${JSON.stringify(PLAN)}`.replaceAll('"', '\\"'));
+});
+
 test("a thread keeps the question it began with, and a plan whose hour the clock has reached is marked due at the next move", async () => {
   const TIDE = "The harbourmaster floods the lower town.";
   const told = play(

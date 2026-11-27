@@ -2365,6 +2365,16 @@ test("a Check's result written as the rest of its rating is retried, while prose
   const read = await prose.app.createSave();
   await prose.app.post(`/saves/${read}/turns`, { input: "I read the sign." });
   expect(prose.prompts).toHaveLength(1);
+
+  // A story may open on a quoted word, and a result may quote a difficulty.
+  const opening = playWithDice([], narration('"wait": that was all Mara said before the door shut.'));
+  const opened = await opening.app.createSave();
+  await opening.app.post(`/saves/${opened}/turns`, { input: "I listen." });
+  expect(opening.prompts).toHaveLength(1);
+  const lie = playWithDice([17], requestCheck("Moderate"), narration('He asked about the difficulty: "Easy," she lied.'));
+  const lied = await lie.app.createSave();
+  await lie.app.post(`/saves/${lied}/turns`, { input: "I ask her." });
+  expect(lie.prompts).toHaveLength(2);
 });
 
 test("a reply of a few words that end no sentence is retried, while a short sentence stands", async () => {

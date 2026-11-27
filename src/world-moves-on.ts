@@ -35,10 +35,11 @@ const NO_ANSWER =
 const OPEN_THREADS = 3;
 // It runs while the player reads; past this, the next Turn stops waiting and the world stays where it was.
 export const MOVE_LIMIT = { ms: 120_000 };
-// What a re-ask for faulted nows, sent without thinking, needs of the limit, as those took 3 to 12 s and one 36 s.
-// shortcut: a model that refuses to stop thinking thinks through it and is cut at the limit, settling from the first reply as
-// before, only later; keep the half-limit rule for such a model if its moves start running to the limit.
-export const NOWS_REASK = { ms: 40_000 };
+// What a re-ask for faulted nows, sent without thinking, needs of the limit, as those took 3 to 12 s, and DeepSeek's first replies
+// came at 85 to 104 s. One cut off at the limit settles from the first reply, as one never sent does, only later.
+// shortcut: a model that refuses to stop thinking thinks through it to the limit each time; keep the half-limit rule for such a
+// model if its moves start running to the limit.
+export const NOWS_REASK = { ms: 20_000 };
 
 // Story hours a Turn must skip to be a pause, as a move on every change of place, room to room, ran 15 times in one afternoon.
 const MOVE_HOURS = 3;

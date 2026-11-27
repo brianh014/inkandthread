@@ -483,7 +483,7 @@ export function usableChoices(choices: unknown) {
 // A model that won't write a Check's result can't refuse in words when the provider holds it to the schema, so it sends
 // something that isn't a story: replies came back as a lone comma, a single name and the rating written out.
 const DECLINED = "a story the AI declined to write";
-const RATING_TALK = /\bdifficulty\s*:\s*(?:none|easy|moderate|hard|very hard)\b|\bwhat['’]?s at stake\s*:/i;
+const RATING_TALK = /\bdifficulty"?\s*:\s*(?:none|easy|moderate|hard|very hard)\b|"difficulty"\s*:\s*"|\bwhat['’]?s at stake\s*:/i;
 const declined = (narration: string) => (narration.match(/\p{L}+/gu)?.length ?? 0) < 2 || RATING_TALK.test(narration);
 // Words, not just punctuation, as a reply once came back as a lone comma.
 const NO_WORDS = "a story with no words";
@@ -519,8 +519,12 @@ const withoutFields = (narration: string) => {
 };
 // A model once put its Check request in narration, which was saved as the story.
 const JSON_NARRATION = "JSON for narration";
+// And after a Check's rating, the rest of the rating or of a field, from the comma or colon after it, whatever value follows,
+// as no story starts on either. A brace needs a field after it, as a story may open on a quoted word and a colon.
+const JSON_START = /^\s*(?:[,:]|\{[\s,:{]*"[a-z_]+"\s*:)/;
 const isJsonObject = (narration: string) => {
   const text = narration.trim();
+  if (JSON_START.test(text)) return true;
   if (!text.startsWith("{")) return false;
   try {
     return typeof JSON.parse(text) === "object";
@@ -1126,6 +1130,9 @@ async function narrate(
       }
       if (edited !== undefined || !none) return;
       const narration = narrationSoFar(visible);
+      // Held, as no story starts so and isJsonObject refuses it, so the player never sees it stream and restart.
+      // Nor bare space, which would start the stream before the mark is seen.
+      if (!narration.trim() || /^\s*[,:{]/.test(narration)) return;
       if (narration.length <= narrationSent) return;
       emit("narration", { text: narration.slice(narrationSent) });
       narrationSent = narration.length;
@@ -1187,8 +1194,9 @@ async function narrate(
       // Never kept, even on the last attempt, as what isn't a story is no Turn.
       if (edited === undefined && check && declined(narration)) throw new InvalidResponse(undefined, { cause: DECLINED });
       if (edited === undefined && !hasWords(narration)) throw new InvalidResponse(undefined, { cause: NO_WORDS });
-      if (edited === undefined && isFragment(narration)) throw new InvalidResponse(undefined, { cause: FRAGMENT });
+      // Before the fragment test, so a short rating is told why it was refused.
       if (edited === undefined && isJsonObject(narration)) throw new InvalidResponse(undefined, { cause: JSON_NARRATION });
+      if (edited === undefined && isFragment(narration)) throw new InvalidResponse(undefined, { cause: FRAGMENT });
       // Never kept either, as the Turn then never happens, nor the Check's result it was asked to tell.
       if (edited === undefined && previous && copiesPrevious(narration, previous)) throw new InvalidResponse(undefined, { cause: COPIED });
       const unplaced = scene_changed && !state_operations.some(({ op }) => op === "set_scene") ? "a picture without set_scene" : undefined;

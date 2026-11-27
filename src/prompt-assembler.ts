@@ -1,7 +1,7 @@
 import type { Check } from "./check-resolver";
 import { activateLore, estimateTokens, wholeWord } from "./lore-activation";
 import type { Message, Save } from "./save-store";
-import { MAX_PLOT_THREADS, nameForms, playersOwn, type SceneMemory, type State, type WorldEdit } from "./state-applier";
+import { findPerson, MAX_PLOT_THREADS, nameForms, playersOwn, type SceneMemory, type State, type WorldEdit } from "./state-applier";
 import type { PromptStyle } from "./graph-builder";
 import { SCENE_PEOPLE } from "./limits";
 
@@ -324,6 +324,33 @@ export function presentOf({ scene, npcs }: Pick<State, "scene" | "npcs">, said: 
   return [...new Set([...scene.visibleCast, ...npcs.map(({ name }) => name).filter(mentioned)])];
 }
 
+// The lines sent for each person in view, the earliest of at least this many words, as a long scene flattened everyone's speech
+// to one formal register and the Narrator, seeing only that, kept it, though their entries gave them voices of their own.
+const VOICE_LINES = 2;
+const VOICE_WORDS = 6;
+const VOICE_CHARACTERS = 200;
+
+/**
+ * How each person in view spoke before the Messages sent in full, in their own earliest lines, so the Narrator hears the voice
+ * they were given rather than only the latest replies'. Empty for those with none from before.
+ */
+export function howTheySpeak(messages: Message[], since: number, { scene, npcs }: Pick<State, "scene" | "npcs">) {
+  const lines: Record<string, string[]> = {};
+  const inView = new Set(scene.visibleCast);
+  for (const { id, role, text } of messages) {
+    if (id >= since) break;
+    if (role !== "narrator") continue;
+    for (const [, speaker, said] of text.matchAll(/^\[([^\]]+)\]:\s*(.+)$/gm)) {
+      const name = findPerson(npcs, speaker!.trim())?.name;
+      if (!name || !inView.has(name) || (lines[name]?.length ?? 0) >= VOICE_LINES) continue;
+      const line = said!.trim();
+      if (line.split(/\s+/).length < VOICE_WORDS) continue;
+      (lines[name] ??= []).push(line.length > VOICE_CHARACTERS ? `${line.slice(0, line.lastIndexOf(" ", VOICE_CHARACTERS))}…` : line);
+    }
+  }
+  return lines;
+}
+
 /** npcKnows of only those in the scene or named in `said`, as everyone's would crowd a prompt. */
 export function knowsOfPresent(state: Pick<State, "scene" | "npcs" | "npcKnows">, said: string) {
   const { npcKnows } = state;
@@ -406,6 +433,8 @@ export function assemblePrompt({
   }));
   const recent = messageWindow(messages, sceneMemories, memoryStart, windowMessages);
   const npcKnows = knowsOfPresent({ ...currentState, npcKnows: allKnows }, [input, recent.findLast(({ role }) => role === "narrator")?.text ?? ""].join("\n"));
+  const voices = howTheySpeak(messages, recent[0]?.id ?? Number.POSITIVE_INFINITY, currentState);
+  const heard = Object.keys(voices).length > 0;
   // Last before the player's words, as models attend most to the end and the slips found in play were exactly these.
   const { inventory, scene, storyTime, ...restOfState } = currentState;
   // The first Turn opens from the Starting Hook, so the people it names are met with their entries, not given new looks.
@@ -457,7 +486,7 @@ Invent freely in the present: new people, places, events and details, never agai
 People know only what they have seen, heard or been told themselves, and only from the moment they learned it, so they can't act on the PC's private thoughts or on anything said or done out of their sight and hearing, nor claim to have known or wondered about something before they could have. npcKnows in the current state holds what the people it names have learned or lived through, beyond what anyone in their world would know, and they act on it; of a hidden Plot Thread they know only the part npcKnows gives them, never the rest of its truth, so they tell or act on that alone, and someone searching for something doesn't know where it is. Whenever play shows someone learning something, or living through something that will shape how they act, such as what the PC did to them, record it with npc_learns in one short sentence, so it outlasts these Messages, unless npcKnows already holds it, and when someone dies, record it with npc_dies. Never give someone knowledge by inventing a telling the story didn't show, in the narration or in a state operation: what the PC shared or kept secret reaches others only when play shows it being passed on, and people keep what they promised to keep quiet, and what would cost them to tell.
 Carry on from the last reply: anything left unfinished, such as an action, a question or a person waiting, stays in play even if the player doesn't mention it.
 Avoid melodrama, cliché and overused metaphors, and prefer natural, grounded language: the concrete thing over the abstract quality. Tell things in order with strong verbs and conjunctions, rather than participle phrases. Never use em-dashes.${toneLine(tone)}
-Keep the prose fresh: give each scene something new to notice, vary how replies open and end, and end on what a person in the scene does, says or now faces. Don't reuse the images, gestures, questions or lines of the replies above. Leave the PC free to answer however they like, so most replies end on something other than a question or a choice between two things. People give as much of themselves as they ask of the PC. Show a feeling and leave it unexplained. Say what is so and leave it there, in narration and speech alike, never against something nobody in the scene supposed ("not X but Y", "X, not Y"). Give each person their own voice, speaking naturally.
+Keep the prose fresh: give each scene something new to notice, vary how replies open and end, and end on what a person in the scene does, says or now faces. Don't reuse the images, gestures, questions or lines of the replies above. Leave the PC free to answer however they like, so most replies end on something other than a question or a choice between two things. People give as much of themselves as they ask of the PC. Show a feeling and leave it unexplained. Say what is so and leave it there, in narration and speech alike, never against something nobody in the scene supposed ("not X but Y", "X, not Y"). Give each person their own voice, speaking naturally${heard ? ", the way their earlier lines in how_they_speak show they talk, never saying those lines again" : ""}.
 The older replies above are shortened, so fill in every field of the schema. When anyone's clothing or looks change in this response, such as clothes coming off or going on, include update_npc for that NPC with their whole appearance as it is now, or the inventory change for the PC, and what goes back on is what came off, as setAside and looks_before keep it, as their pictures are painted from it.${fillStoryTime(currentState.storyTime, messages)}
 Set recent_summary in this response.${journalNote(journalEdits)}
 ${PACE}${
@@ -471,7 +500,7 @@ Due now, out of the PC's sight so far: ${JSON.stringify(duePlan)} If the PC or a
 The player gave these out-of-character directions when rewriting recent responses, below as JSON strings. They still hold, so keep following them in this response: ${JSON.stringify(directions)}`
     : ""
 }
-Right now, from the current state: ${JSON.stringify({ inventory, scene, looks_in_view: looksInView(currentState), ...looksBefore(currentState), storyTime: withClock(storyTime) })}`,
+Right now, from the current state: ${JSON.stringify({ inventory, scene, looks_in_view: looksInView(currentState), ...looksBefore(currentState), ...(heard && { how_they_speak: voices }), storyTime: withClock(storyTime) })}`,
     },
     { role: "user", content: playerWords(pc.name, input) },
   ];

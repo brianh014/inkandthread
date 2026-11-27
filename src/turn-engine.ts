@@ -519,9 +519,9 @@ const withoutFields = (narration: string) => {
 };
 // A model once put its Check request in narration, which was saved as the story.
 const JSON_NARRATION = "JSON for narration";
-// And twice, after a Check's rating, the rest of the rating, from the comma or colon after a field.
-// The mark first, as a story may open on a quoted word and a colon.
-const JSON_START = /^\s*[,:{][\s,:{]*"[a-z_]+"\s*:/;
+// And after a Check's rating, the rest of the rating or of a field, from the comma or colon after it, whatever value follows,
+// as no story starts on either. A brace needs a field after it, as a story may open on a quoted word and a colon.
+const JSON_START = /^\s*(?:[,:]|\{[\s,:{]*"[a-z_]+"\s*:)/;
 const isJsonObject = (narration: string) => {
   const text = narration.trim();
   if (JSON_START.test(text)) return true;

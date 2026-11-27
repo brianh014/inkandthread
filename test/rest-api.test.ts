@@ -2361,6 +2361,17 @@ test("a Check's result written as the rest of its rating is retried, while prose
   await unrated.app.post(`/saves/${quiet}/turns`, { input: "I raise the glass." });
   expect(unrated.prompts).toHaveLength(2);
 
+  // Or from a value on, as the rest of a rating or a state field.
+  for (const value of [
+    ': "Hard","at_most":null,"stakes":"She could lose the rope line in the storm, freeze out on the ice, or walk into a crevasse before anyone comes looking"}',
+    ': null, "type": "object", "properties": {"action": {"type": "string", "description": "the PC\x27s action as the player\x27s move has the PC say or do it"}}}',
+  ]) {
+    const valued = playWithDice([], narration(value), narration("The wind drops."));
+    const at = await valued.app.createSave();
+    await valued.app.post(`/saves/${at}/turns`, { input: "I walk out." });
+    expect(valued.prompts).toHaveLength(2);
+  }
+
   const prose = playWithDice([], narration('The sign reads "closed": nothing more.\n[Mara]: "We wait: dawn, then."'));
   const read = await prose.app.createSave();
   await prose.app.post(`/saves/${read}/turns`, { input: "I read the sign." });

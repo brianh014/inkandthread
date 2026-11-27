@@ -2194,6 +2194,26 @@ test("a replaced Turn reverts and duplicates like any other, and leaves no orpha
   }
 });
 
+test("narration that starts as JSON is never streamed, so the player sees no restart", async () => {
+  const tail = JSON.stringify(',"stakes":"The failing light may hide them entirely, or give her only a smudge of dust"}');
+  // The check first, as models send it, so the narration streams.
+  const replies = [`{"check":null,"narration":${tail}}`, narration("Snow.")];
+  app = startApp(savesDir, async (_prompt, { onText }) => {
+    const reply = replies.shift()!;
+    onText(reply);
+    return reply;
+  });
+  const id = await app.createSave();
+  const response = await fetch(app.url(`/saves/${id}/turns`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    body: JSON.stringify({ input: "I wait." }),
+  });
+
+  const events = await turnEvents(response);
+  expect(events.map(({ event }) => event)).toEqual(["reply", "done"]);
+});
+
 test("a stream of a replacement follows the Turn's contract, restarting after an invalid attempt", async () => {
   const replies = [narration("Rain."), `{"check":null,"narration":"Sn`, narration("Snow.")];
   app = startApp(savesDir, async (_prompt, { onText }) => {
@@ -2324,6 +2344,27 @@ test("a reply whose narration has no words is retried", async () => {
   expect(prompts).toHaveLength(2);
   const { messages } = (await (await app.get(`/saves/${id}/messages`)).json()) as { messages: { text: string }[] };
   expect(messages.at(-1)!.text).toBe("The rain keeps on.");
+});
+
+test("a Check's result written as the rest of its rating is retried, while prose with quotes and colons stands", async () => {
+  const tail = ',"stakes":"Pell may refuse to talk, lie, or send word ahead that Wren came asking","at_most":"A guarded answer","difficulty":"Moderate"}';
+  const { app, prompts } = playWithDice([17], requestCheck("Moderate"), narration(tail), narration("Pell talks, in the end."));
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I ride back to ask Pell." });
+  expect(prompts).toHaveLength(3);
+  expect((await messageTexts(app, id)).at(-1)).toBe("Pell talks, in the end.");
+
+  // Without a Check too, as a rating a reply set aside takes the same path.
+  const rating = ':{"action":"Raise the glass","stakes":"The failing light may hide them entirely, or give her only a smudge of dust","difficulty":"Moderate"}';
+  const unrated = playWithDice([], narration(rating), narration("Dust on the crest, nothing more."));
+  const quiet = await unrated.app.createSave();
+  await unrated.app.post(`/saves/${quiet}/turns`, { input: "I raise the glass." });
+  expect(unrated.prompts).toHaveLength(2);
+
+  const prose = playWithDice([], narration('The sign reads "closed": nothing more.\n[Mara]: "We wait: dawn, then."'));
+  const read = await prose.app.createSave();
+  await prose.app.post(`/saves/${read}/turns`, { input: "I read the sign." });
+  expect(prose.prompts).toHaveLength(1);
 });
 
 test("a reply of a few words that end no sentence is retried, while a short sentence stands", async () => {

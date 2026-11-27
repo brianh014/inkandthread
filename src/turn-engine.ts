@@ -483,7 +483,7 @@ export function usableChoices(choices: unknown) {
 // A model that won't write a Check's result can't refuse in words when the provider holds it to the schema, so it sends
 // something that isn't a story: replies came back as a lone comma, a single name and the rating written out.
 const DECLINED = "a story the AI declined to write";
-const RATING_TALK = /\bdifficulty\s*:\s*(?:none|easy|moderate|hard|very hard)\b|\bwhat['’]?s at stake\s*:/i;
+const RATING_TALK = /\bdifficulty"?\s*:\s*"?(?:none|easy|moderate|hard|very hard)\b|\bwhat['’]?s at stake\s*:/i;
 const declined = (narration: string) => (narration.match(/\p{L}+/gu)?.length ?? 0) < 2 || RATING_TALK.test(narration);
 // Words, not just punctuation, as a reply once came back as a lone comma.
 const NO_WORDS = "a story with no words";
@@ -519,8 +519,11 @@ const withoutFields = (narration: string) => {
 };
 // A model once put its Check request in narration, which was saved as the story.
 const JSON_NARRATION = "JSON for narration";
+// And twice, after a Check's rating, the rest of the rating, from the comma or colon after a field.
+const JSON_START = /^[\s,:{]*"[a-z_]+"\s*:/;
 const isJsonObject = (narration: string) => {
   const text = narration.trim();
+  if (JSON_START.test(text)) return true;
   if (!text.startsWith("{")) return false;
   try {
     return typeof JSON.parse(text) === "object";
@@ -1126,6 +1129,8 @@ async function narrate(
       }
       if (edited !== undefined || !none) return;
       const narration = narrationSoFar(visible);
+      // Held, as no story starts so and isJsonObject refuses it, so the player never sees it stream and restart.
+      if (/^\s*[,:{]/.test(narration)) return;
       if (narration.length <= narrationSent) return;
       emit("narration", { text: narration.slice(narrationSent) });
       narrationSent = narration.length;

@@ -115,3 +115,25 @@ test("someone's own line about a death is no death of theirs, though a death cal
   expect(deathsShown([dies("Pavel Duda")], '[Pavel Duda]: "I\'ll be in the kennel. Lise is alone with two dead dogs."', npcs).kept).toEqual([]);
   expect(deathsShown([dies("Pavel Duda")], '[Lise Moen]: "Pavel Duda is dead. He stopped breathing."', npcs).kept).toEqual([dies("Pavel Duda")]);
 });
+
+test("a death word for something else in their sentence, or their killing someone, is no death of theirs", () => {
+  const npcs = [{ name: "Tamsin" }, { name: "Vane" }, { name: "Corl" }, { name: "Lise Moen" }, { name: "A guard" }];
+  const dies = (name: string) => ({ op: "npc_dies" as const, name });
+  const kept = (name: string, said: string) => deathsShown([dies(name)], said, npcs).kept.length === 1;
+  // The bench's own sentence, as the camel was dead, not Tamsin.
+  expect(kept("Tamsin", "Tamsin had come down the line and stood at the dead beast's shoulder with her rope hanging from her hand.")).toBe(false);
+  expect(kept("Lise Moen", "Lise Moen knelt by the dead man.")).toBe(false);
+  expect(kept("Tamsin", "Tamsin killed the camel with one shot.")).toBe(false);
+  expect(kept("Vane", "Vane shot Corl dead.")).toBe(false);
+  expect(kept("Corl", "Vane shot Corl dead.")).toBe(true);
+  // Their own deaths, still kept.
+  for (const said of [
+    "Tamsin was killed by the fall.",
+    "Tamsin, killed outright, slid from the saddle.",
+    "Tamsin killed herself before dawn.",
+    "The blow left her dead on the sand beside Tamsin's camel.",
+  ])
+    expect(kept("Tamsin", said)).toBe(true);
+  expect(kept("Corl", "Corl hit the sand. The dead man's hand lay open.")).toBe(true);
+  expect(kept("A guard", "A guard fell. The dead guard did not move.")).toBe(true);
+});

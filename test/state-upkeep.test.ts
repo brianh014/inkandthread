@@ -72,7 +72,7 @@ test("State Upkeep records what the reply showed and the Narrator missed, after 
 
   const state = store().latestState(id);
   expect(state.scene.location).toBe("Ash's flat");
-  expect(state.inventory).toEqual({ wearing: [], carrying: ["a key"] });
+  expect(state.inventory).toEqual({ wearing: [], carrying: ["a key"], setAside: [{ item: "a coat", slot: "wearing", place: "Ash's flat" }] });
   // It sees the state after the Narrator's operations, with the move and the reply, and of the hidden world only the Plot Threads.
   const sent = JSON.parse(upkeep.prompts[0]!.at(-1)!.content);
   // No reply came before the first, so there is no previous one to agree with.

@@ -1836,10 +1836,11 @@ async function lateFault(reask: number) {
     opening: { scene: { location: "The quay", visibleCast: [] }, summary: "", plotThreads: [drowned], worldBible: [] },
   });
   const [limit, room, now] = [MOVE_LIMIT.ms, NOWS_REASK.ms, Date.now];
-  // Each look at the clock is a second on, so the reply comes past half the limit without a wait.
+  // Each look at the clock is 20 s on, so the reply comes past half the limit without a wait, and the real limit, a minute, never
+  // cuts the move off on a slow machine.
   let ticks = 0;
-  Date.now = () => now() + ticks++ * 1000;
-  MOVE_LIMIT.ms = 1500;
+  Date.now = () => now() + ticks++ * 20_000;
+  MOVE_LIMIT.ms = 60_000;
   NOWS_REASK.ms = reask;
   try {
     const log = await logOf(async () => {
@@ -1862,8 +1863,33 @@ test("a faulted now past half the move's time is asked again without thinking wh
 });
 
 test("a faulted now is not asked again once too little of the move's time is left for its re-ask", async () => {
-  const { told, log } = await lateFault(1500);
+  const { told, log } = await lateFault(60_000);
   expect(log).toContain("Faulted nows not asked again");
   expect(log).toContain('"late":true');
   expect(told.prompts).toHaveLength(3);
+});
+
+test("a re-ask for a missing part that also carries faulted nows still thinks, as it takes the whole move", async () => {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  const tide = "The tide is wrong.";
+  const part = { name: "Silas Grout", knows: "He held the harbourmaster under for the vicar." };
+  const waiting = change(tide, "The ferryman waits at the quay and will row Ash out if she asks.");
+  const told = play(
+    narration("Ash meets the sexton.", { op: "add_npc", name: "Silas Grout", appearance: "a huge man" }, nextDay()),
+    moved(change(drowned, "Grout digs a grave."), waiting),
+    moved({ ...change(drowned, "Grout digs a grave."), knows: [part] }, change(tide, "The ferryman rows out to the wreck by dawn.")),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: { scene: { location: "The quay", visibleCast: [] }, summary: "", plotThreads: [drowned, tide], worldBible: [] },
+  });
+
+  const log = await logOf(async () => {
+    for (const input of ["I meet him.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+  }, "info");
+
+  expect(log).toContain("Nows asked again");
+  expect(told.thinkingOff).toEqual([false, false, false, false]);
 });

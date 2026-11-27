@@ -1900,7 +1900,7 @@ export async function askForJson<T>(
    * model in the log. `hurried: false` fails a reply stopped at its thinking budget rather than ask for it with little thinking.
    * `call` names what the call is for in the log, as each call's token use is counted by it. `onOverthought` hears of a try that
    * thought past the limit, and has the next one think not at all, rather than a level less. `retryUnthinking`, asked after a
-   * reply refused for what it holds, has the next try think not at all when it says so.
+   * reply refused for what it holds, has every try from then on think not at all when it says so.
    */
   {
     call,

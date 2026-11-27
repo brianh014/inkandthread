@@ -36,6 +36,8 @@ const OPEN_THREADS = 3;
 // It runs while the player reads; past this, the next Turn stops waiting and the world stays where it was.
 export const MOVE_LIMIT = { ms: 120_000 };
 // What a re-ask for faulted nows, sent without thinking, needs of the limit, as those took 3 to 12 s and one 36 s.
+// shortcut: a model that refuses to stop thinking thinks through it and is cut at the limit, settling from the first reply as
+// before, only later; keep the half-limit rule for such a model if its moves start running to the limit.
 export const NOWS_REASK = { ms: 40_000 };
 
 // Story hours a Turn must skip to be a pause, as a move on every change of place, room to room, ran 15 times in one afternoon.
@@ -385,6 +387,8 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     });
   let nowsAsked = false;
   let nowsSent = false;
+  // A re-ask for a part was sent, which then thinks, as it takes the whole move, even when it carries faulted nows too.
+  let partsSent = false;
   // The reply whose nows were asked again, sorted, so its changes that weren't faulted stand and only the faulted ones are
   // taken from the re-ask, as using the re-ask's whole reply threw away most of each move's work on the bench.
   let first: ReturnType<typeof sorted> | undefined;
@@ -465,6 +469,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
       else {
         // Stands if the re-ask fails, as a move with nothing else wrong was lost with it.
         partless = { sorted: sorted(plot_threads), questions: questionsOf(reply) };
+        partsSent = true;
         context.addIssue({ code: "custom", message: "someone in a thread's without_part got no part in its knows" });
       }
     }
@@ -481,7 +486,7 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
         return;
       }
       nowsSent = true;
-      log.info("world", "Nows asked again", { save: id, ...countOf(unfit) });
+      log.info("world", "Nows asked again", { save: id, ms: elapsed, ...(!partsSent && { unthinking: true }), ...countOf(unfit) });
       // Named by where the thread is, never by its words, as the reason goes to the log too.
       for (const message of new Set(kept.flatMap((change) => nowFaults([change]).map((why) => `${whereIs(change, kept)}: ${why}`))))
         context.addIssue({ code: "custom", message });
@@ -585,7 +590,7 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
       call: "moveWorld",
       onOverthought: () => (overthought = true),
       // Only the re-ask for nows, which takes no more than its faulted threads, never one for parts, which takes the whole move.
-      retryUnthinking: () => nowsSent,
+      retryUnthinking: () => nowsSent && !partsSent,
     });
     again = sorted(movesOf(reply));
     againQuestions = questionsOf(reply);

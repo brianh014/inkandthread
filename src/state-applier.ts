@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TONE_MAX } from "./tones";
 
-/** `content` is what anyone could see or learn of it; `hidden`, what only play may reveal, never reaches a narrating call unearned. */
+/** `content` is common knowledge, what a stranger would see or be told for the asking; `hidden`, whatever some keep from others, never reaches a narrating call unearned. */
 export type LoreEntry = { title: string; keywords: string[]; content: string; hidden?: string; alwaysOn: boolean };
 
 /** All an entry holds, for the calls that keep secrets rather than tell them. */

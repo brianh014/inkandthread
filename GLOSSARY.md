@@ -147,7 +147,7 @@ A short, spoiler-free description of the world as the PC would plausibly know it
 _Avoid_: World Bible, World Brief
 
 **Lore Entry**:
-One titled, self-contained piece of the World Bible, either always available to the Narrator or activated by keywords. Its content is what anyone could see or learn of it; its hidden part, what only play may reveal, reaches the Narrator only with a Check result that earns it.
+One titled, self-contained piece of the World Bible, either always available to the Narrator or activated by keywords. Its content is common knowledge, what a stranger would see or be told for the asking; its hidden part, whatever some keep from others and only play may reveal, reaches the Narrator only with a Check result that earns it.
 _Avoid_: World Info, lorebook entry
 
 ### Player controls

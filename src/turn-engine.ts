@@ -233,7 +233,9 @@ export function closedAtLastOperation(reply: string) {
   const whole = reply.slice(start).match(/^[\s\S]*\}(?=\s*,)/)?.[0];
   return whole ? `${reply.slice(0, start)}${whole}]}` : undefined;
 }
+const Want = z.object({ name: z.string(), want: z.string() });
 const FinishedTurn = z.object({
+  wants: z.array(Want).catch([]),
   // Whether it has words is checked once it's parsed, so a Check's result without any is told as declined.
   narration: z.string().trim().min(1),
   state_operations: z.preprocess(usableOperations, z.array(TurnOperation).default([])),
@@ -404,6 +406,11 @@ const ResponseShape = z.object({
         "from the stakes: None when it can't fail and nothing rides on it, Easy when it almost always works, Moderate when it's about even, Hard when it usually fails or would rarely be welcomed, Very Hard when only rare luck makes it work or welcome. None and Easy are narrated at once",
       ),
   }),
+  // Before the narration, as a reply is written in order: each person commits to an aim of their own before the scene is, as people
+  // who were only answering the PC sat through a long talk with nothing of their own to push for.
+  wants: z
+    .array(Want)
+    .describe("each person in view other than the PC, and in a few words what they want right now in this scene, which the narration has them act on"),
   narration: z.string().nullable(),
   state_operations: z.array(TurnOperation),
   // Described here for the same reason as chapter_ends: speakers kept going missing from it.
@@ -508,7 +515,8 @@ const isNoteAboutTurn = (narration: string) => {
 // narration, so such a line starts a tail that isn't story, and the narration ends before it. A line that starts with a field
 // whose name no prose has, as "state_operations has more ops" did, needs no colon.
 // With what some models still send.
-const FIELDS = [...Object.keys(ResponseShape.shape), "choices", "summary"];
+// Not wants, which comes before the narration, so a story line opening "wants:" is never taken for a field's tail.
+const FIELDS = [...Object.keys(ResponseShape.shape).filter((field) => field !== "wants"), "choices", "summary"];
 const FIELD_LINE = new RegExp(String.raw`^\s*"?(?:(?:${FIELDS.join("|")})"?\s*:|(?:${FIELDS.filter((field) => field.includes("_")).join("|")})\b)`, "m");
 // A reply also once ended its narration with its JSON's closing brace and a tool-call tag, as "}</arg_value>".
 const JSON_TAIL = /\s*\}?(?:\s*<\/\w+>)*\s*$/;
@@ -540,7 +548,41 @@ const isJsonObject = (narration: string) => {
 // shortcut: a reply in another key order or after prose shows no narration until the Turn is done, loosen this only if real models do that often.
 const OPENING_CHECK = String.raw`^\s*(?:\x60\x60\x60(?:json)?\s*)?\{\s*"check"\s*:\s*(null|\{(?:\s*"[a-z_]+"\s*:\s*"(?:[^"\\]|\\.)*"\s*,?)*\s*\})`;
 const CHECK_START = new RegExp(OPENING_CHECK);
-const NARRATION_START = new RegExp(String.raw`${OPENING_CHECK}\s*,\s*"narration"\s*:\s*"`);
+
+/** Where the JSON value at `from` ends, by its brackets outside strings, or -1 while it is unfinished. */
+function valueEnd(text: string, from: number) {
+  const scalar = text.slice(from).match(/^(?:null|true|false|-?\d[\d.eE+-]*|"(?:[^"\\]|\\.)*")/);
+  if (scalar) return from + scalar[0].length;
+  let depth = 0;
+  let quoted = false;
+  for (let at = from; at < text.length; at++) {
+    const char = text[at];
+    if (quoted) {
+      if (char === "\\") at++;
+      else if (char === '"') quoted = false;
+    } else if (char === '"') quoted = true;
+    else if (char === "[" || char === "{") depth++;
+    else if ((char === "]" || char === "}") && --depth === 0) return at + 1;
+  }
+  return -1;
+}
+
+/**
+ * Where a visible reply's narration text starts, past its check and any wants, whatever they hold, as they come between the two;
+ * -1 while it hasn't come.
+ */
+function narrationStart(reply: string) {
+  const check = reply.match(CHECK_START);
+  if (!check) return -1;
+  let at = check[0].length;
+  const wants = reply.slice(at).match(/^\s*,\s*"wants"\s*:\s*/);
+  if (wants) {
+    at = valueEnd(reply, at + wants[0].length);
+    if (at < 0) return -1;
+  }
+  const narration = reply.slice(at).match(/^\s*,\s*"narration"\s*:\s*"/);
+  return narration ? at + narration[0].length : -1;
+}
 // biome-ignore lint/suspicious/noControlCharactersInRegex: JSON strings may not hold raw control characters, so this matches what they can.
 const COMPLETE_JSON_CHARACTERS = /^(?:[^"\\\x00-\x1f]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*/;
 
@@ -563,9 +605,9 @@ const isNone = (opened: unknown) => opened === null || [NONE, "Easy"].includes((
 
 /** The narration in a visible reply whose check is known to be None or null. */
 function narrationSoFar(reply: string) {
-  const start = reply.match(NARRATION_START);
-  if (!start) return "";
-  return JSON.parse(`"${reply.slice(start[0].length).match(COMPLETE_JSON_CHARACTERS)![0]}"`) as string;
+  const start = narrationStart(reply);
+  if (start < 0) return "";
+  return JSON.parse(`"${reply.slice(start).match(COMPLETE_JSON_CHARACTERS)![0]}"`) as string;
 }
 
 // The first try plus two automatic retries.
@@ -681,6 +723,8 @@ function turnPrompt(
       total: tokens(prompt.map(({ content }) => content)),
       // The cached front: the rules, Plot Threads and Scene Memories.
       front: tokens(front?.content),
+      // Whether earlier lines were sent for how anyone in view talks, as only long stories have them.
+      voices: rest.some(({ role, content }) => role === "system" && content.includes('"how_they_speak"')),
       recent: tokens(rest.filter(({ role }) => role !== "system").map(({ content }) => content)),
       latest: tokens(rest.filter(({ role }) => role === "system").map(({ content }) => content)),
       sceneMemories: tokens(state.sceneMemories.map(({ text }) => text)),
@@ -1173,7 +1217,7 @@ async function narrate(
         continue;
       }
       if (!check && rollCheck) ratedNone = true;
-      const { people, recent_summary, scene_changed, visual_description, chapter_ends } = response;
+      const { people, recent_summary, scene_changed, visual_description, chapter_ends, wants } = response;
       // Kept without the loop, not written again, as DeepSeek's whole narration was lost to a retry eight times in one 30-round play.
       const operationLimit = MAX_OPERATIONS * (kind === "opening" ? 2 : 1);
       // Only the threads this reply was handed may have their truth amended; an Edit was handed every one.
@@ -1489,6 +1533,7 @@ async function narrate(
         recentSummary: !!recent_summary?.trim(),
         ...(memory && { memoryFirst: memory.firstMessage, memoryLast: memory.lastMessage, memoryLength: memory.text.length }),
         people: people.length,
+        wants: wants.length,
         operations,
         ...(upkeep && { upkeep: (upkept ?? []).map(({ op }) => op), upkeepRefused }),
         sceneChanged: !!scene_changed,

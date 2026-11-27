@@ -346,6 +346,7 @@ test("the schema keeps to what strict schema modes accept, with check first", as
   expect(schema.type).toBe("object");
   expect(Object.keys(schema.properties)).toEqual([
     "check",
+    "wants",
     "narration",
     "state_operations",
     "people",

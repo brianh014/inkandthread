@@ -2742,3 +2742,32 @@ test("every action is logged at Info with its route, Save, method and status, an
   expect(log).not.toContain("/alive");
   expect(log).not.toContain("Ask about the ferry");
 });
+
+test("narration after the wants of those in view still streams, whatever a want holds", async () => {
+  const reply = JSON.stringify({
+    check: null,
+    wants: [
+      { name: "Vantor", want: 'to hear "the truth" [all of it], then sleep' },
+      { name: "Rao", want: ["rest", "answers"] },
+    ],
+    narration: "Snow falls on the beach.",
+    state_operations: [],
+    people: [],
+    recent_summary: "",
+  });
+  app = startApp(savesDir, async (_prompt, { onText }) => {
+    onText(reply.slice(0, reply.indexOf("falls")));
+    onText(reply);
+    return reply;
+  });
+  const id = await app.createSave();
+  const response = await fetch(app.url(`/saves/${id}/turns`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    body: JSON.stringify({ input: "I wait." }),
+  });
+
+  const events = await turnEvents(response);
+  expect(events[0]).toEqual({ event: "narration", data: { text: "Snow " } });
+  expect((events.at(-1)!.data as { messages: { text: string }[] }).messages.at(-1)!.text).toBe("Snow falls on the beach.");
+});

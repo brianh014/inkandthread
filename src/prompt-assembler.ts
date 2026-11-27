@@ -345,7 +345,8 @@ export function howTheySpeak(messages: Message[], since: number, { scene, npcs }
       if (!name || !inView.has(name) || (lines[name]?.length ?? 0) >= VOICE_LINES) continue;
       const line = said!.trim();
       if (line.split(/\s+/).length < VOICE_WORDS) continue;
-      (lines[name] ??= []).push(line.length > VOICE_CHARACTERS ? `${line.slice(0, line.lastIndexOf(" ", VOICE_CHARACTERS))}…` : line);
+      const cut = line.length > VOICE_CHARACTERS ? `${line.slice(0, line.lastIndexOf(" ", VOICE_CHARACTERS))}…` : line;
+      lines[name] = [...(lines[name] ?? []), cut];
     }
   }
   return lines;

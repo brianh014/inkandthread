@@ -829,6 +829,58 @@ test("a reply silent from its first byte is asked for once more, as a stuck requ
   expect(log).toMatch(/Text reply \{"call":"turn","id":"[0-9a-z]+-\d+","model":"fake\/model"/);
 });
 
+test("a hosted call with its own wait for the first line is asked once more when that passes, and a local one isn't", async () => {
+  const silent = async function* () {
+    await new Promise(() => {});
+  };
+  const ask = (provide: TextProvider, signal: AbortSignal) =>
+    provide([{ role: "user", content: "Hi" }], { call: "choices", firstByteMs: 100, onText: () => {}, signal });
+  play([silent, [delta("Hello."), "data: [DONE]\n\n"]], undefined, scriptedDice(), true);
+  const hosted = textProvider(settingsStore(join(folder.path, "settings.json")), { silenceMs: 60_000, listMs: 1000 });
+
+  const log = await logOf(async () => expect(await ask(hosted, AbortSignal.timeout(5_000))).toBe("Hello."));
+
+  expect(provider.requests).toHaveLength(2);
+  expect(log).toContain("Silent reply asked again");
+  expect(log).toMatch(/"firstLineMs":\d+/);
+
+  // A local server may take long over a prompt, so it keeps its usual wait.
+  play([silent]);
+  const local = textProvider(settingsStore(join(folder.path, "settings.json")), { silenceMs: 60_000, listMs: 1000 });
+  await expect(ask(local, AbortSignal.timeout(400))).rejects.toThrow();
+  expect(provider.requests).toHaveLength(1);
+});
+
+test("a model slow to start thinking is stopped at twice its thinking time from the ask, so its retry has time left", async () => {
+  const listing = { data: [{ id: "plain/model", supported_parameters: ["reasoning"] }] };
+  const hmm = `data: ${JSON.stringify({ choices: [{ delta: { reasoning: "Hmm. " } }] })}\n\n`;
+  // Its first thought late, then thinking steadily, never long enough from that first thought alone to be stopped by 100 ms.
+  const late = async function* () {
+    await Bun.sleep(150);
+    for (let at = 0; at < 8; at++) {
+      yield hmm;
+      await Bun.sleep(15);
+    }
+    yield* [delta("Done."), "data: [DONE]\n\n"];
+  };
+  play([late], listing, scriptedDice(), true);
+  const settings = settingsStore(join(folder.path, "settings.json"));
+  settings.update({ textThinking: "low", textModel: "plain/model" });
+
+  const log = await logOf(async () => {
+    const said = textProvider(settings)([{ role: "user", content: "Hi" }], {
+      thinkingBudget: 100,
+      thinkingMs: 100,
+      onText: () => {},
+      signal: new AbortController().signal,
+    });
+    await expect(said).rejects.toBeInstanceOf(ThinkingBudgetReached);
+  }, "info");
+
+  expect(log).toContain('"fromStart":true');
+  expect(log).toMatch(/"firstThoughtMs":\d+/);
+});
+
 test("a call's prompt and reply lines share one id, so calls running at once can be paired in the log", async () => {
   play([
     [delta("One."), "data: [DONE]\n\n"],

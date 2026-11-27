@@ -90,12 +90,15 @@ export type TextProvider = (
     lessThinking?: number;
     /**
      * Tokens of thinking, sent in place of the level to a model whose provider takes a budget, for a call with a hard time limit.
-     * For any other model, the stream is stopped with ThinkingBudgetReached once it has thought for `thinkingMs` from its first thinking token.
+     * For any other model, the stream is stopped with ThinkingBudgetReached once it has thought for `thinkingMs` from its first thinking token,
+     * or, once thinking, for twice that from the ask.
      */
     thinkingBudget?: number;
     thinkingMs?: number;
     /** Asks for no thinking at all, where the model takes that, as a hurried try after thinking was cut. */
     thinkingOff?: boolean;
+    /** How long to wait for the reply's first line before asking once more, for a call with a hard time limit. */
+    firstByteMs?: number;
     onText: (text: string) => void;
     onGeneration?: (id: string) => void;
     onUsage?: (usage: TextUsage) => void;
@@ -1905,6 +1908,7 @@ export async function askForJson<T>(
     lessThinking: fewer = 0,
     thinkingBudget,
     thinkingMs,
+    firstByteMs,
     reviewer = false,
     hurried = true,
   }: {
@@ -1914,6 +1918,7 @@ export async function askForJson<T>(
     lessThinking?: number;
     thinkingBudget?: number;
     thinkingMs?: number;
+    firstByteMs?: number;
     reviewer?: boolean;
     hurried?: boolean;
   },
@@ -1932,6 +1937,7 @@ export async function askForJson<T>(
       thinkingBudget,
       thinkingMs,
       thinkingOff,
+      firstByteMs,
       onText: () => {},
       onGeneration: (each: string) => (generation = each),
       onCall: (each: string) => (id = each),

@@ -28,10 +28,10 @@ test("each person in view is heard in their earliest lines of six words or more,
   expect(howTheySpeak(messages, 8, { scene, npcs }, "", "Brian")).toEqual({
     // By a shortened name too, as Narrators shorten names.
     "Commander Devesh Rao": [
-      "\"Ensign, you'll want the second drill, it's the one that saves you.\"",
-      '"I learn names in an hour, and I use them, every one of them."',
+      "Ensign, you'll want the second drill, it's the one that saves you.",
+      "I learn names in an hour, and I use them, every one of them.",
     ],
-    "Captain Ilse Vantor": ['"Tell me what you think before you tell me what the manual says."'],
+    "Captain Ilse Vantor": ["Tell me what you think before you tell me what the manual says."],
   });
 });
 
@@ -55,4 +55,9 @@ test("the PC's own lines are never taken for someone's voice, and a line with no
 test("someone the last reply names is heard though the scene's cast doesn't list them yet", () => {
   const sorrell = narrator(2, '[Lieutenant Hana Sorrell]: "The water here is warmer than the charts say it should be."');
   expect(Object.keys(howTheySpeak([sorrell], 4, { scene, npcs }, "Sorrell walks back up the sand.", "Brian"))).toEqual(["Lieutenant Hana Sorrell"]);
+});
+
+test("only what someone says is their voice, not what they do between its quotes", () => {
+  const line = narrator(2, "[Captain Ilse Vantor]: “Oh. You are still on.” She thumbed her console awake. “Did Rao get to you too, then?”");
+  expect(howTheySpeak([line], 4, { scene, npcs }, "", "Brian")).toEqual({ "Captain Ilse Vantor": ["Oh. You are still on. Did Rao get to you too, then?"] });
 });

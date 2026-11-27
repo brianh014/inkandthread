@@ -296,6 +296,16 @@ const HEARSAY = /\b(?:thought|reported|believed|presumed|feared|supposed|said to
 const IDIOM =
   /\b(?:died|dies|dying)\s+(?:away|down|out|off|back)(?=\s*(?:[,.;:!?…"”]|again\b|$))|\bdead\s+(?:of\s+(?:night|winter)|silence|calm|tired|end|set|centre|center|straight|level)\b/gi;
 
+// A death word before what it describes, "the dead beast", "Corl's murdered brother", never "a dead weight" nor "left her dead on".
+const DEAD_THING =
+  /\b(?:the|an?|his|her|their|its|that|this|\p{L}+['’]s)\s+(?:dead|dying|slain|murdered|drowned|lifeless|killed)\s+(?!(?:weight|still|on|in|at|by|beside|before|when|and|with|from|for|as|to|of)\b)([\p{L}-]+)/giu;
+// Someone as the one who kills, the verb straight after their name, as "Tamsin, killed outright" and "Tamsin was killed" are deaths.
+const doer = (form: string) =>
+  new RegExp(
+    `(?<![\\p{L}])${RegExp.escape(form)}(?:\\s+(?:had|has|then|\\p{L}+ly))*\\s+(?:killed|murdered|slew|shot|stabbed)\\b(?!\\s+(?:himself|herself|themselves|by|dead)\\b)`,
+    "u",
+  );
+
 /**
  * The operations without each npc_dies the narration never shows, as a Narrator offered the operation marked everyone in a
  * scene dead, the PC among them, Turn after Turn. Dropped, never refused, as the reply stands either way.
@@ -311,10 +321,17 @@ export function deathsShown<Operation extends StateOperation>(operations: Operat
   let dropped = 0;
   const kept = operations.filter((operation) => {
     if (operation.op !== "npc_dies") return true;
-    const forms = nameForms(findPerson(npcs, operation.name)?.name ?? operation.name);
-    const shown = sentences.some(
-      (sentence, at) => forms.some((form) => wholeWord(form, "u").test(sentence)) && DYING.test(`${sentence} ${sentences[at + 1] ?? ""}`),
-    );
+    const name = findPerson(npcs, operation.name)?.name ?? operation.name;
+    const forms = nameForms(name);
+    const own = new Set(name.toLowerCase().match(/\p{L}+/gu) ?? []);
+    const shown = sentences.some((sentence, at) => {
+      if (!forms.some((form) => wholeWord(form, "u").test(sentence))) return false;
+      // Not one where they are the killer, as "Tamsin killed the camel" marked Tamsin dead.
+      if (forms.some((form) => doer(form).test(sentence))) return false;
+      // Nor a death word for something else in their sentence, as "Tamsin stood at the dead beast's shoulder" marked her dead.
+      const theirs = sentence.replace(DEAD_THING, (phrase, noun: string) => (own.has(noun.toLowerCase()) ? phrase : ""));
+      return DYING.test(`${theirs} ${sentences[at + 1] ?? ""}`);
+    });
     if (!shown) dropped++;
     return shown;
   });

@@ -37,16 +37,18 @@ export function scriptedTextProvider(...replies: (string | Error | Promise<strin
   const prompts: Prompt[] = [];
   const schemas: unknown[] = [];
   const budgets: (number | undefined)[] = [];
+  const thinkingOff: boolean[] = [];
   const textProvider: TextProvider = async (prompt, request) => {
     prompts.push(prompt);
     schemas.push(request.schema);
     budgets.push(request.thinkingBudget);
+    thinkingOff.push(!!request.thinkingOff);
     // A promise stays in flight until it settles, like a slow model.
     const reply = await (replies.shift() ?? new Error("Text Provider script exhausted"));
     if (reply instanceof Error) throw reply;
     return reply;
   };
-  return { textProvider, prompts, schemas, budgets };
+  return { textProvider, prompts, schemas, budgets, thinkingOff };
 }
 
 /** A real one-pixel PNG. */

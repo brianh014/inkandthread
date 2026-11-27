@@ -35,6 +35,8 @@ const NO_ANSWER =
 const OPEN_THREADS = 3;
 // It runs while the player reads; past this, the next Turn stops waiting and the world stays where it was.
 export const MOVE_LIMIT = { ms: 120_000 };
+// What a re-ask for faulted nows, sent without thinking, needs of the limit, as those took 3 to 12 s and one 36 s.
+export const NOWS_REASK = { ms: 40_000 };
 
 // Story hours a Turn must skip to be a pause, as a move on every change of place, room to room, ran 15 times in one afternoon.
 const MOVE_HOURS = 3;
@@ -451,8 +453,11 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
   const Reply = z.object({ left: z.preprocess((left) => left ?? [], z.array(Left)), plot_threads: z.array(Move) }).superRefine((reply, context) => {
     const plot_threads = movesOf(reply);
     const { kept, faults } = sorted(plot_threads);
-    // Past half the limit a re-ask won't fit, as two finished at 117 and 119 seconds of 120, and two more at 85 and 101 were cut off.
-    const late = Date.now() - started > MOVE_LIMIT.ms / 2;
+    // Past half the limit a re-ask that thinks won't fit, as two finished at 117 and 119 seconds of 120, and two more at 85 and 101
+    // were cut off. One for nows goes without thinking, so it fits in less, as a model that took 77 s a move was never asked one.
+    const elapsed = Date.now() - started;
+    const late = elapsed > MOVE_LIMIT.ms / 2;
+    const lateForNows = elapsed > MOVE_LIMIT.ms - NOWS_REASK.ms;
     const forParts = !partsAsked && !late && partsMissing(kept) > 0;
     if (!partsAsked && partsMissing(kept) > 0) {
       partsAsked = true;
@@ -471,8 +476,8 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
       nowsAsked = true;
       first = sorted(plot_threads);
       firstQuestions = questionsOf(reply);
-      if (late || misfires) {
-        log.info("world", "Faulted nows not asked again", { save: id, ...(late ? { late } : { misfires }), ...countOf(unfit) });
+      if (lateForNows || misfires) {
+        log.info("world", "Faulted nows not asked again", { save: id, ...(lateForNows && { late: true }), ...(misfires && { misfires }), ...countOf(unfit) });
         return;
       }
       nowsSent = true;
@@ -579,6 +584,8 @@ Reply only with JSON matching this schema: ${JSON.stringify(jsonSchemaOf(Reply))
     const reply = await askForJson(textProvider, prompt, Reply, "The Narrator refused to move the world on.", signal, {
       call: "moveWorld",
       onOverthought: () => (overthought = true),
+      // Only the re-ask for nows, which takes no more than its faulted threads, never one for parts, which takes the whole move.
+      retryUnthinking: () => nowsSent,
     });
     again = sorted(movesOf(reply));
     againQuestions = questionsOf(reply);

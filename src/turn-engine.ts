@@ -1899,12 +1899,14 @@ export async function askForJson<T>(
    * `lessThinking` asks for that many levels below the player's Thinking from the first attempt. `reviewer` names the call's
    * model in the log. `hurried: false` fails a reply stopped at its thinking budget rather than ask for it with little thinking.
    * `call` names what the call is for in the log, as each call's token use is counted by it. `onOverthought` hears of a try that
-   * thought past the limit, and has the next one think not at all, rather than a level less.
+   * thought past the limit, and has the next one think not at all, rather than a level less. `retryUnthinking`, asked after a
+   * reply refused for what it holds, has the next try think not at all when it says so.
    */
   {
     call,
     picture = false,
     onOverthought,
+    retryUnthinking,
     lessThinking: fewer = 0,
     thinkingBudget,
     thinkingMs,
@@ -1915,6 +1917,7 @@ export async function askForJson<T>(
     call: string;
     picture?: boolean;
     onOverthought?: () => void;
+    retryUnthinking?: () => boolean;
     lessThinking?: number;
     thinkingBudget?: number;
     thinkingMs?: number;
@@ -1955,7 +1958,10 @@ export async function askForJson<T>(
         // A level lower too, for a model that must think, and as thinking left to the model is turned off only once lowered.
         thinkingOff ||= !!onOverthought;
         onOverthought?.();
-      } else asked = [...prompt, couldNotUse([reason, ...toldModel(cause)].join("; "))];
+      } else {
+        asked = [...prompt, couldNotUse([reason, ...toldModel(cause)].join("; "))];
+        if (retryUnthinking?.()) thinkingOff = true;
+      }
       // Sent without thinking, as hurried tries sent at Low thought past the budget again (11 State Upkeeps in one bench play).
       if (reason === OVER_BUDGET) thinkingOff = true;
     }

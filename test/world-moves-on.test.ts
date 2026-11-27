@@ -6,7 +6,7 @@ import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
 import { applyEdit, applyOperations, MAX_NPC_KNOWS, openingState, type WorldEdit } from "../src/state-applier";
 import { journalChange } from "../src/prompt-assembler";
-import { hoursPerReply, MOVE_EVERY, MOVE_LIMIT, moveDue, sameDeed, turnThreadChanges } from "../src/world-moves-on";
+import { hoursPerReply, MOVE_EVERY, MOVE_LIMIT, moveDue, NOWS_REASK, sameDeed, turnThreadChanges } from "../src/world-moves-on";
 import { threadPeople } from "../src/thread-people";
 import { ThoughtTooLong } from "../src/turn-engine";
 import { logOf, narration, scriptedDice, scriptedImages, scriptedTextProvider, tempFolder } from "./support";
@@ -700,6 +700,8 @@ test("a re-ask for a missing part keeps the part it gives, though another now ha
   for (const input of ["I meet him.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
 
   expect(told.prompts).toHaveLength(4);
+  // Thought through, as a re-ask for a part takes the whole move, its answers too.
+  expect(told.thinkingOff).toEqual([false, false, false, false]);
   expect(store().latestState(id).npcKnows).toEqual({ "Silas Grout": [part.knows] });
 });
 
@@ -1816,4 +1818,52 @@ test("a mark naming someone, one an earlier mark holds, or one on no place given
   expect(library(id)).toBe(`${LIBRARY} By 3rd of Thaw, dawn: The back window hangs broken. Only whoever has come there since has seen it.`);
   expect(log.match(/"marksDropped":1/g)?.length).toBe(2);
   expect(store().latestState(id).threadsNow[THIEF]).toBe("The thief sleeps on the barge.");
+});
+
+// A faulted now that comes after half the move's time, with `reask` of the limit for its re-ask, or none.
+async function lateFault(reask: number) {
+  const drowned = "Silas Grout drowned the harbourmaster on the vicar's orders.";
+  const committed = "Grout will dig a fresh grave in the churchyard by dawn.";
+  const told = play(
+    narration("Ash walks to the quay.", nextDay()),
+    moved(change(drowned, "Grout waits at the cottage and will deal with Ash if she presses.")),
+    ...(reask < 0 ? [moved(change(drowned, committed))] : []),
+    narration("Ash waits."),
+  );
+  const id = store().create({
+    worldBrief: "A harbour town",
+    pc: { name: "Ash" },
+    opening: { scene: { location: "The quay", visibleCast: [] }, summary: "", plotThreads: [drowned], worldBible: [] },
+  });
+  const [limit, room, now] = [MOVE_LIMIT.ms, NOWS_REASK.ms, Date.now];
+  // Each look at the clock is a second on, so the reply comes past half the limit without a wait.
+  let ticks = 0;
+  Date.now = () => now() + ticks++ * 1000;
+  MOVE_LIMIT.ms = 1500;
+  NOWS_REASK.ms = reask;
+  try {
+    const log = await logOf(async () => {
+      for (const input of ["I walk to the quay.", "I wait."]) expect((await turn(id, input)).ok).toBe(true);
+    }, "info");
+    return { told, log, now: store().latestState(id).threadsNow[drowned], committed };
+  } finally {
+    Date.now = now;
+    MOVE_LIMIT.ms = limit;
+    NOWS_REASK.ms = room;
+  }
+}
+
+test("a faulted now past half the move's time is asked again without thinking while its re-ask still fits", async () => {
+  // Room enough whatever the clock reads.
+  const { told, log, now, committed } = await lateFault(-1e9);
+  expect(log).toContain("Nows asked again");
+  expect(told.thinkingOff).toEqual([false, false, true, false]);
+  expect(now).toBe(committed);
+});
+
+test("a faulted now is not asked again once too little of the move's time is left for its re-ask", async () => {
+  const { told, log } = await lateFault(1500);
+  expect(log).toContain("Faulted nows not asked again");
+  expect(log).toContain('"late":true');
+  expect(told.prompts).toHaveLength(3);
 });

@@ -324,25 +324,23 @@ test("an Update's portrait prompt is written again when it adds a mark the looks
 
 test("an Update's portrait keeps a scarf, a wrap wound close and a named scar's verb, which are no new marks", async () => {
   const keep = "The same woman with her face preserved.";
-  const ask = { ...portrait, looks: "a woman with a scarred jaw and a bolt wound in her shoulder", was: "A woman." };
+  const ask = { ...portrait, looks: "a woman with a scarred jaw, ash on her cheek, blood on her collar and a bolt wound in her shoulder", was: "A woman." };
   for (const changes of [
     "A wool scarf is wound around her neck. Her indigo head-wrap is wound close.",
-    "A scar marks her jaw. A bolt wound shows high in her shoulder.",
+    "A scar marks her jaw. Ash smudges her cheek. A bolt wound shows high in her shoulder. Her collar is bloodied.",
   ]) {
     const { written, prompts } = write(ask, "prose", JSON.stringify({ keep, changes }));
     expect(await written).toBe(`${keep} ${changes} ${setting.artStyle}`);
     expect(prompts).toHaveLength(1);
   }
   // A mark the looks don't name is still refused, its verb or not.
-  const soot = write(
-    ask,
-    "prose",
-    JSON.stringify({ keep, changes: "A smear of soot marks her collarbone." }),
-    JSON.stringify({ keep, changes: "She wears a coat." }),
-  );
-  await soot.written;
-  expect(soot.prompts).toHaveLength(2);
-  expect(soot.prompts[0]![0]!.content).toContain("a mark below the face only where looks names one");
+  const plain = { ...portrait, looks: "a woman in a grey coat", was: "A woman." };
+  for (const changes of ["A smear of soot marks her collarbone.", "A fresh wound across her neck.", "Scarring runs down her neck."]) {
+    const refused = write(plain, "prose", JSON.stringify({ keep, changes }), JSON.stringify({ keep, changes: "She wears a grey coat." }));
+    await refused.written;
+    expect(refused.prompts).toHaveLength(2);
+    expect(refused.prompts[0]![0]!.content).toContain("a mark below the face only where looks or nudge names one");
+  }
 });
 
 test("an Update's portrait prompt is a short edit of the old portrait: the same face, then how they look now", async () => {

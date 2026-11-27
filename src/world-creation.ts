@@ -948,7 +948,7 @@ const pictureRules = (kind: PictureAsk["kind"], style: PromptStyle, words: numbe
 // Short, with the face named once and up front: FLUX.2 Klein lost the face when "keep their face" came last, and redrew it when its features were listed.
 // In fields the code puts in order, as the text model ignored the order the rule gave.
 const EDIT_RULE =
-  "The image model is given the portrait that was describes, and edits it. looks is how this person looks now. keep and changes make the editing instruction, in plain short sentences. Describe how they look now from the chest up: their clothing and hair, and a mark below the face only where looks names one. Never describe their face's features, such as its makeup, eyes, skin tone or build, which the image model takes from the portrait, as any description of them pulls the face away from the person. Only when nudge asks for an expression, start changes with it as a mild one of at most four words, such as \"She has a faint smile.\", and never with strong words such as wide, screaming, crying, snarling, clenched, tears or contorted. Leave out whatever that frame can't show, such as hands, legs, feet and anything they hold.";
+  "The image model is given the portrait that was describes, and edits it. looks is how this person looks now. keep and changes make the editing instruction, in plain short sentences. Describe how they look now from the chest up: their clothing and hair, and a mark below the face only where looks or nudge names one. Never describe their face's features, such as its makeup, eyes, skin tone or build, which the image model takes from the portrait, as any description of them pulls the face away from the person. Only when nudge asks for an expression, start changes with it as a mild one of at most four words, such as \"She has a faint smile.\", and never with strong words such as wide, screaming, crying, snarling, clenched, tears or contorted. Leave out whatever that frame can't show, such as hands, legs, feet and anything they hold.";
 // For a portrait drawn from an old one's face with no prompt of it to edit, as the model otherwise copies its clothing.
 const FACE_ONLY =
   " The image model is also given an older portrait of this person, so end the prompt with a sentence saying that portrait shows only their face and hair, and that their clothing and expression are as written here.";
@@ -967,17 +967,19 @@ const editReply = z.object({
 // shortcut: a list of the marks seen added; widen it if redraws invent others. "mark" too, as a "faint red mark" was painted as blood.
 // Not "scarf", nor "wound" as of a wrap wound close, which redraws copied from the old portrait and were refused for.
 const MARKS =
-  /\b(?:soot\w*|smudge\w*|smear\w*|stain\w*|streak\w*|grime\w*|dirt\w*|mud\w*|ash|ashes|blood\w*|bruise\w*|scars?|scarred|scratch\w*|cut|cuts|(?<!\b(?:is|are|was|were|been)\s)wound(?!\s+(?:close|tight|tightly|around|round|about|up|into|through|across)\b)|wounds|wounded|mark|marks|marked)\b/g;
-// The marks the looks and nudge don't name. "marks" right after a mark is only its verb, as in "a scar marks her jaw".
+  /\b(?:soot\w*|smudge\w*|smear\w*|stain\w*|streak\w*|grime\w*|dirt\w*|mud\w*|ash|ashes|blood\w*|bruise\w*|scar(?!f|let)\w*|scratch\w*|cut|cuts|(?<!\b(?:is|are|was|were|been)\s)wound(?!\s+(?:close|tight|tightly|around|round)\b)|wounds|wounded|mark|marks|marked)\b/g;
+// Each mark by its root, so "bloodied" or "muddy" is named by blood or mud in the looks.
+const MARK_ROOTS = ["soot", "smudge", "smear", "stain", "streak", "grime", "dirt", "mud", "ash", "blood", "bruise", "scar", "scratch", "cut", "wound", "mark"];
+// The marks the looks and nudge don't name. A mark right after another is its verb, as in "a scar marks her jaw".
 const unnamedMarks = (changes: string, given: string) => {
-  const found = [...changes.toLowerCase().matchAll(MARKS)];
+  const lower = changes.toLowerCase();
+  const found = [...lower.matchAll(MARKS)];
   const marks = found.filter((mark, at) => {
     const before = found[at - 1];
-    return !(/^mark/.test(mark[0]) && before && /^[\s-]+$/.test(changes.slice(before.index + before[0].length, mark.index)));
+    return !(before && /^[\s-]+$/.test(lower.slice(before.index + before[0].length, mark.index)));
   });
-  // Doubled letters too, as "scarred" ends "scarr".
-  const stem = (mark: string) => mark.replace(/(?:e?s|ed)$/, "").replace(/(\w)\1$/, "$1");
-  return [...new Set(marks.map(([mark]) => mark).filter((mark) => !given.includes(stem(mark))))];
+  const root = (mark: string) => MARK_ROOTS.find((each) => mark.startsWith(each)) ?? mark;
+  return [...new Set(marks.map(([mark]) => mark).filter((mark) => !given.includes(root(mark))))];
 };
 
 /**

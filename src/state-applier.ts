@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TONE_MAX } from "./tones";
 
-/** `content` is what anyone could see or learn of it; `hidden`, what only play may reveal, never reaches a narrating call unearned. */
+/** `content` is common knowledge, what a stranger would see or be told for the asking; `hidden`, whatever some keep from others, never reaches a narrating call unearned. */
 export type LoreEntry = { title: string; keywords: string[]; content: string; hidden?: string; alwaysOn: boolean };
 
 /** All an entry holds, for the calls that keep secrets rather than tell them. */
@@ -482,7 +482,8 @@ function apply(state: State, operation: StateOperation, threads: ThreadsSoFar = 
   switch (operation.op) {
     case "add_item": {
       // As the Narrator wrote who the PC met, or brought along, into what they wear and carry.
-      if (isPerson(state, operation.item)) return NOT_AN_ITEM;
+      // And a whole sentence, as State Upkeep wrote notes on what others did into what the PC carries.
+      if (isPerson(state, operation.item) || /[.!?]$/.test(operation.item.trim())) return NOT_AN_ITEM;
       // Worn or carried, the same thing held twice was the same notebook three times and a shawl both worn and carried. A fuller
       // name replaces the old where it is, as models restate what is held with how it is now.
       // The same words twice in one reply may be two of a thing, as "two lengths of rope" are, so only one held before it repeats.
@@ -788,7 +789,7 @@ const lasting = (appearance: string) => {
   return kept || appearance;
 };
 
-const NOT_AN_ITEM = "a person, not an item";
+const NOT_AN_ITEM = "a person or a sentence, not an item";
 // Exactly as named, as amber isn't Amber.
 const isPerson = (state: State, item: string) => state.npcs.some(({ name }) => name === item);
 

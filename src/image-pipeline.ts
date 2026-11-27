@@ -157,7 +157,7 @@ export function missingFeatures(looks: string, phrase: string) {
  * `referenced` are those whose portrait reaches the model, in its order: each is pointed at their image by number, and the
  * Narrator's {likeness sentence} is kept only when there is one, so a picture with no portraits is prompted as before.
  */
-export function expandMarks(text: string, npcs: Npc[], pcName: string, referenced: Pictured = []) {
+export function expandMarks(text: string, npcs: Npc[], pcName: string, referenced: Pictured = [], pcAppearance = "") {
   const pictured: Pictured = [];
   const described = new Set<string | null>();
   const prompt = text
@@ -186,7 +186,8 @@ export function expandMarks(text: string, npcs: Npc[], pcName: string, reference
         return image && pictured.length > 1 && !possessive ? `the same person from image ${image}` : "the same person";
       const first = !pictured.includes(person);
       if (first) pictured.push(person);
-      const looks = [brief, ...(first && npc ? missingFeatures(npc.appearance, brief) : [])].filter(Boolean).join(", ");
+      const stored = npc ? npc.appearance : pcAppearance;
+      const looks = [brief, ...(first ? missingFeatures(stored, brief) : [])].filter(Boolean).join(", ");
       if (!image) return looks || "a person";
       // A comma closes the phrase only when the sentence reads on, as in "the person from image 1, a tall woman, kneels".
       const readsOn = /^\s*[a-z]/i.test(whole.slice(at + _.length));
@@ -196,6 +197,8 @@ export function expandMarks(text: string, npcs: Npc[], pcName: string, reference
   const sentences = prompt.split(/(?<=[.!?])\s+/);
   return { prompt: sentences.filter((sentence, at) => sentences.indexOf(sentence) === at).join(" "), pictured };
 }
+
+const LIKENESS = "The people from the images are the same people with their faces preserved, dressed and posed as written here.";
 
 const NOT_A_NAME = new Set([
   "The",
@@ -543,6 +546,9 @@ export function imagePipeline(
                 ? { name: pcName, looks: pcLooks(pcNow(pc, saves.latestState(id)), wearing) }
                 : { name: person, looks: npcs.find(({ name }) => name === person)!.appearance },
             )
+            // Within the Settings' count with those marked, as the review marked all four in view of a prompt that marked none.
+            // shortcut: the first in view, the PC first; pick by who the moment names if the wrong ones get the places.
+            .slice(0, Math.max(0, settings.read().scenePeople - shown.length))
         : [];
     const moment = cast.length > 0 ? saves.messages(id).find((message) => message.id === messageId)?.text : undefined;
     const reviewed = await reviewPicture(marked, style, signal, cast, moment);
@@ -556,7 +562,12 @@ export function imagePipeline(
       log.info("images", "Unmarked people marked by a noun", { left: left.length, marked: marksOf(description) - marksOf(reviewed) });
     // Twice, as who is pictured decides which portraits go in, and those decide how each mark is written.
     const { pictured } = expandMarks(description, npcs, pcName);
-    const { prompt: expanded } = expandMarks(description, npcs, pcName, referenced(id, pictured));
+    const pcAppearance = pcNow(pc, saves.latestState(id)).physicalTraits ?? "";
+    // Added where the Narrator wrote none, as a model that left it out had its portraits' faces and clothes go unheld.
+    const portraits = referenced(id, pictured);
+    const ended = description.trimEnd();
+    const likeness = portraits.length === 0 || /\{(?![^{}]*"\s*:)/.test(ended) ? "" : `${/[.!?]$/.test(ended) ? "" : "."} {${LIKENESS}}`;
+    const { prompt: expanded } = expandMarks(`${ended}${likeness}`, npcs, pcName, portraits, pcAppearance);
     const prompt = electricTorches(expanded, saves.latestState(id).era);
     const bytes = await adapter(scenePayload(id, prompt, pictured), signal);
     // Counted before storing, as the player has paid for it whether or not its Message is still there.

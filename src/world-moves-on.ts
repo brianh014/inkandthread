@@ -19,6 +19,7 @@ import {
   type State,
   type StateOperation,
 } from "./state-applier";
+import { nearPc, PAST_HOURS, wasOffered } from "./due-plans";
 import { askForJson, jsonSchemaOf, type TextProvider } from "./turn-engine";
 import { threadPeople } from "./thread-people";
 
@@ -137,6 +138,21 @@ export const echoes = (words: string[], text: string) => words.filter((word) => 
  * by meaning if the bench shows either.
  */
 export const sameDeed = (old: string, plan: string) => echoes(deedWords(old), plan) >= 2;
+
+/**
+ * Whether a reply asked to bring a plan on did: it tells the deed by two of its own words, whoever is named, as someone the PC
+ * doesn't know goes unnamed, or by what words it has where the doer is named; or it brings the doer into view or has them speak,
+ * as a packet handed over was told as "something pale passed". Never for a doer only spoken of.
+ */
+export function planShown(plan: string, before: State, after: State, narration: string) {
+  const { doer, doerIn, mentions } = threadPeople(after);
+  const words = deedWords(plan);
+  const told = echoes(words, narration);
+  const named = (doer(plan) ?? []).some((name) => mentions(narration, name, "u"));
+  if (told >= 2 || (named && told >= Math.max(1, Math.min(2, words.length)))) return true;
+  const speaks = [...narration.matchAll(/^\[([^[\]]+)\]:/gm)].some(([, speaker]) => doerIn(plan, [speaker!.trim()]));
+  return !doerIn(plan, before.scene.visibleCast) && (speaks || doerIn(plan, after.scene.visibleCast));
+}
 
 /** How a mark on a place ends, saying who knows it, and how later moves find the marks already there. */
 const MARK_SEEN = "Only whoever has come there since has seen it.";
@@ -408,7 +424,13 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     // through were answers, and lost an open thread or its rewrite, a romance's among them.
     const closed = overthought ? [] : answered;
     if (overthought) answersUntaken = answered.length;
-    const rest = plot_threads.filter(({ thread }) => thread === null || !closed.includes(closestThread(plotThreads, thread) ?? ""));
+    // Not a null now for a thread the same reply's left says play has yet to answer, as MiMo wrote null for threads it left unchanged and two were lost.
+    const unanswered = left.filter(({ answer }) => !answer).map(({ thread }) => closestThread(plotThreads, thread));
+    const contradicted = plot_threads.filter(({ thread, now }) => thread !== null && now === null && unanswered.includes(closestThread(plotThreads, thread)));
+    if (contradicted.length > 0) log.info("world", "Removes of unanswered threads kept open", { count: contradicted.length });
+    const rest = plot_threads.filter(
+      (move) => !contradicted.includes(move) && (move.thread === null || !closed.includes(closestThread(plotThreads, move.thread) ?? "")),
+    );
     return [
       ...rest,
       ...closed.map((thread): ThreadMove => ({ thread, truth: null, now: null, plan: null, plan_in_hours: null, question: null, knows: [], mark: null })),
@@ -464,12 +486,27 @@ export async function moveWorldOn(textProvider: TextProvider, settings: Settings
     if (plot_threads.length === 0 || kept.length > 0 || faults.length === 0 || first !== undefined) return;
     for (const message of new Set(faults)) context.addIssue({ code: "custom", message });
   });
-  const fell = new Set(
-    plotThreads.filter((truth) => threadsPlan[truth] && clock !== undefined && (threadsDue[truth] === undefined || threadsDue[truth]! <= clock)),
+  // A plan on the PC or those with them whose hour a reply skipped past, never offered to a Turn, as one can't be done out of their
+  // sight: it stands, so the next Turn brings it on, as riders due to strike at 15:00 were told as waiting after a ride past it.
+  const near = nearPc(state, saves.read(id).pc.name ?? "");
+  const held = new Set(
+    plotThreads.filter((truth) => {
+      const due = threadsDue[truth];
+      const plan = threadsPlan[truth];
+      return !!plan && clock !== undefined && due !== undefined && due <= clock && due > clock - PAST_HOURS && near(plan) > 0 && !wasOffered(id, plan);
+    }),
   );
-  // Plans whose hour is still ahead, which stand through a move.
+  if (held.size > 0) log.info("world", "Passed plans near the PC held for the page", { save: id, held: held.size });
+  const fell = new Set(
+    plotThreads.filter(
+      (truth) => threadsPlan[truth] && clock !== undefined && !held.has(truth) && (threadsDue[truth] === undefined || threadsDue[truth]! <= clock),
+    ),
+  );
+  // Plans whose hour is still ahead, which stand through a move, and those held for the page.
   const ahead = new Set(
-    plotThreads.filter((truth) => threadsPlan[truth] && clock !== undefined && threadsDue[truth] !== undefined && threadsDue[truth]! > clock),
+    plotThreads.filter(
+      (truth) => threadsPlan[truth] && clock !== undefined && (held.has(truth) || (threadsDue[truth] !== undefined && threadsDue[truth]! > clock)),
+    ),
   );
   const threads = plotThreads.map((truth) => {
     const now = threadsNow[truth] ?? "";

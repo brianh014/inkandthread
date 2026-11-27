@@ -229,7 +229,7 @@ export async function writeChoices(
 ) {
   const Reply = z
     .object({ choices: z.array(z.string()).describe(CHOICES_RULE) })
-    .refine(({ choices }) => usableChoices(choices) !== undefined, "fewer than three different Choices of two words or more");
+    .refine(({ choices }) => usableChoices(choices) !== undefined, "fewer than three different Choices, each one sentence of 25 words or fewer");
   const prompt: Prompt = [
     {
       role: "system",

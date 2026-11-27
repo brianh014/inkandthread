@@ -44,7 +44,7 @@ import {
   StateOperation,
   type WorldEdit,
 } from "./state-applier";
-import { duePlan, planOffered, planShown, replyBefore } from "./due-plans";
+import { duePlan, planOffered, replyBefore } from "./due-plans";
 import { countWords, withinLimit } from "./limits";
 import { knownChoices, secretWords, unreadIn, withoutTheDead, withoutUnread, writeChoices } from "./known-choices";
 import { estimateTokens, wholeWord } from "./lore-activation";
@@ -55,7 +55,7 @@ import { applyWorldChange } from "./world-creation";
 import { foldKnows } from "./knowledge-folds";
 import { closeLooseEnds } from "./loose-ends-check";
 import { growLore } from "./lore-growth";
-import { forgetUnread, MOVE_LIMIT, moveDue, moveSoon, sameDeed, moveWorldOn, storyPace, turnThreadChanges } from "./world-moves-on";
+import { forgetUnread, MOVE_LIMIT, moveDue, moveSoon, moveWorldOn, planShown, sameDeed, storyPace, turnThreadChanges } from "./world-moves-on";
 import { threadPeople } from "./thread-people";
 
 // Each Save's move of the world still running, which the next Turn waits for, so it reads the world as moved.
@@ -457,7 +457,9 @@ export function usableChoices(choices: unknown) {
   const parsed = z.array(z.string()).safeParse(choices);
   const sameAs = (choice: string) => (/\s/.test(choice) ? choice : choice.replace(/\d+$/, ""));
   const byKind = new Map<string, string>();
-  for (const choice of (parsed.data ?? []).map(withoutJsonTail)) if (/\p{L}/u.test(choice) && !byKind.has(sameAs(choice))) byKind.set(sameAs(choice), choice);
+  // Within CHOICES_RULE's 25 words, as a model once wrote each Choice as the rule restated and all three numbered after it.
+  const fits = (choice: string) => /\p{L}/u.test(choice) && withinLimit(choice, 25);
+  for (const choice of (parsed.data ?? []).map(withoutJsonTail)) if (fits(choice) && !byKind.has(sameAs(choice))) byKind.set(sameAs(choice), choice);
   const distinct = [...byKind.values()];
   return distinct.length >= 3 ? distinct.slice(0, 3) : undefined;
 }

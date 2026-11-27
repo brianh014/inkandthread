@@ -437,6 +437,8 @@ test("a person is never something the PC wears or carries, at no cost to the Tur
     { op: "add_item", slot: "wearing", item: "Ossery" },
     { op: "add_item", slot: "carrying", item: "Ossery's letter" },
     { op: "remove_item", item: "Ossery" },
+    // Nor is a note on what someone did.
+    { op: "add_item", slot: "carrying", item: "Ossery is holding the map for the meeting." },
   ]);
   expect([next.inventory, refused]).toEqual([{ ...openingState.inventory, carrying: [...openingState.inventory.carrying, "Ossery's letter"] }, []]);
 });

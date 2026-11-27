@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { join } from "node:path";
-import { duePlan, planOffered, planShown, replyBefore } from "../src/due-plans";
+import { duePlan, planOffered, replyBefore } from "../src/due-plans";
+import { planShown } from "../src/world-moves-on";
 import { saveStore } from "../src/save-store";
 import { openingState, type State } from "../src/state-applier";
 import { logOf, narration, scriptedTextProvider, startApp, tempFolder } from "./support";

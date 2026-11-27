@@ -308,7 +308,7 @@ test("a marked person with a portrait uses it as a reference, as a Scene Image d
 
   const payload = drawn.payloads.at(-1)!;
   expect(payload.prompt).toStartWith(
-    "the person from image 2, a tall woman in oilskins, on a bench, by the person from image 1, a short person in a wool coat, and a boy with a kite",
+    "the person from image 2, a tall woman in oilskins, on a bench, by the person from image 1, a short person in a wool coat, cropped hair, and a boy with a kite",
   );
   expect(payload.reference_images.map(({ role, bytes }) => [role, bytes])).toEqual([
     ["pc", png(1)],

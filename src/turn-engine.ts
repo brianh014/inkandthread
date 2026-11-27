@@ -233,7 +233,9 @@ export function closedAtLastOperation(reply: string) {
   const whole = reply.slice(start).match(/^[\s\S]*\}(?=\s*,)/)?.[0];
   return whole ? `${reply.slice(0, start)}${whole}]}` : undefined;
 }
+const Want = z.object({ name: z.string(), want: z.string() });
 const FinishedTurn = z.object({
+  wants: z.array(Want).catch([]),
   // Whether it has words is checked once it's parsed, so a Check's result without any is told as declined.
   narration: z.string().trim().min(1),
   state_operations: z.preprocess(usableOperations, z.array(TurnOperation).default([])),
@@ -404,6 +406,11 @@ const ResponseShape = z.object({
         "from the stakes: None when it can't fail and nothing rides on it, Easy when it almost always works, Moderate when it's about even, Hard when it usually fails or would rarely be welcomed, Very Hard when only rare luck makes it work or welcome. None and Easy are narrated at once",
       ),
   }),
+  // Before the narration, as a reply is written in order: each person commits to an aim of their own before the scene is, as people
+  // who were only answering the PC sat through a long talk with nothing of their own to push for.
+  wants: z
+    .array(Want)
+    .describe("each person in view other than the PC, and in a few words what they want right now in this scene, which the narration has them act on"),
   narration: z.string().nullable(),
   state_operations: z.array(TurnOperation),
   // Described here for the same reason as chapter_ends: speakers kept going missing from it.
@@ -540,7 +547,9 @@ const isJsonObject = (narration: string) => {
 // shortcut: a reply in another key order or after prose shows no narration until the Turn is done, loosen this only if real models do that often.
 const OPENING_CHECK = String.raw`^\s*(?:\x60\x60\x60(?:json)?\s*)?\{\s*"check"\s*:\s*(null|\{(?:\s*"[a-z_]+"\s*:\s*"(?:[^"\\]|\\.)*"\s*,?)*\s*\})`;
 const CHECK_START = new RegExp(OPENING_CHECK);
-const NARRATION_START = new RegExp(String.raw`${OPENING_CHECK}\s*,\s*"narration"\s*:\s*"`);
+// Past the wants, where the reply gives them, as they come between the check and the narration: an array of flat objects of strings.
+const OPENING_WANTS = String.raw`(?:\s*,\s*"wants"\s*:\s*\[(?:[^"\[\]]|"(?:[^"\\]|\\.)*")*\])?`;
+const NARRATION_START = new RegExp(String.raw`${OPENING_CHECK}${OPENING_WANTS}\s*,\s*"narration"\s*:\s*"`);
 // biome-ignore lint/suspicious/noControlCharactersInRegex: JSON strings may not hold raw control characters, so this matches what they can.
 const COMPLETE_JSON_CHARACTERS = /^(?:[^"\\\x00-\x1f]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*/;
 
@@ -1173,7 +1182,7 @@ async function narrate(
         continue;
       }
       if (!check && rollCheck) ratedNone = true;
-      const { people, recent_summary, scene_changed, visual_description, chapter_ends } = response;
+      const { people, recent_summary, scene_changed, visual_description, chapter_ends, wants } = response;
       // Kept without the loop, not written again, as DeepSeek's whole narration was lost to a retry eight times in one 30-round play.
       const operationLimit = MAX_OPERATIONS * (kind === "opening" ? 2 : 1);
       // Only the threads this reply was handed may have their truth amended; an Edit was handed every one.
@@ -1489,6 +1498,7 @@ async function narrate(
         recentSummary: !!recent_summary?.trim(),
         ...(memory && { memoryFirst: memory.firstMessage, memoryLast: memory.lastMessage, memoryLength: memory.text.length }),
         people: people.length,
+        wants: wants.length,
         operations,
         ...(upkeep && { upkeep: (upkept ?? []).map(({ op }) => op), upkeepRefused }),
         sceneChanged: !!scene_changed,

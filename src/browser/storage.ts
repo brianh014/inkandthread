@@ -35,15 +35,11 @@ export async function openStorage() {
   // journal stays, as SQLite needs it to roll back a Turn the crash cut off.
   const unfinished = pool.getFileNames().filter((name) => /\.unfinished(-journal)?$/.test(name));
   for (const name of unfinished) pool.unlink(name);
-  attachFiles(pool, new pool.OpfsSAHPoolDb(APP_FILE));
+  const app = new pool.OpfsSAHPoolDb(APP_FILE);
+  attachFiles(pool, app);
   attachSqlite(sqlite3, pool, (path) => inPool(path) && touched(path));
-  log.info("saves", "Browser storage opened", {
-    files: pool.getFileCount(),
-    capacity: pool.getCapacity(),
-    unfinishedRemoved: unfinished.length,
-    sqlite: sqlite3.version.libVersion,
-  });
-  return pool;
+  const opened = { files: pool.getFileCount(), capacity: pool.getCapacity(), unfinishedRemoved: unfinished.length, sqlite: sqlite3.version.libVersion };
+  return { pool, app, opened };
 }
 
 /**

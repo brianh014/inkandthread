@@ -5,6 +5,7 @@ import { delimiter, join } from "node:path";
 // Its own port: 4600 is the player's server, 4610 and 4620 are the dev servers.
 const PORT = 4630;
 export const PHONE_PARITY_PORT = 4635;
+export const PHONE_PORT = 4636;
 // Playwright runs under Node, and Windows' cmd can miss npm's `bun` shim by name, so find the file on PATH.
 const bun =
   process.env
@@ -36,6 +37,13 @@ export default defineConfig({
       command: `"${bun}" e2e/phone/parity-serve.ts`,
       url: `http://127.0.0.1:${PHONE_PARITY_PORT}/desktop.json`,
       env: { ...(process.env as Record<string, string>), PHONE_PARITY_PORT: String(PHONE_PARITY_PORT) },
+      reuseExistingServer: false,
+    },
+    // The phone app, built with --fake and served as static files, for phone-play.spec.ts.
+    {
+      command: `"${bun}" e2e/phone/serve.ts`,
+      url: `http://127.0.0.1:${PHONE_PORT}/index.html`,
+      env: { ...(process.env as Record<string, string>), PHONE_PORT: String(PHONE_PORT) },
       reuseExistingServer: false,
     },
   ],

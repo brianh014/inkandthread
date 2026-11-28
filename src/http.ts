@@ -49,6 +49,8 @@ export type ServerOptions = {
   imageModels?: ImageModelList;
   /** Loopback unless the caller opens the app to the network, which has no accounts to protect it. */
   hostname?: string;
+  /** Every request comes from the player's own device, as in the phone build, where the page and its server share one browser. */
+  ownDevice?: boolean;
   dice: Dice;
   nearMissMargin: number;
   settings: SettingsStore;
@@ -195,7 +197,10 @@ export function logged<Route extends string>(routes: Bun.Serve.Routes<undefined,
         .catch(errorResponse);
       // Anything but a read is an action, logged by default so none goes unrecorded; reads, and the page's own pings, are only for tracing.
       const action = method !== "GET" && !NOT_ACTIONS.has(route);
+      // The route and Save again, as a host without AsyncLocalStorage, such as the phone build, has no log context.
       (action ? log.info : log.verbose)("http", action ? "Action" : "Request", () => ({
+        route,
+        ...(save && { save }),
         method,
         status: response.status,
         ms: Math.round(performance.now() - started),

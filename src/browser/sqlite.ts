@@ -19,7 +19,29 @@ export function attachSqlite(given: Sqlite3Static, givenPool: SAHPoolUtil, onWri
 export type SQLQueryBindings = SqlValue | boolean | undefined;
 type Row = Record<string, SqlValue>;
 
-const bindsOf = (args: unknown[]) => (args.length === 1 && Array.isArray(args[0]) ? (args[0] as unknown[]) : args);
+const bindable = (value: unknown) => (value === undefined ? null : typeof value === "boolean" ? Number(value) : value) as SqlValue;
+const isNamed = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value) && !ArrayBuffer.isView(value) && !(value instanceof ArrayBuffer);
+
+/**
+ * The values for a statement, in its parameters' order, as Bun's strict mode takes them: in order, as a list or one by one,
+ * or as one object whose keys are the names without their `$`, `:` or `@`. Too few, or a name missing, is refused.
+ */
+function bindsFor(stmt: PreparedStatement, args: unknown[]): SqlValue[] {
+  const wanted = stmt.parameterCount;
+  if (args.length === 1 && isNamed(args[0])) {
+    const named = args[0];
+    return Array.from({ length: wanted }, (_, i) => {
+      const name = sqlite3.capi.sqlite3_bind_parameter_name(stmt, i + 1) ?? "";
+      const key = name.slice(1);
+      if (!(key in named)) throw new RangeError(`SQLite query is missing the value for ${name}`);
+      return bindable(named[key]);
+    });
+  }
+  const given = args.length === 1 && Array.isArray(args[0]) ? (args[0] as unknown[]) : args;
+  if (given.length !== wanted) throw new RangeError(`SQLite query expected ${wanted} values, received ${given.length}`);
+  return given.map(bindable);
+}
 
 // Bun gives a lossy number past 2^53, never a bigint, so the server never sees one.
 const plain = (value: SqlValue) => (typeof value === "bigint" ? Number(value) : value);
@@ -37,10 +59,8 @@ class Statement {
   private each<T>(args: unknown[], read: (stmt: PreparedStatement) => T, first = false): T[] {
     const stmt = this.db.prepared(this.sql);
     try {
-      const binds = bindsOf(args);
-      // Bun's strict mode refuses a statement short of values rather than binding NULL for the rest.
-      if (binds.length !== stmt.parameterCount) throw new RangeError(`SQLite query expected ${stmt.parameterCount} values, received ${binds.length}`);
-      if (binds.length) stmt.bind(binds.map((value) => (value === undefined ? null : typeof value === "boolean" ? Number(value) : value)) as SqlValue[]);
+      const binds = bindsFor(stmt, args);
+      if (binds.length) stmt.bind(binds);
       const rows: T[] = [];
       while (stmt.step()) {
         rows.push(read(stmt));

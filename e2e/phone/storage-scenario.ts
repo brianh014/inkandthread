@@ -4,6 +4,7 @@
  */
 import { Database } from "bun:sqlite";
 import type { saveStore } from "../../src/save-store";
+import type { usageStore } from "../../src/usage-store";
 
 const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const picture = (seed: number) => new Uint8Array([...PNG, ...Array.from({ length: 2000 }, (_, i) => (i * 31 + seed) % 256)]);
@@ -64,14 +65,26 @@ function sqliteChecks() {
   })();
   checks.afterNested = db.query("SELECT n, s FROM t ORDER BY id").values();
   checks.columnNames = db.query("SELECT n AS count, s FROM t").columnNames;
+  db.query("INSERT INTO t (n, s) VALUES ($n, $s)").run({ n: 7, s: "named" });
+  checks.named = db.query("SELECT n, s FROM t WHERE s = $s").get({ s: "named" });
+  checks.namedMissing = threw(() => db.query("INSERT INTO t (n, s) VALUES ($n, $s)").run({ n: 8 }));
   using copy = Database.deserialize(db.serialize(), true);
   checks.readonlyWrite = threw(() => copy.run("INSERT INTO t (n) VALUES (1)"));
   checks.copyRows = copy.query("SELECT count(*) AS rows FROM t").get();
   return checks;
 }
 
-export function storageScenario(store: ReturnType<typeof saveStore>) {
-  const steps: Record<string, unknown> = { sqlite: sqliteChecks() };
+/** Usage binds by name, unlike the Saves, so it is checked apart. */
+function usageChecks(usage: ReturnType<typeof usageStore>) {
+  usage.record({ kind: "text", provider: "openrouter", model: "a-model", failed: false, tokensIn: 100, tokensOut: 20, cost: 0.01 }, "2026-11-01");
+  usage.record({ kind: "image", provider: "nanogpt", model: "a-painter", failed: true }, "2026-11-01");
+  usage.turn("a-save", "a-model", { difficulty: "Hard", operations: ["time_moved"] });
+  // A count that fails is only logged, so what was kept is read back.
+  return { byDay: usage.summary("day"), narrator: usage.narrator() };
+}
+
+export function storageScenario(store: ReturnType<typeof saveStore>, usage: ReturnType<typeof usageStore>) {
+  const steps: Record<string, unknown> = { sqlite: sqliteChecks(), usage: usageChecks(usage) };
   const id = store.create({
     worldBrief: "A harbour city of fog and bells.",
     pc: { name: "Ada" },

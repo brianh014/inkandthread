@@ -7,6 +7,21 @@ import { Zoomable } from "./zoom";
 
 const lastChanged = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
+/**
+ * In the phone app, whose server is in the page (ADR 0006), a download link skips the service worker that reaches it, so
+ * the Save is fetched and handed over as a file instead. On the desktop the link downloads by itself.
+ */
+async function exportInPage(event: { preventDefault(): void }, href: string) {
+  if (!navigator.serviceWorker?.controller) return;
+  event.preventDefault();
+  const response = await fetch(href);
+  if (!response.ok) throw new Error("This story wouldn't export. Try again.");
+  const name = /filename="([^"]+)"/.exec(response.headers.get("content-disposition") ?? "")?.[1] ?? "inkandthread-save.sqlite";
+  const link = Object.assign(document.createElement("a"), { href: URL.createObjectURL(await response.blob()), download: name });
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
+}
+
 export function LoadStory() {
   const [saves, setSaves] = useState<ListedSave[]>();
   const [notice, setNotice] = useState("");
@@ -142,7 +157,14 @@ export function LoadStory() {
                       >
                         {StartOverIcon}
                       </button>
-                      <a className="icon" title="Export" href={`/saves/${save.id}/export`} download aria-label={`Export ${name}`}>
+                      <a
+                        className="icon"
+                        title="Export"
+                        href={`/saves/${save.id}/export`}
+                        download
+                        aria-label={`Export ${name}`}
+                        onClick={(event) => void exportInPage(event, `/saves/${save.id}/export`).catch((failed: Error) => setError(failed.message))}
+                      >
                         {ExportIcon}
                       </a>
                     </>

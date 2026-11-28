@@ -4,10 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { phoneAliases } from "../../scripts/phone-aliases";
 import { saveStore } from "../../src/save-store";
+import { usageStore } from "../../src/usage-store";
 import { storageScenario } from "./storage-scenario";
 
 const desktopFolder = mkdtempSync(join(tmpdir(), "phone-parity-"));
-const desktop = storageScenario(saveStore(join(desktopFolder, "Saves")));
+const desktop = storageScenario(saveStore(join(desktopFolder, "Saves")), usageStore(":memory:"));
 rmSync(desktopFolder, { recursive: true, force: true });
 
 const out = mkdtempSync(join(tmpdir(), "phone-parity-build-"));

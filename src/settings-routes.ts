@@ -176,11 +176,11 @@ export function settingsRoutes({ options, images, saves }: ServerContext, { draw
       },
     },
     "/settings": {
-      GET: (req, server) => Response.json(publicSettings(fromThisComputer(req, server))),
+      GET: (req, server) => Response.json(publicSettings(options.ownDevice || fromThisComputer(req, server))),
       PATCH: async (req, server) => {
         const { imageKeyFromText, ...change } = await parseBody(req, SettingsSave);
         const current = settings.read();
-        const here = fromThisComputer(req, server);
+        const here = options.ownDevice || fromThisComputer(req, server);
         // The form sends every field, so a command as this page was shown it is no change.
         const shownAs = (shown: string[]) => JSON.stringify(change.textCommand) === JSON.stringify(shown);
         if (change.textCommand && shownAs(commandSeenFrom(here, current.textCommand))) delete change.textCommand;

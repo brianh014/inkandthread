@@ -1,107 +1,22 @@
 import { z } from "zod";
 import { comfyImages, comfyModels } from "./comfyui";
-import { galleryRoutes } from "./gallery-routes";
-import { errorResponse, isLoopback, logged, NoFields, parseBody, type ServerContext, type ServerOptions } from "./http";
-import type { ImageAdapter } from "./image-adapter";
-import { imagePipeline } from "./image-pipeline";
-import { liveTurns } from "./live-turns";
-import { errorFields, log, setLogLevel } from "./logger";
-import { saveRoutes } from "./save-routes";
-import { MAX_IMPORT_BYTES, saveStore } from "./save-store";
-import { settingsRoutes } from "./settings-routes";
-import { OnlineImageProvider, reviewerSettings } from "./settings-store";
-import { turnRoutes } from "./turn-routes";
+import { errorResponse, isLoopback, logged, NoFields, parseBody, type ServerOptions } from "./http";
+import { log } from "./logger";
+import { MAX_IMPORT_BYTES } from "./save-store";
+import { serverRoutes } from "./server-routes";
 import { relaunch, updater } from "./updater";
-import { countedImages, countedText, usageStore } from "./usage-store";
 import spa from "./web/index.html";
-import { worldBuilds } from "./world-builds";
-import { reviewScenePrompt, writePicturePrompt } from "./world-creation";
-import { worldRoutes } from "./world-routes";
-
-// What the page may say. Strict and numbers only, as the app listens on the network, so nothing the page holds can reach the log.
-const PAGE_EVENTS = {
-  "stream-lost": "info",
-  "polling-fallback": "verbose",
-  "turn-resumed": "info",
-  "world-build-picked-up": "info",
-  "polling-gave-up": "warning",
-  "narration-restarted": "info",
-  "page-error": "error",
-} as const;
-
-const pageNumber = z.number().finite().optional();
-
-// A Save's id isn't free text, and the line would be no use without it.
-const PageEvent = z.strictObject({
-  event: z.enum(Object.keys(PAGE_EVENTS) as (keyof typeof PAGE_EVENTS)[]),
-  save: z.uuid().optional(),
-  after: pageNumber,
-  misses: pageNumber,
-  returned: pageNumber,
-  line: pageNumber,
-  column: pageNumber,
-});
-
-const MOST_PAGE_EVENT_BYTES = 1024;
 
 /** `?fresh=1` asks GitHub now, rather than within the last few hours. */
 const UpdateCheck = z.strictObject({ fresh: z.literal("1").optional() });
 
-/** Every online provider's adapter, from one given for all or from a list that names each. */
-const onlineAdapters = (given: ServerOptions["imageAdapter"]) =>
-  typeof given === "function"
-    ? (Object.fromEntries(OnlineImageProvider.options.map((provider) => [provider, given])) as Record<OnlineImageProvider, ImageAdapter>)
-    : given;
-
-/** Stops reading at the cap, as a Save's import needs the server's own limit to be huge. */
-async function cappedBody(req: Request) {
-  let bytes = 0;
-  const parts: Uint8Array[] = [];
-  for await (const part of req.body ?? []) {
-    bytes += part.byteLength;
-    if (bytes > MOST_PAGE_EVENT_BYTES) return undefined;
-    parts.push(part);
-  }
-  return new Request(req.url, { method: "POST", headers: req.headers, body: Buffer.concat(parts) });
-}
-
-/** One server, its routes put together by area. Each area is its own module, which shares only the Saves, Turns and images. */
+/** The desktop's server: the shared routes (`server-routes.ts`) on `Bun.serve`, with the page, ComfyUI, Quit and updates. */
 export function startServer(given: ServerOptions) {
-  const { settings } = given;
-  const usage = given.usage ?? usageStore();
-  // Counted here, before anything holds the Text Provider, so every call for every route and picture prompt is counted.
-  const options = {
-    ...given,
-    usage,
-    textProvider: countedText(given.textProvider, usage, settings),
-    reviewProvider: given.reviewProvider && countedText(given.reviewProvider, usage, reviewerSettings(settings)),
-  };
-  const saves = saveStore(options.savesDir);
-  const turns = liveTurns();
-  const builds = worldBuilds();
-  try {
-    setLogLevel(settings.read().logLevel);
-  } catch (error) {
-    // Settings that won't read are every request's problem, not a reason not to start.
-    log.error("settings", "Settings won't read", errorFields(error));
-  }
   // Held here, not in Settings, as it's only how the last job went. It's safe to show, unlike the log.
   // shortcut: a restart clears it and an open Settings screen doesn't update, poll or store it if players miss failures.
   const workflow = { problem: "" };
-  const local = options.localImages ?? comfyImages(settings, undefined, (problem) => (workflow.problem = problem));
-  // Settings' test picture goes through the counted one too, as Usage counts every request.
-  const adapters = countedImages({ ...onlineAdapters(options.imageAdapter), local }, usage, settings);
-  const images = imagePipeline(
-    saves,
-    adapters,
-    settings,
-    options.writePicture ?? ((ask, style, _template, signal) => writePicturePrompt(options, ask, style, signal)),
-    options.reviewPicture ?? ((description, style, signal, cast, moment) => reviewScenePrompt(options, description, style, signal, cast, moment)),
-  );
-
-  // What goes on without the request that started it.
-  const working = () => turns.busy() || images.busy() || builds.busy();
-
+  const draw = given.localImages ?? comfyImages(given.settings, undefined, (problem) => (workflow.problem = problem));
+  const { routes, working } = serverRoutes(given, { draw, models: comfyModels, workflow });
   // Requests in flight, a Turn's save among them, finish first.
   // Once the server hands over to a new version, this process only waits on it, so it never quits by itself.
   let restarting = false;
@@ -110,12 +25,12 @@ export function startServer(given: ServerOptions) {
     log.startup(`Ink & Thread is closing: ${why}`);
     void server.stop().finally(() => process.exit(0));
   };
-  const updates = updater(options.latestRelease);
+  const updates = updater(given.latestRelease);
 
   // Pages check in, and the app quits once none has for `idleMs`, after any Turn, picture or world is done.
   let pageSeen = Date.now();
-  if (options.quittable) {
-    const { idleMs } = options.quittable;
+  if (given.quittable) {
+    const { idleMs } = given.quittable;
     const every = Math.min(30_000, idleMs / 3);
     let ticked = Date.now();
     setInterval(() => {
@@ -128,11 +43,9 @@ export function startServer(given: ServerOptions) {
     }, every).unref();
   }
 
-  const context: ServerContext = { options, saves, turns, images, builds };
-
   const server = Bun.serve({
-    hostname: options.hostname ?? "127.0.0.1",
-    port: options.port,
+    hostname: given.hostname ?? "127.0.0.1",
+    port: given.port,
     // Not hot reload, whose client copies an uncaught page error's words to the terminal, and they can quote the story.
     development: process.env.NODE_ENV !== "production" && { hmr: false },
     // A Turn can stay silent past Bun's default, which would drop the client while the Turn went on to commit.
@@ -145,7 +58,7 @@ export function startServer(given: ServerOptions) {
         // The download has no window to close, so the Menu's Quit ends it. A server doesn't quit, as everyone on the network shares it.
         "/quit": {
           POST: () => {
-            if (!options.quittable) return Response.json({ error: "Not found" }, { status: 404 });
+            if (!given.quittable) return Response.json({ error: "Not found" }, { status: 404 });
             quit("the player quit");
             return new Response(null, { status: 204 });
           },
@@ -174,22 +87,9 @@ export function startServer(given: ServerOptions) {
             return new Response(null, { status: 204 });
           },
         },
-        "/log": {
-          POST: async (req) => {
-            const capped = await cappedBody(req);
-            if (!capped) return Response.json({ error: "Too long" }, { status: 400 });
-            const { event, ...fields } = await parseBody(capped, PageEvent);
-            log[PAGE_EVENTS[event]]("page", event, fields);
-            return new Response(null, { status: 204 });
-          },
-        },
-        ...settingsRoutes(context, { draw: adapters.local, models: comfyModels, workflow }),
-        ...worldRoutes(context),
-        ...saveRoutes(context),
-        ...turnRoutes(context),
-        ...galleryRoutes(context),
+        ...routes,
       },
-      isLoopback(options.hostname ?? "127.0.0.1"),
+      isLoopback(given.hostname ?? "127.0.0.1"),
     ),
     fetch: () => {
       log.verbose("http", "No such route");

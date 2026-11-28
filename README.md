@@ -149,6 +149,12 @@ sudo systemctl enable --now inkandthread
 | Restart it | `sudo systemctl restart inkandthread` |
 | Stop it, and keep it from starting at boot | `sudo systemctl disable --now inkandthread` |
 
+### On a phone
+
+<!-- The phone app's address goes here once it is published (ticket 16 of .scratch/phone-app). -->
+
+The phone app is Ink & Thread as a website that runs entirely on your phone, with no computer behind it: your stories, Settings and keys stay on the phone, and it talks only to your AI. Open it in Chrome or Safari and add it to your Home Screen, as a browser may clear a website's stories after a while but keeps an installed app's. It reaches online AIs only (OpenRouter, NanoGPT or Google AI Studio), and it updates itself when you reload. Your stories live only on the phone, so export them now and then; an exported Save opens in the desktop app, and one from the desktop opens on the phone. To play on a phone from your own computer instead, use the Server download above.
+
 ### Connecting an AI
 
 Ink & Thread has no AI of its own, so it needs a key from an AI service before it can write. Two services each reach hundreds of models, the drawing ones too, with one key. Pick whichever suits you:
@@ -231,6 +237,10 @@ A command works too, such as a provider's own command-line tool: in **Settings â
 Use **Local (ComfyUI)** if you have a GPU for it. Ink & Thread draws a lot: the Cover, a portrait for each person, a Scene Image whenever the scene changes, pictures on request, and every redraw. On a paid image API each one costs money, and on your own ComfyUI they are free. Choose FLUX.2 or Qwen Image 2.1 in Simple Mode to keep faces the same from picture to picture, as SD 1.5 and SDXL can't use portraits.
 
 ComfyUI keeps its model on the GPU between pictures. If a local text model or anything else needs the GPU too, turn on **Free GPU memory after each picture**. Use OpenRouter, [NanoGPT](https://nano-gpt.com) or [Wiro](https://wiro.ai) for pictures only if you have no GPU for ComfyUI: try Seedream 5.5, or Nano Banana 2.1 for a little better quality. On Wiro, set the project to API key only, and choose the model from the list in Settings, such as `bytedance/seedream-5-5`.
+
+### On a phone
+
+The phone app reaches only hosted services: a hosted API for text, as above, and OpenRouter, NanoGPT or Google AI Studio for pictures. ComfyUI, a local text model and Wiro (which refuses calls from web pages) need the desktop app or the Server.
 
 ## Development
 

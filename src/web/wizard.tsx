@@ -572,6 +572,7 @@ export function NewStory({ step }: { step?: string }) {
   return frame(
     0,
     <WorldForm
+      picturesOn={picturesOn}
       draft={draft}
       setDraft={setDraft}
       setCharacter={setCharacter}

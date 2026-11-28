@@ -203,7 +203,10 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
     name: "Making a story",
     body: (
       <>
-        <p>New Story has three steps. What you write stays in this browser tab, so a trip to Settings or a reload doesn't lose it.</p>
+        <p>
+          New Story has three steps, or two with pictures off in Settings, which leaves out Art. What you write stays in this browser tab, so a trip to Settings
+          or a reload doesn't lose it.
+        </p>
         <h3>1. World and Characters</h3>
         <ul>
           <li>
@@ -220,8 +223,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
             <b>Your Character</b>: your PC's name, who they are and what they look like.
           </li>
           <li>
-            <b>Important Characters</b>: up to ten people you want in the story, each with a name and a description. The world is built around them, and each
-            gets a portrait.
+            <b>Important Characters</b>: up to ten people you want in the story, each with a name and a description. The world is built around them, and with
+            pictures on each gets a portrait.
           </li>
           <li>
             <b>Starting Hook</b>: the situation the story opens on. Turn it off and your PC simply starts in the world.
@@ -235,8 +238,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         </p>
         <h3>2. Art</h3>
         <p>
-          Choose an <b>Art Style</b> for every picture in the story, or describe your own. Then draw your PC's portrait, each Important Character's and the
-          Cover, or leave any of them to be drawn when the story begins. Each picture has:
+          With pictures on in Settings, choose an <b>Art Style</b> for every picture in the story, or describe your own. Then draw your PC's portrait, each
+          Important Character's and the Cover, or leave any of them to be drawn when the story begins. Each picture has:
         </p>
         <ul>
           <li>

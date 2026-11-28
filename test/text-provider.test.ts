@@ -298,13 +298,14 @@ test("schema mode is used on a model that supports it", async () => {
   expect(authorization).toBe("Bearer test-key");
   expect(body.model).toBe("fake/model");
   expect(body.stream).toBe(true);
-  expect(body.provider).toEqual({ require_parameters: true, sort: "price" });
+  // Balanced by default: OpenRouter routes it itself.
+  expect(body.provider).toEqual({ require_parameters: true });
   expect(body.response_format).toMatchObject({ type: "json_schema", json_schema: { strict: true } });
 });
 
 test.each([
   ["a routing", { textRouting: "throughput" }, { require_parameters: true, sort: "throughput" }],
-  ["OpenRouter's own choice", { textRouting: "default" }, { require_parameters: true }],
+  ["the cheapest", { textRouting: "price" }, { require_parameters: true, sort: "price" }],
   ["a named host, which wins over the routing", { textHost: "xiaomi" }, { require_parameters: true, order: ["xiaomi"], allow_fallbacks: true }],
   ["a host with no fallback", { textHost: "xiaomi", textHostFallback: false }, { require_parameters: true, order: ["xiaomi"], allow_fallbacks: false }],
 ] as const)("%s reaches the request", async (_, change, expected) => {

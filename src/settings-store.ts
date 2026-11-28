@@ -162,7 +162,8 @@ const defaults = {
   textApiKey: "",
   textModel: "",
   textCommand: [] as string[],
-  textRouting: "price",
+  // Balanced, as OpenRouter weighs price against uptime itself; the cheapest host is often the slowest or least reliable.
+  textRouting: "default",
   textHost: "",
   textHostFallback: true,
   modelInstructions: "",

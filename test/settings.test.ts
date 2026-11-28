@@ -27,7 +27,7 @@ test("a fresh install has images on, Prose, medium type, blank Model Instruction
   expect(await settings()).toEqual({
     textBaseUrl: "https://openrouter.ai/api/v1",
     textModel: "",
-    textRouting: "price",
+    textRouting: "default",
     textHost: "",
     textHostFallback: true,
     hasTextApiKey: false,
@@ -35,7 +35,7 @@ test("a fresh install has images on, Prose, medium type, blank Model Instruction
     textProfiles: {
       "https://openrouter.ai/api/v1": {
         textModel: "",
-        textRouting: "price",
+        textRouting: "default",
         textHost: "",
         textHostFallback: true,
         textMaxTokens: 16_000,
@@ -204,7 +204,7 @@ test("every setting survives a restart, and no key comes back", async () => {
     textProfiles: {
       "https://openrouter.ai/api/v1": {
         textModel: "",
-        textRouting: "price",
+        textRouting: "default",
         textHost: "",
         textHostFallback: true,
         textMaxTokens: 16_000,

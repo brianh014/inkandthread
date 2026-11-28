@@ -49,6 +49,7 @@ import { SCENE_PEOPLE } from "../src/limits";
 import { OPENING_SNAPSHOT, saveStore } from "../src/save-store";
 import { localIsSetUp } from "../src/graph-builder";
 import { reviewerSettings, settingsStore } from "../src/settings-store";
+import { withCommand } from "../src/command-provider";
 import { textProvider } from "../src/text-provider";
 import { TONES, toneText } from "../src/tones";
 import { THEMES } from "../src/web/wizard-draft";
@@ -80,7 +81,7 @@ const fromSaves = process.argv.includes("--from") ? resolve(process.argv[process
 const replayAt = process.argv.includes("--at") ? Number(process.argv[process.argv.indexOf("--at") + 1]) : undefined;
 // The Tone a --from run sets on its copy before it plays, by name, or none, to test a Tone changed mid-story.
 const toneArg = process.argv.includes("--tone") ? process.argv[process.argv.indexOf("--tone") + 1]! : undefined;
-const narratorOf = (settings: ReturnType<typeof settingsStore>) => (fake ? fakeTextProvider : textProvider(settings));
+const narratorOf = (settings: ReturnType<typeof settingsStore>) => (fake ? fakeTextProvider : withCommand(settings, textProvider(settings)));
 // How long a finished play waits for late usage reports and pictures, which the fakes never have.
 const SETTLE = fake ? 200 : 5000;
 const RUNS = join(BENCH, "runs");
@@ -492,7 +493,12 @@ async function openPlay(
     savesDir,
     settings,
     textProvider: counted(narratorOf(settings), "narrator", calls, () => steps.length),
-    reviewProvider: counted(fake ? fakeTextProvider : textProvider(reviewerSettings(settings)), "reviewer", calls, () => steps.length),
+    reviewProvider: counted(
+      fake ? fakeTextProvider : withCommand(reviewerSettings(settings), textProvider(reviewerSettings(settings))),
+      "reviewer",
+      calls,
+      () => steps.length,
+    ),
     // The real AI writes and checks every Image Prompt, to be judged, but a stand-in draws it, as real pictures cost money and time,
     // unless --draw, which draws on local ComfyUI only.
     imageAdapter: fakeImages,

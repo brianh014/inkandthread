@@ -1,7 +1,7 @@
 /** Opens the phone build's storage once, in the server worker, before any route runs (ADR: one server, two hosts). */
 import sqlite3InitModule, { type SAHPoolUtil } from "@sqlite.org/sqlite-wasm";
 import { inPool, touched, attachFiles } from "./fs";
-import { log } from "../logger";
+import { errorFields, log } from "../logger";
 import { attachSqlite } from "./sqlite";
 
 const POOL = "inkandthread";
@@ -48,6 +48,12 @@ export async function openStorage() {
  */
 export async function keepHeadroom(pool: SAHPoolUtil) {
   if (pool.getCapacity() - pool.getFileCount() >= HEADROOM) return;
-  const capacity = await pool.addCapacity(HEADROOM);
-  log.info("saves", "Browser storage grown", { files: pool.getFileCount(), capacity });
+  try {
+    const capacity = await pool.addCapacity(HEADROOM);
+    log.info("saves", "Browser storage grown", { files: pool.getFileCount(), capacity });
+  } catch (error) {
+    // The request goes on, as a full phone must still list, export and delete stories to free space; only a write that needs
+    // a new slot fails.
+    log.warning("saves", "Browser storage couldn't grow", { files: pool.getFileCount(), capacity: pool.getCapacity(), ...errorFields(error) });
+  }
 }

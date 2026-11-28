@@ -1,10 +1,20 @@
 import { expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { buildPhone } from "../scripts/build-phone";
 import { phoneAliases } from "../scripts/phone-aliases";
 
 // What a browser lacks, which shared server code must not use, as the phone app runs it in a worker (ADR 0006). The
 // bundle step itself fails on a Node module or file call the phone build doesn't stand in for.
-const BROWSER_LACKS = [/\bBuffer\b/, /\bBun\.[a-z]/, /\.unref\(\)/, /\bprocess\.(?!env\b)\w+/];
+// And iterating a stream, which Safari can't, unlike an async generator.
+const BROWSER_LACKS = [
+  /\bBuffer\b/,
+  /\bBun\.[a-z]/,
+  /\.unref\(\)/,
+  /\bprocess\.(?!env\b)\w+/,
+  /for await \(const \w+ of (?:[\w.]+\.body\b|[^;{]*\.pipeThrough\()/,
+];
 
 test("the phone app's server bundles, and its shared code uses nothing a browser lacks", async () => {
   const built = await Bun.build({
@@ -27,3 +37,10 @@ test("the phone app's server bundles, and its shared code uses nothing a browser
   });
   expect(found).toEqual([]);
 }, 30_000);
+
+test("the phone build never empties a folder that isn't an earlier build", async () => {
+  const folder = mkdtempSync(join(tmpdir(), "phone-out-"));
+  mkdirSync(join(folder, "src"));
+  writeFileSync(join(folder, "src", "keep.ts"), "");
+  await expect(buildPhone({ outdir: folder })).rejects.toThrow("aren't a phone build");
+});

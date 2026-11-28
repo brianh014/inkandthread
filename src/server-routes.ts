@@ -23,6 +23,7 @@ const PAGE_EVENTS = {
   "world-build-picked-up": "info",
   "polling-gave-up": "warning",
   "narration-restarted": "info",
+  "move-given-back": "info",
   "page-error": "error",
 } as const;
 
@@ -51,9 +52,15 @@ const onlineAdapters = (given: ServerOptions["imageAdapter"]) =>
 async function cappedBody(req: Request) {
   let bytes = 0;
   const parts: Uint8Array<ArrayBuffer>[] = [];
-  for await (const part of req.body ?? []) {
+  // Reading by hand because Safari, where the phone app runs this, can't iterate a ReadableStream.
+  const reader = req.body?.getReader();
+  for (let read = await reader?.read(); read && !read.done; read = await reader!.read()) {
+    const part = read.value as Uint8Array<ArrayBuffer>;
     bytes += part.byteLength;
-    if (bytes > MOST_PAGE_EVENT_BYTES) return undefined;
+    if (bytes > MOST_PAGE_EVENT_BYTES) {
+      await reader!.cancel();
+      return undefined;
+    }
     parts.push(part);
   }
   return new Request(req.url, { method: "POST", headers: req.headers, body: new Blob(parts) });

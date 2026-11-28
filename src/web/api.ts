@@ -90,15 +90,14 @@ async function request<T>(path: string, init?: RequestInit) {
   return (await response.json()) as T;
 }
 
-/** Tells the Server Log what only the page can see. Numbers and a Save's id only, as the route takes nothing else, and a failed report is nobody's problem. */
+/** The phone app's page, whose server is in it behind a service worker; the desktop's page never has one (ADR 0006). */
+export const inPageServer = () => !!navigator.serviceWorker?.controller;
+
 /**
  * A download link that works in the phone app too: there the server is in the page (ADR 0006), and a download link skips
  * the service worker that reaches it, so the file is fetched and handed over instead. On the desktop the link downloads
  * by itself, and this does nothing.
  */
-/** The phone app's page, whose server is in it behind a service worker; the desktop's page never has one (ADR 0006). */
-export const inPageServer = () => !!navigator.serviceWorker?.controller;
-
 export async function downloadInPage(event: { preventDefault(): void }, href: string, failed: string) {
   if (!inPageServer()) return;
   event.preventDefault();
@@ -110,6 +109,7 @@ export async function downloadInPage(event: { preventDefault(): void }, href: st
   setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
 }
 
+/** Tells the Server Log what only the page can see. Numbers and a Save's id only, as the route takes nothing else, and a failed report is nobody's problem. */
 export function reportEvent(event: string, fields: Record<string, number | string> = {}) {
   void fetch("/log", { ...jsonBody({ event, ...fields }), keepalive: true }).catch(() => {});
 }

@@ -6,18 +6,18 @@ import type { Asked } from "./server-worker";
 
 const RELOADED = "inkandthread-reloaded-for-service-worker";
 
-// The build puts it at the root, beside sw.js; the app is served from the root of its own origin (ticket 16).
-const server = new Worker("/server-worker.js", { type: "module" });
-navigator.serviceWorker.addEventListener("message", ({ data, ports }: MessageEvent<Asked>) =>
-  server.postMessage(data, [...ports, ...(data.body ? [data.body] : [])]),
-);
-navigator.serviceWorker.startMessages();
-
 const said = (text: string) => {
   document.body.textContent = text;
 };
 
 try {
+  // The build puts it at the root, beside sw.js; the app is served from the root of its own origin (ticket 16).
+  const server = new Worker("/server-worker.js", { type: "module" });
+  // Inside the try, as a window with no service worker leaves navigator.serviceWorker undefined.
+  navigator.serviceWorker.addEventListener("message", ({ data, ports }: MessageEvent<Asked>) =>
+    server.postMessage(data, [...ports, ...(data.body ? [data.body] : [])]),
+  );
+  navigator.serviceWorker.startMessages();
   await navigator.serviceWorker.register("/sw.js", { type: "module" });
   await navigator.serviceWorker.ready;
   if (navigator.serviceWorker.controller) {

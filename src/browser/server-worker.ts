@@ -102,13 +102,21 @@ async function start() {
       // shortcut: never a new version yet; ticket 13 of .scratch/phone-app makes it the service worker's update.
       "/update": { GET: () => Response.json({ version, failed: false, latest: null, installable: false }) },
       // The log, for the player to save and send with a bug report, as the desktop's log file.
-      "/phone/log": { GET: () => new Response(logText(), { headers: { "Content-Type": "text/plain; charset=utf-8" } }) },
+      "/phone/log": {
+        GET: () =>
+          new Response(logText(), {
+            headers: { "Content-Type": "text/plain; charset=utf-8", "Content-Disposition": 'attachment; filename="inkandthread.log"' },
+          }),
+      },
       ...routes,
     } as never,
     false,
   ) as Record<string, Record<string, Handler>>;
   log.info("http", "Phone server started", { routes: Object.keys(table).length, fake: FAKE });
-  return { pool, routes: Object.entries(table).map(([path, methods]) => ({ parts: path.split("/"), methods })) };
+  // Fewest params first, so a fixed path such as /saves/import wins over /saves/:id whatever order the areas list them, as in Bun.serve.
+  const params = (parts: string[]) => parts.filter((part) => part.startsWith(":")).length;
+  const listed = Object.entries(table).map(([path, methods]) => ({ parts: path.split("/"), methods }));
+  return { pool, routes: listed.sort((a, b) => params(a.parts) - params(b.parts)) };
 }
 
 type Route = { parts: string[]; methods: Record<string, Handler> };
@@ -121,8 +129,13 @@ function match(routes: Route[], pathname: string) {
     const params: Record<string, string> = {};
     const fits = route.parts.every((part, i) => {
       if (!part.startsWith(":")) return part === parts[i];
-      params[part.slice(1)] = decodeURIComponent(parts[i]!);
-      return true;
+      // A bad escape matches nothing, a 404 as on the desktop, not a failed request.
+      try {
+        params[part.slice(1)] = decodeURIComponent(parts[i]!);
+        return true;
+      } catch {
+        return false;
+      }
     });
     if (fits) return { route, params };
   }

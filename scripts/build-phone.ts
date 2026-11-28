@@ -3,8 +3,8 @@
  * `bun scripts/build-phone.ts [--fake] [--out dist/phone]`. `--fake` puts in the stand-in Narrator and pictures, as the
  * desktop's --fake, for tests and trying the build with no key.
  */
-import { copyFileSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { copyFileSync, existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 import { version } from "../package.json";
 import { phoneAliases } from "./phone-aliases";
 
@@ -50,6 +50,9 @@ const HEAD = [
 ].join("\n    ");
 
 export async function buildPhone({ outdir, fake = false }: { outdir: string; fake?: boolean }) {
+  // The folder is emptied first, so only an empty one or an earlier build, which has sw.js, never a stray --out such as the repo.
+  if (existsSync(outdir) && readdirSync(outdir).length > 0 && !existsSync(join(outdir, "sw.js")))
+    throw new Error(`${outdir} holds files that aren't a phone build, so it isn't emptied for one`);
   rmSync(outdir, { recursive: true, force: true });
   const common = { outdir, target: "browser", format: "esm", minify: true, define: { "process.env.NODE_ENV": '"production"' } } as const;
   const build = async (options: Parameters<typeof Bun.build>[0]) => {
@@ -86,7 +89,7 @@ export async function buildPhone({ outdir, fake = false }: { outdir: string; fak
 
 if (import.meta.main) {
   const at = process.argv.indexOf("--out");
-  const outdir = join(root, at > 0 ? process.argv[at + 1]! : "dist/phone");
+  const outdir = resolve(root, at > 0 && process.argv[at + 1] ? process.argv[at + 1]! : "dist/phone");
   const files = await buildPhone({ outdir, fake: process.argv.includes("--fake") });
   console.log(`Built the phone app in ${outdir}: ${files.length + 1} files`);
 }

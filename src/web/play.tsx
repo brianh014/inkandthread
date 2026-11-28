@@ -28,6 +28,7 @@ import {
   revert,
   saveSettings,
   setupProblem,
+  reportEvent,
 } from "./api";
 import {
   type Beat,
@@ -377,6 +378,7 @@ export function Play({ id }: { id: string }) {
           if (!failure && (messages.at(-1)?.id ?? 0) === sent.basedOn) {
             setError("Ink & Thread stopped before your move was written, so it wasn't sent. It's back in the box to send again.");
             giveBack(sent.input);
+            reportEvent("move-given-back", { save: id, after: sent.basedOn });
           }
         }
         const move = firstMove({

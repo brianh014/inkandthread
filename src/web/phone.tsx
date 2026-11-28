@@ -63,14 +63,20 @@ export function usePhoneUpdate() {
   useEffect(() => {
     if (!inPageServer()) return;
     let timer: ReturnType<typeof setInterval> | undefined;
+    let gone = false;
     void navigator.serviceWorker.getRegistration().then((registration) => {
-      if (!registration) return;
+      if (!registration || gone) return;
       const look = () => setWaiting(registration.waiting ?? undefined);
       look();
+      // One already installing when the page first looks fired its updatefound before anyone listened.
+      registration.installing?.addEventListener("statechange", look);
       registration.addEventListener("updatefound", () => registration.installing?.addEventListener("statechange", look));
       timer = setInterval(() => void registration.update().catch(() => {}), CHECK_EVERY_MS);
     });
-    return () => clearInterval(timer);
+    return () => {
+      gone = true;
+      clearInterval(timer);
+    };
   }, []);
   return waiting;
 }

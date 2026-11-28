@@ -57,7 +57,10 @@ const isRefusal = (error?: ProviderError) => ["refusal", "content_policy_violati
 
 async function* eventData(body: ReadableStream, onRead: () => void) {
   let pending = "";
-  for await (const part of body.pipeThrough(new TextDecoderStream())) {
+  // Reading by hand because Safari, where the phone app runs this, can't iterate a ReadableStream.
+  const reader = body.pipeThrough(new TextDecoderStream()).getReader();
+  for (let read = await reader.read(); !read.done; read = await reader.read()) {
+    const part = read.value;
     const lines = (pending + part).split("\n");
     pending = lines.pop()!;
     // Anything else is a blank line or a comment, such as OpenRouter's keep-alive, which a stuck upstream sends forever, so it

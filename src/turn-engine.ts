@@ -515,9 +515,12 @@ const isNoteAboutTurn = (narration: string) => {
 // narration, so such a line starts a tail that isn't story, and the narration ends before it. A line that starts with a field
 // whose name no prose has, as "state_operations has more ops" did, needs no colon.
 // With what some models still send.
-// Not wants, which comes before the narration, so a story line opening "wants:" is never taken for a field's tail.
+// Wants comes before the narration, so only its quoted form is taken for a field's tail, never a story line opening "wants:".
 const FIELDS = [...Object.keys(ResponseShape.shape).filter((field) => field !== "wants"), "choices", "summary"];
-const FIELD_LINE = new RegExp(String.raw`^\s*"?(?:(?:${FIELDS.join("|")})"?\s*:|(?:${FIELDS.filter((field) => field.includes("_")).join("|")})\b)`, "m");
+const FIELD_LINE = new RegExp(
+  String.raw`^\s*(?:"wants"\s*:|"?(?:(?:${FIELDS.join("|")})"?\s*:|(?:${FIELDS.filter((field) => field.includes("_")).join("|")})\b))`,
+  "m",
+);
 // A reply also once ended its narration with its JSON's closing brace and a tool-call tag, as "}</arg_value>".
 const JSON_TAIL = /\s*\}?(?:\s*<\/\w+>)*\s*$/;
 // And once on a speaker tag with no words, which the tidying of marks keeps at the very end, as a tag still streaming.
@@ -544,9 +547,9 @@ const isJsonObject = (narration: string) => {
   }
 };
 
-// The check a reply opens with: null, or the rating's flat object of strings. One pattern, so streaming and the early stop agree.
+// The check a reply opens with: null, or the rating's flat object of strings, or null for at_most. One pattern, so streaming and the early stop agree.
 // shortcut: a reply in another key order or after prose shows no narration until the Turn is done, loosen this only if real models do that often.
-const OPENING_CHECK = String.raw`^\s*(?:\x60\x60\x60(?:json)?\s*)?\{\s*"check"\s*:\s*(null|\{(?:\s*"[a-z_]+"\s*:\s*"(?:[^"\\]|\\.)*"\s*,?)*\s*\})`;
+const OPENING_CHECK = String.raw`^\s*(?:\x60\x60\x60(?:json)?\s*)?\{\s*"check"\s*:\s*(null|\{(?:\s*"[a-z_]+"\s*:\s*(?:null|"(?:[^"\\]|\\.)*")\s*,?)*\s*\})`;
 const CHECK_START = new RegExp(OPENING_CHECK);
 
 /** Where the JSON value at `from` ends, by its brackets outside strings, or -1 while it is unfinished. */

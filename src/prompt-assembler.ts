@@ -347,9 +347,8 @@ export function howTheySpeak(messages: Message[], since: number, state: Pick<Sta
       if (findPerson([{ name: pc }], speaker!.trim())) continue;
       const name = findPerson(state.npcs, speaker!.trim())?.name;
       if (!name || !present.includes(name) || (lines[name]?.length ?? 0) >= VOICE_LINES) continue;
-      // Only what they say, as a line can carry what they do between its quotes, which isn't their voice.
-      const quoted = [...line!.matchAll(/[“"]([^”"]+)[”"]/g)].map(([, part]) => part!.trim());
-      const words = quoted.length > 0 ? quoted.join(" ") : line!.trim();
+      // Only what they say, as a line can carry what they do between its quotes, which isn't their voice; one with no quotes may be all deed.
+      const words = [...line!.matchAll(/[“"]([^”"]+)[”"]/g)].map(([, part]) => part!.trim()).join(" ");
       if (words.split(/\s+/).length < VOICE_WORDS) continue;
       const space = words.lastIndexOf(" ", VOICE_CHARACTERS);
       lines[name] = [...(lines[name] ?? []), words.length > VOICE_CHARACTERS ? `${words.slice(0, space > 0 ? space : VOICE_CHARACTERS)}…` : words];

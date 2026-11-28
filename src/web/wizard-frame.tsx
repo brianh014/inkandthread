@@ -39,13 +39,13 @@ export function Heading({ step, of, title, help, busy }: { step: number; of: num
 }
 
 /** Asks before leaving the written world for an earlier step, which discards it. */
-export function LeaveWorld({ to, onClose }: { to: string; onClose: () => void }) {
+export function LeaveWorld({ to, picturesOn, onClose }: { to: string; picturesOn: boolean | undefined; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => dialog.current!.showModal(), []);
   return (
     <dialog ref={dialog} onClose={onClose} aria-labelledby="leave-title">
       <h2 id="leave-title">Go back and discard this world?</h2>
-      <p>Going back discards the generated world, and you'll generate a new one from your changes. Your pictures stay.</p>
+      <p>Going back discards the generated world, and you'll generate a new one from your changes.{picturesOn !== false && " Your pictures stay."}</p>
       {/* Stay comes first because a modal focuses its first control, and that must not be the discarding one. */}
       <div className="row">
         <button type="button" className="quiet" onClick={() => dialog.current!.close()}>

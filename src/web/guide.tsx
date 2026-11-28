@@ -252,8 +252,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>3. Your World</h3>
         <p>
           The Narrator builds the world: a spoiler-free overview of what your PC would know, while the rest stays secret for the story to reveal. Read it, then{" "}
-          <b>Begin</b>, or <b>Regenerate</b> for a different world from the same choices. Your PC and pictures stay. Going back to change your choices discards
-          this world.
+          <b>Begin</b>, or <b>Regenerate</b> for a different world from the same choices. Your PC and any pictures stay. Going back to change your choices
+          discards this world.
         </p>
       </>
     ),

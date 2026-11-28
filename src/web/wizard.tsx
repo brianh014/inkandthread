@@ -43,7 +43,10 @@ import { Heading, LeaveWorld, PickForMe, Working } from "./wizard-frame";
 import { type Naming, PictureSection } from "./wizard-pictures";
 import { NudgeButton, TEXT_NUDGE } from "./zoom";
 
-const BUILDING = "The Narrator is building the world. Missing pictures are drawn as well. This can take a few minutes.";
+// A marker, told in words when shown, as a build picked up after a reload starts before Settings say whether pictures are on.
+const BUILDING = "building";
+const buildingText = (picturesOn: boolean | undefined) =>
+  `The Narrator is building the world.${picturesOn === false ? "" : " Missing pictures are drawn as well."} This can take a few minutes.`;
 
 /** Steps live in the hash like screens, so the browser's back button walks them. `step` is the part after `#/new/`: none, "art" or "overview". */
 export function NewStory({ step }: { step?: string }) {
@@ -295,8 +298,8 @@ export function NewStory({ step }: { step?: string }) {
         )
       }
     >
-      {busy ? <Working message={busy} onCancel={() => running.current?.abort()} /> : content}
-      {leaving && <LeaveWorld to={leaving} onClose={() => setLeaving(undefined)} />}
+      {busy ? <Working message={busy === BUILDING ? buildingText(picturesOn) : busy} onCancel={() => running.current?.abort()} /> : content}
+      {leaving && <LeaveWorld to={leaving} picturesOn={picturesOn} onClose={() => setLeaving(undefined)} />}
       {picking && <PickForMe onPick={fillForm} onClose={() => setPicking(false)} />}
     </Sheet>
   );
@@ -515,7 +518,8 @@ export function NewStory({ step }: { step?: string }) {
             onClose={() => setRebuilding(false)}
           >
             <p>
-              The Narrator builds the world again from your choices, which can take a few minutes. The world written now is gone for good. Your pictures stay.
+              The Narrator builds the world again from your choices, which can take a few minutes. The world written now is gone for good.
+              {picturesOn !== false && " Your pictures stay."}
             </p>
           </ConfirmDialog>
         )}

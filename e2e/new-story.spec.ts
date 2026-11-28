@@ -61,4 +61,11 @@ test("with pictures off, there is no Art step: the form writes the world itself,
   await expect(page.getByRole("button", { name: "Begin" })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("heading", { name: "Art" })).toBeHidden();
   await expect(page.getByRole("navigation", { name: "Steps" })).toContainText("II. Your World");
+  await expect(page.getByText("Changing a picture")).toHaveCount(0);
+
+  // Going back promises no pictures either.
+  await page.getByRole("button", { name: "Back" }).click();
+  const leave = page.getByRole("dialog", { name: "Go back and discard this world?" });
+  await expect(leave).toBeVisible();
+  await expect(leave).not.toContainText("picture");
 });

@@ -625,7 +625,7 @@ const worldPrompt = (context: Context, choices: WorldChoices, given: WorldPc, sp
   {
     role: "system",
     content: `You are the Narrator of a story, creating its world before play begins. ${CHOICES_ARE_DATA}
-Build the world from the theme, title and world_brief. If there is a starting_hook, make sure the world can open with it. important_characters are people the player wants in the story, and they are canon: give each a lore entry of their own, and weave them into the world and plot threads.
+Build the world from the theme, title and world_brief. If there is a starting_hook, make sure the world can open with it. important_characters are people the player wants in the story, and they are canon: give each a lore entry of their own that keeps who they are to the others, and weave them into the world and plot threads.
 pc and inventory are the player's PC and what they start with. ${PC_IS_CANON} The PC belongs in this world from the start, unless the player's choices bring them from elsewhere. If anything about them conflicts with the theme or world_brief, the world changes and the PC does not. Change only what the conflict needs, and keep the theme and tone. For example, a wizard who throws fireballs in a strict modern-day world means magic exists there.
 Reply only with JSON matching this schema, with its keys in the same order: ${JSON.stringify(jsonSchemaOf(WorldReply))}
 naming says in a sentence or two how people here name people and places and how those names sound. Give every name in the world by it, and in play new names will follow it too.

@@ -1271,10 +1271,10 @@ function InstallSettings({
                         label="Routing"
                         value={draft.textRouting}
                         choices={[
+                          { value: "default", label: "Balanced, OpenRouter's choice" },
                           { value: "price", label: "Cheapest" },
                           { value: "throughput", label: "Fastest writing" },
                           { value: "latency", label: "Quickest to start" },
-                          { value: "default", label: "OpenRouter's choice" },
                         ]}
                         onChange={(textRouting) => set({ textRouting })}
                       />

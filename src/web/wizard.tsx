@@ -43,7 +43,10 @@ import { Heading, LeaveWorld, PickForMe, Working } from "./wizard-frame";
 import { type Naming, PictureSection } from "./wizard-pictures";
 import { NudgeButton, TEXT_NUDGE } from "./zoom";
 
-const BUILDING = "The Narrator is building the world. Missing pictures are drawn as well. This can take a few minutes.";
+// A marker, told in words when shown, as a build picked up after a reload starts before Settings say whether pictures are on.
+const BUILDING = "building";
+const buildingText = (picturesOn: boolean | undefined) =>
+  `The Narrator is building the world.${picturesOn === false ? "" : " Missing pictures are drawn as well."} This can take a few minutes.`;
 
 /** Steps live in the hash like screens, so the browser's back button walks them. `step` is the part after `#/new/`: none, "art" or "overview". */
 export function NewStory({ step }: { step?: string }) {
@@ -53,6 +56,8 @@ export function NewStory({ step }: { step?: string }) {
   const [error, setError] = useState("");
   const [setupNotice, setSetupNotice] = useState<string>();
   const [imagesReady, setImagesReady] = useState<boolean>();
+  /** False with pictures off in Settings, when there's no Art step: nothing would be drawn in it. */
+  const [picturesOn, setPicturesOn] = useState<boolean>();
   /** True while a picture is being asked for, so that a second press can't ask for it again. */
   const [asking, setAsking] = useState(false);
   /** Where the player asked to go back to from the world, while they confirm it. */
@@ -68,7 +73,8 @@ export function NewStory({ step }: { step?: string }) {
   const scrolledTo = useRef<(readonly [Element, number])[]>(undefined);
 
   const { world, id: worldId } = draft;
-  const page = step === "overview" && world ? "overview" : step === "art" ? "art" : "form";
+  const page = step === "overview" && world ? "overview" : step === "art" && picturesOn !== false ? "art" : "form";
+  const steps = STEPS.filter(({ hash }) => picturesOn !== false || hash !== "/new/art");
 
   useEffect(() => {
     try {
@@ -87,6 +93,7 @@ export function NewStory({ step }: { step?: string }) {
       (settings) => {
         setSetupNotice(setupProblem(settings));
         setImagesReady(settings.imagesReady);
+        setPicturesOn(settings.imagesEnabled);
       },
       () => {},
     );
@@ -165,6 +172,7 @@ export function NewStory({ step }: { step?: string }) {
     if (problem) return setError(problem);
     // An empty row is one the player added and never used.
     set({ characters: draft.characters.filter(({ name, description }) => name.trim() || description.trim()) });
+    if (picturesOn === false) return generate();
     location.hash = "/new/art";
   }
 
@@ -174,12 +182,15 @@ export function NewStory({ step }: { step?: string }) {
   function generate() {
     const problem = formProblem() || (artStyle.trim() ? "" : "Describe your art style, or pick one.");
     if (problem) return setError(problem);
-    const characters = worldChoices.characters.map(({ name, description, ref, onCover }) => ({
-      name: name.trim(),
-      description: description.trim(),
-      ref,
-      onCover,
-    }));
+    // Empty rows left out here too, as with pictures off the form goes straight here, before its own tidying shows.
+    const characters = worldChoices.characters
+      .filter(({ name, description }) => name.trim() || description.trim())
+      .map(({ name, description, ref, onCover }) => ({
+        name: name.trim(),
+        description: description.trim(),
+        ref,
+        onCover,
+      }));
     const { inventory, ...pc } = draft.pc;
     return build(BUILDING, (id, signal) => generateWorld({ ...worldChoices, characters, artStyle, id: worldId, pc, inventory }, id, signal));
   }
@@ -251,16 +262,17 @@ export function NewStory({ step }: { step?: string }) {
       tabs={here === 0 && !busy && <MenuRibbon />}
       rail={
         <nav aria-label="Steps" className="wizard-steps">
-          {STEPS.map(({ name, hash }, index) => {
+          {steps.map(({ name, hash }, index) => {
             const label = `${roman(index + 1)}. ${name}`;
-            if (index === here)
+            const at = steps.findIndex((each) => each.hash === STEPS[here]!.hash);
+            if (index === at)
               return (
                 <a key={name} href={`#${hash}`} aria-current="step">
                   {label}
                 </a>
               );
             // Only back, as a later step needs the earlier ones done. Leaving the world asks first, as it discards it.
-            if (index > here) return <span key={name}>{label}</span>;
+            if (index > at) return <span key={name}>{label}</span>;
             return page === "overview" ? (
               <button key={name} type="button" aria-haspopup="dialog" onClick={() => setLeaving(hash)}>
                 {label}
@@ -286,8 +298,8 @@ export function NewStory({ step }: { step?: string }) {
         )
       }
     >
-      {busy ? <Working message={busy} onCancel={() => running.current?.abort()} /> : content}
-      {leaving && <LeaveWorld to={leaving} onClose={() => setLeaving(undefined)} />}
+      {busy ? <Working message={busy === BUILDING ? buildingText(picturesOn) : busy} onCancel={() => running.current?.abort()} /> : content}
+      {leaving && <LeaveWorld to={leaving} picturesOn={picturesOn} onClose={() => setLeaving(undefined)} />}
       {picking && <PickForMe onPick={fillForm} onClose={() => setPicking(false)} />}
     </Sheet>
   );
@@ -442,9 +454,10 @@ export function NewStory({ step }: { step?: string }) {
       <div className="fields wizard review">
         <div>
           <Heading
-            step={3}
+            step={steps.length}
+            of={steps.length}
             title={draft.title}
-            help="What your PC would know. Begin the story in this world, or have the Narrator make another. Changing a picture keeps the world."
+            help={`What your PC would know. Begin the story in this world, or have the Narrator make another.${picturesOn === false ? "" : " Changing a picture keeps the world."}`}
             busy={!!busy}
           />
         </div>
@@ -470,7 +483,7 @@ export function NewStory({ step }: { step?: string }) {
             ))}
           </dl>
         </section>
-        <section className="fields wizard">
+        <section className="fields wizard" hidden={picturesOn === false}>
           <div className="row">
             <h2>Art</h2>
             {edit("/new/art", "Edit the art")}
@@ -483,7 +496,7 @@ export function NewStory({ step }: { step?: string }) {
           </div>
         </section>
       </div>,
-      <button type="button" className="quiet leave" aria-haspopup="dialog" onClick={() => setLeaving("/new/art")}>
+      <button type="button" className="quiet leave" aria-haspopup="dialog" onClick={() => setLeaving(picturesOn === false ? "/new" : "/new/art")}>
         Back
       </button>,
       <>
@@ -505,7 +518,8 @@ export function NewStory({ step }: { step?: string }) {
             onClose={() => setRebuilding(false)}
           >
             <p>
-              The Narrator builds the world again from your choices, which can take a few minutes. The world written now is gone for good. Your pictures stay.
+              The Narrator builds the world again from your choices, which can take a few minutes. The world written now is gone for good.
+              {picturesOn !== false && " Your pictures stay."}
             </p>
           </ConfirmDialog>
         )}
@@ -520,6 +534,7 @@ export function NewStory({ step }: { step?: string }) {
         <div>
           <Heading
             step={2}
+            of={steps.length}
             title="Art"
             help="Pick how every picture in your story is drawn. You can draw the portraits and Cover now, or leave them for later."
             busy={!!busy}
@@ -561,6 +576,7 @@ export function NewStory({ step }: { step?: string }) {
   return frame(
     0,
     <WorldForm
+      picturesOn={picturesOn}
       draft={draft}
       setDraft={setDraft}
       setCharacter={setCharacter}
@@ -568,6 +584,7 @@ export function NewStory({ step }: { step?: string }) {
       heading={
         <Heading
           step={1}
+          of={steps.length}
           title="Your World and Characters"
           help="Say what kind of story you want and who's in it. Fill in as much or as little as you like, and the Narrator invents the rest."
           busy={!!busy}
@@ -588,7 +605,7 @@ export function NewStory({ step }: { step?: string }) {
         {DecideIcon}
       </button>
       <button type="button" className="action" onClick={next}>
-        Next
+        {picturesOn === false ? (error ? "Try again" : "Generate the world") : "Next"}
       </button>
     </>,
   );

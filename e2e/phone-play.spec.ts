@@ -91,7 +91,10 @@ test("a new build of the phone app waits for the player, then takes over on Relo
   expect((await request.post("/__rebuild")).status()).toBe(204);
   // The app checks hourly; here, at once.
   await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.update());
+  // Waits for the reload itself, as the old page still shows New Story for a moment before it goes.
+  const reloaded = page.waitForEvent("framenavigated", (frame) => frame === page.mainFrame());
   await page.getByRole("button", { name: "Reload to update" }).click({ timeout: 30_000 });
+  await reloaded;
   await expect(page.getByRole("link", { name: "New Story" })).toBeVisible();
   await expect.poll(() => page.evaluate(async () => (await caches.keys()).join())).not.toBe(before);
   expect(await scriptOf()).toContain("/sw.js");
@@ -99,6 +102,7 @@ test("a new build of the phone app waits for the player, then takes over on Relo
 });
 
 test("a second tab says the app is open elsewhere, then opens by itself once the first closes", async ({ page, context }) => {
+  test.setTimeout(90_000);
   await page.goto("/");
   await expect(page.getByRole("link", { name: /Setup Ink & Thread/ })).toBeVisible();
 
@@ -107,5 +111,6 @@ test("a second tab says the app is open elsewhere, then opens by itself once the
   await expect(second.getByText("Ink & Thread is open in another tab or window. Close it there, and it opens here.")).toBeVisible();
 
   await page.close();
-  await expect(second.getByRole("link", { name: /Setup Ink & Thread/ })).toBeVisible({ timeout: 15_000 });
+  // A closed page's worker can hold the lock a while on a slow machine, as CI's once did past 15 s.
+  await expect(second.getByRole("link", { name: /Setup Ink & Thread/ })).toBeVisible({ timeout: 45_000 });
 });

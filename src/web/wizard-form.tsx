@@ -25,8 +25,10 @@ export function WorldForm(props: {
   setCharacter: (index: number, change: Partial<Character>) => void;
   enhanceTools: EnhanceTools;
   heading: ReactNode;
+  /** False with pictures off in Settings, when no one gets a portrait. */
+  picturesOn: boolean | undefined;
 }) {
-  const { draft, setDraft, setCharacter, enhanceTools } = props;
+  const { draft, setDraft, setCharacter, enhanceTools, picturesOn } = props;
   const [removing, setRemoving] = useState<Character>();
   const set = (change: Partial<Draft>) => setDraft((current) => ({ ...current, ...change }));
   const setPc = (field: keyof PcDraft, text: string) => setDraft((current) => ({ ...current, pc: { ...current.pc, [field]: text } }));
@@ -94,8 +96,8 @@ export function WorldForm(props: {
         <div>
           <h2>Important Characters</h2>
           <p className="muted">
-            People you want in the story besides your PC. Each gets a portrait drawn from their description. Pick for me leaves these alone, so there are only
-            those you add.
+            People you want in the story besides your PC.{picturesOn !== false && " Each gets a portrait drawn from their description."} Pick for me leaves
+            these alone, so there are only those you add.
           </p>
         </div>
         {draft.characters.map((character, index) => {
@@ -160,7 +162,7 @@ export function WorldForm(props: {
             onConfirm={() => setDraft((current) => ({ ...current, characters: current.characters.filter(({ ref }) => ref !== removing.ref) }))}
             onClose={() => setRemoving(undefined)}
           >
-            <p>Their name, description and picture all go, and can't be brought back.</p>
+            <p>{picturesOn === false ? "Their name and description go" : "Their name, description and picture all go"}, and can't be brought back.</p>
           </ConfirmDialog>
         )}
       </div>

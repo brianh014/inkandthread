@@ -43,3 +43,22 @@ test("a build cancelled is told to the server, and the form is back at once with
   await page.reload();
   await expect(page.getByRole("button", { name: "Generate the world" })).toBeVisible();
 });
+
+test("with pictures off, there is no Art step: the form writes the world itself, and the world shows no art", async ({ page }) => {
+  // Settings as the server gives them, with pictures turned off.
+  await page.route("**/settings", async (route) => {
+    if (route.request().method() !== "GET") return route.continue();
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...(await response.json()), imagesEnabled: false } });
+  });
+  await page.goto("/#/new");
+  await expect(page.getByRole("navigation", { name: "Steps" })).not.toContainText("Art");
+  await page.getByRole("button", { name: "Pick for me" }).click();
+  await page.getByRole("dialog", { name: "Pick for me?" }).getByRole("button", { name: "Pick for me" }).click();
+  await expect(page.getByLabel("What is your story called?")).not.toHaveValue("");
+
+  await page.getByRole("button", { name: "Generate the world" }).click();
+  await expect(page.getByRole("button", { name: "Begin" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Art" })).toBeHidden();
+  await expect(page.getByRole("navigation", { name: "Steps" })).toContainText("II. Your World");
+});

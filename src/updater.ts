@@ -3,6 +3,7 @@ import { basename, dirname, join } from "node:path";
 import { inflateRawSync } from "node:zlib";
 import { z } from "zod";
 import { version } from "../package.json";
+import { UpdateFailed } from "./http";
 import { errorFields, log } from "./logger";
 
 /** Finds a new version on GitHub, and puts a download's program in place of this one. */
@@ -13,7 +14,7 @@ export const LATEST_RELEASE = "https://api.github.com/repos/brianh014/inkandthre
 // Under `bun run`, execPath is Bun itself, which must never be replaced.
 export const isCompiled = basename(process.execPath, ".exe") !== "bun";
 
-export class UpdateFailed extends Error {}
+export { UpdateFailed } from "./http";
 
 const Release = z.object({
   tag_name: z.string().regex(/^v\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/),

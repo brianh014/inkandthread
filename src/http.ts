@@ -21,9 +21,11 @@ import {
 } from "./save-store";
 import type { OnlineImageProvider, SettingsStore } from "./settings-store";
 import { type TextProvider, TurnFailed } from "./turn-engine";
-import { UpdateFailed } from "./updater";
 import type { UsageStore } from "./usage-store";
 import type { worldBuilds } from "./world-builds";
+
+/** An update that couldn't be made, in words to show the player. Here, not in the updater, which only the desktop runs. */
+export class UpdateFailed extends Error {}
 
 /** What every route module shares: the request checks, the error answers, and the server's parts. */
 

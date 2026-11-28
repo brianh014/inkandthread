@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { log } from "./logger";
 import type { Prompt } from "./prompt-assembler";
-import { modelName } from "./settings-store";
+import { modelName, type TextSettings, usesCommand } from "./settings-store";
 import { type TextProvider, TextProviderFailed } from "./turn-engine";
 
 // The player sees these with a retry hint after them, so none ends in a full stop.
@@ -86,3 +86,11 @@ export async function commandReply(
     if (storyInLog && reply) log.story("text", "Text reply text", { text: reply });
   }
 }
+
+/** The player's own program answers when Settings name one, and the hosted provider otherwise. Only the desktop wraps its provider so. */
+export const withCommand =
+  (settings: TextSettings, hosted: TextProvider): TextProvider =>
+  (prompt, request) => {
+    const chosen = settings.read();
+    return usesCommand(chosen) ? commandReply(prompt, request, chosen) : hosted(prompt, request);
+  };

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { fillWorkflow } from "./comfy-workflow";
 import { buildGraph, usableReferences } from "./graph-builder";
-import type { ImageAdapter } from "./image-adapter";
+import { type ImageAdapter, randomSeed } from "./image-adapter";
 import { errorFields, log } from "./logger";
 import { imageType } from "./save-store";
 import type { SettingsStore } from "./settings-store";
@@ -29,8 +29,6 @@ type Queue = { queue_running?: unknown[]; queue_pending?: unknown[] };
 type Inputs = Record<string, unknown>;
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
-
-export const randomSeed = () => Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
 
 /** Every call to ComfyUI. The address is what the player typed, so a redirect from it is an error, not a new destination. */
 const ask = (url: string, path: string, signal: AbortSignal, init?: RequestInit) =>

@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { commandReply } from "./command-provider";
 import { errorFields, log } from "./logger";
-import { type SettingsStore, type TextSettings, usesCommand } from "./settings-store";
+import type { SettingsStore, TextSettings } from "./settings-store";
 import {
   ContentRefused,
   ReplyCutOff,
@@ -495,8 +494,6 @@ export function textProvider(
   // Asked once more, as a hosted stream silent from its first byte twice failed a DeepSeek Turn at 125 s, and a fresh request
   // mostly isn't stuck. Never one that streamed something, which may be a model stuck mid-reply.
   return async (prompt, request) => {
-    const all = settings.read();
-    if (usesCommand(all)) return commandReply(prompt, request, all);
     const started = Date.now();
     let id: string | undefined;
     try {

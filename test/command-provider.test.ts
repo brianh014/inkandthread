@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { networkInterfaces } from "node:os";
 import { basename, join } from "node:path";
-import { commandInput } from "../src/command-provider";
+import { commandInput, withCommand } from "../src/command-provider";
 import { startServer } from "../src/rest-api";
 import { saveStore } from "../src/save-store";
 import { settingsStore } from "../src/settings-store";
@@ -56,7 +56,7 @@ function useCommand(given: Rule[], minutes = 8) {
 
 const inputs = () => (existsSync(`${rules}.inputs`) ? readFileSync(`${rules}.inputs`, "utf8").split("\n=====\n").slice(0, -1) : []);
 const ask = (settings: ReturnType<typeof settingsStore>, signal = new AbortController().signal) =>
-  textProvider(settings)([{ role: "user", content: "Say hello." }], { onText: () => {}, signal });
+  withCommand(settings, textProvider(settings))([{ role: "user", content: "Say hello." }], { onText: () => {}, signal });
 
 /** Whether the process the hanging fake wrote down still runs. */
 const running = () => {
@@ -92,7 +92,7 @@ test("the prompt goes in as text under its roles, with the schema last only when
 
 test("a world build, a Turn and a World Change all run through the command", async () => {
   const settings = useCommand(PLAYS);
-  app = startApp(join(folder.path, "Saves"), textProvider(settings));
+  app = startApp(join(folder.path, "Saves"), withCommand(settings, textProvider(settings)));
 
   const built = await app.post("/worlds", { title: "Salt", theme: "Western", worldBrief: "A drowned city", startingHook: "", pc: { name: "Ash" } });
   expect(built.status).toBe(201);
@@ -131,7 +131,7 @@ test("a command that fails or prints nothing fails as a Text Provider does, sayi
 
 test("a Turn's reply with no JSON is retried, then fails as other replies do", async () => {
   const settings = useCommand([{ reply: "I'd rather not write JSON." }]);
-  app = startApp(join(folder.path, "Saves"), textProvider(settings));
+  app = startApp(join(folder.path, "Saves"), withCommand(settings, textProvider(settings)));
   const id = await app.createSave();
 
   expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(502);

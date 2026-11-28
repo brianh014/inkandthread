@@ -407,10 +407,13 @@ const ResponseShape = z.object({
       ),
   }),
   // Before the narration, as a reply is written in order: each person commits to an aim of their own before the scene is, as people
-  // who were only answering the PC sat through a long talk with nothing of their own to push for.
+  // who were only answering the PC sat through a long talk with nothing of their own to push for. Only those who speak or act, and
+  // few, as the whole list is written before the first line of story the player sees.
   wants: z
     .array(Want)
-    .describe("each person in view other than the PC, and in a few words what they want right now in this scene, which the narration has them act on"),
+    .describe(
+      "each person other than the PC who speaks or acts in this reply, at most five, and in a few words what they want right now in this scene, which the narration has them act on",
+    ),
   narration: z.string().nullable(),
   state_operations: z.array(TurnOperation),
   // Described here for the same reason as chapter_ends: speakers kept going missing from it.
@@ -443,6 +446,8 @@ export const CHOICES_RULE =
 const SCHEMAS = {
   any: jsonSchemaOf(ResponseShape),
   noCheck: jsonSchemaOf(ResponseShape.extend({ check: z.null(), narration: z.string().describe("the story's next moment, never empty") })),
+  // An Edit's narration is the player's, so no one's aims are asked for a story the model doesn't write.
+  edit: jsonSchemaOf(ResponseShape.omit({ wants: true }).extend({ check: z.null(), narration: z.string().describe("the story's next moment, never empty") })),
 };
 
 /**
@@ -515,9 +520,12 @@ const isNoteAboutTurn = (narration: string) => {
 // narration, so such a line starts a tail that isn't story, and the narration ends before it. A line that starts with a field
 // whose name no prose has, as "state_operations has more ops" did, needs no colon.
 // With what some models still send.
-// Not wants, which comes before the narration, so a story line opening "wants:" is never taken for a field's tail.
+// Wants comes before the narration, so only its quoted form is taken for a field's tail, never a story line opening "wants:".
 const FIELDS = [...Object.keys(ResponseShape.shape).filter((field) => field !== "wants"), "choices", "summary"];
-const FIELD_LINE = new RegExp(String.raw`^\s*"?(?:(?:${FIELDS.join("|")})"?\s*:|(?:${FIELDS.filter((field) => field.includes("_")).join("|")})\b)`, "m");
+const FIELD_LINE = new RegExp(
+  String.raw`^\s*(?:"wants"\s*:|"?(?:(?:${FIELDS.join("|")})"?\s*:|(?:${FIELDS.filter((field) => field.includes("_")).join("|")})\b))`,
+  "m",
+);
 // A reply also once ended its narration with its JSON's closing brace and a tool-call tag, as "}</arg_value>".
 const JSON_TAIL = /\s*\}?(?:\s*<\/\w+>)*\s*$/;
 // And once on a speaker tag with no words, which the tidying of marks keeps at the very end, as a tag still streaming.
@@ -544,9 +552,9 @@ const isJsonObject = (narration: string) => {
   }
 };
 
-// The check a reply opens with: null, or the rating's flat object of strings. One pattern, so streaming and the early stop agree.
+// The check a reply opens with: null, or the rating's flat object of strings, or null for at_most. One pattern, so streaming and the early stop agree.
 // shortcut: a reply in another key order or after prose shows no narration until the Turn is done, loosen this only if real models do that often.
-const OPENING_CHECK = String.raw`^\s*(?:\x60\x60\x60(?:json)?\s*)?\{\s*"check"\s*:\s*(null|\{(?:\s*"[a-z_]+"\s*:\s*"(?:[^"\\]|\\.)*"\s*,?)*\s*\})`;
+const OPENING_CHECK = String.raw`^\s*(?:\x60\x60\x60(?:json)?\s*)?\{\s*"check"\s*:\s*(null|\{(?:\s*"[a-z_]+"\s*:\s*(?:null|"(?:[^"\\]|\\.)*")\s*,?)*\s*\})`;
 const CHECK_START = new RegExp(OPENING_CHECK);
 
 /** Where the JSON value at `from` ends, by its brackets outside strings, or -1 while it is unfinished. */
@@ -1133,7 +1141,7 @@ async function narrate(
   }: Narrated,
 ) {
   const labels = before.plotThreads.slice(0, MAX_PLOT_THREADS).map((_, at) => threadLabel(at));
-  const schemas = { any: threadsHeld(SCHEMAS.any, labels), noCheck: threadsHeld(SCHEMAS.noCheck, labels) };
+  const schemas = { any: threadsHeld(SCHEMAS.any, labels), noCheck: threadsHeld(SCHEMAS.noCheck, labels), edit: threadsHeld(SCHEMAS.edit, labels) };
   // Kept across attempts, so an invalid reply can never change the outcome.
   let check: Check | undefined;
   // What a success was handed, worked out once with its roll.
@@ -1189,7 +1197,7 @@ async function narrate(
         textProvider,
         [...prompt, ...(check ? [...(handed?.prompt ?? []), resultInstruction(check)] : []), ...(unplacedBefore ? [SET_SCENE_NOTE] : []), ...why],
         {
-          schema: check || !rollCheck || ratedNone ? schemas.noCheck : schemas.any,
+          schema: edited !== undefined ? schemas.edit : check || !rollCheck || ratedNone ? schemas.noCheck : schemas.any,
           call: kind,
           onText,
           onGeneration: (each) => (generation = each),

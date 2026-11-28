@@ -1048,6 +1048,18 @@ test("a reply that leaves one of its fields in the narration is saved without it
   expect((await storedMessages(id)).at(-1)!.text).toBe("He sits.");
 });
 
+test("a reply whose narration ends on its wants, quoted as JSON, is saved without them, while a story line opening on wants stands", async () => {
+  play([narrated('He sits.\n"wants": [{"name": "Mara", "want": "to leave"}]'), narrated("He sits.\nwants: nothing more than sleep, he says.")]);
+  const id = await app.createSave();
+
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+  expect((await app.post(`/saves/${id}/turns`, { input: "I wait." })).status).toBe(201);
+
+  const texts = (await storedMessages(id)).map(({ text }) => text);
+  expect(texts.at(-3)).toBe("He sits.");
+  expect(texts.at(-1)).toBe("He sits.\nwants: nothing more than sleep, he says.");
+});
+
 test("a reply whose narration ends on a line about one of its fields, with no colon, is saved without it", async () => {
   play([narrated("He sits.\n\nstate_operations has more ops")]);
   const id = await app.createSave();
@@ -1165,6 +1177,18 @@ test("a Turn is rated once: a retry after a reply rated None is asked for no Che
   expect(provider.requests[1]!.body.response_format.json_schema.schema.properties.check).toMatchObject({ type: "null" });
   expect((await storedMessages(id)).at(-1)!.text).toBe("The keeper says nothing.");
   expect(log).toContain("Rating kept for a retry");
+});
+
+test("an Edit asks for no one's wants, as the player wrote its story, while a Turn does", async () => {
+  play([narrated("The rain keeps on."), narrated("The rain stops.")], schemaModel);
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect((await app.post(`/saves/${id}/messages/2/edit`, { text: "The rain stops." })).status).toBe(201);
+
+  const sent = provider.requests.map(({ body }) => Object.keys(body.response_format.json_schema.schema.properties));
+  expect(sent[0]).toContain("wants");
+  expect(sent.at(-1)).not.toContain("wants");
 });
 
 test("a PC line that only repeats the move's own quoted words isn't speaking for the PC, but one with other words is", () => {

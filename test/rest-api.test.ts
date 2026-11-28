@@ -2417,8 +2417,8 @@ test("a reply that copies the last one nearly whole is retried, while one quotin
   expect(messages.at(-1)!.text).toStartWith("The rain stops at last.");
 });
 
-test("an action rated None streams and finishes the Turn with no roll, while a rated one rolls", async () => {
-  const none = `{"check":{"action":"Wave to \\"Sam\\"","stakes":"nothing, a friendly wave","difficulty":"None"},"narration":"Sam waves back.","state_operations":[]}`;
+test("an action rated None, with no at_most, streams and finishes the Turn with no roll, while a rated one rolls", async () => {
+  const none = `{"check":{"action":"Wave to \\"Sam\\"","stakes":"nothing, a friendly wave","at_most":null,"difficulty":"None"},"wants":[],"narration":"Sam waves back.","state_operations":[]}`;
   const replies = [none, requestCheck("Hard"), narration("It holds.")];
   app = startApp(
     savesDir,

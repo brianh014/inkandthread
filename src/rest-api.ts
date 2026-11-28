@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { comfyImages } from "./comfyui";
+import { comfyImages, comfyModels } from "./comfyui";
 import { galleryRoutes } from "./gallery-routes";
 import { errorResponse, isLoopback, logged, NoFields, parseBody, type ServerContext, type ServerOptions } from "./http";
 import type { ImageAdapter } from "./image-adapter";
@@ -183,7 +183,7 @@ export function startServer(given: ServerOptions) {
             return new Response(null, { status: 204 });
           },
         },
-        ...settingsRoutes(context, adapters.local, workflow),
+        ...settingsRoutes(context, { draw: adapters.local, models: comfyModels, workflow }),
         ...worldRoutes(context),
         ...saveRoutes(context),
         ...turnRoutes(context),

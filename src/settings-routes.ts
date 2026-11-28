@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { parseWorkflow } from "./comfy-workflow";
-import { comfyModels, randomSeed } from "./comfyui";
+import type { comfyModels } from "./comfyui";
 import { chosenModels, drawSteps, localIsSetUp } from "./graph-builder";
 import { fromThisComputer, imageResponse, parseBody, PromptRequest, routes, type ServerContext } from "./http";
-import type { ImageAdapter } from "./image-adapter";
+import { type ImageAdapter, randomSeed } from "./image-adapter";
 import { defaultLogLevel, errorFields, errorType, log, setLogLevel } from "./logger";
 import { estimateTokens } from "./lore-activation";
 import { commandSeenFrom, modelName, OnlineImageProvider, reviewerSettings, type SettingsChange, SettingsUpdate } from "./settings-store";
@@ -27,8 +27,11 @@ const SettingsSave = SettingsUpdate.extend({ imageKeyFromText: z.boolean().optio
 /** How the first-time tips ended, or `again` from the Reader's Guide to show them on the next story opened. */
 const TipsChange = z.object({ how: z.enum(["finished", "skipped", "played", "left", "again"]) });
 
-/** Settings and their tests. `local` is the ComfyUI adapter, and `workflow` how its last job went, which only the screen shows. */
-export function settingsRoutes({ options, images, saves }: ServerContext, local: ImageAdapter, workflow: { problem: string }) {
+/** ComfyUI as the desktop host offers it: its adapter, its model list, and how its last job went, which only the screen shows. */
+export type LocalImages = { draw: ImageAdapter; models: typeof comfyModels; workflow: { problem: string } };
+
+/** Settings and their tests. */
+export function settingsRoutes({ options, images, saves }: ServerContext, { draw: local, models: comfyModels, workflow }: LocalImages) {
   const { settings } = options;
   // An allowlist, so the API key can never reach a response.
   // `here` says the page is on this computer, so it may change the command.

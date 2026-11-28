@@ -1,4 +1,6 @@
 import { dimensions } from "./graph-builder";
+
+export const randomSeed = () => Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
 import type { OnlineImageProvider, SettingsStore } from "./settings-store";
 
 /** The shared payload every Image Adapter formats for its backend. The first references are kept when a model takes fewer. */

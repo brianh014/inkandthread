@@ -9,6 +9,7 @@ import { defaultLevelFor, log, startLog } from "./logger";
 import { startServer } from "./rest-api";
 import { reviewerSettings, settingsStore } from "./settings-store";
 import { textProvider } from "./text-provider";
+import { withCommand } from "./command-provider";
 import { isCompiled, removeReplacedPrograms, serverBuild } from "./updater";
 import { usageStore } from "./usage-store";
 
@@ -73,8 +74,8 @@ const server = startServer({
   savesDir: join(dataDir, "Saves"),
   settings,
   usage: usageStore(join(dataDir, "usage.sqlite")),
-  textProvider: fake ? fakeTextProvider : textProvider(settings),
-  reviewProvider: fake ? fakeTextProvider : textProvider(reviewerSettings(settings)),
+  textProvider: fake ? fakeTextProvider : withCommand(settings, textProvider(settings)),
+  reviewProvider: fake ? fakeTextProvider : withCommand(reviewerSettings(settings), textProvider(reviewerSettings(settings))),
   moveWorld: true,
   offerChoices: true,
   imageAdapter: fake

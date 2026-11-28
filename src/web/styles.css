@@ -773,6 +773,11 @@ button.quiet:not(.leave, .back):hover:not(:disabled, [aria-disabled="true"]) {
   gap: 18px;
 }
 
+/* The phone app's notes, above the Contents, kept apart from its heading. */
+.menu > .notice {
+  margin-bottom: 14px;
+}
+
 .menu nav {
   display: grid;
   border-top: 1px solid var(--line);

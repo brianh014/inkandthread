@@ -97,3 +97,15 @@ test("a new build of the phone app waits for the player, then takes over on Relo
   expect(await scriptOf()).toContain("/sw.js");
   await expect(page.getByRole("button", { name: "Reload to update" })).toBeHidden();
 });
+
+test("a second tab says the app is open elsewhere, then opens by itself once the first closes", async ({ page, context }) => {
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: /Setup Ink & Thread/ })).toBeVisible();
+
+  const second = await context.newPage();
+  await second.goto("/");
+  await expect(second.getByText("Ink & Thread is open in another tab or window. Close it there, and it opens here.")).toBeVisible();
+
+  await page.close();
+  await expect(second.getByRole("link", { name: /Setup Ink & Thread/ })).toBeVisible({ timeout: 15_000 });
+});

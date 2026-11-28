@@ -114,7 +114,7 @@ export function PhoneNotes() {
         <div className="notice dismissable">
           <p>
             <b>Add Ink & Thread to your Home Screen</b> before you start. A browser may clear a website's stories after a while, but keeps an installed app's.
-            In Safari, tap Share, then Add to Home Screen. In Chrome, open the menu, then Install app.
+            In Safari, tap Share, then Add to Home Screen. In Chrome, open the menu, then Install app. In Firefox, open the menu, then Add to Home screen.
           </p>
           <button
             type="button"

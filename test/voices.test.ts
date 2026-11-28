@@ -46,7 +46,7 @@ test("no one is heard who has no lines from before, and a long line is cut at a 
 test("the PC's own lines are never taken for someone's voice, and a line with no early space is still cut short", () => {
   const pcLine = narrator(2, '[Hana]: "I will take the night watch myself, thank you all."');
   expect(howTheySpeak([pcLine], 4, { scene: { ...scene, visibleCast: ["Lieutenant Hana Sorrell"] }, npcs }, "", "Hana")).toEqual({});
-  const [line] = howTheySpeak([narrator(2, `[Captain Ilse Vantor]: one two three four five ${"x".repeat(400)}`)], 4, { scene, npcs }, "", "Brian")[
+  const [line] = howTheySpeak([narrator(2, `[Captain Ilse Vantor]: "one two three four five ${"x".repeat(400)}"`)], 4, { scene, npcs }, "", "Brian")[
     "Captain Ilse Vantor"
   ]!;
   expect(line!.length).toBeLessThanOrEqual(201);
@@ -60,4 +60,17 @@ test("someone the last reply names is heard though the scene's cast doesn't list
 test("only what someone says is their voice, not what they do between its quotes", () => {
   const line = narrator(2, "[Captain Ilse Vantor]: “Oh. You are still on.” She thumbed her console awake. “Did Rao get to you too, then?”");
   expect(howTheySpeak([line], 4, { scene, npcs }, "", "Brian")).toEqual({ "Captain Ilse Vantor": ["Oh. You are still on. Did Rao get to you too, then?"] });
+});
+
+test("a line with no quotes is never taken for someone's voice, as it may be only what they do", () => {
+  const line = narrator(2, "[Captain Ilse Vantor]: She turns to the window and studies the harbour lights.");
+  expect(howTheySpeak([line], 4, { scene, npcs }, "", "Brian")).toEqual({});
+});
+
+test("someone whose name is one word of the PC's is still heard when a line names them exactly", () => {
+  const al = { name: "Al", appearance: "short" };
+  const line = narrator(2, '[Al]: "You owe me for the crate, and I mean tonight, not tomorrow."');
+  expect(howTheySpeak([line], 4, { scene: { ...scene, visibleCast: ["Al"] }, npcs: [...npcs, al] }, "", "Al Capone")).toEqual({
+    Al: ["You owe me for the crate, and I mean tonight, not tomorrow."],
+  });
 });

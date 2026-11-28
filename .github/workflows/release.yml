@@ -68,8 +68,8 @@ jobs:
           fi
 
   # The phone app, a static site, published with each full release so it matches the downloads. Off until the repository
-  # variable PHONE_SITE is "pages", once the site's address is settled (ticket 16 of .scratch/phone-app): browser storage,
-  # and so every player's stories, belong to that address.
+  # variable PHONE_SITE is "pages". It is served at play.inkandthread.app, the Pages custom domain, and must stay there:
+  # browser storage, and so every player's stories, belong to that address.
   phone:
     if: github.ref_type == 'tag' && !contains(github.ref_name, '-') && vars.PHONE_SITE == 'pages'
     needs: release

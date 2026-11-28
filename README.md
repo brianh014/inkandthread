@@ -151,9 +151,7 @@ sudo systemctl enable --now inkandthread
 
 ### On a phone
 
-<!-- The phone app's address goes here once it is published (ticket 16 of .scratch/phone-app). -->
-
-The phone app is Ink & Thread as a website that runs entirely on your phone, with no computer behind it: your stories, Settings and keys stay on the phone, and it talks only to your AI. Open it in Chrome or Safari and add it to your Home Screen, as a browser may clear a website's stories after a while but keeps an installed app's. It reaches online AIs only (OpenRouter, NanoGPT or Google AI Studio), and it updates itself when you reload. Your stories live only on the phone, so export them now and then; an exported Save opens in the desktop app, and one from the desktop opens on the phone. To play on a phone from your own computer instead, use the Server download above.
+The phone app is Ink & Thread as a website that runs entirely on your phone, with no computer behind it: your stories, Settings and keys stay on the phone, and it talks only to your AI. Open **[play.inkandthread.app](https://play.inkandthread.app)** in Chrome or Safari and add it to your Home Screen, as a browser may clear a website's stories after a while but keeps an installed app's. It reaches online AIs only (OpenRouter, NanoGPT or Google AI Studio), and it updates itself when you reload. Your stories live only on the phone, so export them now and then; an exported Save opens in the desktop app, and one from the desktop opens on the phone. To play on a phone from your own computer instead, use the Server download above.
 
 ### Connecting an AI
 

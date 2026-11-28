@@ -610,8 +610,12 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>The phone app</h3>
         <p>
           The phone app is Ink & Thread as a website that runs entirely on your phone. Your stories, Settings and keys stay on the phone, and it talks only to
-          your AI. Open it in Chrome or Safari, then add it to your Home Screen: a browser may clear a website's stories after a while, but keeps an installed
-          app's. It can't run in private browsing.
+          your AI. Open{" "}
+          <a href="https://play.inkandthread.app" target="_blank" rel="noreferrer">
+            play.inkandthread.app
+          </a>{" "}
+          in Chrome or Safari, then add it to your Home Screen: a browser may clear a website's stories after a while, but keeps an installed app's. It can't
+          run in private browsing.
         </p>
         <p>
           It reaches online AIs only, OpenRouter, NanoGPT or Google AI Studio, as a phone can't run its own. It keeps the screen on while the AI writes. If you

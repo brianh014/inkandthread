@@ -51,6 +51,8 @@ export type ServerOptions = {
   hostname?: string;
   /** Every request comes from the player's own device, as in the phone build, where the page and its server share one browser. */
   ownDevice?: boolean;
+  /** Only hosted AI services, as in the phone app (ticket 01 of .scratch/phone-app): no local server or command, ComfyUI or Wiro. */
+  hostedOnly?: boolean;
   dice: Dice;
   nearMissMargin: number;
   settings: SettingsStore;

@@ -7,14 +7,28 @@
 declare const self: ServiceWorkerGlobalScope;
 import type { Answer, Asked } from "./server-worker";
 
-// The build's files, set by scripts/build-phone.ts, so the server's routes are never listed twice.
+// The build's files and its name, set by scripts/build-phone.ts, so the server's routes are never listed twice.
 declare const STATIC_FILES: string[];
+declare const BUILD: string;
 const files = new Set(STATIC_FILES);
+const CACHE = `inkandthread-${BUILD}`;
+
+// The whole build is kept, so the app opens with no connection; only the AI needs one.
+self.addEventListener("install", (event) =>
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(["/", ...STATIC_FILES.filter((file) => file !== "/sw.js")]))),
+);
+self.addEventListener("activate", (event) =>
+  event.waitUntil(
+    caches.keys().then((names) => Promise.all(names.filter((name) => name.startsWith("inkandthread-") && name !== CACHE).map((name) => caches.delete(name)))),
+  ),
+);
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  if (url.origin !== location.origin || url.pathname === "/" || files.has(url.pathname)) return;
-  event.respondWith(forward(event));
+  if (url.origin !== location.origin) return;
+  if (url.pathname === "/" || files.has(url.pathname))
+    event.respondWith(caches.match(url.pathname, { cacheName: CACHE }).then((kept) => kept ?? fetch(event.request)));
+  else event.respondWith(forward(event));
 });
 
 /** The page that asked; for a download link, which has none, the one open window, as the Saves allow only one. */

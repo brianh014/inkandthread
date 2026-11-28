@@ -523,8 +523,11 @@ type Generation = { total_cost?: number; native_tokens_prompt?: number; native_t
  */
 async function generationUsage(url: string, id: string, headers: Record<string, string>, named: object): Promise<TextUsage | undefined> {
   for (const wait of [2_000, 5_000, 15_000]) {
-    // Unref'd, so a lookup still waiting never holds the app (or a test run) open.
-    await new Promise((done) => setTimeout(done, wait).unref());
+    // Unref'd, so a lookup still waiting never holds the app (or a test run) open. A browser's timers have no unref, and need none.
+    await new Promise((done) => {
+      const timer: { unref?: () => void } | number = setTimeout(done, wait);
+      if (typeof timer === "object") timer.unref?.();
+    });
     try {
       const response = await fetch(`${url}/generation?id=${encodeURIComponent(id)}`, { headers, signal: AbortSignal.timeout(10_000) });
       if (!response.ok) continue;

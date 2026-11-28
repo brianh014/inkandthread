@@ -22,6 +22,14 @@ const unkeyed = <T extends object>(profiles: Record<string, T>, key: keyof T) =>
 
 // The image providers that also serve the Narrator, by its address, whose one key does both.
 const SAME_SERVICE = { openrouter: OPENROUTER_URL, google: GOOGLE_URL, nanogpt: NANOGPT_URL };
+
+/** What a hosted-only app, such as the phone app, can reach: the hosted text services, and their pictures or none. */
+const HOSTED_TEXT: string[] = Object.values(SAME_SERVICE);
+const reachableHere = (next: { textCommand: string[]; textBaseUrl: string; reviewBaseUrl: string; imageProvider: string; imagesEnabled: boolean }) =>
+  next.textCommand.length === 0 &&
+  HOSTED_TEXT.includes(next.textBaseUrl) &&
+  HOSTED_TEXT.includes(next.reviewBaseUrl) &&
+  (!next.imagesEnabled || next.imageProvider in SAME_SERVICE);
 // Setup's save can ask for the Narrator's key to draw with too.
 const SettingsSave = SettingsUpdate.extend({ imageKeyFromText: z.boolean().optional() });
 /** How the first-time tips ended, or `again` from the Reader's Guide to show them on the next story opened. */
@@ -98,7 +106,8 @@ export function settingsRoutes({ options, images, saves }: ServerContext, { draw
     } = settings.read();
     return {
       textCommand: commandSeenFrom(here, textCommand),
-      commandHere: here,
+      commandHere: here && !options.hostedOnly,
+      hostedOnly: !!options.hostedOnly,
       textBaseUrl,
       textModel,
       textRouting,
@@ -197,6 +206,10 @@ export function settingsRoutes({ options, images, saves }: ServerContext, { draw
           log.info("settings", "Image key from the Narrator", { provider: change.imageProvider ?? current.imageProvider });
         }
         const next = { ...current, ...change };
+        if (options.hostedOnly && !reachableHere(next)) {
+          log.warning("settings", "A provider this app can't reach was refused", { imageProvider: next.imageProvider, command: next.textCommand.length > 0 });
+          return Response.json({ error: "This app reaches only OpenRouter, NanoGPT and Google AI Studio." }, { status: 422 });
+        }
         // Only a workflow in use, as Settings hides the box otherwise, and the player couldn't see what to fix.
         if (next.imageProvider === "local" && next.comfyMode === "advanced") parseWorkflow(next.comfyWorkflow);
         settings.update(change);

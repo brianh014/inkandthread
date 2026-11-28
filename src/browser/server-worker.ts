@@ -4,6 +4,7 @@
  * end, so a Turn's events stream. Hosted image and text APIs only: no ComfyUI, local command, Quit or updater.
  */
 import "./globals";
+import { version } from "../../package.json";
 import { fakeImages, fakeTextProvider } from "../fake-services";
 import { logged, type ServerOptions } from "../http";
 import { googleImages, type ImageAdapter, imageModelLists, nanoGptImages, openRouterImages } from "../image-adapter";
@@ -59,9 +60,10 @@ async function start() {
   logLinesTo(keepLogLine);
   log.info("saves", "Browser storage opened", opened);
   const settings = settingsStore("/settings.json");
-  // As the desktop's --fake on its first run: a model named, so play works at once with nothing real behind it.
+  // As the desktop's --fake on its first run: a model named, so play works at once with nothing real behind it. The address
+  // stays the default hosted one, as this app reaches no other; the stand-in Narrator never calls it.
   if (FAKE && !settings.read().textModel)
-    settings.update({ textBaseUrl: "http://127.0.0.1:9/v1", textModel: "fake-narrator", imageModel: "fake-images", imageApiKey: "fake-key", tipsSeen: true });
+    settings.update({ textModel: "fake-narrator", textApiKey: "fake-key", imageModel: "fake-images", imageApiKey: "fake-key", tipsSeen: true });
   const online = {
     openrouter: openRouterImages(settings, "https://openrouter.ai/api/v1"),
     // Wiro refuses calls from any web page but its own (ticket 01).
@@ -90,12 +92,15 @@ async function start() {
     nearMissMargin: 3,
     port: 0,
     ownDevice: true,
+    hostedOnly: true,
   };
   const { routes } = serverRoutes(given, NO_COMFY);
   const table = logged(
     {
       // The desktop's idle quit listens for these; a phone page has nothing to keep alive.
       "/alive": { POST: () => new Response(null, { status: 204 }) },
+      // shortcut: never a new version yet; ticket 13 of .scratch/phone-app makes it the service worker's update.
+      "/update": { GET: () => Response.json({ version, failed: false, latest: null, installable: false }) },
       // The log, for the player to save and send with a bug report, as the desktop's log file.
       "/phone/log": { GET: () => new Response(logText(), { headers: { "Content-Type": "text/plain; charset=utf-8" } }) },
       ...routes,
@@ -127,7 +132,12 @@ function match(routes: Route[], pathname: string) {
 // Bun.Server where a handler asks for one; ownDevice already answers "this computer" on the phone.
 const server = { requestIP: () => ({ address: "127.0.0.1" }) };
 
+/** Import holds several copies of a Save at once, which a phone's memory may not; the desktop takes far larger ones. */
+const MOST_BODY_BYTES = 100 * 1024 * 1024;
+
 async function answer(asked: Asked, stop: AbortSignal): Promise<Response> {
+  if ((asked.body?.byteLength ?? 0) > MOST_BODY_BYTES)
+    return Response.json({ error: "This file is too large for the phone app. Open it in the desktop app instead." }, { status: 413 });
   let started: Awaited<ReturnType<typeof start>>;
   try {
     started = await ready;

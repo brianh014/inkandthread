@@ -9,6 +9,7 @@ import {
   commandWords,
   askTextTest,
   type ComfyModels,
+  downloadInPage,
   drawComfyTest,
   getComfyModels,
   getSave,
@@ -822,6 +823,24 @@ export function ComfySettings({ draft, saved, set }: { draft: Settings; saved: S
   );
 }
 
+/** The phone app's log, which stays on the device, for the player to send with a bug report. */
+function SaveLog() {
+  const [failed, setFailed] = useState("");
+  return (
+    <p className="muted">
+      <a
+        href="/phone/log"
+        download="inkandthread.log"
+        onClick={(event) => void downloadInPage(event, "/phone/log", "The log wouldn't save. Try again.").catch((error: Error) => setFailed(error.message))}
+      >
+        Save the log
+      </a>{" "}
+      to send it with a bug report. It stays on this device otherwise.
+      {failed && <span role="alert"> {failed}</span>}
+    </p>
+  );
+}
+
 type TextChoice = keyof typeof TEXT_PROVIDERS | "local";
 // An address that is one of the named providers picks it, and any other is a local or OpenAI-compatible server.
 export const textChoiceOf = (url: string) => (Object.entries(TEXT_PROVIDERS).find(([, at]) => at === url)?.[0] ?? "local") as TextChoice;
@@ -833,8 +852,15 @@ export const TEXT_CHOICES = [
 ] as const;
 
 /** The Narrator's providers: the servers, and Command only for a page on this computer, as it runs a program there. */
-export const narratorChoices = ({ commandHere }: Pick<Settings, "commandHere">) => [
-  ...TEXT_CHOICES,
+/** The text providers this app can reach: in the phone app, the hosted ones only. */
+export const textChoices = ({ hostedOnly }: Pick<Settings, "hostedOnly">) => TEXT_CHOICES.filter(({ value }) => !hostedOnly || value !== "local");
+
+/** The image providers this app can reach: in the phone app, no ComfyUI, and no Wiro, which refuses calls from web pages. */
+export const imageChoices = <T extends { value: string }>({ hostedOnly }: Pick<Settings, "hostedOnly">, choices: readonly T[]) =>
+  choices.filter(({ value }) => !hostedOnly || (value !== "local" && value !== "wiro"));
+
+export const narratorChoices = ({ commandHere, hostedOnly }: Pick<Settings, "commandHere" | "hostedOnly">) => [
+  ...textChoices({ hostedOnly }),
   ...(commandHere ? [{ value: "command" as const, label: "Command" }] : []),
 ];
 
@@ -944,7 +970,7 @@ export function ReviewSettings({
               <Picker
                 label="Scribe provider"
                 value={choice}
-                choices={[...TEXT_CHOICES]}
+                choices={textChoices(saved)}
                 onChange={(provider) => set({ reviewBaseUrl: provider === "local" ? "http://localhost:1234/v1" : TEXT_PROVIDERS[provider], reviewModel: "" })}
               />
               {choice === "local" && (
@@ -1406,13 +1432,13 @@ function InstallSettings({
         <Picker
           label="Image provider"
           value={draft.imageProvider}
-          choices={[
+          choices={imageChoices(saved, [
             { value: "openrouter", label: "OpenRouter" },
             { value: "wiro", label: "Wiro" },
             { value: "google", label: "Google AI Studio" },
             { value: "nanogpt", label: "NanoGPT" },
             { value: "local", label: "Local (ComfyUI)" },
-          ]}
+          ] as const)}
           onChange={(imageProvider) => set({ imageProvider, ...(saved.imageProfiles[imageProvider] ?? { imageModel: "" }) })}
         />
         {draft.imageProvider !== "local" && (
@@ -1498,6 +1524,7 @@ function InstallSettings({
           Also writes everything sent to the AI and every reply, picture prompts too, story text included, to the Server Log. Only needed for advanced
           debugging, so leave it off otherwise.
         </p>
+        {saved.hostedOnly && <SaveLog />}
         {section === "Advanced" && <NarratorTable />}
       </div>
     </form>,

@@ -1,3 +1,4 @@
+import { fromBase64, toBase64 } from "./base64";
 import { dimensions } from "./graph-builder";
 
 export const randomSeed = () => Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
@@ -104,7 +105,7 @@ export function openRouterImages(settings: SettingsStore, baseUrl: string): Imag
         ...(references.length > 0 && {
           input_references: references.map(({ bytes, mediaType }) => ({
             type: "image_url",
-            image_url: { url: `data:${mediaType};base64,${Buffer.from(bytes).toString("base64")}` },
+            image_url: { url: `data:${mediaType};base64,${toBase64(bytes)}` },
           })),
         }),
       }),
@@ -116,7 +117,7 @@ export function openRouterImages(settings: SettingsStore, baseUrl: string): Imag
     if (!response.ok || !encoded) {
       throw apiError(imageApiKey, `Image API error: ${JSON.stringify({ status: response.status, error: reply.error })}`, response.status);
     }
-    return new Uint8Array(Buffer.from(encoded, "base64"));
+    return fromBase64(encoded);
   };
 }
 
@@ -180,7 +181,7 @@ export function wiroImages(settings: SettingsStore, baseUrl: string): ImageAdapt
     if (input && reference_images.length > 0) {
       const single = input.type === "fileinput";
       for (const { bytes, mediaType } of reference_images.slice(0, single ? 1 : (input.maxinputlenght ?? MOST_REFERENCES))) {
-        form.append("inputImage", new Blob([Buffer.from(bytes)], { type: mediaType }), `reference.${mediaType.split("/")[1]}`);
+        form.append("inputImage", new Blob([new Uint8Array(bytes)], { type: mediaType }), `reference.${mediaType.split("/")[1]}`);
       }
       // A single file field goes with its URL field empty.
       if (single) form.set("inputImageUrl", "");
@@ -226,7 +227,7 @@ export function googleImages(settings: SettingsStore, baseUrl: string): ImageAda
           ...reference_images.slice(0, GOOGLE_REFERENCES).map(({ bytes, mediaType }) => ({
             type: "image",
             mime_type: mediaType,
-            data: Buffer.from(bytes).toString("base64"),
+            data: toBase64(bytes),
           })),
         ],
         // 1.5K falls between Google's sizes and takes the smaller, cheaper one.
@@ -244,7 +245,7 @@ export function googleImages(settings: SettingsStore, baseUrl: string): ImageAda
     if (!response.ok || !encoded) {
       throw apiError(imageApiKey, `Image API error: ${JSON.stringify({ status: response.status, state: reply.status, error: reply.error })}`, response.status);
     }
-    return new Uint8Array(Buffer.from(encoded, "base64"));
+    return fromBase64(encoded);
   };
 }
 
@@ -297,7 +298,7 @@ export function nanoGptImages(settings: SettingsStore, baseUrl: string): ImageAd
         ...(references.length > 0 && {
           input_references: references.map(({ bytes, mediaType }) => ({
             type: "image_url",
-            image_url: { url: `data:${mediaType};base64,${Buffer.from(bytes).toString("base64")}` },
+            image_url: { url: `data:${mediaType};base64,${toBase64(bytes)}` },
           })),
         }),
       }),
@@ -315,7 +316,7 @@ export function nanoGptImages(settings: SettingsStore, baseUrl: string): ImageAd
       throw apiError(imageApiKey, `Image API error: ${JSON.stringify({ status: response.status, error: reply.error })}`, response.status);
     }
     // The reply's shape isn't documented for this route, so a picture sent as a link is fetched like the OpenAI-style route's.
-    if (first.b64_json) return new Uint8Array(Buffer.from(first.b64_json, "base64"));
+    if (first.b64_json) return fromBase64(first.b64_json);
     const image = await fetch(first.url!, { signal: limited });
     if (!image.ok) throw apiError(imageApiKey, `NanoGPT's picture wouldn't download: ${image.status}`, image.status);
     return new Uint8Array(await image.arrayBuffer());

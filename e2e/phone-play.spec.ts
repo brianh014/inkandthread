@@ -44,3 +44,16 @@ test("the phone app's log can be saved", async ({ page }) => {
   expect(log).toContain("Browser storage opened");
   expect(log).toContain("Phone server started");
 });
+
+test("the phone app can be installed, and opens with no connection once it has been", async ({ page, context }) => {
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "New Story" })).toBeVisible();
+  const manifest = await page.evaluate(async () => (await fetch(document.querySelector<HTMLLinkElement>("link[rel=manifest]")!.href)).json());
+  expect(manifest).toMatchObject({ name: "Ink & Thread", display: "standalone", start_url: "/" });
+  expect(await page.evaluate(async () => (await (await fetch("/settings")).json()).hostedOnly)).toBe(true);
+
+  await context.setOffline(true);
+  await page.reload();
+  await expect(page.getByRole("link", { name: "New Story" })).toBeVisible();
+  await context.setOffline(false);
+});

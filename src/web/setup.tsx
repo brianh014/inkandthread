@@ -12,6 +12,7 @@ import {
   ComfySettings,
   LockedCommand,
   ModelField,
+  imageChoices,
   narratorChoices,
   Picker,
   ReviewSettings,
@@ -227,10 +228,12 @@ function Steps({ initial }: { initial: Settings }) {
         </p>
         <ul>
           <li>
-            <b>An AI that writes</b>: needed. A hosted one costs a little each Turn; one on your own computer is free but suits short stories.
+            <b>An AI that writes</b>: needed. A hosted one costs a little each Turn
+            {saved.hostedOnly ? "." : "; one on your own computer is free but suits short stories."}
           </li>
           <li>
-            <b>An AI that draws</b>: optional. Online it costs a little per picture; your own ComfyUI draws for free on a good graphics card.
+            <b>An AI that draws</b>: optional. Online it costs a little per picture
+            {saved.hostedOnly ? "." : "; your own ComfyUI draws for free on a good graphics card."}
           </li>
         </ul>
         <p className="muted">Everything here is in Settings too, to change any time, and Settings → Guided setup brings these pages back.</p>
@@ -240,9 +243,10 @@ function Steps({ initial }: { initial: Settings }) {
       <>
         <p>Where the Narrator, the AI that writes your story, comes from.</p>
         <p className="muted">
-          Providers come in three kinds. A gateway such as OpenRouter or NanoGPT reaches models from many makers with one key, so you can try several. A maker's
-          own service, such as Google AI Studio, offers only its own family of models. And Local / OpenAI server reaches an AI on your own computer, or any
-          other service that speaks the common OpenAI-compatible standard.
+          Providers come in {saved.hostedOnly ? "two" : "three"} kinds. A gateway such as OpenRouter or NanoGPT reaches models from many makers with one key, so
+          you can try several. A maker's own service, such as Google AI Studio, offers only its own family of models.
+          {!saved.hostedOnly &&
+            " And Local / OpenAI server reaches an AI on your own computer, or any other service that speaks the common OpenAI-compatible standard."}
         </p>
         {command && !saved.commandHere ? (
           <LockedCommand line={commandBox.line!} />
@@ -410,10 +414,12 @@ function Steps({ initial }: { initial: Settings }) {
             />
             Online, the easy way
           </label>
-          <label className="toggle">
-            <input type="radio" name="pictures" checked={pictures === "comfy"} onChange={() => set({ imagesEnabled: true, imageProvider: "local" })} />
-            Your own ComfyUI, free pictures
-          </label>
+          {!saved.hostedOnly && (
+            <label className="toggle">
+              <input type="radio" name="pictures" checked={pictures === "comfy"} onChange={() => set({ imagesEnabled: true, imageProvider: "local" })} />
+              Your own ComfyUI, free pictures
+            </label>
+          )}
         </fieldset>
         {pictures === "online" && (
           <>
@@ -421,7 +427,7 @@ function Steps({ initial }: { initial: Settings }) {
             <Picker
               label="Image provider"
               value={draft.imageProvider as (typeof IMAGE_CHOICES)[number]["value"]}
-              choices={[...IMAGE_CHOICES]}
+              choices={imageChoices(saved, IMAGE_CHOICES)}
               onChange={(imageProvider) => set({ imageProvider, ...(saved.imageProfiles[imageProvider] ?? { imageModel: "" }) })}
             />
             <p className="muted">

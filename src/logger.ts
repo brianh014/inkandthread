@@ -74,7 +74,7 @@ function toFile(line: string) {
     }
     // Opened for each line, as Windows won't rename a file another app holds open. Same mode as `settings.json`.
     appendFileSync(logFile, `${line}\n`, { mode: 0o600 });
-    logBytes += Buffer.byteLength(line) + 1;
+    logBytes += new TextEncoder().encode(line).byteLength + 1;
   } catch (error) {
     fileFailure(error);
   }

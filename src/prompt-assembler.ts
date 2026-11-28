@@ -339,13 +339,22 @@ export function howTheySpeak(messages: Message[], since: number, state: Pick<Sta
   // Those npcKnows is sent for, as someone the last reply brought back may not be in the scene's cast yet.
   const present = presentOf(state, said);
   const heard = () => present.every((name) => (lines[name]?.length ?? 0) >= VOICE_LINES);
+  // Who each speaker tag is, worked out once, as a long story repeats the same few tags thousands of times. Null for the PC.
+  const who = new Map<string, string | null | undefined>();
+  const speakerOf = (speaker: string) => {
+    if (!who.has(speaker)) {
+      const npc = findPerson(state.npcs, speaker)?.name;
+      // Someone named exactly by the tag is them, though their name is a word of the PC's; otherwise a part of the PC's name is the
+      // PC, as it can match someone else's too.
+      who.set(speaker, npc !== speaker && findPerson([{ name: pc }], speaker) ? null : npc);
+    }
+    return who.get(speaker);
+  };
   for (const { id, role, text } of messages) {
     if (id >= since || heard()) break;
     if (role !== "narrator") continue;
     for (const [, speaker, line] of text.matchAll(/^\[([^\]]+)\]:\s*(.+)$/gm)) {
-      // Never the PC's own line, as a part of a name can match someone else's.
-      if (findPerson([{ name: pc }], speaker!.trim())) continue;
-      const name = findPerson(state.npcs, speaker!.trim())?.name;
+      const name = speakerOf(speaker!.trim());
       if (!name || !present.includes(name) || (lines[name]?.length ?? 0) >= VOICE_LINES) continue;
       // Only what they say, as a line can carry what they do between its quotes, which isn't their voice; one with no quotes may be all deed.
       const words = [...line!.matchAll(/[“"]([^”"]+)[”"]/g)].map(([, part]) => part!.trim()).join(" ");

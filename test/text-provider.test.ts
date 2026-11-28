@@ -1179,6 +1179,18 @@ test("a Turn is rated once: a retry after a reply rated None is asked for no Che
   expect(log).toContain("Rating kept for a retry");
 });
 
+test("an Edit asks for no one's wants, as the player wrote its story, while a Turn does", async () => {
+  play([narrated("The rain keeps on."), narrated("The rain stops.")], schemaModel);
+  const id = await app.createSave();
+  await app.post(`/saves/${id}/turns`, { input: "I wait." });
+
+  expect((await app.post(`/saves/${id}/messages/2/edit`, { text: "The rain stops." })).status).toBe(201);
+
+  const sent = provider.requests.map(({ body }) => Object.keys(body.response_format.json_schema.schema.properties));
+  expect(sent[0]).toContain("wants");
+  expect(sent.at(-1)).not.toContain("wants");
+});
+
 test("a PC line that only repeats the move's own quoted words isn't speaking for the PC, but one with other words is", () => {
   const move = 'I lean in. "Who keeps the gate tonight?"';
   expect(spokenLineFault("[Ash]: “who keeps the gate tonight”\n\nThe lad shrugs.", "Ash", move)).toBeUndefined();

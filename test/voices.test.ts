@@ -66,3 +66,11 @@ test("a line with no quotes is never taken for someone's voice, as it may be onl
   const line = narrator(2, "[Captain Ilse Vantor]: She turns to the window and studies the harbour lights.");
   expect(howTheySpeak([line], 4, { scene, npcs }, "", "Brian")).toEqual({});
 });
+
+test("someone whose name is one word of the PC's is still heard when a line names them exactly", () => {
+  const al = { name: "Al", appearance: "short" };
+  const line = narrator(2, '[Al]: "You owe me for the crate, and I mean tonight, not tomorrow."');
+  expect(howTheySpeak([line], 4, { scene: { ...scene, visibleCast: ["Al"] }, npcs: [...npcs, al] }, "", "Al Capone")).toEqual({
+    Al: ["You owe me for the crate, and I mean tonight, not tomorrow."],
+  });
+});

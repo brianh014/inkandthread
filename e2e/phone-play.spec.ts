@@ -81,3 +81,19 @@ test("the Menu suggests installing the app until the note is closed", async ({ p
   await expect(page.getByRole("link", { name: "New Story" })).toBeVisible();
   await expect(note).toBeHidden();
 });
+
+test("a new build of the phone app waits for the player, then takes over on Reload to update", async ({ page, request }) => {
+  test.setTimeout(90_000);
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "New Story" })).toBeVisible();
+  const scriptOf = () => page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.active?.scriptURL);
+  const before = await page.evaluate(async () => (await caches.keys()).join());
+  expect((await request.post("/__rebuild")).status()).toBe(204);
+  // The app checks hourly; here, at once.
+  await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.update());
+  await page.getByRole("button", { name: "Reload to update" }).click({ timeout: 30_000 });
+  await expect(page.getByRole("link", { name: "New Story" })).toBeVisible();
+  await expect.poll(() => page.evaluate(async () => (await caches.keys()).join())).not.toBe(before);
+  expect(await scriptOf()).toContain("/sw.js");
+  await expect(page.getByRole("button", { name: "Reload to update" })).toBeHidden();
+});

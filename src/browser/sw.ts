@@ -13,6 +13,11 @@ declare const BUILD: string;
 const files = new Set(STATIC_FILES);
 const CACHE = `inkandthread-${BUILD}`;
 
+// A new build waits until the player reloads to update (the New Version toast), so it never changes under a running Turn.
+self.addEventListener("message", (event) => {
+  if (event.data === "take-over") void self.skipWaiting();
+});
+
 // The whole build is kept, so the app opens with no connection; only the AI needs one.
 self.addEventListener("install", (event) =>
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(["/", ...STATIC_FILES.filter((file) => file !== "/sw.js")]))),

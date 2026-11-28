@@ -55,6 +55,32 @@ export function useWakeLock(active: boolean) {
   }, [active]);
 }
 
+const CHECK_EVERY_MS = 60 * 60_000;
+
+/** A new build of the phone app, downloaded and waiting for a reload, or undefined. Checks every hour. */
+export function usePhoneUpdate() {
+  const [waiting, setWaiting] = useState<ServiceWorker>();
+  useEffect(() => {
+    if (!inPageServer()) return;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    void navigator.serviceWorker.getRegistration().then((registration) => {
+      if (!registration) return;
+      const look = () => setWaiting(registration.waiting ?? undefined);
+      look();
+      registration.addEventListener("updatefound", () => registration.installing?.addEventListener("statechange", look));
+      timer = setInterval(() => void registration.update().catch(() => {}), CHECK_EVERY_MS);
+    });
+    return () => clearInterval(timer);
+  }, []);
+  return waiting;
+}
+
+/** Hands over to the waiting build and reloads as it; a Turn cut off by the reload gives its move back (Play). */
+export function reloadToUpdate(waiting: ServiceWorker) {
+  navigator.serviceWorker.addEventListener("controllerchange", () => location.reload(), { once: true });
+  waiting.postMessage("take-over");
+}
+
 const installed = () => matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true;
 
 /** The Menu's notes in the phone app: install it before a first story, and export now and then. */

@@ -250,6 +250,8 @@ export function Menu() {
         </div>
       ) : (
         <div className="menu">
+          {/* Above the Contents, so the note on installing is read before a first story is started. */}
+          <PhoneNotes />
           <p className="eyebrow" aria-hidden="true">
             Contents
           </p>
@@ -278,7 +280,6 @@ export function Menu() {
               </button>
             )}
           </nav>
-          <PhoneNotes />
           <a className="donate" href={DONATE_URL} target="_blank" rel="noreferrer">
             Support Ink &amp; Thread <span aria-hidden="true">♥</span>
           </a>

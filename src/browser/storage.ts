@@ -2,9 +2,10 @@
 import sqlite3InitModule, { type SAHPoolUtil } from "@sqlite.org/sqlite-wasm";
 import { inPool, touched, attachFiles } from "./fs";
 import { errorFields, log } from "../logger";
+import { SAVES_LOCK } from "./lock";
 import { attachSqlite } from "./sqlite";
 
-const POOL = "inkandthread";
+const POOL = SAVES_LOCK;
 const APP_FILE = "/inkandthread.sqlite";
 /** Free file slots kept ahead of need: a Save, its journal and an unfinished copy, several times over. */
 const HEADROOM = 16;

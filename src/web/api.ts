@@ -96,8 +96,11 @@ async function request<T>(path: string, init?: RequestInit) {
  * the service worker that reaches it, so the file is fetched and handed over instead. On the desktop the link downloads
  * by itself, and this does nothing.
  */
+/** The phone app's page, whose server is in it behind a service worker; the desktop's page never has one (ADR 0006). */
+export const inPageServer = () => !!navigator.serviceWorker?.controller;
+
 export async function downloadInPage(event: { preventDefault(): void }, href: string, failed: string) {
-  if (!navigator.serviceWorker?.controller) return;
+  if (!inPageServer()) return;
   event.preventDefault();
   const response = await fetch(href);
   if (!response.ok) throw new Error(failed);

@@ -1,3 +1,4 @@
+import { PhoneNotes } from "./phone";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { getSettings, getUpdate, quitApp, setupProblem, type UpdateStatus } from "./api";
 import { DiscordIcon, DownIcon, GitHubIcon } from "./icons";
@@ -277,6 +278,7 @@ export function Menu() {
               </button>
             )}
           </nav>
+          <PhoneNotes />
           <a className="donate" href={DONATE_URL} target="_blank" rel="noreferrer">
             Support Ink &amp; Thread <span aria-hidden="true">♥</span>
           </a>

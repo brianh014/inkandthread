@@ -1,3 +1,4 @@
+import { backedUp } from "./phone";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { coverUrl, deleteSave, downloadInPage, duplicateSave, importSave, type ListedSave, listSaves, saveSetup, storyName, UNREADABLE_SAVE } from "./api";
 import { DeleteIcon, DuplicateIcon, ExportIcon, StartOverIcon } from "./icons";
@@ -148,11 +149,12 @@ export function LoadStory() {
                         href={`/saves/${save.id}/export`}
                         download
                         aria-label={`Export ${name}`}
-                        onClick={(event) =>
+                        onClick={(event) => {
+                          backedUp();
                           void downloadInPage(event, `/saves/${save.id}/export`, "This story wouldn't export. Try again.").catch((failed: Error) =>
                             setError(failed.message),
-                          )
-                        }
+                          );
+                        }}
                       >
                         {ExportIcon}
                       </a>

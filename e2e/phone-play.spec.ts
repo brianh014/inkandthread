@@ -57,3 +57,27 @@ test("the phone app can be installed, and opens with no connection once it has b
   await expect(page.getByRole("link", { name: "New Story" })).toBeVisible();
   await context.setOffline(false);
 });
+
+test("a move cut off when the app stops comes back unsent, never sent again by itself", async ({ page }) => {
+  test.setTimeout(90_000);
+  await newStory(page);
+  const box = page.getByRole("textbox", { name: /say or do\?$/ });
+  await box.fill("I climb the bell tower.");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
+  // Reloading ends the page's server worker, and the Turn with it, as a phone does when it stops the app.
+  await page.reload();
+  await expect(page.getByText(/stopped before your move was written/)).toBeVisible();
+  await expect(box).toHaveValue("I climb the bell tower.");
+  await expect(page.getByTestId("message-player")).toHaveCount(0);
+});
+
+test("the Menu suggests installing the app until the note is closed", async ({ page }) => {
+  await page.goto("/");
+  const note = page.getByText(/Add Ink & Thread to your Home Screen/);
+  await expect(note).toBeVisible();
+  await page.getByRole("button", { name: "Close the note on installing" }).click();
+  await page.reload();
+  await expect(page.getByRole("link", { name: "New Story" })).toBeVisible();
+  await expect(note).toBeHidden();
+});

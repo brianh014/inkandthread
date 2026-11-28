@@ -22,6 +22,8 @@ try {
   await navigator.serviceWorker.ready;
   if (navigator.serviceWorker.controller) {
     sessionStorage.removeItem(RELOADED);
+    // Kept when the browser runs short of space, where it grants it, as an installed app's storage usually is.
+    void navigator.storage?.persist?.().catch(() => false);
     await import("../web/main");
   } else if (!sessionStorage.getItem(RELOADED)) {
     // A first visit, or a hard reload, which skips the service worker: a plain reload brings it in.

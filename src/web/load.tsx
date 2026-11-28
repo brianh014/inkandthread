@@ -1,5 +1,6 @@
+import { backedUp } from "./phone";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
-import { coverUrl, deleteSave, duplicateSave, importSave, type ListedSave, listSaves, saveSetup, storyName, UNREADABLE_SAVE } from "./api";
+import { coverUrl, deleteSave, downloadInPage, duplicateSave, importSave, type ListedSave, listSaves, saveSetup, storyName, UNREADABLE_SAVE } from "./api";
 import { DeleteIcon, DuplicateIcon, ExportIcon, StartOverIcon } from "./icons";
 import { ConfirmDialog, DeleteDialog, MenuRibbon, Sheet } from "./menu";
 import { draftFrom, STEPS, STORAGE_KEY } from "./wizard-draft";
@@ -142,7 +143,19 @@ export function LoadStory() {
                       >
                         {StartOverIcon}
                       </button>
-                      <a className="icon" title="Export" href={`/saves/${save.id}/export`} download aria-label={`Export ${name}`}>
+                      <a
+                        className="icon"
+                        title="Export"
+                        href={`/saves/${save.id}/export`}
+                        download
+                        aria-label={`Export ${name}`}
+                        onClick={(event) => {
+                          backedUp();
+                          void downloadInPage(event, `/saves/${save.id}/export`, "This story wouldn't export. Try again.").catch((failed: Error) =>
+                            setError(failed.message),
+                          );
+                        }}
+                      >
                         {ExportIcon}
                       </a>
                     </>

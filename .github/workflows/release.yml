@@ -66,3 +66,31 @@ jobs:
             case "$version" in *-*) pre="--prerelease" ;; esac
             gh release create "$GITHUB_REF_NAME" dist/release/* --verify-tag --title "Ink & Thread $version" --generate-notes $pre
           fi
+
+  # The phone app, a static site, published with each full release so it matches the downloads. Off until the repository
+  # variable PHONE_SITE is "pages". It is served at play.inkandthread.app, the Pages custom domain, and must stay there:
+  # browser storage, and so every player's stories, belong to that address.
+  phone:
+    if: github.ref_type == 'tag' && !contains(github.ref_name, '-') && vars.PHONE_SITE == 'pages'
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bun scripts/build-phone.ts --out dist/phone
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist/phone
+      - id: deploy
+        uses: actions/deploy-pages@v4

@@ -21,6 +21,7 @@ let logFile: string | undefined;
 let logBytes = 0;
 let mostLogBytes = MOST_LOG_BYTES;
 let fileFailed = false;
+let sink: ((line: string) => void) | undefined;
 
 const context = new AsyncLocalStorage<Fields>();
 
@@ -49,6 +50,11 @@ export function startLog(level: LogLevel, folder?: string, mostBytes = MOST_LOG_
   }
 }
 
+/** Where each line also goes, for a host with no log folder: the phone build keeps its lines in browser storage. */
+export function logLinesTo(given: ((line: string) => void) | undefined) {
+  sink = given;
+}
+
 /** Every line `run` causes carries `fields`, however deep, without passing them through each call. */
 export const withLogContext = <T>(fields: Fields, run: () => T) => context.run(fields, run);
 
@@ -68,7 +74,7 @@ function toFile(line: string) {
     }
     // Opened for each line, as Windows won't rename a file another app holds open. Same mode as `settings.json`.
     appendFileSync(logFile, `${line}\n`, { mode: 0o600 });
-    logBytes += Buffer.byteLength(line) + 1;
+    logBytes += new TextEncoder().encode(line).byteLength + 1;
   } catch (error) {
     fileFailure(error);
   }
@@ -92,6 +98,7 @@ function write(writer: "error" | "warn" | "info" | "debug", level: LogLevel, are
     const line = format(level, area, message, { ...context.getStore(), ...(typeof fields === "function" ? fields() : fields) });
     console[writer](line);
     toFile(line);
+    sink?.(line);
   } catch {
     // A log line is never worth a failed Turn.
   }

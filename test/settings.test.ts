@@ -103,6 +103,7 @@ test("a fresh install has images on, Prose, medium type, blank Model Instruction
     canQuit: false,
     textCommand: [],
     commandHere: true,
+    hostedOnly: false,
   });
 });
 
@@ -264,6 +265,7 @@ test("every setting survives a restart, and no key comes back", async () => {
     canQuit: false,
     textCommand: [],
     commandHere: true,
+    hostedOnly: false,
   };
   expect(await response.json()).toEqual(expected);
 

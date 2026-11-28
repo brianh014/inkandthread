@@ -1,3 +1,4 @@
+import { useWakeLock } from "./phone";
 import { Fragment, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ArtStylePicker, artStyleText, OWN_ART_STYLE } from "./art-style-picker";
 import { roman } from "./chat-style";
@@ -48,6 +49,7 @@ const BUILDING = "The Narrator is building the world. Missing pictures are drawn
 export function NewStory({ step }: { step?: string }) {
   const [draft, setDraft] = useState(stored);
   const [busy, setBusy] = useState("");
+  useWakeLock(!!busy);
   const [error, setError] = useState("");
   const [setupNotice, setSetupNotice] = useState<string>();
   const [imagesReady, setImagesReady] = useState<boolean>();

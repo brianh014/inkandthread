@@ -1,3 +1,4 @@
+import { fromBase64 } from "./base64";
 import { dimensions, type Graph, type GraphChoices } from "./graph-builder";
 import type { ImagePayload } from "./image-adapter";
 
@@ -34,7 +35,7 @@ const PAYLOAD_FIELDS = ["prompt", "negative_prompt", "art_style", "aspect_ratio"
 const REFERENCE = /^(?:has_)?(?:(?:reference|npc)_[1-9]\d*|previous_scene|pc)$/;
 
 // Mid grey and 64 pixels wide, because VAEEncode trims an image to multiples of 8 and would leave nothing of a tiny one.
-// Text until it's used, as the browser loads this file for the example and has no Buffer.
+// Text until it's used, as the page loads this file for the example.
 const BLANK = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAAAAACPAi4CAAAAKUlEQVR42u3MQREAAAwCIKMb3RD77SAA6VEEAoFAIBAIBAKBQCAQfA8G320AeXC6efoAAAAASUVORK5CYII=";
 
 type Values = Record<string, string | number>;
@@ -120,7 +121,7 @@ export async function fillWorkflow(
       .map(async (name) => {
         const slot = name.replace(/^has_/, "");
         const image = referenceAt(slot, reference_images);
-        values[name] = name === slot ? await store(image ?? { bytes: Buffer.from(BLANK, "base64"), mediaType: "image/png" }) : Number(image !== undefined);
+        values[name] = name === slot ? await store(image ?? { bytes: fromBase64(BLANK), mediaType: "image/png" }) : Number(image !== undefined);
       }),
   );
   return Object.fromEntries(Object.entries(workflow).map(([id, node]) => [id, { ...node, inputs: filled(node.inputs, values) }])) as Graph;

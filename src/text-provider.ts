@@ -57,7 +57,10 @@ const isRefusal = (error?: ProviderError) => ["refusal", "content_policy_violati
 
 async function* eventData(body: ReadableStream, onRead: () => void) {
   let pending = "";
-  for await (const part of body.pipeThrough(new TextDecoderStream())) {
+  // Reading by hand because Safari, where the phone app runs this, can't iterate a ReadableStream.
+  const reader = body.pipeThrough(new TextDecoderStream()).getReader();
+  for (let read = await reader.read(); !read.done; read = await reader.read()) {
+    const part = read.value;
     const lines = (pending + part).split("\n");
     pending = lines.pop()!;
     // Anything else is a blank line or a comment, such as OpenRouter's keep-alive, which a stuck upstream sends forever, so it
@@ -523,8 +526,11 @@ type Generation = { total_cost?: number; native_tokens_prompt?: number; native_t
  */
 async function generationUsage(url: string, id: string, headers: Record<string, string>, named: object): Promise<TextUsage | undefined> {
   for (const wait of [2_000, 5_000, 15_000]) {
-    // Unref'd, so a lookup still waiting never holds the app (or a test run) open.
-    await new Promise((done) => setTimeout(done, wait).unref());
+    // Unref'd, so a lookup still waiting never holds the app (or a test run) open. A browser's timers have no unref, and need none.
+    await new Promise((done) => {
+      const timer: { unref?: () => void } | number = setTimeout(done, wait);
+      if (typeof timer === "object") timer.unref?.();
+    });
     try {
       const response = await fetch(`${url}/generation?id=${encodeURIComponent(id)}`, { headers, signal: AbortSignal.timeout(10_000) });
       if (!response.ok) continue;

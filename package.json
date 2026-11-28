@@ -1,6 +1,6 @@
 {
   "name": "inkandthread",
-  "version": "0.6.5",
+  "version": "0.7.0",
   "description": "A choose-your-own visual novel, written as you play, by an AI you connect.",
   "license": "AGPL-3.0-only",
   "author": "Brian Holt",
@@ -27,6 +27,7 @@
     "check": "biome ci && tsc --noEmit && bun test"
   },
   "dependencies": {
+    "@sqlite.org/sqlite-wasm": "3.54.1-build1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "zod": "^4.6.7"

@@ -457,6 +457,10 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
           <code>~/Library/Application Support/Ink & Thread</code> on a Mac. The <code>Saves</code> folder holds one file per story. Copy the folder to back
           everything up.
         </p>
+        <p>
+          In the phone app they are in your browser's storage for the app, not in files you can see, so {tool(ExportIcon, "Export")} is how to keep a copy. See{" "}
+          {link("devices", "Other devices")}.
+        </p>
       </>
     ),
   },
@@ -568,7 +572,8 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <h3>Advanced</h3>
         <p>
           <b>Log Level</b>: how much goes in the log in the <code>logs</code> folder. By default it notes everything you and the AI do, and what came of it.
-          Raise it to Verbose to trace a problem. The log never holds your keys, and holds your story's text only with Story in log on.
+          Raise it to Verbose to trace a problem. The log never holds your keys, and holds your story's text only with Story in log on. In the phone app the log
+          stays on the phone, and <b>Save the log</b> downloads it to send with a bug report.
         </p>
         <p>
           <b>Story in log</b>: also writes everything sent to the AI and every reply, picture prompts too, story text included, to the log. It's only needed for
@@ -602,6 +607,25 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         <p>
           <b>The Server has no accounts.</b> Anyone who can reach it can play, change Settings and spend your saved keys. Keep it on a network you trust.
         </p>
+        <h3>The phone app</h3>
+        <p>
+          The phone app is Ink & Thread as a website that runs entirely on your phone. Your stories, Settings and keys stay on the phone, and it talks only to
+          your AI. Open{" "}
+          <a href="https://play.inkandthread.app" target="_blank" rel="noreferrer">
+            play.inkandthread.app
+          </a>{" "}
+          in Chrome or Safari, then add it to your Home Screen: a browser may clear a website's stories after a while, but keeps an installed app's. It can't
+          run in private browsing.
+        </p>
+        <p>
+          It reaches online AIs only, OpenRouter, NanoGPT or Google AI Studio, as a phone can't run its own. It keeps the screen on while the AI writes. If you
+          switch away and the phone pauses the app part way through a Turn, the Turn stops, and your move comes back in the box to send again. Only one tab or
+          window can have your stories open at a time.
+        </p>
+        <p>
+          Your stories live only on the phone, so {tool(ExportIcon, "Export")} them now and then; the Menu reminds you once a week. An exported Save opens in
+          the desktop app with <b>Import a Save</b>, and one from the desktop opens on the phone, up to 100 MB.
+        </p>
       </>
     ),
   },
@@ -621,6 +645,9 @@ const SECTIONS: { slug: string; name: string; body: ReactNode }[] = [
         </p>
         <p>
           If you run Ink & Thread from its source code, update with <code>git pull</code> and <code>bun install</code> instead.
+        </p>
+        <p>
+          The phone app updates as a website does: it fetches the new version by itself, and the notice offers <b>Reload to update</b>.
         </p>
       </>
     ),

@@ -31,6 +31,8 @@ export type Settings = Omit<Required<SettingsChange>, "textApiKey" | "imageApiKe
   canQuit: boolean;
   /** The page is on the computer Ink & Thread runs on, so it may change the command. */
   commandHere: boolean;
+  /** Only hosted services can be reached, as in the phone app: no local server or command, ComfyUI or Wiro. */
+  hostedOnly: boolean;
 };
 export type TextHost = Awaited<ReturnType<typeof textHosts>>[number];
 export type Journal = {
@@ -86,6 +88,25 @@ async function request<T>(path: string, init?: RequestInit) {
   const response = await fetch(path, init);
   if (!response.ok) throw new Error(await errorMessage(response));
   return (await response.json()) as T;
+}
+
+/** The phone app's page, whose server is in it behind a service worker; the desktop's page never has one (ADR 0006). */
+export const inPageServer = () => !!navigator.serviceWorker?.controller;
+
+/**
+ * A download link that works in the phone app too: there the server is in the page (ADR 0006), and a download link skips
+ * the service worker that reaches it, so the file is fetched and handed over instead. On the desktop the link downloads
+ * by itself, and this does nothing.
+ */
+export async function downloadInPage(event: { preventDefault(): void }, href: string, failed: string) {
+  if (!inPageServer()) return;
+  event.preventDefault();
+  const response = await fetch(href);
+  if (!response.ok) throw new Error(failed);
+  const name = /filename="([^"]+)"/.exec(response.headers.get("content-disposition") ?? "")?.[1] ?? href.split("/").pop()!;
+  const link = Object.assign(document.createElement("a"), { href: URL.createObjectURL(await response.blob()), download: name });
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 60_000);
 }
 
 /** Tells the Server Log what only the page can see. Numbers and a Save's id only, as the route takes nothing else, and a failed report is nobody's problem. */

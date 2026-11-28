@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getUpdate, installUpdate, type UpdateStatus } from "./api";
 import { ConfirmDialog } from "./menu";
+import { reloadToUpdate, usePhoneUpdate } from "./phone";
 
 /** A New Version: the toast on every screen, and Settings → Updates, which share the Install button. */
 
@@ -95,6 +96,7 @@ const ASK_EVERY_MS = 60 * 60_000;
 
 /** On every screen, as players rarely go back to the Menu. Dismissed, it stays away until the next version. */
 export function NewVersionToast() {
+  const phoneUpdate = usePhoneUpdate();
   const [status, setStatus] = useState<UpdateStatus>();
   const [dismissed, setDismissed] = useState(() => {
     try {
@@ -112,6 +114,18 @@ export function NewVersionToast() {
     return () => clearInterval(timer);
   }, []);
 
+  // The phone app updates itself, as a website does: its new build is already here, waiting for a reload.
+  if (phoneUpdate)
+    return (
+      <aside className="notice dismissable toast" aria-label="New version">
+        <div className="toast-body">
+          <p>A new version of Ink & Thread is ready.</p>
+          <button type="button" className="action" onClick={() => reloadToUpdate(phoneUpdate)}>
+            Reload to update
+          </button>
+        </div>
+      </aside>
+    );
   const latest = status?.latest;
   if (!status || !latest || dismissed === latest.version) return null;
   const dismiss = () => {

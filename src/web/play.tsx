@@ -1,3 +1,4 @@
+import { useWakeLock } from "./phone";
 import { type FormEvent, Fragment, type ReactNode, type Ref, type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   stopTurn,
@@ -27,6 +28,7 @@ import {
   revert,
   saveSettings,
   setupProblem,
+  reportEvent,
 } from "./api";
 import {
   type Beat,
@@ -163,6 +165,28 @@ function storedDraft(id: string) {
   }
 }
 
+const sentKey = (id: string) => `inkandthread-sent-${id}`;
+type Sent = { input: string; basedOn: number };
+
+/**
+ * The move a Turn was sent with, kept until the Turn ends, and across a relaunch: a phone can stop the app part way through
+ * a Turn (ADR 0006), and a desktop server can stop, and then nothing of the move would be saved. Blocked storage only forgets it.
+ */
+function keepSent(id: string, sent?: Sent) {
+  try {
+    if (sent) localStorage.setItem(sentKey(id), JSON.stringify(sent));
+    else localStorage.removeItem(sentKey(id));
+  } catch {}
+}
+
+function sentMove(id: string): Sent | undefined {
+  try {
+    return JSON.parse(localStorage.getItem(sentKey(id)) ?? "null") ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function storeDraft(id: string, draft: string) {
   try {
     if (draft) sessionStorage.setItem(draftKey(id), draft);
@@ -197,10 +221,13 @@ export function Play({ id }: { id: string }) {
     if (enhanced && draft !== enhanced.now) setEnhanced(undefined);
   };
   const setDraft = (draft: string) => {
-    inputBox.current!.value = draft;
+    // Before the story has loaded there is no box yet, and it starts from the kept draft.
+    if (inputBox.current) inputBox.current.value = draft;
     keepDraft(draft);
   };
   const [turn, setTurn] = useState<TurnInProgress>();
+  // The screen stays on while the Narrator writes, in the phone app, as a locked phone pauses the Turn.
+  useWakeLock(!!turn);
   const [deciding, setDeciding] = useState(false);
   const [questioning, setQuestioning] = useState(false);
   const [telling, setTelling] = useState(false);
@@ -314,6 +341,7 @@ export function Play({ id }: { id: string }) {
     // Without Settings the story still reads, in Prose.
     const reading = getSettings().catch(() => undefined);
     const live: Promise<TurnStatus> = inProgress ? Promise.resolve({}) : getTurn(id).catch(() => ({}));
+    const sent = sentMove(id);
     Promise.all([getSave(id), getMessages(id), reading, live]).then(
       ([save, messages, settings, { running, failed }]) => {
         if (settings) {
@@ -344,6 +372,15 @@ export function Play({ id }: { id: string }) {
         }
         const replaces = messages.find((message) => message.id === running?.replaces);
         const resumed = running && startTurn(id, { input: running.input, narration: running.narration, replaces }, (show) => resumeTurn(id, running, show));
+        // A move sent, with no Turn left running and nothing written since, was lost when the app stopped: back in the box, never resent.
+        if (sent && !inProgress && !resumed) {
+          keepSent(id);
+          if (!failure && (messages.at(-1)?.id ?? 0) === sent.basedOn) {
+            setError("Ink & Thread stopped before your move was written, so it wasn't sent. It's back in the box to send again.");
+            giveBack(sent.input);
+            reportEvent("move-given-back", { save: id, after: sent.basedOn });
+          }
+        }
         const move = firstMove({
           running: !!(inProgress || resumed),
           failure: !!failure,
@@ -525,6 +562,7 @@ export function Play({ id }: { id: string }) {
 
   // `before` is passed in because the load effect runs this before `messages` is set.
   function playInput(input: string, before: Message[], replaces?: Message) {
+    if (!replaces) keepSent(id, { input, basedOn: before.at(-1)?.id ?? 0 });
     return run({ input, narration: "", replaces }, before, (show, signal) =>
       replaces ? replaceResponse(id, replaces.id, input, show, signal) : playTurn(id, input, before.at(-1)?.id ?? 0, show, signal),
     );
@@ -544,6 +582,7 @@ export function Play({ id }: { id: string }) {
   async function follow(running: RunningTurn, before?: Message[]) {
     unwatchTurn.current = running.watch(setTurn);
     const result = await running.finished;
+    keepSent(id);
     if (leaving.current.signal.aborted) return;
     unwatchTurn.current();
     const { replaces, narration, edit } = running.turn;

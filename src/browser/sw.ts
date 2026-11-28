@@ -15,6 +15,7 @@ const CACHE = `inkandthread-${BUILD}`;
 
 // A new build waits until the player reloads to update (the New Version toast), so it never changes under a running Turn.
 self.addEventListener("message", (event) => {
+  if (event.origin !== self.location.origin) return;
   if (event.data === "take-over") void self.skipWaiting();
 });
 

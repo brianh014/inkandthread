@@ -18,7 +18,7 @@ Ink & Thread is a single-player story game, played like a Telltale game or a cho
 
 It runs on your own computer and talks to models you choose. Bring an OpenAI-compatible text API (OpenRouter, NanoGPT, DeepInfra, a local server) and, for pictures, OpenRouter, NanoGPT, Wiro or your own ComfyUI.
 
-**[Download the latest release](https://github.com/brianh014/inkandthread/releases/latest)** for Windows, macOS or Linux, and see [Quick Install](#quick-install) to get started.
+**[Download the latest release](https://github.com/brianh014/inkandthread/releases/latest)** for Windows, macOS or Linux, and see [Quick Install](#quick-install) to get started. On a phone, play at **[play.inkandthread.app](https://play.inkandthread.app)**, with nothing to install: it runs entirely on the phone and reaches online AIs only ([On a phone](#on-a-phone)).
 
 <p align="center"><img src="docs/screenshots/story-picture-desktop-light.jpg" alt="A story under way: a scene picture drawn as the scene changes, with the Recap, Loose Ends and recent characters beside it, and three Choices, light theme" width="620"> <img src="docs/screenshots/story-picture-mobile-light.jpg" alt="The same story on a phone, light theme" width="179"></p>
 <p align="center"><img src="docs/screenshots/story-picture-desktop-dark.jpg" alt="A story under way: a scene picture drawn as the scene changes, with the Recap, Loose Ends and recent characters beside it, and three Choices, dark theme" width="620"> <img src="docs/screenshots/story-picture-mobile-dark.jpg" alt="The same story on a phone, dark theme" width="179"></p>

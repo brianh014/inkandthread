@@ -51,7 +51,14 @@ const NO_COMFY: LocalImages = {
   workflow: { problem: "" },
 };
 
-const dice = () => 1 + ((crypto.getRandomValues(new Uint32Array(1))[0] ?? 0) % 20);
+// Even odds, as the desktop's randomInt gives: a draw past the last whole run of 20 is drawn again.
+const FAIR_BELOW = 2 ** 32 - (2 ** 32 % 20);
+const dice = () => {
+  for (;;) {
+    const drawn = crypto.getRandomValues(new Uint32Array(1))[0]!;
+    if (drawn < FAIR_BELOW) return 1 + (drawn % 20);
+  }
+};
 
 async function start() {
   startLog("info");
@@ -161,7 +168,7 @@ async function answer(asked: Asked, stop: AbortSignal): Promise<Response> {
   await keepHeadroom(started.pool);
   const url = new URL(asked.url);
   const found = match(started.routes, url.pathname);
-  const handler = found?.route.methods[asked.method];
+  const handler = found && Object.hasOwn(found.route.methods, asked.method) ? found.route.methods[asked.method] : undefined;
   if (!handler) {
     log.verbose("http", "No such route");
     return Response.json({ error: "Not found" }, { status: 404 });
@@ -172,8 +179,9 @@ async function answer(asked: Asked, stop: AbortSignal): Promise<Response> {
 
 const ready = start();
 
-addEventListener("message", async ({ data, ports: [port] }: MessageEvent<Asked>) => {
-  if (!port) return;
+addEventListener("message", async ({ data, origin, ports: [port] }: MessageEvent<Asked>) => {
+  // Only the page that started it can post here, whose messages carry no origin or its own.
+  if (!port || (origin && origin !== self.location.origin)) return;
   const send = (message: Answer, moved: Transferable[] = []) => port.postMessage(message, moved);
   // The page let go of the request, as a closed Enhance does: the handler hears it, as it would from Bun.
   const stop = new AbortController();
